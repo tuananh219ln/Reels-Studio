@@ -2,11 +2,26 @@
 
 import EmptyState from "@/components/EmptyState";
 import PageHeader from "@/components/PageHeader";
-import { DeleteOutlined, LinkOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Descriptions, Flex, Input, Popconfirm, Space, Table, Tag, Typography } from "antd";
+import { DeleteOutlined, LinkOutlined, ReloadOutlined, SearchOutlined, SwapOutlined } from "@ant-design/icons";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Checkbox,
+  Descriptions,
+  Flex,
+  Input,
+  Modal,
+  Popconfirm,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage, formatDateTime } from "@/lib/api";
+import { api, errorMessage, formatDateTime, formatDayTime } from "@/lib/api";
 import {
   openExtensionOptions,
   useCompetitorScanner,
@@ -32,7 +47,37 @@ type Stats = {
   median_views: number | null;
   buckets: { label: string; videos: number; views: number }[];
   top10_share: number | null;
+  by_type: { reel: number; video: number };
+  videos_per_week: number | null;
+  frequency: { reel: Frequency | null; video: Frequency | null };
+  newest_posted_at: string | null;
+  oldest_posted_at: string | null;
   limits: string[];
+};
+
+/** How often one grid was posted to (api competitors._frequency): the whole span, and each stretch between dates. */
+type Frequency = {
+  videos_per_week: number | null;
+  from: string;
+  to: string;
+  videos: number;
+  stretches: { from: string; to: string; videos: number; videos_per_week: number | null }[];
+};
+
+/** One competitor in "So sánh" (api competitors.compare), by its latest scan that read anything. */
+type Compared = {
+  competitor: { id: number; fb_url: string; name: string | null };
+  scan: {
+    videos: number;
+    by_type: { reel: number; video: number };
+    total_views: number;
+    median_views: number | null;
+    max_views: number | null;
+    top10_share: number | null;
+    videos_per_week: number | null;
+    newest_posted_at: string | null;
+    finished_at: string | null;
+  } | null;
 };
 
 type TopVideo = {
@@ -46,6 +91,9 @@ type TopVideo = {
   reactions: number | null;
   comments: number | null;
   shares: number | null;
+  posted_at: string | null;
+  posted_raw: string | null;
+  type: "reel" | "video";
 };
 type Report = { id: number; created_at: string | null; written_by: string; markdown: string };
 type ScanDetail = CompetitorScan & { stats: Stats; top_videos: TopVideo[]; report: Report | null };
@@ -67,6 +115,10 @@ export default function CompetitorsPage() {
   const [starting, setStarting] = useState(false);
   const [wakeUp, setWakeUp] = useState(0);
   const [open, setOpen] = useState<number | null>(null);
+  // M5: the Videos tab is read too; competitors ticked for "So sánh".
+  const [includeVideos, setIncludeVideos] = useState(false);
+  const [picked, setPicked] = useState<number[]>([]);
+  const [comparing, setComparing] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -91,7 +143,7 @@ export default function CompetitorsPage() {
   async function start() {
     setStarting(true);
     try {
-      await api("/competitors/scans", "POST", { url });
+      await api("/competitors/scans", "POST", { url, include_videos: includeVideos });
       setUrl("");
       setWakeUp((value) => value + 1);
       await load();
@@ -219,6 +271,14 @@ export default function CompetitorsPage() {
               Quét
             </Button>
           </Space.Compact>
+          <Flex gap={12} wrap align="center">
+            <Checkbox checked={includeVideos} onChange={(event) => setIncludeVideos(event.target.checked)}>
+              Quét cả tab Video (video thường), sau Reels
+            </Checkbox>
+            <Button icon={<SwapOutlined />} disabled={picked.length < 2} onClick={() => setComparing(true)}>
+              So sánh {picked.length >= 2 ? `${picked.length} đối thủ` : "(chọn từ 2 đối thủ)"}
+            </Button>
+          </Flex>
           <ScannerNotice
             version={scanner.version}
             current={scanner.current}
@@ -231,6 +291,11 @@ export default function CompetitorsPage() {
         <Table<Competitor>
           rowKey="id"
           columns={columns}
+          rowSelection={{
+            selectedRowKeys: picked,
+            onChange: (keys) => setPicked(keys.map(Number).slice(0, 10)),
+            getCheckboxProps: (row) => ({ "aria-label": `Chọn ${row.name || row.fb_url} để so sánh` }),
+          }}
           dataSource={competitors ?? []}
           loading={competitors === null}
           pagination={false}
@@ -244,7 +309,85 @@ export default function CompetitorsPage() {
           locale={{ emptyText: <EmptyState description="Chưa quét đối thủ nào: dán link Facebook ở trên" /> }}
         />
       </Card>
+      {comparing && <CompareView ids={picked} onClose={() => setComparing(false)} />}
     </>
+  );
+}
+
+/** "So sánh": the ticked competitors side by side, each by its latest scan that read anything. */
+function CompareView({ ids, onClose }: { ids: number[]; onClose: () => void }) {
+  const [rows, setRows] = useState<Compared[] | null>(null);
+  const [failed, setFailed] = useState("");
+  useEffect(() => {
+    api<{ competitors: Compared[] }>(`/competitors/compare?ids=${ids.join(",")}`)
+      .then((data) => setRows(data.competitors))
+      .catch((err) => setFailed(errorMessage(err)));
+  }, [ids]);
+  const value = (row: Compared, read: (scan: NonNullable<Compared["scan"]>) => string) =>
+    row.scan ? read(row.scan) : "Chưa quét xong";
+  return (
+    <Modal open title="So sánh đối thủ" footer={null} onCancel={onClose} width={960}>
+      {failed && <Typography.Text type="danger">{failed}</Typography.Text>}
+      <Table<Compared>
+        size="small"
+        rowKey={(row) => row.competitor.id}
+        loading={rows === null && !failed}
+        dataSource={rows ?? []}
+        pagination={false}
+        scroll={{ x: 820 }}
+        columns={[
+          {
+            title: "Đối thủ",
+            key: "name",
+            render: (_, row) => row.competitor.name || row.competitor.fb_url.replace("https://www.facebook.com/", ""),
+          },
+          {
+            title: "Video (Reels · Video)",
+            key: "videos",
+            render: (_, row) =>
+              value(row, (scan) => `${number.format(scan.videos)} (${scan.by_type.reel} · ${scan.by_type.video})`),
+          },
+          {
+            title: "Tổng view",
+            key: "total",
+            render: (_, row) => value(row, (scan) => number.format(scan.total_views)),
+          },
+          {
+            title: "Trung vị",
+            key: "median",
+            render: (_, row) =>
+              value(row, (scan) => (scan.median_views === null ? "—" : number.format(scan.median_views))),
+          },
+          {
+            title: "Cao nhất",
+            key: "max",
+            render: (_, row) => value(row, (scan) => (scan.max_views === null ? "—" : number.format(scan.max_views))),
+          },
+          {
+            title: "Top 10 chiếm",
+            key: "top10",
+            render: (_, row) =>
+              value(row, (scan) => (scan.top10_share === null ? "—" : `${Math.round(scan.top10_share * 1000) / 10}%`)),
+          },
+          {
+            title: "Video/tuần",
+            key: "frequency",
+            render: (_, row) =>
+              value(row, (scan) => (scan.videos_per_week === null ? "—" : String(scan.videos_per_week))),
+          },
+          {
+            title: "Đăng gần nhất",
+            key: "newest",
+            render: (_, row) =>
+              value(row, (scan) => (scan.newest_posted_at ? formatDayTime(scan.newest_posted_at) : "—")),
+          },
+        ]}
+      />
+      <Typography.Text type="secondary">
+        Số liệu tính bằng code từ lượt quét gần nhất của từng đối thủ. Nhờ Claude (competitor_compare) để rút ra khác
+        biệt về chủ đề và cách làm.
+      </Typography.Text>
+    </Modal>
   );
 }
 
@@ -274,7 +417,7 @@ function ScannerNotice({
         type="info"
         showIcon
         message={version ? `Tiện ích bản ${version} chưa quét được đối thủ` : "Chưa thấy tiện ích Reels Studio"}
-        description="Cài hoặc cập nhật tiện ích (thư mục extension/ của dự án, bản 1.2.0 trở lên) trong Chrome, rồi tải lại trang."
+        description="Cài hoặc cập nhật tiện ích (thư mục extension/ của dự án, bản 1.4.0 trở lên) trong Chrome, rồi tải lại trang."
       />
     );
   }
@@ -297,6 +440,30 @@ function ScannerNotice({
         </Flex>
       }
     />
+  );
+}
+
+/** How often each grid was posted to over time: the stretches between dated videos, newest first. */
+function FrequencyView({ frequency }: { frequency: Stats["frequency"] }) {
+  const grids = (
+    [
+      ["Reels", frequency.reel],
+      ["Video", frequency.video],
+    ] as const
+  ).filter(([, grid]) => grid && grid.stretches.length);
+  if (!grids.length) return null;
+  const day = (iso: string) => formatDateTime(iso).slice(0, 10);
+  return (
+    <Flex vertical gap={4}>
+      {grids.map(([label, grid]) => (
+        <Typography.Text key={label} type="secondary">
+          {label}:{" "}
+          {grid!.stretches
+            .map((stretch) => `${day(stretch.from)}–${day(stretch.to)}: ${stretch.videos_per_week ?? "—"}/tuần`)
+            .join(" · ")}
+        </Typography.Text>
+      ))}
+    </Flex>
   );
 }
 
@@ -327,7 +494,18 @@ function ScanDetailView({ scanId }: { scanId: number }) {
             {number.format(bucket.videos)} video
           </Descriptions.Item>
         ))}
+        <Descriptions.Item label="Reels · Video">
+          {number.format(stats.by_type.reel)} · {number.format(stats.by_type.video)}
+        </Descriptions.Item>
+        <Descriptions.Item label="Video/tuần">{stats.videos_per_week ?? "—"}</Descriptions.Item>
+        <Descriptions.Item label="Đăng gần nhất">
+          {stats.newest_posted_at ? formatDayTime(stats.newest_posted_at) : "—"}
+        </Descriptions.Item>
+        <Descriptions.Item label="Cũ nhất đọc được">
+          {stats.oldest_posted_at ? formatDateTime(stats.oldest_posted_at).slice(0, 10) : "—"}
+        </Descriptions.Item>
       </Descriptions>
+      <FrequencyView frequency={stats.frequency} />
       <Table<TopVideo>
         data-testid="competitor-top-videos"
         size="small"
@@ -350,6 +528,12 @@ function ScanDetailView({ scanId }: { scanId: number }) {
                 <Typography.Link href={video.url} target="_blank" rel="noreferrer">
                   {video.url}
                 </Typography.Link>
+                {(video.posted_at || video.type === "video") && (
+                  <Typography.Text type="secondary">
+                    {video.type === "video" ? "Video · " : ""}
+                    {video.posted_at ? `Đăng ${formatDayTime(video.posted_at)} (${video.posted_raw ?? ""})` : ""}
+                  </Typography.Text>
+                )}
                 {video.caption && (
                   <Typography.Paragraph
                     ellipsis={{ rows: 2, expandable: true, symbol: "Xem thêm" }}

@@ -174,12 +174,24 @@ async function scanReels(message, appTabId, account) {
   try {
     await signInScanTab(tabId, account);
     await loadIn(tabId, message.url);
-    const grid = await run(reelsStudioScanReels, [message.scanId, message.maxVideos, selectors]);
+    let grid = await run(reelsStudioScanReels, [message.scanId, message.maxVideos, selectors, "reel"]);
+    const reelsEmpty = grid?.empty;
+    // M5: the Videos tab after Reels, when the scan asks for it; a page without Reels may still have videos.
+    if (message.videosUrl && grid && (grid.status === "done" || reelsEmpty)) {
+      const name = grid.name;
+      await loadIn(tabId, message.videosUrl);
+      grid = await run(reelsStudioScanReels, [message.scanId, message.maxVideos, selectors, "video"]);
+      if (grid?.empty && !reelsEmpty) {
+        grid = { status: "done", name };
+      } else if (grid && !grid.name) {
+        grid.name = name;
+      }
+    }
     if (!grid || grid.status !== "done") {
       endScan(grid || { status: "failed", error: "Không đọc được trang Facebook" });
       return;
     }
-    // The page saves the last batch, then sends the reels to open ("scan-details") or closes the scan.
+    // The page saves the last batch, then sends the videos to open ("scan-details") or closes the scan.
     toApp({ type: "scan-grid-done", scanId: message.scanId, name: grid.name });
   } catch (error) {
     endScan({
@@ -191,9 +203,10 @@ async function scanReels(message, appTabId, account) {
   }
 }
 
-async function readReels(ids, commentIds) {
+/** Opens each target's own page, 4–8 s apart: {id, url, comments}, the url always one of Facebook's own. */
+async function readReels(targets) {
   const scanId = scanning.scanId;
-  for (const [index, id] of ids.entries()) {
+  for (const [index, { id, url, comments }] of targets.entries()) {
     if (!scanning || scanning.scanId !== scanId) {
       return;
     }
@@ -202,8 +215,8 @@ async function readReels(ids, commentIds) {
       await new Promise((wait) => setTimeout(wait, low + Math.random() * (high - low)));
     }
     try {
-      await loadIn(scanning.tabId, `https://www.facebook.com/reel/${id}/`);
-      const detail = await run(reelsStudioReadReel, [scanning.selectors, commentIds.has(id)]);
+      await loadIn(scanning.tabId, url);
+      const detail = await run(reelsStudioReadReel, [scanning.selectors, comments]);
       if (detail?.stopped === "checkpoint") {
         endScan({
           status: "partial",
@@ -217,7 +230,7 @@ async function readReels(ids, commentIds) {
         return;
       }
       toApp({ type: "scan-detail", scanId, video: { fb_video_id: id, ...detail } });
-      toApp({ type: "scan-tick", scanId, read: index + 1, of: ids.length });
+      toApp({ type: "scan-tick", scanId, read: index + 1, of: targets.length });
     } catch {
       endScan({ status: "partial", error: "Cửa sổ Facebook đã đóng khi đang mở từng video; bấm Tiếp tục để đọc tiếp" });
       return;
@@ -247,7 +260,8 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       reply({ started: false, error: "Tiện ích đang quét một đối thủ khác" });
       return false;
     }
-    if (!/^https:\/\/www\.facebook\.com\//.test(String(message.url))) {
+    const facebook = (url) => /^https:\/\/www\.facebook\.com\//.test(String(url));
+    if (!facebook(message.url) || (message.videosUrl && !facebook(message.videosUrl))) {
       reply({ started: false, error: "Link không phải Facebook" });
       return false;
     }
@@ -263,9 +277,21 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     return true;
   }
   if (message?.type === "scan-details" && scanning && message.scanId === scanning.scanId) {
-    const ids = (Array.isArray(message.ids) ? message.ids : []).filter((id) => /^\d{5,30}$/.test(String(id)));
-    if (ids.length) {
-      readReels(ids.slice(0, 100), new Set(Array.isArray(message.commentIds) ? message.commentIds.map(String) : []));
+    // From the api through the page: each with its own address (a reel, or a video of the Videos tab). An older
+    // page sends only ids and comment ids: each is opened as a reel.
+    const commentIds = new Set(Array.isArray(message.commentIds) ? message.commentIds.map(String) : []);
+    const given = Array.isArray(message.targets)
+      ? message.targets.map((target) => ({ id: String(target.fb_video_id), url: String(target.url), comments: Boolean(target.comments) }))
+      : (Array.isArray(message.ids) ? message.ids : []).map((id) => ({
+          id: String(id),
+          url: `https://www.facebook.com/reel/${id}/`,
+          comments: commentIds.has(String(id)),
+        }));
+    const targets = given
+      .filter((target) => /^\d{5,30}$/.test(target.id) && target.url.startsWith("https://www.facebook.com/"))
+      .slice(0, 150);
+    if (targets.length) {
+      readReels(targets);
     } else {
       endScan({ status: "done" });
     }

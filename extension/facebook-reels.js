@@ -6,16 +6,18 @@
  */
 
 /**
- * The competitor's Reels grid: scrolls like a person, one screen at a time with a 1.5–3 s random pause, reads each
- * reel's id and the view count the grid shows, and sends new ones in batches. It stops after four scrolls with
- * nothing new, at the scan's limit, after 30 minutes, or at once on a checkpoint or login page.
+ * The competitor's Reels grid, or with `kind` "video" its Videos tab: scrolls like a person, one screen at a time with
+ * a 1.5–3 s random pause, reads each video's id and the view count the grid shows, and sends new ones in batches
+ * (each with its grid's `type`, places counted on each grid apart). It stops after four scrolls with nothing new, at
+ * the scan's limit, after 30 minutes, or at once on a checkpoint or login page.
  */
-async function reelsStudioScanReels(scanId, maxVideos, selectors) {
+async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel") {
   const IDLE_ROUNDS = 4;
   const BATCH = 50;
   const TIME_LIMIT_MS = 30 * 60 * 1000;
   const started = Date.now();
-  const idPattern = new RegExp(selectors.reelId);
+  const linkSelector = kind === "video" ? selectors.videoLink : selectors.reelLink;
+  const idPattern = new RegExp(kind === "video" ? selectors.videoId : selectors.reelId);
   const viewsPattern = new RegExp(selectors.views, "i");
   const seen = new Map(); // fb_video_id -> {fb_video_id, views_raw, position}
   const pending = [];
@@ -55,7 +57,7 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors) {
   };
   const read = () => {
     let added = 0;
-    for (const link of document.querySelectorAll(selectors.reelLink)) {
+    for (const link of document.querySelectorAll(linkSelector)) {
       const id = (link.getAttribute("href") || "").match(idPattern)?.[1];
       if (!id) continue;
       const views = viewsOf(link);
@@ -68,7 +70,7 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors) {
         continue;
       }
       if (seen.size >= maxVideos) break;
-      const video = { fb_video_id: id, views_raw: views, position: seen.size };
+      const video = { fb_video_id: id, views_raw: views, position: seen.size, type: kind };
       seen.set(id, video);
       pending.push(video);
       added += 1;
@@ -103,7 +105,12 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors) {
   read();
   await flush();
   if (!seen.size) {
-    return { status: "failed", error: "Không thấy Reels nào: trang không có Reels công khai, hoặc tài khoản phụ không xem được" };
+    const what = kind === "video" ? "video nào ở tab Video" : "Reels nào";
+    return {
+      status: "failed",
+      empty: true,
+      error: `Không thấy ${what}: trang không có ${kind === "video" ? "video" : "Reels"} công khai, hoặc tài khoản phụ không xem được`,
+    };
   }
   return { status: "done", name: pageName() };
 }
@@ -148,6 +155,18 @@ async function reelsStudioReadReel(selectors, withComments) {
     caption = document.querySelector('meta[property="og:description"]')?.getAttribute("content") || "";
   }
   const audio = text(document.querySelector(selectors.audioLink));
+  // The posting time as written ("3 ngày", "17 tháng 10"): the first short text of the video's own part that looks
+  // like one; the api reads the date from it.
+  // Case matters: "5M" is a view count, "5m" five minutes.
+  const postedPattern = new RegExp(selectors.posted);
+  let posted = "";
+  for (const candidate of document.querySelectorAll(selectors.postedCandidates)) {
+    const value = text(candidate);
+    if (value.length <= 40 && outsideComments(candidate) && postedPattern.test(value)) {
+      posted = value;
+      break;
+    }
+  }
   const video = document.querySelector("video");
   const duration = video && Number.isFinite(video.duration) ? Math.round(video.duration) : null;
   const counts = {};
@@ -167,6 +186,7 @@ async function reelsStudioReadReel(selectors, withComments) {
   return {
     caption: caption.replace(/\s*(Ẩn bớt|See less)$/i, "").slice(0, 20000),
     audio_name: audio.slice(0, 1000) || null,
+    posted_raw: posted.slice(0, 200) || null,
     duration_s: duration,
     reactions_raw: counts.reactions || null,
     comments_raw: counts.comments || null,

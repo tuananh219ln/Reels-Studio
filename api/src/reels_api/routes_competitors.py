@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from . import competitors
 from .db import get_db
+from .errors import ApiError
 from .models import Session
 from .sessions import current_member
 
@@ -22,12 +23,23 @@ class ScanBody(BaseModel):
     max_videos: int = Field(competitors.MAX_VIDEOS_DEFAULT, ge=1, le=competitors.MAX_VIDEOS_LIMIT)
     fetch_captions_top_n: int = Field(competitors.CAPTIONS_TOP_DEFAULT, ge=0, le=competitors.CAPTIONS_TOP_LIMIT)
     fetch_comments_top_n: int = Field(competitors.COMMENTS_TOP_DEFAULT, ge=0, le=competitors.COMMENTS_TOP_LIMIT)
+    # M5: the Videos tab is read too, after Reels.
+    include_videos: bool = False
 
 
 class GridVideo(BaseModel):
     fb_video_id: str = Field(pattern=r"^\d{5,30}$")
     views_raw: str | None = Field(None, max_length=60)
     position: int | None = Field(None, ge=0, le=100_000)
+    # Which grid it was on: Reels or Videos (M5); places count on each grid apart.
+    type: Literal["reel", "video"] = "reel"
+
+
+def video_url(fb_video_id: str, kind: str) -> str:
+    """The address the extension opens for a video: built here from its id, never taken from the page."""
+    if kind == "video":
+        return f"https://www.facebook.com/watch/?v={fb_video_id}"
+    return f"https://www.facebook.com/reel/{fb_video_id}/"
 
 
 class VideosBody(BaseModel):
@@ -47,6 +59,8 @@ class VideoDetail(BaseModel):
     reactions_raw: str | None = Field(None, max_length=60)
     comments_raw: str | None = Field(None, max_length=60)
     shares_raw: str | None = Field(None, max_length=60)
+    # The posting time as written ("3 ngày", "17 tháng 10"); read into posted_at by competitors.parse_posted.
+    posted_raw: str | None = Field(None, max_length=200)
     # Only for the first fetch_comments_top_n reels; their text and likes, never who wrote them.
     comment_samples: list[CommentSample] = Field(default_factory=list, max_length=60)
 
@@ -73,10 +87,28 @@ def list_competitors(me: Session = Depends(current_member), db: DbSession = Depe
 @router.post("/scans", status_code=201)
 def start_scan(body: ScanBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     scan = competitors.start_scan(
-        db, me.user_id, body.url, body.max_videos, body.fetch_captions_top_n, body.fetch_comments_top_n
+        db,
+        me.user_id,
+        body.url,
+        body.max_videos,
+        body.fetch_captions_top_n,
+        body.fetch_comments_top_n,
+        body.include_videos,
     )
     db.commit()
     return competitors.scan_payload(scan)
+
+
+@router.get("/compare")
+def compare(ids: str, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "So sánh": 2–10 of the member's competitors side by side (`ids=1,2,3`), each by its latest scan."""
+    try:
+        wanted = list(dict.fromkeys(int(part) for part in ids.split(",") if part.strip()))
+    except ValueError:
+        raise ApiError(422, "bad_compare_ids", "Danh sách đối thủ không hợp lệ") from None
+    if not 2 <= len(wanted) <= 10:
+        raise ApiError(422, "bad_compare_ids", "Chọn từ 2 đến 10 đối thủ để so sánh")
+    return {"competitors": competitors.compare(db, me.user_id, wanted)}
 
 
 @router.get("/scans/{scan_id}")
@@ -129,8 +161,8 @@ def add_videos(
         [
             {
                 "fb_video_id": video.fb_video_id,
-                "url": f"https://www.facebook.com/reel/{video.fb_video_id}/",
-                "type": "reel",
+                "url": video_url(video.fb_video_id, video.type),
+                "type": video.type,
                 "views_raw": video.views_raw,
                 "position": video.position,
             }
@@ -143,12 +175,17 @@ def add_videos(
 
 @router.post("/scans/{scan_id}/enrich-targets")
 def enrich_targets(scan_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """After the grid: the reels whose own page the extension opens next, most viewed first."""
+    """After the grids: the videos whose own page the extension opens next, the most viewed first, then the grids'
+    timeline samples (for their posting date). `fb_video_ids` and `comment_ids` stay for extension 1.3.0, which
+    opens each as a reel."""
     scan = competitors.own_scan(db, scan_id, me.user_id, lock=True)
-    ids = competitors.enrich_targets(db, scan)
+    targets = competitors.enrich_targets(db, scan)
     db.commit()
-    # The first of them also have their comments sampled.
-    return {"fb_video_ids": ids, "comment_ids": ids[: competitors.comments_top(scan)]}
+    return {
+        "targets": targets,
+        "fb_video_ids": [target["fb_video_id"] for target in targets],
+        "comment_ids": [target["fb_video_id"] for target in targets if target["comments"]],
+    }
 
 
 @router.post("/scans/{scan_id}/details")

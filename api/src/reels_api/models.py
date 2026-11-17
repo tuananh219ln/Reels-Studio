@@ -1595,6 +1595,9 @@ class CompetitorVideo(Base):
     position: Mapped[int | None] = mapped_column(Integer)
     caption: Mapped[str | None] = mapped_column(Text)
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The posting time as the video's own page wrote it ("3 ngày", "17 tháng 10"; migration 0099): posted_at is
+    # read from it (competitors.parse_posted), so a relative one is approximate.
+    posted_raw: Mapped[str | None] = mapped_column(String(80))
     duration_s: Mapped[int | None] = mapped_column(Integer)
     audio_name: Mapped[str | None] = mapped_column(Text)
     reactions: Mapped[int | None] = mapped_column(BigInteger)

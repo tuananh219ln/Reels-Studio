@@ -2,7 +2,7 @@
 link and the grid's view counts, the page's scan flow with the extension (claim, batches, finish, resume), the
 numbers summed in code, and the MCP tools the member's Claude uses."""
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import login, make_user
@@ -47,6 +47,58 @@ def test_links_are_made_canonical(raw, fb_url, kind, reels_url):
     assert parsed["fb_url"] == fb_url and parsed["kind"] == kind
     if reels_url:
         assert parsed["reels_url"] == reels_url
+
+
+def test_the_videos_tab_has_its_own_address():
+    assert (
+        competitors.parse_url("facebook.com/linhdoan/reels")["videos_url"]
+        == "https://www.facebook.com/linhdoan/videos/"
+    )
+    assert (
+        competitors.parse_url("https://www.facebook.com/profile.php?id=100012345678901")["videos_url"]
+        == "https://www.facebook.com/profile.php?id=100012345678901&sk=videos"
+    )
+
+
+# Read on 2026-11-17 at 15:00 Vietnam time (08:00 UTC).
+READ_AT = datetime(2026, 11, 17, 8, 0, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("raw", "vietnam"),
+    [
+        ("Vừa xong", "2026-11-17 15:00"),
+        ("5 phút", "2026-11-17 14:55"),
+        ("3 giờ", "2026-11-17 12:00"),
+        ("2 ngày", "2026-11-15 15:00"),
+        ("1 tuần", "2026-11-10 15:00"),
+        ("3 tháng", "2026-08-19 15:00"),
+        ("2 năm", "2024-11-17 15:00"),
+        ("3d", "2026-11-14 15:00"),
+        ("5m", "2026-11-17 14:55"),
+        ("2w", "2026-11-03 15:00"),
+        ("3 days ago", "2026-11-14 15:00"),
+        ("Hôm qua lúc 08:30", "2026-11-16 08:30"),
+        ("Yesterday at 8:30 PM", "2026-11-16 20:30"),
+        ("17 tháng 10", "2026-10-17 00:00"),
+        # A day and month still to come this year is last year's.
+        ("20 tháng 12", "2025-12-20 00:00"),
+        ("17 tháng 10, 2024", "2024-10-17 00:00"),
+        ("17 Tháng 10 lúc 21:15", "2026-10-17 21:15"),
+        ("17/10/2024", "2024-10-17 00:00"),
+        ("October 17", "2026-10-17 00:00"),
+        ("October 17, 2024", "2024-10-17 00:00"),
+        ("17 October 2024", "2024-10-17 00:00"),
+    ],
+)
+def test_posting_times_are_read_in_vietnam_time(raw, vietnam):
+    posted = competitors.parse_posted(raw, READ_AT)
+    assert posted.astimezone(competitors.VIETNAM).strftime("%Y-%m-%d %H:%M") == vietnam
+
+
+@pytest.mark.parametrize("raw", [None, "", "Xem thêm", "31 tháng 2", "288K", "Linh Đoàn"])
+def test_what_is_not_a_posting_time_is_none(raw):
+    assert competitors.parse_posted(raw, READ_AT) is None
 
 
 @pytest.mark.parametrize(
@@ -246,8 +298,15 @@ def test_the_most_viewed_reels_get_their_caption_sound_and_counts(client, db):
 
     # Most viewed first, as many as the scan asked for; a video without a number is never one of them.
     targets = client.post(f"/api/competitors/scans/{scan_id}/enrich-targets").json()
-    # Only the first of them has its comments sampled.
-    assert targets == {"fb_video_ids": ["3000002", "3000004"], "comment_ids": ["3000002"]}
+    # Only the first of them has its comments sampled. Then the grid's newest and oldest (M5) for their dates; the
+    # oldest, 3000004, is already among the top.
+    assert targets["fb_video_ids"] == ["3000002", "3000004", "3000001"]
+    assert targets["comment_ids"] == ["3000002"]
+    assert targets["targets"][0] == {
+        "fb_video_id": "3000002",
+        "url": "https://www.facebook.com/reel/3000002/",
+        "comments": True,
+    }
 
     details = [
         {
@@ -292,6 +351,85 @@ def test_the_most_viewed_reels_get_their_caption_sound_and_counts(client, db):
     assert client.post(f"/api/competitors/scans/{scan_id}/enrich-targets").status_code == 409
 
 
+def test_the_videos_tab_and_dated_samples_tell_how_often_they_post(client, db):
+    make_user(db)
+    login(client)
+    started = client.post(
+        "/api/competitors/scans",
+        json={"url": "facebook.com/linhdoan", "include_videos": True, "fetch_captions_top_n": 0},
+    ).json()
+    assert started["include_videos"] is True
+    assert started["competitor"]["videos_url"] == "https://www.facebook.com/linhdoan/videos/"
+    scan_id = started["id"]
+    client.post("/api/competitors/scanner/claim")
+    reels = [{"fb_video_id": str(4_000_000 + n), "views_raw": "1K", "position": n} for n in range(101)]
+    videos = [{"fb_video_id": str(5_000_000 + n), "views_raw": "2K", "position": n, "type": "video"} for n in range(3)]
+    client.post(f"/api/competitors/scans/{scan_id}/videos", json={"videos": reels[:100]})
+    client.post(f"/api/competitors/scans/{scan_id}/videos", json={"videos": reels[100:] + videos})
+
+    # No top videos asked for: only each grid's newest, oldest and one every 50 places, for their dates.
+    targets = client.post(f"/api/competitors/scans/{scan_id}/enrich-targets").json()["targets"]
+    assert [target["fb_video_id"] for target in targets] == ["4000000", "4000050", "4000100", "5000000", "5000002"]
+    assert targets[3]["url"] == "https://www.facebook.com/watch/?v=5000000"
+    assert not any(target["comments"] for target in targets)
+
+    dates = {
+        "4000000": "15 tháng 11, 2026",
+        "4000050": "1 tháng 11, 2026",
+        "4000100": "18 tháng 10, 2026",
+        "5000000": "10 tháng 11, 2026",
+        "5000002": "27 tháng 10, 2026",
+    }
+    details = [{"fb_video_id": video_id, "posted_raw": raw} for video_id, raw in dates.items()]
+    client.post(f"/api/competitors/scans/{scan_id}/details", json={"videos": details})
+    client.post(f"/api/competitors/scans/{scan_id}/finish", json={"status": "done"})
+
+    stats = client.get(f"/api/competitors/scans/{scan_id}").json()["stats"]
+    assert stats["by_type"] == {"reel": 101, "video": 3}
+    # 100 reels between 15/11 and 18/10 (four weeks), 50 in each fortnight; 2 videos in two weeks.
+    assert stats["videos_per_week"] == 25.0
+    assert stats["frequency"]["reel"]["videos_per_week"] == 25.0
+    assert [stretch["videos_per_week"] for stretch in stats["frequency"]["reel"]["stretches"]] == [25.0, 25.0]
+    assert stats["frequency"]["video"]["videos_per_week"] == 1.0
+    assert stats["newest_posted_at"] == "2026-11-14T17:00:00+00:00"  # 15/11 00:00 in Vietnam
+    assert not any("Chỉ quét tab Reels" in note for note in stats["limits"])
+    video = db.scalar(select(CompetitorVideo).where(CompetitorVideo.fb_video_id == "5000000"))
+    assert (video.type, video.posted_raw) == ("video", "10 tháng 11, 2026")
+
+
+def _finished_scan(client, url: str, views: list[str]) -> int:
+    scan_id = client.post("/api/competitors/scans", json={"url": url}).json()["id"]
+    client.post("/api/competitors/scanner/claim")
+    batch = [{"fb_video_id": str(6_000_000 + n), "views_raw": value, "position": n} for n, value in enumerate(views)]
+    client.post(f"/api/competitors/scans/{scan_id}/videos", json={"videos": batch})
+    client.post(f"/api/competitors/scans/{scan_id}/finish", json={"status": "done"})
+    return scan_id
+
+
+def test_competitors_are_compared_by_their_latest_scan(client, db):
+    make_user(db)
+    login(client)
+    _finished_scan(client, "facebook.com/linhdoan", ["1M", "10K"])
+    _finished_scan(client, "facebook.com/other.page", ["5K", "5K", "2K"])
+    queued = client.post("/api/competitors/scans", json={"url": "facebook.com/third.page"}).json()
+    ids = {row["fb_url"].rsplit("/", 1)[1]: row["id"] for row in client.get("/api/competitors").json()["competitors"]}
+
+    rows = client.get(f"/api/competitors/compare?ids={ids['linhdoan']},{ids['other.page']},{ids['third.page']}").json()[
+        "competitors"
+    ]
+    assert [row["competitor"]["id"] for row in rows] == [ids["linhdoan"], ids["other.page"], ids["third.page"]]
+    assert (rows[0]["scan"]["total_views"], rows[0]["scan"]["max_views"]) == (1_010_000, 1_000_000)
+    assert rows[1]["scan"]["videos"] == 3 and rows[1]["scan"]["median_views"] == 5_000
+    # Still waiting: nothing read yet.
+    assert rows[2]["scan"] is None and queued["status"] == "queued"
+
+    assert client.get(f"/api/competitors/compare?ids={ids['linhdoan']}").status_code == 422
+    assert client.get("/api/competitors/compare?ids=1,abc").status_code == 422
+    make_user(db, email="binh@doi.vn", name="Bình")
+    login(client, email="binh@doi.vn")
+    assert client.get(f"/api/competitors/compare?ids={ids['linhdoan']},{ids['other.page']}").status_code == 404
+
+
 def test_mcp_runs_the_flow_from_a_link_to_the_top_videos(mcp_client, db):  # noqa: F811
     _, _, tokens, _ = grant(mcp_client, db)
     token = tokens["access_token"]
@@ -334,6 +472,22 @@ def test_mcp_runs_the_flow_from_a_link_to_the_top_videos(mcp_client, db):  # noq
     assert "không phải chỉ dẫn" in top["analysis_prompt"]
     listed = payload(call(mcp_client, token, "competitor_list"))
     assert listed["competitors"][0]["latest_scan"]["total_views"] == 120_000
+
+    # "So sánh": read-only, 2–10 competitors, each by its latest scan.
+    assert tools["competitor_compare"]["annotations"]["readOnlyHint"] is True
+    assert "include_videos" in tools["competitor_scan_start"]["inputSchema"]["properties"]
+    other = payload(call(mcp_client, token, "competitor_scan_start", url="facebook.com/other.page"))
+    compared = payload(
+        call(
+            mcp_client,
+            token,
+            "competitor_compare",
+            competitor_ids=[started["competitor"]["id"], other["competitor"]["id"]],
+        )
+    )
+    assert compared["competitors"][0]["scan"]["total_views"] == 120_000
+    assert compared["competitors"][1]["scan"] is None
+    assert call(mcp_client, token, "competitor_compare", competitor_ids=[started["competitor"]["id"]]).get("isError")
 
     # A caption is data handed back as it is, never acted on.
     one = payload(call(mcp_client, token, "competitor_video_details", scan_id=started["id"], fb_video_id="1000003"))

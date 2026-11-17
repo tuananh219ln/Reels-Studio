@@ -81,15 +81,21 @@ def register(tool, invoke, resource: str, calling_app=lambda: "") -> None:
                 description="Trong số đó, bao nhiêu video đầu được lấy tối đa 30 bình luận mẫu; mặc định 10",
             ),
         ] = competitors.COMMENTS_TOP_DEFAULT,
+        include_videos: Annotated[
+            bool, Field(description="Quét thêm tab Video (video thường) sau tab Reels; mặc định không")
+        ] = False,
     ) -> dict:
-        """Tạo lượt quét tab Reels của đối thủ. Việc quét chạy trong Chrome của chính người dùng (tiện ích Reels
-        Studio trên trang Đối thủ), không phải trên máy chủ; lưới chỉ có số view. Đã có lượt đang chờ hoặc đang chạy
-        cho đối thủ này thì trả lượt đó. Sau lưới, tiện ích mở trang riêng của fetch_captions_top_n video nhiều
-        view nhất (4–8 giây mỗi video) để đọc caption, âm thanh và reaction. Sau đó gọi competitor_scan_get đến
-        khi status là done (hoặc partial)."""
+        """Tạo lượt quét tab Reels (và tab Video nếu include_videos) của đối thủ. Việc quét chạy trong Chrome của
+        chính người dùng (tiện ích Reels Studio trên trang Đối thủ), không phải trên máy chủ; lưới chỉ có số view.
+        Đã có lượt đang chờ hoặc đang chạy cho đối thủ này thì trả lượt đó. Sau lưới, tiện ích mở trang riêng của
+        fetch_captions_top_n video nhiều view nhất (4–8 giây mỗi video) để đọc caption, âm thanh, reaction và ngày
+        đăng, rồi vài video rải đều trên lưới chỉ để lấy ngày đăng (tính tần suất). Sau đó gọi competitor_scan_get
+        đến khi status là done (hoặc partial)."""
 
         def operation(db, me):
-            scan = competitors.start_scan(db, me.user_id, url, max_videos, fetch_captions_top_n, fetch_comments_top_n)
+            scan = competitors.start_scan(
+                db, me.user_id, url, max_videos, fetch_captions_top_n, fetch_comments_top_n, include_videos
+            )
             db.commit()
             return scan_answer(db, scan)
 
@@ -109,10 +115,25 @@ def register(tool, invoke, resource: str, calling_app=lambda: "") -> None:
             invoke, lambda db, me: {"competitors": competitors.list_competitors(db, me.user_id), "page_url": page_url}
         )
 
+    @tool("So sánh nhiều đối thủ", read=True)
+    async def competitor_compare(
+        competitor_ids: Annotated[
+            list[int], Field(min_length=2, max_length=10, description="Id đối thủ (từ competitor_list), 2–10")
+        ],
+    ) -> dict:
+        """Đặt các đối thủ cạnh nhau, mỗi đối thủ theo lượt quét gần nhất đã đọc được (done hoặc partial): số video
+        theo loại, tổng view, trung vị, view cao nhất, phân bố, tỷ trọng top 10, video/tuần, khoảng ngày đăng. Tính
+        bằng code: dùng nguyên các số này. Đối thủ chưa có lượt quét nào thì scan là null."""
+        ids = list(dict.fromkeys(competitor_ids))
+        return await run_in_threadpool(
+            invoke, lambda db, me: {"competitors": competitors.compare(db, me.user_id, ids), "page_url": page_url}
+        )
+
     @tool("Số liệu tổng hợp của đối thủ", read=True)
     async def competitor_stats(scan_id: int) -> dict:
         """Số video, tổng view, trung vị, phân bố theo ngưỡng (≥1M, 100K–1M, 10K–100K, <10K), tỷ trọng view của
-        top 10, video/tuần khi có ngày đăng, và giới hạn dữ liệu. Tính bằng code: dùng nguyên các số này, không tự
+        top 10, số video theo loại (reel/video), tần suất đăng theo từng lưới (frequency: video/tuần cả khoảng và
+        từng đoạn giữa các video có ngày, để thấy đăng dày hay thưa theo thời gian) và giới hạn dữ liệu. Tính bằng code: dùng nguyên các số này, không tự
         cộng lại."""
         return await run_in_threadpool(
             invoke, lambda db, me: competitors.stats(db, competitors.own_scan(db, scan_id, me.user_id))
