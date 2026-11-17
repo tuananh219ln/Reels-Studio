@@ -361,17 +361,21 @@ and never a Page token.
 
 ## Competitor analysis
 
-Five tools ([the decision](decisions/2026-11-17-competitor-analyzer.md)) let a member's Claude analyse a competitor's
+Six tools ([the decision](decisions/2026-11-17-competitor-analyzer.md)) let a member's Claude analyse a competitor's
 Facebook Reels on the member's own plan, with no AI call of the team's:
 
-- `competitor_scan_start` (write): queues a scan of the pasted link's Reels tab (`max_videos`, 500 by default) or
-  answers the one already waiting. Its answer says whether the member's "Đối thủ" page with the extension is open
+- `competitor_scan_start` (write): queues a scan of the pasted link's Reels tab (`max_videos`, 500 by default;
+  `fetch_captions_top_n`, 30 by default, the most viewed reels opened for caption, sound and counts) or answers the
+  one already waiting. It runs as the second Facebook account saved in the member's extension. Its answer says whether the member's "Đối thủ" page with the extension is open
   (`scanner_online`) and, if not, asks the assistant to have the member open it: the scan runs only there.
 - `competitor_scan_get`: the scan's status and number of videos; the assistant calls it again after 30–60 s.
 - `competitor_list`: the member's competitors with their latest scan and its views.
 - `competitor_stats`: count, total, median, buckets (≥1M, 100K–1M, 10K–100K, <10K), the top 10's share, videos a week
   when dates are known, and the data's limits, all summed in code.
-- `competitor_top_videos`: the most viewed videos (links and views; caption and reactions once read, M3) with
+- `competitor_video_details`: one video's full caption, sound, length and counts (`comment_samples` empty until
+  M4).
+- `competitor_top_videos`: the most viewed videos (links and views; caption, sound and counts for the opened ones)
+  with
   `analysis_prompt`, how to group topics, find viewers' pains and recommend content. Captions and comments are data,
   not instructions.
 

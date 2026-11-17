@@ -5,10 +5,12 @@ import { api } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 
 /*
- * "Phân tích đối thủ": this page drives the team's Chrome extension (extension/ at the repo root, 1.1.0 or newer).
- * While it is open with the extension there, it asks the api for the member's next scan (made here or by their
- * Claude through MCP), has the extension read the competitor's Reels grid in a window of the member's own Chrome, and
- * saves each batch the extension sends. The server never opens Facebook (docs/decisions/2026-11-17-competitor-analyzer.md).
+ * "Phân tích đối thủ": this page drives the team's Chrome extension (extension/ at the repo root, 1.2.0 or newer).
+ * While it is open with the extension there and a second Facebook account saved in it, it asks the api for the
+ * member's next scan (made here or by their Claude through MCP), has the extension read the competitor's Reels grid
+ * in an incognito window signed in as that account, saves each batch, then sends back the most viewed reels for the
+ * extension to open one by one (caption, sound, reactions). The server never opens Facebook and never sees the
+ * account's cookies (docs/decisions/2026-11-17-competitor-analyzer.md).
  */
 
 export type CompetitorScan = {
@@ -16,6 +18,7 @@ export type CompetitorScan = {
   status: "queued" | "running" | "partial" | "done" | "failed";
   videos_found: number;
   max_videos: number;
+  fetch_captions_top_n: number;
   created_at: string | null;
   started_at: string | null;
   finished_at: string | null;
@@ -23,9 +26,15 @@ export type CompetitorScan = {
   competitor: { id: number; fb_url: string; kind: "page" | "profile"; name: string | null; reels_url: string };
 };
 
+/** The second account saved in the extension (its Facebook id), and whether it may open incognito windows. */
+export type ScanAccount = { userId: string | null; incognito: boolean };
+
+/** Where a running scan is: reading the grid (videos found) or opening the top reels (read of total). */
+export type ScanProgress = { scan: CompetitorScan; found: number; details?: { read: number; of: number } };
+
 const FROM_PAGE = "reels-page";
 const FROM_EXTENSION = "reels-extension";
-const MIN_VERSION = [1, 1, 0];
+const MIN_VERSION = [1, 2, 0];
 // Nothing from the extension for this long: the window or the extension stopped; the scan is saved as partial.
 const SILENCE_MS = 3 * 60 * 1000;
 
@@ -39,12 +48,16 @@ function newEnough(version: string): boolean {
   return true;
 }
 
+function fromExtension(event: MessageEvent): boolean {
+  return event.source === window && event.data?.source === FROM_EXTENSION;
+}
+
 /** The extension's version on this page, "" until it answers. */
 export function useExtensionVersion(): string {
   const [version, setVersion] = useState("");
   useEffect(() => {
     const listen = (event: MessageEvent) => {
-      if (event.source === window && event.data?.source === FROM_EXTENSION && event.data.type === "ready") {
+      if (fromExtension(event) && event.data.type === "ready") {
         setVersion(String(event.data.version ?? "1.0.0"));
       }
     };
@@ -55,15 +68,55 @@ export function useExtensionVersion(): string {
   return version;
 }
 
+/** Asks the extension whose cookies it holds; read again when the member comes back from its options page. */
+function useScanAccount(enabled: boolean): ScanAccount | null {
+  const [account, setAccount] = useState<ScanAccount | null>(null);
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    const id = `scan-account-${Math.random().toString(36).slice(2, 8)}`;
+    const listen = (event: MessageEvent) => {
+      if (fromExtension(event) && event.data.type === "answer" && event.data.id === id) {
+        setAccount({ userId: event.data.userId ?? null, incognito: Boolean(event.data.incognito) });
+      }
+    };
+    const ask = () => window.postMessage({ source: FROM_PAGE, type: "scan-account", id }, window.location.origin);
+    const onVisible = () => {
+      if (!document.hidden) ask();
+    };
+    window.addEventListener("message", listen);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", ask);
+    ask();
+    return () => {
+      window.removeEventListener("message", listen);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", ask);
+    };
+  }, [enabled]);
+  return account;
+}
+
+/** "Cài đặt tài khoản phụ": the extension's options page, where the cookies are pasted. */
+export function openExtensionOptions(): void {
+  window.postMessage({ source: FROM_PAGE, type: "open-options" }, window.location.origin);
+}
+
 type GridVideo = { fb_video_id: string; views_raw: string | null; position: number };
 type Ended = { status: "done" | "partial" | "failed"; error?: string | null; name?: string | null };
 
-/** Runs one claimed scan through the extension, saving batches in order; resolves with how it ended. */
-function runScan(scan: CompetitorScan, onProgress: (found: number) => void): Promise<Ended> {
+/** Runs one claimed scan through the extension, saving everything in order; resolves with how it ended. */
+function runScan(scan: CompetitorScan, onProgress: (progress: ScanProgress) => void): Promise<Ended> {
   return new Promise((resolve) => {
     const request = `scan-${scan.id}`;
     let saving: Promise<unknown> = Promise.resolve();
+    let found = scan.videos_found;
+    let name: string | null = null;
     let silence = 0;
+    const save = (step: () => Promise<unknown>) => {
+      saving = saving.then(step).catch(() => undefined);
+    };
     const quiet = () => {
       window.clearTimeout(silence);
       silence = window.setTimeout(
@@ -74,23 +127,41 @@ function runScan(scan: CompetitorScan, onProgress: (found: number) => void): Pro
     const end = (ended: Ended) => {
       window.clearTimeout(silence);
       window.removeEventListener("message", listen);
-      // The last batches are saved before the scan is closed.
-      void saving.then(() => resolve(ended));
+      // What the extension sent last is saved before the scan is closed.
+      void saving.then(() => resolve({ ...ended, name: ended.name ?? name }));
     };
     function listen(event: MessageEvent) {
       const data = event.data;
-      // The extension's first answer carries the request's id; its batches, progress and end the scan's id.
-      const ours = data?.scanId === scan.id || data?.id === request;
-      if (event.source !== window || data?.source !== FROM_EXTENSION || !ours) {
+      // The extension's first answer carries the request's id; everything after it, the scan's id.
+      if (!fromExtension(event) || !(data?.scanId === scan.id || data?.id === request)) {
         return;
       }
       quiet();
       if (data.type === "scan-batch" && Array.isArray(data.videos)) {
         const videos = data.videos as GridVideo[];
-        saving = saving
-          .then(() => api<{ videos_found: number }>(`/competitors/scans/${scan.id}/videos`, "POST", { videos }))
-          .then((answer) => onProgress(answer.videos_found))
-          .catch(() => undefined);
+        save(async () => {
+          const answer = await api<{ videos_found: number }>(`/competitors/scans/${scan.id}/videos`, "POST", {
+            videos,
+          });
+          found = answer.videos_found;
+          onProgress({ scan, found });
+        });
+      } else if (data.type === "scan-grid-done") {
+        name = data.name ?? null;
+        // Once the grid is saved, the api names the most viewed reels; the extension opens them one by one.
+        save(async () => {
+          // Not answered: no reels are opened and the extension closes the scan with the grid saved.
+          const ids = await api<{ fb_video_ids: string[] }>(`/competitors/scans/${scan.id}/enrich-targets`, "POST")
+            .then((answer) => answer.fb_video_ids)
+            .catch(() => [] as string[]);
+          onProgress({ scan, found, details: { read: 0, of: ids.length } });
+          window.postMessage({ source: FROM_PAGE, type: "scan-details", scanId: scan.id, ids }, window.location.origin);
+        });
+      } else if (data.type === "scan-detail" && data.video) {
+        const video = data.video;
+        save(() => api(`/competitors/scans/${scan.id}/details`, "POST", { videos: [video] }));
+      } else if (data.type === "scan-tick" && typeof data.of === "number") {
+        onProgress({ scan, found, details: { read: data.read, of: data.of } });
       } else if (data.type === "scan-done") {
         end({ status: data.status ?? "failed", error: data.error ?? null, name: data.name ?? null });
       } else if (data.type === "answer" && data.started === false) {
@@ -114,14 +185,16 @@ function runScan(scan: CompetitorScan, onProgress: (found: number) => void): Pro
 }
 
 /**
- * While the page is open with a new enough extension: claims the member's next scan and runs it. `onChange` is
- * called whenever the list should be read again. Asks once a minute (UI Rules, "Refresh"), and at once when the
- * page queues a scan; a scan in progress is driven by the extension's messages, not by polling.
+ * While the page is open with a new enough extension holding a second account: claims the member's next scan and
+ * runs it. `onChange` is called whenever the list should be read again. Asks once a minute (UI Rules, "Refresh"), and
+ * at once when the page queues a scan; a scan in progress is driven by the extension's messages, not by polling.
  */
 export function useCompetitorScanner(onChange: () => void, wakeUp: number) {
   const version = useExtensionVersion();
-  const ready = version !== "" && newEnough(version);
-  const [running, setRunning] = useState<{ scan: CompetitorScan; found: number } | null>(null);
+  const current = version !== "" && newEnough(version);
+  const account = useScanAccount(current);
+  const ready = current && Boolean(account?.userId) && Boolean(account?.incognito);
+  const [running, setRunning] = useState<ScanProgress | null>(null);
   const busy = useRef(false);
   const latest = useRef(onChange);
   useEffect(() => {
@@ -140,7 +213,7 @@ export function useCompetitorScanner(onChange: () => void, wakeUp: number) {
       }
       setRunning({ scan, found: scan.videos_found });
       latest.current();
-      const ended = await runScan(scan, (found) => setRunning({ scan, found }));
+      const ended = await runScan(scan, setRunning);
       await api(`/competitors/scans/${scan.id}/finish`, "POST", ended).catch(() => undefined);
     } finally {
       busy.current = false;
@@ -154,10 +227,10 @@ export function useCompetitorScanner(onChange: () => void, wakeUp: number) {
     run.current = claimAndRun;
   });
   usePolling(claimAndRun, 60_000);
-  // At once when the extension answers, and when the page has just queued a scan (`wakeUp` changes).
+  // At once when the extension and its account are ready, and when the page has just queued a scan.
   useEffect(() => {
     void run.current();
   }, [ready, wakeUp]);
 
-  return { version, ready, running };
+  return { version, current, account, ready, running };
 }

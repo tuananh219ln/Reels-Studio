@@ -172,14 +172,19 @@ Reels Studio" sends to; the photo comes back to that page as `send-image` and is
 Chrome. `parse_url` makes the pasted link canonical (`facebook.com/<name>`, its `/reels` and `/videos` tabs,
 `profile.php?id=`, `people/<name>/<id>`; other query parts dropped) and gives the grid's address. A scan is queued by
 the page (`POST /api/competitors/scans`) or by MCP (`competitor_scan_start`); one waiting or running scan per
-competitor. The member's open page, with extension 1.1.0 or newer, claims the next one
+competitor. The member's open page, with extension 1.2.0 or newer holding a second Facebook account's cookies
+(its options page, [scan-account.js](../extension/scan-account.js); never sent to the api) and allowed in
+incognito, claims the next one
 (`POST /api/competitors/scanner/claim`, once a minute and at once after queuing; one running scan per member, and a
-running one silent for 3 minutes is claimed again) and posts `scan-reels` to the extension, which opens the grid in a
-window (a hidden tab would not load more as it scrolls), injects [facebook-reels.js](../extension/facebook-reels.js)
+running one silent for 3 minutes is claimed again) and posts `scan-reels` to the extension, which opens an incognito
+window (a hidden tab would not load more as it scrolls), replaces that window's facebook.com cookies with the saved
+account's, opens the grid, injects [facebook-reels.js](../extension/facebook-reels.js)
 with [selectors.json](../extension/selectors.json), and sends back `scan-batch` (up to 50
-`{fb_video_id, views_raw, position}`), `scan-tick` and `scan-done`. The page saves each batch
-(`POST /api/competitors/scans/{id}/videos`, upserted on `(scan_id, fb_video_id)`, views normalized by `parse_views`)
-and ends it (`/finish`: `done`, `partial` or `failed`, with the Page's name). A checkpoint or login page ends it as
+`{fb_video_id, views_raw, position}`), `scan-tick` and `scan-grid-done`. The page saves each batch
+(`POST /api/competitors/scans/{id}/videos`, upserted on `(scan_id, fb_video_id)`, views normalized by `parse_views`),
+then asks `POST /api/competitors/scans/{id}/enrich-targets` for the `fetch_captions_top_n` most viewed and sends
+them back as `scan-details`; the extension opens each reel 4–8 s apart and sends `scan-detail` (caption, sound,
+length, counts as written), saved with `POST /api/competitors/scans/{id}/details`, then `scan-done`. The page ends it (`/finish`: `done`, `partial` or `failed`, with the Page's name). A checkpoint or login page ends it as
 `partial` and its window is left in front. `GET /api/competitors/scans/{id}` and `competitor_stats` give the numbers
 summed in code; "Xóa dữ liệu" (`DELETE /api/competitors/{id}`) removes the competitor with its scans and videos.
 

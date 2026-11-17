@@ -7,7 +7,12 @@ import { Alert, App, Button, Card, Descriptions, Flex, Input, Popconfirm, Space,
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime } from "@/lib/api";
-import { useCompetitorScanner, type CompetitorScan } from "@/lib/competitorScanner";
+import {
+  openExtensionOptions,
+  useCompetitorScanner,
+  type CompetitorScan,
+  type ScanAccount,
+} from "@/lib/competitorScanner";
 import { usePolling } from "@/lib/polling";
 
 type Competitor = {
@@ -30,7 +35,18 @@ type Stats = {
   limits: string[];
 };
 
-type TopVideo = { rank: number; fb_video_id: string; url: string; views: number | null; views_raw: string | null };
+type TopVideo = {
+  rank: number;
+  fb_video_id: string;
+  url: string;
+  views: number | null;
+  views_raw: string | null;
+  caption: string | null;
+  audio_name: string | null;
+  reactions: number | null;
+  comments: number | null;
+  shares: number | null;
+};
 type ScanDetail = CompetitorScan & { stats: Stats; top_videos: TopVideo[] };
 
 const STATUS: Record<CompetitorScan["status"], { label: string; color: string }> = {
@@ -116,13 +132,18 @@ export default function CompetitorsPage() {
       render: (_, row) => {
         const scan = row.latest_scan;
         if (!scan) return "—";
-        const live = scanner.running?.scan.id === scan.id ? scanner.running.found : scan.videos_found;
+        const progress = scanner.running?.scan.id === scan.id ? scanner.running : null;
         return (
           <Flex vertical gap={2}>
             <Space size={4}>
               <Tag color={STATUS[scan.status].color}>{STATUS[scan.status].label}</Tag>
-              <Typography.Text>{number.format(live)} video</Typography.Text>
+              <Typography.Text>{number.format(progress ? progress.found : scan.videos_found)} video</Typography.Text>
             </Space>
+            {progress?.details && (
+              <Typography.Text type="secondary">
+                Đang mở top video: {progress.details.read}/{progress.details.of}
+              </Typography.Text>
+            )}
             {scan.error && <Typography.Text type="warning">{scan.error}</Typography.Text>}
             <Typography.Text type="secondary">
               {formatDateTime(scan.finished_at ?? scan.started_at ?? scan.created_at ?? "")}
@@ -197,7 +218,12 @@ export default function CompetitorsPage() {
               Quét
             </Button>
           </Space.Compact>
-          <ScannerNotice version={scanner.version} ready={scanner.ready} />
+          <ScannerNotice
+            version={scanner.version}
+            current={scanner.current}
+            account={scanner.account}
+            ready={scanner.ready}
+          />
         </Flex>
       </PageHeader>
       <Card styles={{ body: { padding: 0 } }}>
@@ -221,21 +247,54 @@ export default function CompetitorsPage() {
   );
 }
 
-function ScannerNotice({ version, ready }: { version: string; ready: boolean }) {
-  if (ready) {
+function ScannerNotice({
+  version,
+  current,
+  account,
+  ready,
+}: {
+  version: string;
+  current: boolean;
+  account: ScanAccount | null;
+  ready: boolean;
+}) {
+  if (ready && account) {
     return (
       <Typography.Text type="secondary">
-        Tiện ích đã sẵn sàng. Giữ trang này mở: lượt quét (kể cả do Claude tạo qua MCP) chạy trong cửa sổ Facebook của
-        Chrome này, cuộn chậm như người thật.
+        Tiện ích đã sẵn sàng, quét bằng tài khoản phụ {account.userId} trong cửa sổ ẩn danh. Giữ trang này mở: lượt quét
+        (kể cả do Claude tạo qua MCP) chạy trong Chrome này, cuộn chậm như người thật.{" "}
+        <Typography.Link onClick={openExtensionOptions}>Đổi tài khoản phụ</Typography.Link>
       </Typography.Text>
     );
   }
+  if (!current) {
+    return (
+      <Alert
+        type="info"
+        showIcon
+        message={version ? `Tiện ích bản ${version} chưa quét được đối thủ` : "Chưa thấy tiện ích Reels Studio"}
+        description="Cài hoặc cập nhật tiện ích (thư mục extension/ của dự án, bản 1.2.0 trở lên) trong Chrome, rồi tải lại trang."
+      />
+    );
+  }
+  const missing = [];
+  if (!account?.userId) missing.push("lưu cookie của tài khoản Facebook phụ");
+  if (account && !account.incognito)
+    missing.push('bật "Cho phép ở chế độ ẩn danh" cho tiện ích trong chrome://extensions');
   return (
     <Alert
-      type="info"
+      type="warning"
       showIcon
-      message={version ? `Tiện ích bản ${version} chưa quét được đối thủ` : "Chưa thấy tiện ích Reels Studio"}
-      description="Cài hoặc cập nhật tiện ích (thư mục extension/ của dự án, bản 1.1.0 trở lên) trong Chrome đã đăng nhập Facebook, rồi tải lại trang. Nên dùng tài khoản Facebook phụ: Facebook có thể hạn chế tài khoản bị cho là quét tự động."
+      message="Chưa quét được: cần tài khoản Facebook phụ"
+      description={
+        <Flex vertical gap={8} align="start">
+          <span>
+            Lượt quét chỉ chạy bằng tài khoản phụ, trong cửa sổ ẩn danh, để Facebook chính của bạn không bị ảnh hưởng.
+            Cookie chỉ lưu trong tiện ích của Chrome này, không gửi lên máy chủ. Còn thiếu: {missing.join("; ") || "…"}.
+          </span>
+          <Button onClick={openExtensionOptions}>Cài đặt tài khoản phụ</Button>
+        </Flex>
+      }
     />
   );
 }
@@ -285,10 +344,30 @@ function ScanDetailView({ scanId }: { scanId: number }) {
             title: "Video",
             key: "url",
             render: (_, video) => (
-              <Typography.Link href={video.url} target="_blank" rel="noreferrer">
-                {video.url}
-              </Typography.Link>
+              <Flex vertical gap={2}>
+                <Typography.Link href={video.url} target="_blank" rel="noreferrer">
+                  {video.url}
+                </Typography.Link>
+                {video.caption && (
+                  <Typography.Paragraph
+                    ellipsis={{ rows: 2, expandable: true, symbol: "Xem thêm" }}
+                    style={{ margin: 0 }}
+                  >
+                    {video.caption}
+                  </Typography.Paragraph>
+                )}
+                {video.audio_name && <Typography.Text type="secondary">Âm thanh: {video.audio_name}</Typography.Text>}
+              </Flex>
             ),
+          },
+          {
+            title: "Cảm xúc · Bình luận · Chia sẻ",
+            key: "counts",
+            width: 220,
+            render: (_, video) =>
+              [video.reactions, video.comments, video.shares]
+                .map((value) => (value === null ? "—" : number.format(value)))
+                .join(" · "),
           },
         ]}
       />

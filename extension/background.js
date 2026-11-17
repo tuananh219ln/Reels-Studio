@@ -91,14 +91,17 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
 });
 
 /*
- * "Phân tích đối thủ": the Reels Studio page (/competitors) asks for a competitor's Reels grid to be read. One scan at
- * a time: a window opens on the grid in the member's own signed-in Chrome (a hidden tab would not load more videos as
- * it scrolls), facebook-reels.js scrolls and reads it, and every batch goes back to the page, which saves it. The
- * window is closed at the end, except on a checkpoint, which is left in front for the member to deal with.
+ * "Phân tích đối thủ": the Reels Studio page (/competitors) asks for a competitor's Reels to be read. One scan at a
+ * time, always as the member's second Facebook account (scan-account.js), in an incognito window so their own
+ * Facebook is never touched; a window, not a hidden tab, because a hidden tab does not load more videos as it
+ * scrolls. 1) facebook-reels.js reads the grid and every batch goes back to the page, which saves it; 2) the page
+ * answers with the most viewed reels ("scan-details"), whose own pages are opened one by one, 4–8 s apart, for caption,
+ * sound and reactions. The window is closed at the end, except on a checkpoint, left in front for the member.
  */
-importScripts("facebook-reels.js");
+importScripts("scan-account.js", "facebook-reels.js");
 
-let scanning = null; // {scanId, appTabId, windowId, tabId}
+const REEL_PAUSE_MS = [4000, 8000];
+let scanning = null; // {scanId, appTabId, windowId, tabId, selectors}
 
 function toApp(message) {
   if (scanning) {
@@ -111,21 +114,18 @@ function endScan(result) {
     return;
   }
   const { scanId, windowId } = scanning;
-  toApp({ type: "scan-done", scanId, ...result });
-  if (result.status !== "partial" || !String(result.error || "").includes("Facebook")) {
-    chrome.windows.remove(windowId).catch(() => {});
-  } else {
+  const { keepOpen, ...ended } = result;
+  toApp({ type: "scan-done", scanId, ...ended });
+  if (keepOpen) {
     chrome.windows.update(windowId, { focused: true }).catch(() => {});
+  } else {
+    chrome.windows.remove(windowId).catch(() => {});
   }
   scanning = null;
 }
 
-async function scanReels(message, appTabId) {
-  const selectors = await (await fetch(chrome.runtime.getURL("selectors.json"))).json();
-  const opened = await chrome.windows.create({ url: message.url, type: "normal", focused: true, width: 520, height: 900 });
-  const tabId = opened.tabs[0].id;
-  scanning = { scanId: message.scanId, appTabId, windowId: opened.id, tabId };
-  await new Promise((loaded) => {
+function loadIn(tabId, url) {
+  return new Promise((loaded) => {
     // "complete" may come before this listens: the timer reads the page anyway.
     const timer = setTimeout(() => done(), TAB_TIMEOUT_MS);
     const listen = (id, change) => {
@@ -139,17 +139,91 @@ async function scanReels(message, appTabId) {
       loaded();
     };
     chrome.tabs.onUpdated.addListener(listen);
+    chrome.tabs.update(tabId, { url });
   });
-  try {
-    const [injected] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: reelsStudioScanReels,
-      args: [message.scanId, message.maxVideos, selectors],
-    });
-    endScan(injected?.result || { status: "failed", error: "Không đọc được trang Facebook" });
-  } catch {
-    endScan({ status: "partial", error: "Cửa sổ Facebook đã đóng hoặc tải lại giữa chừng; bấm Tiếp tục để đọc tiếp" });
+}
+
+async function run(func, args) {
+  const [injected] = await chrome.scripting.executeScript({ target: { tabId: scanning.tabId }, func, args });
+  return injected?.result;
+}
+
+/** Why a scan cannot start in this Chrome, or null. */
+async function cannotScan(account) {
+  if (!account) {
+    return "Chưa lưu cookie tài khoản Facebook phụ trong tiện ích (Tùy chọn của tiện ích)";
   }
+  if (!(await chrome.extension.isAllowedIncognitoAccess())) {
+    return "Hãy bật \"Cho phép ở chế độ ẩn danh\" cho tiện ích Reels Studio trong chrome://extensions";
+  }
+  return null;
+}
+
+async function scanReels(message, appTabId, account) {
+  const selectors = await (await fetch(chrome.runtime.getURL("selectors.json"))).json();
+  const opened = await chrome.windows.create({
+    url: "about:blank",
+    incognito: true,
+    type: "normal",
+    focused: true,
+    width: 520,
+    height: 900,
+  });
+  const tabId = opened.tabs[0].id;
+  scanning = { scanId: message.scanId, appTabId, windowId: opened.id, tabId, selectors };
+  try {
+    await signInScanTab(tabId, account);
+    await loadIn(tabId, message.url);
+    const grid = await run(reelsStudioScanReels, [message.scanId, message.maxVideos, selectors]);
+    if (!grid || grid.status !== "done") {
+      endScan(grid || { status: "failed", error: "Không đọc được trang Facebook" });
+      return;
+    }
+    // The page saves the last batch, then sends the reels to open ("scan-details") or closes the scan.
+    toApp({ type: "scan-grid-done", scanId: message.scanId, name: grid.name });
+  } catch (error) {
+    endScan({
+      status: "partial",
+      error: scanning && error?.message?.includes("cookie")
+        ? error.message
+        : "Cửa sổ Facebook đã đóng hoặc tải lại giữa chừng; bấm Tiếp tục để đọc tiếp",
+    });
+  }
+}
+
+async function readReels(ids) {
+  const scanId = scanning.scanId;
+  for (const [index, id] of ids.entries()) {
+    if (!scanning || scanning.scanId !== scanId) {
+      return;
+    }
+    if (index > 0) {
+      const [low, high] = REEL_PAUSE_MS;
+      await new Promise((wait) => setTimeout(wait, low + Math.random() * (high - low)));
+    }
+    try {
+      await loadIn(scanning.tabId, `https://www.facebook.com/reel/${id}/`);
+      const detail = await run(reelsStudioReadReel, [scanning.selectors]);
+      if (detail?.stopped === "checkpoint") {
+        endScan({
+          status: "partial",
+          keepOpen: true,
+          error: "Facebook hiện checkpoint/CAPTCHA khi mở từng video: hãy xử lý tay rồi bấm Tiếp tục",
+        });
+        return;
+      }
+      if (detail?.stopped === "login") {
+        endScan({ status: "partial", error: "Tài khoản phụ bị đăng xuất khi mở từng video: lấy cookie mới rồi bấm Tiếp tục" });
+        return;
+      }
+      toApp({ type: "scan-detail", scanId, video: { fb_video_id: id, ...detail } });
+      toApp({ type: "scan-tick", scanId, read: index + 1, of: ids.length });
+    } catch {
+      endScan({ status: "partial", error: "Cửa sổ Facebook đã đóng khi đang mở từng video; bấm Tiếp tục để đọc tiếp" });
+      return;
+    }
+  }
+  endScan({ status: "done" });
 }
 
 chrome.windows.onRemoved.addListener((windowId) => {
@@ -159,6 +233,15 @@ chrome.windows.onRemoved.addListener((windowId) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if (message?.type === "scan-account" && sender.tab) {
+    scanAccountStatus().then(reply);
+    return true;
+  }
+  if (message?.type === "open-options") {
+    chrome.runtime.openOptionsPage();
+    reply({ ok: true });
+    return false;
+  }
   if (message?.type === "scan-reels" && sender.tab) {
     if (scanning) {
       reply({ started: false, error: "Tiện ích đang quét một đối thủ khác" });
@@ -168,8 +251,25 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       reply({ started: false, error: "Link không phải Facebook" });
       return false;
     }
-    scanReels(message, sender.tab.id);
-    reply({ started: true });
+    scanAccount().then(async (account) => {
+      const refused = await cannotScan(account);
+      if (refused) {
+        reply({ started: false, error: refused });
+        return;
+      }
+      scanReels(message, sender.tab.id, account);
+      reply({ started: true });
+    });
+    return true;
+  }
+  if (message?.type === "scan-details" && scanning && message.scanId === scanning.scanId) {
+    const ids = (Array.isArray(message.ids) ? message.ids : []).filter((id) => /^\d{5,30}$/.test(String(id)));
+    if (ids.length) {
+      readReels(ids.slice(0, 100));
+    } else {
+      endScan({ status: "done" });
+    }
+    reply({ ok: true });
     return false;
   }
   if ((message?.type === "scan-batch" || message?.type === "scan-tick") && scanning && sender.tab?.id === scanning.tabId) {

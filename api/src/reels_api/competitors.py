@@ -22,6 +22,10 @@ from .sessions import now
 
 MAX_VIDEOS_DEFAULT = 500
 MAX_VIDEOS_LIMIT = 2000
+# M3: the most viewed videos whose own page is opened for caption, sound and reactions (4–8 s apart).
+CAPTIONS_TOP_DEFAULT = 30
+CAPTIONS_TOP_LIMIT = 100
+CAPTION_LIMIT = 5000
 # A batch the extension sends: 50 at a time, so a closed tab loses little.
 BATCH_LIMIT = 100
 # A running scan whose page has been silent this long was closed mid-way: it is claimed again (resumed).
@@ -160,7 +164,13 @@ def scanner_online(user: User) -> bool:
     return seen is not None and now() - seen < SCANNER_ONLINE_FOR
 
 
-def start_scan(db: DbSession, user_id: int, url: str, max_videos: int = MAX_VIDEOS_DEFAULT) -> CompetitorScan:
+def start_scan(
+    db: DbSession,
+    user_id: int,
+    url: str,
+    max_videos: int = MAX_VIDEOS_DEFAULT,
+    captions_top: int = CAPTIONS_TOP_DEFAULT,
+) -> CompetitorScan:
     """A queued scan of the competitor at `url` (made on first use). One waiting or running scan per competitor: a
     second request answers the one already there."""
     parsed = parse_url(url)
@@ -182,7 +192,12 @@ def start_scan(db: DbSession, user_id: int, url: str, max_videos: int = MAX_VIDE
         competitor_id=competitor.id,
         owner_id=user_id,
         status="queued",
-        scope={"reels": True, "videos": False, "max_videos": max(1, min(max_videos, MAX_VIDEOS_LIMIT))},
+        scope={
+            "reels": True,
+            "videos": False,
+            "max_videos": max(1, min(max_videos, MAX_VIDEOS_LIMIT)),
+            "fetch_captions_top_n": max(0, min(captions_top, CAPTIONS_TOP_LIMIT)),
+        },
     )
     db.add(scan)
     db.flush()
@@ -268,6 +283,57 @@ def add_videos(db: DbSession, scan: CompetitorScan, videos: list[dict]) -> int:
     return scan.videos_found
 
 
+def captions_top(scan: CompetitorScan) -> int:
+    return (scan.scope or {}).get("fetch_captions_top_n", CAPTIONS_TOP_DEFAULT)
+
+
+def enrich_targets(db: DbSession, scan: CompetitorScan) -> list[str]:
+    """The most viewed videos of a running scan whose own page the extension opens next (M3)."""
+    ensure_running(scan)
+    scan.heartbeat_at = now()
+    limit = captions_top(scan)
+    if not limit:
+        return []
+    return list(
+        db.scalars(
+            select(CompetitorVideo.fb_video_id)
+            .where(CompetitorVideo.scan_id == scan.id, CompetitorVideo.views.is_not(None))
+            .order_by(CompetitorVideo.views.desc(), CompetitorVideo.id)
+            .limit(limit)
+        )
+    )
+
+
+def add_details(db: DbSession, scan: CompetitorScan, details: list[dict]) -> int:
+    """What a reel's own page showed: caption, sound, length and the counts as written ("1,2K"). Only videos the scan
+    already has are changed; a field the page did not show keeps what was read before. Returns how many changed."""
+    ensure_running(scan)
+    changed = 0
+    for detail in details:
+        video = db.scalar(
+            select(CompetitorVideo).where(
+                CompetitorVideo.scan_id == scan.id, CompetitorVideo.fb_video_id == detail["fb_video_id"]
+            )
+        )
+        if video is None:
+            continue
+        caption = (detail.get("caption") or "").strip()
+        if caption:
+            video.caption = caption[:CAPTION_LIMIT]
+        audio = (detail.get("audio_name") or "").strip()
+        if audio:
+            video.audio_name = audio[:300]
+        if detail.get("duration_s"):
+            video.duration_s = detail["duration_s"]
+        for field in ("reactions", "comments", "shares"):
+            value = parse_views(detail.get(f"{field}_raw"))
+            if value is not None:
+                setattr(video, field, value)
+        changed += 1
+    scan.heartbeat_at = now()
+    return changed
+
+
 def finish(
     db: DbSession, scan: CompetitorScan, status: str, error: str | None, name: str | None, followers: str | None
 ) -> None:
@@ -340,16 +406,20 @@ def stats(db: DbSession, scan: CompetitorScan) -> dict:
         "top10_share": round(top10 / total, 4) if total else None,
         "videos_per_week": per_week,
         "dated_videos": len(dated),
-        "limits": _limits(scan, len(videos), len(views), len(dated)),
+        "limits": _limits(scan, videos, len(videos), len(views), len(dated)),
     }
 
 
-def _limits(scan: CompetitorScan, count: int, with_views: int, dated: int) -> list[str]:
+def _limits(scan: CompetitorScan, videos: list[CompetitorVideo], count: int, with_views: int, dated: int) -> list[str]:
     notes = []
     if scan.status != "done":
         notes.append(f"Lượt quét đang ở trạng thái {scan.status}: số liệu có thể chưa đủ.")
     if count and with_views < count:
         notes.append(f"{count - with_views} video không đọc được số view trên lưới.")
+    top = captions_top(scan)
+    if count and top:
+        read = sum(1 for video in videos[:top] if video.caption)
+        notes.append(f"Caption đọc được cho {read}/{min(top, count)} video nhiều view nhất; video khác chưa có.")
     if count and dated == 0:
         notes.append("Lưới Reels không có ngày đăng: chưa tính được tần suất đăng.")
     if count >= (scan.scope or {}).get("max_videos", MAX_VIDEOS_DEFAULT):
@@ -368,6 +438,7 @@ def video_payload(video: CompetitorVideo, rank: int | None = None) -> dict:
         "views_raw": video.views_raw,
         "grid_position": video.position,
         "caption": video.caption,
+        "duration_s": video.duration_s,
         "posted_at": video.posted_at.isoformat() if video.posted_at else None,
         "audio_name": video.audio_name,
         "reactions": video.reactions,
@@ -383,6 +454,7 @@ def scan_payload(scan: CompetitorScan) -> dict:
         "status": scan.status,
         "videos_found": scan.videos_found,
         "max_videos": (scan.scope or {}).get("max_videos", MAX_VIDEOS_DEFAULT),
+        "fetch_captions_top_n": captions_top(scan),
         "created_at": scan.created_at.isoformat() if scan.created_at else None,
         "started_at": scan.started_at.isoformat() if scan.started_at else None,
         "finished_at": scan.finished_at.isoformat() if scan.finished_at else None,

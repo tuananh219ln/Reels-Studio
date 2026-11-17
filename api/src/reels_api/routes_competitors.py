@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api/competitors")
 class ScanBody(BaseModel):
     url: str = Field(max_length=500)
     max_videos: int = Field(competitors.MAX_VIDEOS_DEFAULT, ge=1, le=competitors.MAX_VIDEOS_LIMIT)
+    fetch_captions_top_n: int = Field(competitors.CAPTIONS_TOP_DEFAULT, ge=0, le=competitors.CAPTIONS_TOP_LIMIT)
 
 
 class GridVideo(BaseModel):
@@ -30,6 +31,20 @@ class GridVideo(BaseModel):
 
 class VideosBody(BaseModel):
     videos: list[GridVideo] = Field(max_length=competitors.BATCH_LIMIT)
+
+
+class VideoDetail(BaseModel):
+    fb_video_id: str = Field(pattern=r"^\d{5,30}$")
+    caption: str | None = Field(None, max_length=20_000)
+    audio_name: str | None = Field(None, max_length=1000)
+    duration_s: int | None = Field(None, ge=0, le=36_000)
+    reactions_raw: str | None = Field(None, max_length=60)
+    comments_raw: str | None = Field(None, max_length=60)
+    shares_raw: str | None = Field(None, max_length=60)
+
+
+class DetailsBody(BaseModel):
+    videos: list[VideoDetail] = Field(max_length=competitors.BATCH_LIMIT)
 
 
 class FinishBody(BaseModel):
@@ -49,7 +64,7 @@ def list_competitors(me: Session = Depends(current_member), db: DbSession = Depe
 
 @router.post("/scans", status_code=201)
 def start_scan(body: ScanBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    scan = competitors.start_scan(db, me.user_id, body.url, body.max_videos)
+    scan = competitors.start_scan(db, me.user_id, body.url, body.max_videos, body.fetch_captions_top_n)
     db.commit()
     return competitors.scan_payload(scan)
 
@@ -112,6 +127,25 @@ def add_videos(
     )
     db.commit()
     return {"videos_found": found}
+
+
+@router.post("/scans/{scan_id}/enrich-targets")
+def enrich_targets(scan_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """After the grid: the reels whose own page the extension opens next, most viewed first."""
+    scan = competitors.own_scan(db, scan_id, me.user_id, lock=True)
+    ids = competitors.enrich_targets(db, scan)
+    db.commit()
+    return {"fb_video_ids": ids}
+
+
+@router.post("/scans/{scan_id}/details")
+def add_details(
+    scan_id: int, body: DetailsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    scan = competitors.own_scan(db, scan_id, me.user_id, lock=True)
+    changed = competitors.add_details(db, scan, [video.model_dump() for video in body.videos])
+    db.commit()
+    return {"changed": changed}
 
 
 @router.post("/scans/{scan_id}/finish")

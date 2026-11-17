@@ -1,9 +1,14 @@
 /*
- * Injected by background.js into the competitor's Reels tab (a window it opened in the member's own Chrome, signed in
- * to Facebook). Scrolls the grid like a person, one screen at a time with a 1.5–3 s random pause, reads each reel's id
- * and the view count the grid shows, and sends new ones to the background in batches. It stops after four scrolls
- * with nothing new, at the scan's limit, after 30 minutes, or at once on a checkpoint/login page: it never answers one.
- * The selectors come from selectors.json, so a Facebook change is fixed there.
+ * Injected by background.js into the scan's incognito window (signed in as the member's second Facebook account,
+ * scan-account.js). Each function is run on its own by chrome.scripting, so it uses nothing outside itself. The
+ * selectors come from selectors.json: a Facebook change is fixed there, following links and text, never Facebook's
+ * generated class names. Neither answers a checkpoint or a login page: they stop and say so.
+ */
+
+/**
+ * The competitor's Reels grid: scrolls like a person, one screen at a time with a 1.5–3 s random pause, reads each
+ * reel's id and the view count the grid shows, and sends new ones in batches. It stops after four scrolls with
+ * nothing new, at the scan's limit, after 30 minutes, or at once on a checkpoint or login page.
  */
 async function reelsStudioScanReels(scanId, maxVideos, selectors) {
   const IDLE_ROUNDS = 4;
@@ -13,15 +18,30 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors) {
   const idPattern = new RegExp(selectors.reelId);
   const viewsPattern = new RegExp(selectors.views, "i");
   const seen = new Map(); // fb_video_id -> {fb_video_id, views_raw, position}
-  let pending = [];
+  const pending = [];
 
   const pause = (low, high) => new Promise((wait) => setTimeout(wait, low + Math.random() * (high - low)));
   // A closed background answers nothing: the scan carries on and the page notices the silence.
   const send = (message) => chrome.runtime.sendMessage({ ...message, scanId }).catch(() => {});
-  const blocked = () => {
-    if (selectors.checkpointUrl.some((part) => location.pathname.includes(part))) return true;
+  const stopped = () => {
     const text = document.body ? document.body.innerText.slice(0, 5000) : "";
-    return selectors.checkpointText.some((phrase) => text.includes(phrase));
+    if (selectors.loginUrl.some((part) => location.pathname.includes(part)) || document.querySelector(selectors.loginForm)) {
+      return {
+        status: "partial",
+        error: "Tài khoản phụ không còn đăng nhập (cookie hết hạn hoặc bị đăng xuất): lấy cookie mới, lưu trong tiện ích rồi bấm Tiếp tục",
+      };
+    }
+    if (
+      selectors.checkpointUrl.some((part) => location.pathname.includes(part)) ||
+      selectors.checkpointText.some((phrase) => text.includes(phrase))
+    ) {
+      return {
+        status: "partial",
+        keepOpen: true,
+        error: "Facebook hiện checkpoint/CAPTCHA với tài khoản phụ: hãy xử lý tay trong cửa sổ đó rồi bấm Tiếp tục",
+      };
+    }
+    return null;
   };
   const flush = async () => {
     while (pending.length) {
@@ -55,11 +75,14 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors) {
     }
     return added;
   };
+  const pageName = () => {
+    const heading = document.querySelector(selectors.pageName);
+    return heading ? heading.innerText.trim().slice(0, 200) : null;
+  };
 
   await pause(2500, 4000); // the page's first grid
-  if (blocked()) {
-    return { status: "partial", error: "Facebook đang yêu cầu xác minh hoặc đăng nhập: hãy xử lý tay rồi bấm Tiếp tục" };
-  }
+  const first = stopped();
+  if (first) return first;
   let idle = 0;
   while (idle < IDLE_ROUNDS && seen.size < maxVideos) {
     idle = read() ? 0 : idle + 1;
@@ -71,20 +94,81 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors) {
     }
     window.scrollBy(0, window.innerHeight * 0.9);
     await pause(1500, 3000);
-    if (blocked()) {
+    const halt = stopped();
+    if (halt) {
       await flush();
-      return { status: "partial", error: "Facebook hiện checkpoint/CAPTCHA: hãy xử lý tay rồi bấm Tiếp tục" };
+      return halt;
     }
   }
   read();
   await flush();
   if (!seen.size) {
-    return { status: "failed", error: "Không thấy Reels nào: trang không có Reels công khai, hoặc chưa đăng nhập Facebook" };
+    return { status: "failed", error: "Không thấy Reels nào: trang không có Reels công khai, hoặc tài khoản phụ không xem được" };
   }
   return { status: "done", name: pageName() };
+}
 
-  function pageName() {
-    const heading = document.querySelector(selectors.pageName);
-    return heading ? heading.innerText.trim().slice(0, 200) : null;
+/**
+ * One reel's own page (/reel/<id>/): its caption (after pressing "Xem thêm"), sound, length and the reaction, comment
+ * and share counts as written ("1,2K"). Returns {stopped} on a checkpoint or login page instead.
+ */
+async function reelsStudioReadReel(selectors) {
+  const pause = (low, high) => new Promise((wait) => setTimeout(wait, low + Math.random() * (high - low)));
+  const text = (element) => (element ? (element.innerText || element.textContent || "").trim() : "");
+  await pause(2000, 3500);
+  const body = document.body ? document.body.innerText.slice(0, 5000) : "";
+  if (selectors.loginUrl.some((part) => location.pathname.includes(part)) || document.querySelector(selectors.loginForm)) {
+    return { stopped: "login" };
   }
+  if (
+    selectors.checkpointUrl.some((part) => location.pathname.includes(part)) ||
+    selectors.checkpointText.some((phrase) => body.includes(phrase))
+  ) {
+    return { stopped: "checkpoint" };
+  }
+  // Comments are articles; the caption is the reel's own text, outside them.
+  const outsideComments = (element) => !element.closest(selectors.comment);
+  for (const button of document.querySelectorAll(selectors.button)) {
+    if (selectors.seeMore.includes(text(button)) && outsideComments(button)) {
+      button.click();
+      await pause(400, 900);
+      break;
+    }
+  }
+  let caption = "";
+  for (const candidate of document.querySelectorAll(selectors.captionCandidates)) {
+    const value = text(candidate);
+    if (value.length >= selectors.captionMinLength && outsideComments(candidate) && !candidate.querySelector(selectors.captionCandidates)) {
+      caption = value;
+      break;
+    }
+  }
+  if (!caption) {
+    caption = document.querySelector('meta[property="og:description"]')?.getAttribute("content") || "";
+  }
+  const audio = text(document.querySelector(selectors.audioLink));
+  const video = document.querySelector("video");
+  const duration = video && Number.isFinite(video.duration) ? Math.round(video.duration) : null;
+  const counts = {};
+  const labels = [...document.querySelectorAll("[aria-label]")]
+    .filter(outsideComments)
+    .map((element) => element.getAttribute("aria-label"));
+  for (const [field, patterns] of Object.entries(selectors.counts)) {
+    for (const pattern of patterns) {
+      const expression = new RegExp(pattern, "i");
+      const found = labels.map((label) => label.match(expression)).find(Boolean);
+      if (found) {
+        counts[field] = found[1];
+        break;
+      }
+    }
+  }
+  return {
+    caption: caption.replace(/\s*(Ẩn bớt|See less)$/i, "").slice(0, 20000),
+    audio_name: audio.slice(0, 1000) || null,
+    duration_s: duration,
+    reactions_raw: counts.reactions || null,
+    comments_raw: counts.comments || null,
+    shares_raw: counts.shares || null,
+  };
 }

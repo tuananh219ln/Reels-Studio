@@ -11,10 +11,20 @@ Google (see `docs/decisions.md`, 2026-11-08).
   "Tìm trên Google" was pressed last.
 
 - On "Phân tích đối thủ" (`/competitors`), while the page is open, the extension reads a competitor's Facebook Reels
-  grid for each scan the page claims: it opens the grid in a window of this Chrome (signed in to Facebook), scrolls a
-  screen every 1.5–3 s, reads each reel's id and view count with `selectors.json`, and sends them to the page in
-  batches. A checkpoint or login page stops it and is left open for the member; it is never answered. See
-  `docs/decisions/2026-11-17-competitor-analyzer.md`. Use a second Facebook account if you can.
+  grid for each scan the page claims, always as the second Facebook account saved on the extension's options page:
+  it opens an incognito window, signs it in with that account's cookies (your own Facebook in normal windows is
+  untouched), scrolls a screen every 1.5–3 s, reads each reel's id and view count with `selectors.json` and sends
+  them to the page in batches, then opens the most viewed reels one by one, 4–8 s apart, for caption, sound and
+  reactions. A checkpoint is left open for the member; it is never answered. The cookies stay in this Chrome and
+  are never sent to Reels Studio's server. See `docs/decisions/2026-11-17-competitor-analyzer.md`.
+
+## Second Facebook account (for "Phân tích đối thủ")
+
+1. `chrome://extensions` › this extension › "Chi tiết" › turn on "Cho phép ở chế độ ẩn danh".
+2. In an incognito window, sign in to Facebook as the second account and copy facebook.com's cookies
+   (Cookie-Editor › Export › JSON, or the `cookie` request header from DevTools). `c_user` and `xs` are required.
+3. The extension's options ("Tùy chọn", or "Cài đặt tài khoản phụ" on the Đối thủ page) › paste › "Lưu".
+   Close that incognito window without logging out: logging out ends the cookies.
 
 ## Install (each member, once)
 

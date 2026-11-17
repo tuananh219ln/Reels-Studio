@@ -25,7 +25,7 @@
   });
   // "Gửi ảnh vào Reels Studio" from another tab: the page puts the photo on the scene. A competitor scan's batches,
   // progress and end ("Phân tích đối thủ") go to the page that started it, which saves them.
-  const TO_PAGE = new Set(["send-image", "scan-batch", "scan-tick", "scan-done"]);
+  const TO_PAGE = new Set(["send-image", "scan-batch", "scan-tick", "scan-grid-done", "scan-detail", "scan-done"]);
   chrome.runtime.onMessage.addListener((message) => {
     if (TO_PAGE.has(message?.type)) {
       window.postMessage({ source: "reels-extension", ...message }, "*");

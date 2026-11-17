@@ -2,15 +2,22 @@
 
 From the spec "Competitor Analyzer (Facebook) cho MKT-Tools" v0.1, built in Reels Studio by tuananh219ln's choice in
 the session (not in MKT-Tools: Reels Studio already has the members' MCP connection and the Chrome extension). This
-round is the spec's M1 and M2; M3–M5 are later work.
+round is the spec's M1, M2 and M3; M4 and M5 are later work.
 
 - **Read in the member's browser, never by the server.** Facebook shows a Page's Reels grid and its view counts only to
-  a signed-in browser that runs its JavaScript, so the team's extension (`extension/`, 1.1.0) does it, as Google Ảnh
+  a signed-in browser that runs its JavaScript, so the team's extension (`extension/`, 1.2.0) does it, as Google Ảnh
   photos are taken ([2026-11-08](../decisions.md)). The Graph API gives no views of another's Page, and paid scraping
   services were not chosen. It differs from "never by scraping" for Shopee, Google and TikTok (2026-11-02, 2026-11-03,
   2026-11-14), which keep the app's server from reading those sites: here the member's own Chrome reads what it is
-  shown. The member accepts the risk the spec names (Facebook's terms; the account used may be restricted): the page
-  advises a second Facebook account.
+  shown. The member accepts the risk the spec names (Facebook's terms; the account used may be restricted).
+- **Always as a second Facebook account, signed in by its cookies, in an incognito window** (tuananh219ln's
+  choice, 2026-11-17). The member pastes the account's cookies (a `Cookie:` header or a Cookie-Editor JSON export;
+  `c_user` and `xs` required) on the extension's options page. They stay in that Chrome
+  (`chrome.storage.local`), never reach Reels Studio's server (the spec's "no cookie on the backend"), and are set
+  only in the cookie store of the incognito window a scan opens, so the member's own Facebook in normal windows is
+  never touched or logged out. The extension needs "Cho phép ở chế độ ẩn danh"; without a saved account or that
+  permission the page claims no scan and says what is missing. A scan never falls back to the member's own
+  account. The cookies are not shared between members: each Chrome holds its own.
 - **The open "Đối thủ" page drives the extension.** A scan is queued (on the page, or by the member's Claude with
   `competitor_scan_start`); the member's open `/competitors` page claims it (`POST /api/competitors/scanner/claim`),
   has the extension open the grid in a window of their Chrome, and saves the batches it reads. The extension keeps no
@@ -22,11 +29,17 @@ round is the spec's M1 and M2; M3–M5 are later work.
 - **Resumable without duplicates.** A scan whose page was closed (silent for 3 minutes) is claimed again; "Tiếp tục"
   queues a `partial` or `failed` one. Videos are unique per scan (`fb_video_id`), so reading the grid again updates
   them; a reading without a number keeps the number read before.
+- **The top reels' own pages (M3).** After the grid, the page asks the api for the `fetch_captions_top_n` most
+  viewed reels (30 by default, 0–100) and the extension opens each `/reel/<id>/` in the same window, 4–8 s apart:
+  caption (after "Xem thêm"), the sound's name (`/reels/audio/` link), the video's length, and the reaction,
+  comment and share counts read from aria-labels, normalized like views. A field not shown keeps what was read
+  before. These selectors are guesses until tried on real pages, and live in `selectors.json`.
 - **Numbers in code, analysis on the member's plan.** Views are normalized from the grid's text in the api
   (`competitors.parse_views`: K/N/nghìn, M/Tr/triệu, B/Tỷ, either "." or "," as the decimal mark); `competitor_stats`
   sums, takes the median, buckets and the top 10's share. Topics, pains and recommendations are written by the
   member's Claude from `competitor_top_videos`, which carries the spec's analysis prompt; no AI cost to the team.
 - **Differences from the spec.** Integer ids, as every table here. Competitors are each member's own (no team
   sharing). `kind` is `profile` only for a `profile.php` / `people/` address; a vanity name is `page`. The grid has
-  only views, so caption, date and reactions stay empty until M3; posting frequency is null until dates are read.
-  `comment_sample` and `report` tables, `competitor_video_details` and `competitor_report_save/get` come with M3/M4.
+  only views; caption, sound and counts are read for the top reels only, and the posting date not at all, so
+  posting frequency stays null until M5. Sample comments (`comment_sample`), saved reports (`report`,
+  `competitor_report_save/get`) come with M4; `competitor_video_details` answers `comment_samples: []` until then.
