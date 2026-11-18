@@ -16,6 +16,7 @@ import {
   type ArticleNumbers,
   type ArticleOptions,
   type ArticlePost,
+  type PostCommentItem,
 } from "@/lib/api";
 import { NO_PAGE_OF_MINE } from "@/lib/myPages";
 import { SendOutlined, VideoCameraAddOutlined } from "@ant-design/icons";
@@ -371,10 +372,86 @@ export function PostsCard({
                 )}
               </Flex>
             )}
+            {post.pinned_comments && (
+              <PostedPinnedComments post={post} busy={busy} onAct={(action, done) => act(post, action, done)} />
+            )}
           </Flex>
         ))}
       </Flex>
     </Card>
+  );
+}
+
+const COMMENT_TONES: Record<PostCommentItem["status"], StatusTone> = {
+  pending: "waiting",
+  posted: "success",
+  pinned: "success",
+  need_manual_pin: "warning",
+  failed: "danger",
+  skipped: "idle",
+};
+
+/** The script's pinned comments as written under one post: each one's state, "Chờ ghim tay" with the link to the
+ *  post, "Đã ghim" once a member pinned it, and "Đăng lại bình luận lỗi". */
+function PostedPinnedComments({
+  post,
+  busy,
+  onAct,
+}: {
+  post: ArticlePost;
+  busy: string | null;
+  onAct: (action: string, done: string) => void;
+}) {
+  const data = post.pinned_comments;
+  if (!data) return null;
+  return (
+    <Flex vertical gap={4} data-testid="posted-pinned-comments">
+      <Flex gap={8} align="center" wrap>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Bình luận ghim: đã đăng {data.written}/{data.total}
+        </Typography.Text>
+        {data.need_manual_pin && (
+          <>
+            <StatusText tone="warning">Chờ ghim tay</StatusText>
+            {data.url && (
+              <a href={data.url} target="_blank" rel="noreferrer">
+                Mở bài để ghim
+              </a>
+            )}
+            <Button
+              size="small"
+              loading={busy === `${post.id}-pinned-comments/pinned`}
+              onClick={() => onAct("pinned-comments/pinned", "Đã ghi nhận bình luận được ghim")}
+            >
+              Đã ghim
+            </Button>
+          </>
+        )}
+        {data.failed > 0 && (
+          <Button
+            size="small"
+            loading={busy === `${post.id}-pinned-comments/retry`}
+            onClick={() => onAct("pinned-comments/retry", "Worker sẽ đăng lại bình luận lỗi")}
+          >
+            Đăng lại bình luận lỗi
+          </Button>
+        )}
+      </Flex>
+      {data.items.map((item) => (
+        <Flex key={item.id} gap={8} align="baseline" data-testid="posted-pinned-comment">
+          <StatusText tone={COMMENT_TONES[item.status]}>{item.status_label}</StatusText>
+          <Typography.Text style={{ fontSize: 12 }} ellipsis={{ tooltip: item.text }}>
+            {item.is_pinned ? "📌 " : ""}
+            {item.text}
+          </Typography.Text>
+          {item.error && (
+            <Typography.Text type="danger" style={{ fontSize: 12 }}>
+              {item.error}
+            </Typography.Text>
+          )}
+        </Flex>
+      ))}
+    </Flex>
   );
 }
 

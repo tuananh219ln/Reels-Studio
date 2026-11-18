@@ -48,6 +48,7 @@ from . import (
     render_nodes,
     revise,
     rework,
+    slot_comments,
     source_keys,
     text_looks,
     tiktok_publish,
@@ -164,6 +165,9 @@ def run_job(
                 run_text_look_job(db, job, call)
             elif job.kind == "article_caption":
                 run_article_caption_job(db, job, call)
+            elif job.kind == slot_comments.JOB_KIND:
+                llm_call, count_call = _llm(db, job, call)
+                slot_comments.run_job(db, job, llm_call, count_call)
             elif job.kind == "render":
                 run_render_job(db, job, storage)
             elif job.kind == "image":

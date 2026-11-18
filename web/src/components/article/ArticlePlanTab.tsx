@@ -15,7 +15,7 @@ import {
   type PlanSlot,
 } from "@/lib/api";
 import { useUrlId } from "@/lib/urlState";
-import { DeleteOutlined, PlusOutlined, SettingOutlined, UploadOutlined } from "@ant-design/icons";
+import { DeleteOutlined, MessageOutlined, PlusOutlined, SettingOutlined, UploadOutlined } from "@ant-design/icons";
 import {
   Alert,
   App,
@@ -50,6 +50,12 @@ const CHECK_TAGS: Record<PlanImportRow["check"], { color: string; label: string 
   ok: { color: "green", label: "Hợp lệ" },
   warning: { color: "orange", label: "Cảnh báo" },
   error: { color: "red", label: "Lỗi" },
+};
+const ACTION_LABELS: Record<PlanImportRow["action"], string> = {
+  add: "Thêm mới",
+  skip_posted: "Bỏ qua (đã đăng)",
+  skip_used: "Bỏ qua (đã tạo bài)",
+  skip: "Bỏ qua",
 };
 const WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 
@@ -117,6 +123,8 @@ export default function ArticlePlanTab() {
   const [groups, setGroups] = useState<Knowledge["topics"]>([]);
   const [settingUp, setSettingUp] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [commenting, setCommenting] = useState(false);
+  const [queuedTotal, setQueuedTotal] = useState(0);
   const [editing, setEditing] = useState<{ slot: PlanSlot | null; day: number | null; number: number | null } | null>(
     null,
   );
@@ -149,6 +157,14 @@ export default function ArticlePlanTab() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads the chosen Page's plan; state is set only after the request answers
     void load();
   }, [load]);
+
+  const pending = view?.plan?.comments_pending ?? 0;
+  useEffect(() => {
+    // The "Tạo bình luận ghim" jobs run in the worker: read the plan again until none is left.
+    if (pending === 0) return;
+    const timer = setInterval(() => void load(), 4000);
+    return () => clearInterval(timer);
+  }, [pending, load]);
 
   async function change(call: () => Promise<ArticlePlanView>, done?: string) {
     setBusy(true);
@@ -193,6 +209,16 @@ export default function ArticlePlanTab() {
     for (const slot of view?.slots ?? []) cells.set(`${slot.day}:${slot.slot}`, slot);
     return cells;
   }, [view]);
+
+  /** "BL 5/5": grey with none, orange short of five, green when full. */
+  function commentsTag(slot: PlanSlot) {
+    const color = slot.comments_count === 0 ? "default" : slot.comments_count < 5 ? "orange" : "green";
+    return (
+      <Tag color={color} data-testid="comments-tag" style={{ marginInlineEnd: 0, fontSize: 11 }}>
+        BL {slot.comments_count > 0 ? `${slot.comments_count}/5` : "—"}
+      </Tag>
+    );
+  }
 
   function cell(slot: PlanSlot | undefined, day: number, number: number) {
     const today = plan?.today_day === day;
@@ -265,6 +291,7 @@ export default function ArticlePlanTab() {
         <Typography.Paragraph ellipsis={{ rows: 2 }} style={{ margin: "2px 0 0", fontSize: 13 }}>
           {slot.hook}
         </Typography.Paragraph>
+        {commentsTag(slot)}
       </div>
     );
   }
@@ -340,6 +367,23 @@ export default function ArticlePlanTab() {
                     Đã làm {plan.used}/{plan.total}, đã lên lịch {plan.scheduled}, ngày còn trống {plan.empty_days} ·
                     Backlog {plan.backlog}
                   </Typography.Text>
+                  <Typography.Text data-testid="comments-summary">
+                    Bình luận: {plan.comments.full}/{plan.comments.total} kịch bản đủ 5/5
+                    {plan.comments_pending > 0 ? ` · đang tạo ${plan.comments_pending} kịch bản…` : ""}
+                  </Typography.Text>
+                  {plan.comments_pending > 0 && (
+                    <Progress
+                      size="small"
+                      style={{ maxWidth: 480 }}
+                      percent={Math.round(
+                        ((Math.max(queuedTotal, plan.comments_pending) - plan.comments_pending) /
+                          Math.max(queuedTotal, plan.comments_pending)) *
+                          100,
+                      )}
+                      format={() => `Tạo bình luận: còn ${plan.comments_pending}`}
+                      data-testid="comments-progress"
+                    />
+                  )}
                   <Progress
                     percent={Math.round((plan.used / Math.max(plan.total, 1)) * 100)}
                     format={() => `Đã dùng ${plan.used}/${plan.total} kịch bản`}
@@ -368,6 +412,9 @@ export default function ArticlePlanTab() {
                     onClick={() => setEditing({ slot: null, day: null, number: null })}
                   >
                     Thêm vào Backlog
+                  </Button>
+                  <Button icon={<MessageOutlined />} disabled={!plan} onClick={() => setCommenting(true)}>
+                    Tạo bình luận ghim
                   </Button>
                   {selecting ? (
                     <>
@@ -517,6 +564,7 @@ export default function ArticlePlanTab() {
                       <Typography.Paragraph ellipsis={{ rows: 2 }} style={{ margin: 0, fontSize: 13 }}>
                         {slot.hook}
                       </Typography.Paragraph>
+                      {commentsTag(slot)}
                     </div>
                   ))}
                 </Flex>
@@ -550,6 +598,20 @@ export default function ArticlePlanTab() {
           onOpen={(articleId) => router.push(`/articles/${articleId}`)}
         />
       )}
+      {commenting && view && fanpageId !== null && (
+        <CommentsModal
+          fanpageId={fanpageId}
+          view={view}
+          selected={selected}
+          onClose={() => setCommenting(false)}
+          onQueued={(saved, queued) => {
+            setView(saved);
+            setQueuedTotal(queued);
+            setCommenting(false);
+            message.success(queued ? `Đã đưa ${queued} kịch bản vào hàng đợi` : "Không có kịch bản nào cần tạo");
+          }}
+        />
+      )}
       {importing && view && fanpageId !== null && (
         <ImportModal
           fanpageId={fanpageId}
@@ -575,6 +637,7 @@ type SettingsBody = {
   topic_group_ids: number[];
   kind_mix: Partial<Record<ArticleKind, number>>;
   tone: string;
+  audience: string;
 };
 
 /** "Thiết lập": day 1, posts a day and their times (one chip each), and what "Tạo bằng AI" will write from. */
@@ -596,6 +659,7 @@ function PlanSettings({
   const [groupIds, setGroupIds] = useState<number[]>(plan?.topic_group_ids ?? []);
   const [mix, setMix] = useState<Partial<Record<ArticleKind, number>>>(plan?.kind_mix ?? {});
   const [tone, setTone] = useState(plan?.tone ?? "");
+  const [audience, setAudience] = useState(plan?.audience ?? "");
   const [saving, setSaving] = useState(false);
   const mixTotal = Object.values(mix).reduce((sum, value) => sum + (value ?? 0), 0);
   const timesOk = times.length === perDay && times.every((time) => /^\d{2}:\d{2}$/.test(time));
@@ -684,6 +748,16 @@ function PlanSettings({
             onChange={(event) => setTone(event.target.value)}
           />
         </label>
+        <label>
+          <Typography.Text type="secondary">Nhóm đối tượng (cho bình luận ghim)</Typography.Text>
+          <Input
+            aria-label="Nhóm đối tượng"
+            value={audience}
+            maxLength={200}
+            placeholder="VD: 35–55 tuổi, quan tâm sức khỏe"
+            onChange={(event) => setAudience(event.target.value)}
+          />
+        </label>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Số giờ đăng phải bằng số bài mỗi ngày (gõ giờ dạng 07:00 rồi Enter). Giảm số bài: kịch bản ở khung bị bỏ
           chuyển vào Backlog. Nhóm chủ đề, tỉ lệ dạng bài và giọng văn chỉ dùng khi Tạo bằng AI.
@@ -705,6 +779,7 @@ function PlanSettings({
                 topic_group_ids: groupIds,
                 kind_mix: mix,
                 tone,
+                audience,
               });
               setSaving(false);
             }}
@@ -969,7 +1044,7 @@ function ImportModal({
     }
   }
 
-  const saveable = preview ? preview.rows.filter((row) => row.check !== "error").length : 0;
+  const saveable = preview ? preview.rows.filter((row) => row.check !== "error" && row.action === "add").length : 0;
   const shown = (preview?.rows ?? []).filter((row) => only === "all" || row.check === only);
 
   async function save() {
@@ -1098,6 +1173,18 @@ function ImportModal({
                 { title: "Khung", dataIndex: "slot", width: 60, render: (value) => value ?? "" },
                 { title: "Câu mở (hook)", dataIndex: "hook", ellipsis: true },
                 {
+                  title: "Bình luận",
+                  key: "comments",
+                  width: 90,
+                  render: (_, row) => (row.pinned_comments.length ? `${row.pinned_comments.length}/5` : "—"),
+                },
+                {
+                  title: "Hành động",
+                  key: "action",
+                  width: 150,
+                  render: (_, row) => ACTION_LABELS[row.action],
+                },
+                {
                   title: "Kiểm tra",
                   key: "check",
                   width: 100,
@@ -1119,6 +1206,101 @@ function ImportModal({
             </Typography.Text>
           </>
         )}
+      </Flex>
+    </Modal>
+  );
+}
+
+type CommentScope = "missing" | "selected" | "unposted";
+
+/** "Tạo bình luận ghim": the scripts to write comments for, how many that is, and "Ghi đè" for those edited by hand.
+ *  The jobs run in the worker; the plan tab shows their progress and reads the plan again until they are done. */
+function CommentsModal({
+  fanpageId,
+  view,
+  selected,
+  onClose,
+  onQueued,
+}: {
+  fanpageId: number;
+  view: ArticlePlanView;
+  selected: number[];
+  onClose: () => void;
+  onQueued: (view: ArticlePlanView, queued: number) => void;
+}) {
+  const { message } = App.useApp();
+  const [scope, setScope] = useState<CommentScope>(selected.length ? "selected" : "missing");
+  const [overwrite, setOverwrite] = useState(false);
+  const [count, setCount] = useState<{ total: number; edited: number; will_run: number } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const pending = view.plan?.comments_pending ?? 0;
+
+  useEffect(() => {
+    let current = true;
+    const query = new URLSearchParams({ scope, ids: selected.join(","), overwrite: String(overwrite) });
+    api<{ total: number; edited: number; will_run: number }>(`/article-plans/${fanpageId}/comments/count?${query}`)
+      .then((found) => current && setCount(found))
+      .catch((err) => current && message.error(errorMessage(err)));
+    return () => {
+      current = false;
+    };
+  }, [fanpageId, scope, selected, overwrite, message]);
+
+  async function start() {
+    setSaving(true);
+    try {
+      const saved = await api<ArticlePlanView & { queued: number }>(
+        `/article-plans/${fanpageId}/comments/bulk`,
+        "POST",
+        {
+          scope,
+          ids: selected,
+          overwrite,
+        },
+      );
+      onQueued(saved, saved.queued);
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      open
+      title="Tạo bình luận ghim"
+      onCancel={onClose}
+      okText={`Tạo cho ${count?.will_run ?? 0} kịch bản`}
+      cancelText="Đóng"
+      okButtonProps={{ disabled: !count || count.will_run === 0 || pending > 0, loading: saving }}
+      onOk={start}
+    >
+      <Flex vertical gap={12} data-testid="comments-dialog">
+        <Typography.Text type="secondary">
+          AI viết 5 bình luận cho mỗi kịch bản, bình luận đầu được ghim. Chạy ngầm theo hàng đợi; bạn có thể đóng hộp
+          thoại này.
+        </Typography.Text>
+        <Select
+          aria-label="Phạm vi"
+          value={scope}
+          onChange={(value: CommentScope) => setScope(value)}
+          options={[
+            { value: "missing", label: "Ô “Chưa dùng” còn thiếu bình luận" },
+            { value: "selected", label: `Ô đang chọn (${selected.length})`, disabled: selected.length === 0 },
+            { value: "unposted", label: "Toàn bộ ô chưa đăng" },
+          ]}
+        />
+        <Checkbox checked={overwrite} onChange={(event) => setOverwrite(event.target.checked)}>
+          Ghi đè cả kịch bản đã được sửa tay
+        </Checkbox>
+        {count && (
+          <Typography.Text data-testid="comments-count">
+            Sẽ tạo cho {count.will_run} kịch bản
+            {!overwrite && count.edited > 0 ? ` (bỏ qua ${count.edited} kịch bản đã sửa tay)` : ""}.
+          </Typography.Text>
+        )}
+        {pending > 0 && <Alert type="info" showIcon title={`Đang tạo bình luận cho ${pending} kịch bản…`} />}
       </Flex>
     </Modal>
   );
