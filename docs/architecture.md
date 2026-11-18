@@ -197,8 +197,8 @@ latest report the member's Claude saved (`competitor_report_save`); `GET /api/co
 
 
 Version 2 of the page ([decision](decisions/2026-11-18-competitors-ui-v2.md)): before the grid the extension reads the
-Page's header (`reelsStudioReadMeta`: name, followers, verified badge, avatar address) and its background shrinks the
-avatar to 128 px; the page sends them with `finish`, where `competitors.finish` keeps the name, followers, badge and
+Page's header (`reelsStudioReadMeta`: name, followers, verified badge, avatar address: `og:image`, else the square picture of at least 40 px nearest the name, never one
+in Facebook's top bar, which is the scan account's own) and its background shrinks the avatar to 128 px; the page sends them with `finish`, where `competitors.finish` keeps the name, followers, badge and
 `save_avatar` (Pillow re-encodes it to JPEG under `competitors/<id>/`, served by `GET /api/competitors/<id>/avatar`).
 `POST /api/competitors/<id>/refresh-meta` queues a `meta_only` scan (header only; never a competitor's latest scan for
 numbers). `GET /api/competitors` adds `display_name` (`custom_name`, else the name read, else the handle, else
