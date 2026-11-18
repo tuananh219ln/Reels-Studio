@@ -114,8 +114,33 @@ test("Bài viết: post a text article to a Page, read its numbers, take it down
           () => false,
         );
       if (!opened) {
+        // What the page and the api say at this moment, so a CI failure shows why the button cannot be pressed
+        // (disabled while a job is busy, covered by a dialog, or gone) instead of only that it could not.
+        const articleId = page.url().match(/\/articles\/(\d+)/)?.[1];
+        const article = articleId
+          ? await page.request
+              .get(`/api/articles/${articleId}`)
+              .then((answer) => answer.json())
+              .catch(() => null)
+          : null;
+        const button = page.getByRole("button", { name: /^send Đăng$/ });
+        const state = {
+          buttons: await button.count(),
+          disabled: await button
+            .first()
+            .isDisabled()
+            .catch(() => null),
+          dialogs: await page.getByRole("dialog").count(),
+          status: article?.status,
+          busy: article?.busy,
+          job: article?.job,
+          post_status: await page
+            .getByTestId("article-status")
+            .textContent()
+            .catch(() => null),
+        };
         await page.keyboard.press("Escape");
-        throw new Error("Ngăn kéo Đăng bài viết che nút Đăng: đã đóng để thử lại");
+        throw new Error(`Ngăn kéo Đăng bài viết che nút Đăng: đã đóng để thử lại ${JSON.stringify(state)}`);
       }
     }
     await publishNow.click({ timeout: 5_000 });
