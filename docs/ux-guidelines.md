@@ -17,7 +17,7 @@ field, the scene, or the job banner); technical detail sits in a collapsed "Chi 
 ## ChatGPT and Claude connection
 
 Cài đặt › Kết nối MCP (`/settings/mcp`, a tab of "Của tôi"; `/chatgpt` sends there) shows the copyable server URL, how to add it in
-ChatGPT, Claude, Claude Code and Gemini CLI (with the copyable `claude mcp add` and `gemini mcp add` commands), and the current
+ChatGPT, Claude, Claude Code, Gemini CLI and Antigravity (with the copyable `claude mcp add` and `gemini mcp add` commands), and the current
 member's connections, each named by its app, with scope, expiration in Vietnam time, and “Thu hồi kết nối”. An OAuth request
 opens the same page with a consent card titled “Cho phép <app> kết nối?”, naming the member and the
 callback's host (with a warning for Claude Code's loopback callback), explaining read/write access,

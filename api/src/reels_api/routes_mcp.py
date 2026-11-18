@@ -115,7 +115,7 @@ def register(body: Registration, db: DbSession = Depends(get_db)) -> JSONRespons
         )
         raise oauth_error(
             "invalid_client_metadata",
-            "Chỉ hỗ trợ kết nối ChatGPT, Claude, Claude Code, Gemini CLI và Muse với callback đã cho phép",
+            "Chỉ hỗ trợ kết nối ChatGPT, Claude, Claude Code, Gemini CLI, Antigravity và Muse với callback đã cho phép",
         )
     client = McpClient(id=new_session_token(), redirect_uri=" ".join(redirects))
     db.add(client)

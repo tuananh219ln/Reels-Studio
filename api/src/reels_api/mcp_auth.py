@@ -28,7 +28,10 @@ CLAUDE_CALLBACKS = ("https://claude.ai/api/mcp/auth_callback", "https://claude.c
 MUSE_CALLBACKS = ("https://agent.meta.ai/api/hatch/oauth/callback",)
 # Apps that call back to this machine: the consent screen warns for them.
 LOCAL_APPS = frozenset({"Claude Code", "Gemini"})
-HOSTED_CALLBACKS = frozenset({CHATGPT_CALLBACK, *CLAUDE_CALLBACKS, *MUSE_CALLBACKS})
+# Antigravity CLI (agy), which Google AI Pro moved to from Gemini CLI: its hosted callback, from its published client
+# metadata (https://antigravity.google/oauth/client-metadata.json).
+ANTIGRAVITY_CALLBACKS = ("https://antigravity.google/oauth-callback",)
+HOSTED_CALLBACKS = frozenset({CHATGPT_CALLBACK, *CLAUDE_CALLBACKS, *MUSE_CALLBACKS, *ANTIGRAVITY_CALLBACKS})
 # Native clients: an RFC 8252 loopback redirect on a port that changes every session. Claude Code's path is
 # /callback; Gemini CLI's is /oauth/callback (its docs: google-gemini/gemini-cli docs/tools/mcp-server.md).
 GEMINI_PATH = "/oauth/callback"
@@ -100,6 +103,8 @@ def app_of(redirect: str) -> str:
         return "Claude"
     if redirect in MUSE_CALLBACKS:
         return "Muse"
+    if redirect in ANTIGRAVITY_CALLBACKS:
+        return "Antigravity"
     asked = _loopback(redirect)
     return "Gemini" if asked is not None and asked[2] == GEMINI_PATH else "Claude Code"
 
