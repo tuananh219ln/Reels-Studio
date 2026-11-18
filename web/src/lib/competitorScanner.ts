@@ -26,6 +26,8 @@ export type CompetitorScan = {
   include_videos: boolean;
   /** "Cập nhật thông tin kênh": reads only the Page's header, no videos. */
   meta_only: boolean;
+  /** "Quét bình luận video này": the videos whose comments it reads; empty for every other scan. */
+  comments_for?: string[];
   competitor: {
     id: number;
     fb_url: string;
@@ -130,6 +132,9 @@ type Ended = {
 
 /** Runs one claimed scan through the extension, saving everything in order; resolves with how it ended. */
 function runScan(scan: CompetitorScan, onProgress: (progress: ScanProgress) => void): Promise<Ended> {
+  // A comments scan opens only the videos it names: the extension reads one card of the grid (the api keeps none of
+  // it), then asks for its targets as after any grid. Works with extension 1.5.0 and newer, unchanged.
+  const commentsOnly = (scan.comments_for?.length ?? 0) > 0;
   return new Promise((resolve) => {
     const request = `scan-${scan.id}`;
     let saving: Promise<unknown> = Promise.resolve();
@@ -220,9 +225,9 @@ function runScan(scan: CompetitorScan, onProgress: (progress: ScanProgress) => v
         scanId: scan.id,
         url: scan.competitor.reels_url,
         // M5: the Videos tab after Reels, when the scan asks for it.
-        videosUrl: scan.include_videos ? scan.competitor.videos_url : undefined,
-        maxVideos: scan.max_videos,
-        metaOnly: scan.meta_only,
+        videosUrl: scan.include_videos && !commentsOnly ? scan.competitor.videos_url : undefined,
+        maxVideos: commentsOnly ? 1 : scan.max_videos,
+        metaOnly: scan.meta_only && !commentsOnly,
       },
       window.location.origin,
     );

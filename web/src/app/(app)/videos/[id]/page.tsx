@@ -1,5 +1,6 @@
 "use client";
 import CloneModal, { type CloneTarget } from "@/components/video/CloneModal";
+import CompetitorSource from "@/components/video/CompetitorSource";
 
 import { COLORS } from "@/app/theme";
 import { useMe } from "@/components/MeContext";
@@ -795,6 +796,7 @@ export default function VideoPage() {
           Nhân bản từ “{video.clone_of.title}” — yêu cầu đổi: {video.clone_of.request}
         </Typography.Paragraph>
       )}
+      {video.competitor_source && <CompetitorSource source={video.competitor_source} />}
       {video.shuffle &&
         (video.shuffle.review || video.shuffle.same_title.length > 0 ? (
           <Alert

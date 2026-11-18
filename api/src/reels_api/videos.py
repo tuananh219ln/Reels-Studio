@@ -21,6 +21,7 @@ from . import (
     affiliate,
     analytics,
     brands,
+    competitors,
     facebook,
     fanpages,
     hashtags,
@@ -1299,6 +1300,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         if video.clone_source
         else None,
         "reference": reference_payload(db, video),
+        # "Clone" from "Phân tích đối thủ": the competitor's video it was built from, and its sample comments.
+        "competitor_source": competitors.source_payload(db, video),
         "title_scene": scene_payload(video, title, checks) if title else None,
         "scenes": [scene_payload(video, scene, checks) for scene in scenes],
         "video_blocking": [issue.message for issue in checks.blocking if issue.scene_id is None],

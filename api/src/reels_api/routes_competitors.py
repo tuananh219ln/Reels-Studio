@@ -3,18 +3,21 @@ makes while it drives the extension (claim a scan, send the grid's videos in bat
 member's own: another member's competitors and scans answer 404.
 """
 
+from datetime import timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import competitors
+from . import clone, competitors
 from .db import get_db
 from .errors import ApiError
-from .models import Session
-from .sessions import current_member
+from .models import Scene, Session, Video
+from .routes_videos import NewVideoBody, start_video
+from .sessions import current_member, now
 from .storage import get_storage
 
 router = APIRouter(prefix="/api/competitors")
@@ -313,5 +316,115 @@ def finish_scan(
 ) -> dict:
     scan = competitors.own_scan(db, scan_id, me.user_id, lock=True)
     competitors.finish(db, scan, body.status, body.error, body.name, body.followers, body.is_verified, body.avatar)
+    db.commit()
+    return competitors.scan_payload(scan)
+
+
+# "Clone" (decision 2026-11-18-competitor-clone-video): a "Tự viết" video built in code from a competitor's caption,
+# with no AI call and no job; its photos and clips are added by hand on its page.
+CLONES_PER_MINUTE = 20
+FACEBOOK_PREFIX = "https://www.facebook.com/"
+NO_CAPTION = "Video chưa có caption để clone"
+
+
+class CloneBody(BaseModel):
+    knowledge_topic_id: int
+    video_mode: Literal["slides", "single"] | None = None
+    # What the member edited in the dialog; left out, both are built from the caption.
+    topic: str | None = Field(None, max_length=1000)
+    script: str | None = Field(None, max_length=20_000)
+
+
+def _captioned(db: DbSession, competitor_id: int, fb_video_id: str):
+    competitor = competitors.team_competitor(db, competitor_id)
+    video = competitors.listed_video(db, competitor, fb_video_id)
+    if not (video.caption or "").strip():
+        raise ApiError(422, "competitor_video_no_caption", NO_CAPTION)
+    return competitor, video
+
+
+def _comments_scan(db: DbSession, video) -> dict | None:
+    scan = competitors.active_comments_scan(db, video)
+    return {"id": scan.id, "status": scan.status} if scan else None
+
+
+@router.get("/{competitor_id}/videos/{fb_video_id}/clone-preview")
+def clone_preview(
+    competitor_id: int, fb_video_id: str, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """What "Tạo video" would make, for the dialog to show and edit; nothing is saved."""
+    competitor, video = _captioned(db, competitor_id, fb_video_id)
+    built = clone.clone_script(video.caption)
+    return {
+        "topic": built.topic,
+        "script": built.script,
+        "scenes": built.scenes,
+        "thin": built.thin,
+        "comment_count": competitors.comment_count(db, video),
+        # Only the member who scans the competitor reads its comments again ("Quét bình luận video này").
+        "can_scan_comments": competitor.owner_id == me.user_id,
+        "comments_scan": _comments_scan(db, video),
+    }
+
+
+@router.post("/{competitor_id}/videos/{fb_video_id}/clone", status_code=201)
+def clone_video(
+    competitor_id: int,
+    fb_video_id: str,
+    body: CloneBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """Any member clones any of the team's competitors' videos; the new video is theirs. No job is queued."""
+    competitor, source = _captioned(db, competitor_id, fb_video_id)
+    recent = db.scalar(
+        select(func.count()).where(
+            Video.created_by_id == me.user_id,
+            Video.competitor_source_name.is_not(None),
+            Video.created_at > now() - timedelta(minutes=1),
+        )
+    )
+    if recent >= CLONES_PER_MINUTE:
+        raise ApiError(429, "too_many_clones", "Bạn vừa clone nhiều video liền nhau, đợi một phút rồi thử lại")
+    built = None
+    if not (body.topic or "").strip() or body.script is None:
+        built = clone.clone_script(source.caption)
+    topic = (body.topic or "").strip() or built.topic
+    script = body.script if body.script is not None else built.script
+    video = start_video(
+        NewVideoBody(
+            topic=clone.cut_words(" ".join(topic.split()), clone.MAX_TOPIC_LENGTH),
+            knowledge_topic_id=body.knowledge_topic_id,
+            mode="manual",
+            script=script,
+            video_mode=body.video_mode,
+        ),
+        me,
+        db,
+    )
+    video.competitor_source_url = source.url if source.url.startswith(FACEBOOK_PREFIX) else None
+    video.competitor_source_name = competitors.display_name(competitor)[:200]
+    video.competitor_source_video_id = source.id
+    db.flush()
+    scenes = db.scalar(select(func.count()).where(Scene.video_id == video.id))
+    db.commit()
+    comment_count = competitors.comment_count(db, source)
+    return {
+        "video_id": video.id,
+        "url": f"/videos/{video.id}",
+        "scenes": scenes,
+        "thin": built.thin if built else False,
+        "has_comments": comment_count > 0,
+    }
+
+
+@router.post("/{competitor_id}/videos/{fb_video_id}/scan-comments", status_code=201)
+def scan_comments(
+    competitor_id: int, fb_video_id: str, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Quét bình luận video này": the member's open page has the extension read this one video's comments."""
+    competitor = competitors.own_competitor(db, competitor_id, me.user_id)
+    video = competitors.listed_video(db, competitor, fb_video_id)
+    scan = competitors.start_comments_scan(db, me.user_id, video)
     db.commit()
     return competitors.scan_payload(scan)

@@ -215,6 +215,19 @@ setting `competitor_threshold` (Cài đặt › Phân tích đối thủ, `GET`/
 gives `og:image`: the background shrinks it, `add_details` keeps a 128 px JPEG (`thumb_key`, served at
 `/api/competitors/<id>/thumbs/<video id>`) ([decision](decisions/2026-11-18-competitors-thumbs-settings.md)).
 
+"Clone" ([decision](decisions/2026-11-18-competitor-clone-video.md)): a video of the latest scan with a caption becomes a
+"Tự viết" draft. `clone.clone_script` (pure code, no AI) turns the caption into a title and a script (hook, one scene
+per idea or list item, the closing call to action; hashtags, emoji and "Xem thêm" dropped; at most 20 scenes and 5000
+characters; `thin` when the caption is only a title). `GET /api/competitors/<id>/videos/<fb_video_id>/clone-preview`
+shows it with the sample comment count; `POST .../clone` (`knowledge_topic_id`, `video_mode`, edited `topic` and
+`script`) calls `routes_videos.start_video` in `manual` mode, queues no job, allows 20 clones a minute per member, and
+saves the source on the video (migration 0107): `competitor_source_url` (only a `https://www.facebook.com/` link),
+`competitor_source_name` and `competitor_source_video_id` (`ON DELETE SET NULL`). Copies keep the three;
+`GET /api/videos/<id>` returns `competitor_source` with the source's sample comments. `POST .../scan-comments` (the
+scanning member only) queues a `meta_only` scan whose `scope` has `comments_for` (fb ids) and `source_scan_id`: the
+page runs it with `maxVideos: 1` (the grid batch is ignored), `enrich-targets` returns only those videos with
+comments, and `add_details` writes to the source scan's rows. Up to 20 videos join one waiting comments scan.
+
 ### Automatic scene footage
 
 `auto_footage.py` optionally runs inside the existing post-script `photos` job, before its photo search. Enable
