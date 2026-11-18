@@ -374,12 +374,10 @@ export type VideoDetail = VideoRow & {
   manual_posts: ManualPost[];
   /** Shopee's product suggestions for the video (the worker searches with a member's own account). */
   suggest: { state: "idle" | "pending" | "failed"; error: string | null; at: string | null };
-  /** The pinned comment's template (`{title}`, `{items}`... filled from the scenes, lib/pinned.ts). */
-  pinned_comment: string;
-  /** What the template reads as now: what "Copy ghim" copies and the Page writes under a reel. */
+  /** "Dòng khảo sát": the pinned comment's last line, under the title and the scenes (lib/pinned.ts); "" for none. */
+  pinned_survey: string;
+  /** The whole pinned comment as it reads now: what "Copy ghim" copies and the Page writes under a reel. */
   pinned_comment_text: string;
-  /** The attached products' names, for `{products}` in the live preview. */
-  pinned_products: string[];
   /** "Bình luận thêm": more comments of the Page under each reel after the first, in order. */
   extra_comments: string[];
   self_review: string[];

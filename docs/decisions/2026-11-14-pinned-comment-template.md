@@ -1,5 +1,8 @@
 # 2026-11-14 — The pinned comment is a template filled from the scenes
 
+> Replaced on 2026-11-19 by [2026-11-19-pinned-comment-fixed-shape](2026-11-19-pinned-comment-fixed-shape.md): the
+> comment now has a fixed shape and no template.
+
 Asked by tuananh219ln from a spec ("Đặc tả: Bình luận ghim tự đồng bộ với tiêu đề & cảnh"): the pinned comment was
 written once with the script, so editing, adding, deleting or reordering scenes left it describing another video.
 

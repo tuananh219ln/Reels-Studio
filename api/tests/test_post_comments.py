@@ -11,6 +11,10 @@ from worker_helpers import add_user, committed  # noqa: F401  (fixtures)
 from reels_api import fanpages, post_comments
 from reels_api.models import AffiliateProduct, Fanpage, Publication, Scene, Video, VideoAffiliateProduct
 
+# The pinned comment of a post made by add_post: the title, its one scene, then its survey line (pinned.py).
+HEAD = "5 MÓN GIÚP XƯƠNG CHẮC KHỎE\n1. Cá nhỏ\n"
+PINNED = HEAD + "Món nào nhà bạn hay nấu nhất?"
+
 
 @pytest.fixture
 def me(db):
@@ -33,7 +37,7 @@ def add_post(db, storage, user, fakes, live_minutes_ago: float = 10, auto: bool 
         page = fanpages.save(db, FACEBOOK_PAGE, "Trang Dưỡng Sinh", FACEBOOK_TOKEN, user.id)
         db.flush()
     video = make_video(db, storage, user, scene_count=1)
-    video.pinned_comment = "Món nào nhà bạn hay nấu nhất?"
+    video.pinned_survey = "Món nào nhà bạn hay nấu nhất?"
     remote_id = f"reel-{video.id}"
     fakes.reels[remote_id] = {"uploaded": True, "state": "published"}
     fields = {"status": "published", "published_at": ago(live_minutes_ago)} | fields
@@ -49,6 +53,13 @@ def add_post(db, storage, user, fakes, live_minutes_ago: float = 10, auto: bool 
     db.add(post)
     db.commit()
     return post
+
+
+def say_nothing(db, video: Video) -> None:
+    """A pinned comment with nothing in it: no title, no topic, no scene text and no survey line."""
+    video.topic, video.pinned_survey = "", ""
+    for scene in db.scalars(select(Scene).where(Scene.video_id == video.id)):
+        scene.text = ""
 
 
 def attach(db, post: Publication, name: str = "Nồi hầm mini", status: str = "approved", **fields) -> AffiliateProduct:
@@ -131,7 +142,7 @@ def test_the_comment_holds_the_pinned_comment_and_the_usable_products_links(db, 
     attach(db, post, "Bát giữ nhiệt", status="draft")
     post_comments.write(db, post)
     (comment,) = comments_on(fakes, post)
-    assert comment["message"] == "Món nào nhà bạn hay nấu nhất?\nNồi hầm mini: https://s.shopee.vn/12"
+    assert comment["message"] == PINNED + "\nNồi hầm mini: https://s.shopee.vn/12"
     assert (post.comment_id, post.comment_error, post.comment_text) == (
         next(iter(fakes.facebook_comments)),
         None,
@@ -141,21 +152,20 @@ def test_the_comment_holds_the_pinned_comment_and_the_usable_products_links(db, 
     assert due(db) == [], "one comment per post"
 
 
-def test_the_comment_opens_with_the_pinned_template_filled_from_the_scenes_as_they_are_now(db, me, storage, fakes):
+def test_the_comment_is_built_from_the_scenes_as_they_are_now(db, me, storage, fakes):
     post = add_post(db, storage, me, fakes)
     video = db.get(Video, post.video_id)
-    video.pinned_comment = "{items}\nMón nào nhà bạn hay nấu nhất?"
     scene = db.scalar(select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False)))
-    scene.text = "Canh *hến*\nTốt cho tim"
+    scene.text = "1. Canh *hến*\nTốt cho tim"
     db.commit()
     post_comments.write(db, post)
     (comment,) = comments_on(fakes, post)
-    assert comment["message"] == "1. Canh hến – Tốt cho tim\nMón nào nhà bạn hay nấu nhất?"
+    assert comment["message"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE\n1. Canh hến\nMón nào nhà bạn hay nấu nhất?"
 
 
 def test_nothing_to_say_is_recorded_without_calling_facebook(db, me, storage, fakes):
     post = add_post(db, storage, me, fakes)
-    db.get(Video, post.video_id).pinned_comment = ""
+    say_nothing(db, db.get(Video, post.video_id))
     db.commit()
     post_comments.write(db, post)
     assert fakes.facebook_comments == {}
@@ -190,14 +200,14 @@ def test_a_lost_answer_is_not_written_again_when_a_member_retries(an, db, me, st
 def test_a_comment_is_edited_not_written_again(an, db, me, storage, fakes):
     post = add_post(db, storage, me, fakes)
     post_comments.write(db, post)
-    db.get(Video, post.video_id).pinned_comment = "Lưu lại và gửi cho bố mẹ nhé!"
+    db.get(Video, post.video_id).pinned_survey = "Lưu lại và gửi cho bố mẹ nhé!"
     db.commit()
     an.post(f"/api/posts/{post.id}/comment")
     db.expire_all()
     post = db.get(Publication, post.id)
     post_comments.write(db, post)
     (comment,) = comments_on(fakes, post)
-    assert comment["message"] == "Lưu lại và gửi cho bố mẹ nhé!" and comment["edits"] == 1
+    assert comment["message"] == HEAD + "Lưu lại và gửi cho bố mẹ nhé!" and comment["edits"] == 1
 
 
 def test_changing_the_products_updates_a_written_comment(an, db, me, storage, fakes):
@@ -226,7 +236,7 @@ def test_extra_comments_follow_the_first_in_order_once_each(db, me, storage, fak
     db.commit()
     write_all(db, post)
     messages = [comment["message"] for comment in comments_on(fakes, post)]
-    assert messages == ["Món nào nhà bạn hay nấu nhất?", "Bố mẹ nhà bạn thích món nào?", "Lưu lại nấu cuối tuần nhé!"]
+    assert messages == [PINNED, "Bố mẹ nhà bạn thích món nào?", "Lưu lại nấu cuối tuần nhé!"]
     assert len(post.extra_comment_ids) == 2 and post.comment_error is None
     assert due(db) == [], "written once"
 
@@ -249,7 +259,8 @@ def test_an_edited_extra_comment_is_edited_and_a_new_one_is_added(an, db, me, st
 def test_extra_comments_alone_are_something_to_say(db, me, storage, fakes):
     post = add_post(db, storage, me, fakes)
     video = db.get(Video, post.video_id)
-    video.pinned_comment, video.extra_comments = "", ["Chia sẻ cho bạn bè nhé!"]
+    say_nothing(db, video)
+    video.extra_comments = ["Chia sẻ cho bạn bè nhé!"]
     db.commit()
     write_all(db, post)
     assert [comment["message"] for comment in comments_on(fakes, post)] == ["Chia sẻ cho bạn bè nhé!"]
@@ -262,7 +273,7 @@ def test_comments_typed_after_the_first_went_up_are_written_without_asking(an, d
     assert due(db) == []
     saved = an.patch(
         f"/api/videos/{post.video_id}",
-        json={"pinned_comment": "Món nào nhà bạn nấu nhiều nhất?", "extra_comments": ["Lưu lại nhé!"]},
+        json={"pinned_survey": "Món nào nhà bạn nấu nhiều nhất?", "extra_comments": ["Lưu lại nhé!"]},
     )
     assert saved.status_code == 200
     db.expire_all()
@@ -271,7 +282,7 @@ def test_comments_typed_after_the_first_went_up_are_written_without_asking(an, d
     write_all(db, post)
     comments = comments_on(fakes, post)
     assert [(comment["message"], comment["edits"]) for comment in comments] == [
-        ("Món nào nhà bạn nấu nhiều nhất?", 1),
+        (HEAD + "Món nào nhà bạn nấu nhiều nhất?", 1),
         ("Lưu lại nhé!", 0),
     ]
 
@@ -322,7 +333,7 @@ def test_a_run_of_extra_comments_goes_one_at_a_time_with_a_rest_between(db, me, 
     row = db.get(Fanpage, post.fanpage_id)
 
     post_comments.write(db, post)
-    assert [c["message"] for c in comments_on(fakes, post)] == ["Món nào nhà bạn hay nấu nhất?"]
+    assert [c["message"] for c in comments_on(fakes, post)] == [PINNED]
     wait = (row.comments_next_at - datetime.now(UTC)).total_seconds()
     assert 40 < wait <= 45, "45 to 75 seconds after the first comment"
     assert due(db) == [], "nothing is written while the Page rests"

@@ -69,7 +69,7 @@ def page_of(db, owner) -> Fanpage:
 
 def live_post(db, storage, user, fakes, page: Fanpage) -> Publication:
     video = make_video(db, storage, user, scene_count=1)
-    video.pinned_comment = "Ghim nhé"
+    video.pinned_survey = "Ghim nhé"
     fakes.reels[f"reel-{video.id}"] = {"uploaded": True, "state": "published"}
     post = Publication(
         video_id=video.id,
@@ -194,7 +194,7 @@ def test_a_page_with_a_shopee_account_gets_its_own_link_once_naming_the_video_an
     (made,) = fakes.shopee_links
     assert made["origin"] == "https://shopee.vn/product/1/9"
     assert made["sub_ids"] == [f"v{post.video_id}", f"p{page.id}"]
-    assert post.comment_text == f"Ghim nhé\nNồi hầm: {made['link']}"
+    assert post.comment_text.endswith(f"\nGhim nhé\nNồi hầm: {made['link']}")
 
     post.comment_requested_at = datetime.now(UTC)
     db.commit()
@@ -209,7 +209,7 @@ def test_a_page_without_an_account_keeps_the_pasted_link_and_skips_api_products(
     attach(db, post.video_id, product(db, me, "Nồi hầm", url="https://s.shopee.vn/dan-tay"))
     attach(db, post.video_id, product(db, me, "Hạt chia", page_url="https://shopee.vn/product/1/2", shopee_item_id=2))
     post_comments.write(db, post)
-    assert post.comment_text == "Ghim nhé\nNồi hầm: https://s.shopee.vn/dan-tay"
+    assert post.comment_text.endswith("\nGhim nhé\nNồi hầm: https://s.shopee.vn/dan-tay")
     assert fakes.shopee_links == []
 
 

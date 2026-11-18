@@ -556,8 +556,8 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
     video.caption = script.caption
     video.hashtags = script.hashtags
     video.affiliates = script.affiliates
-    # The title and the scenes come from the video itself (pinned.py), so the comment follows every later edit.
-    video.pinned_comment = pinned.default_template(script.pinned_comment)
+    # The AI writes only the survey line; the title and the scenes come from the video itself (pinned.py).
+    video.pinned_survey = pinned.survey_of_script(script.pinned_comment)
     video.self_review = script.self_review
     video.music_suggestions = script.music_suggestions
     # The AI's "Loại nội dung", unless a member already gave the video one.

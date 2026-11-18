@@ -46,11 +46,11 @@ def test_duplicate_copies_the_video_exactly_with_its_own_files(an, db, me, stora
     assert payload["name"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (copy)"
     # The title scene, drawn on the video, is unchanged: only the name in the app says "(copy)".
     assert payload["title"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE"
-    assert (copy.topic, copy.caption, copy.hashtags, copy.pinned_comment, copy.music_volume) == (
+    assert (copy.topic, copy.caption, copy.hashtags, copy.pinned_survey, copy.music_volume) == (
         video.topic,
         video.caption,
         video.hashtags,
-        video.pinned_comment,
+        video.pinned_survey,
         video.music_volume,
     )
     # No LLM call, no job: the copy is ready to edit and render.
