@@ -22,6 +22,7 @@ import { api, errorMessage } from "@/lib/api";
 import { SettingsHeader, SettingsSection as Section } from "@/components/settings/SettingsBlocks";
 import { LastEdit, PageHistory, useLatestEdits } from "@/components/settings/SharedHistory";
 import StatusText from "@/components/StatusText";
+import { CloudflareUsage, ElevenLabsUsage, GeminiUsage, useServiceUsage } from "@/components/settings/ServiceUsage";
 
 /** The history names a source's fields by the source ("Pexels · Khoá: đã đổi khoá …k3P1"). */
 const SOURCE_NAMES: Record<string, string> = {
@@ -178,6 +179,18 @@ export default function SourcesPage() {
   const [style, setStyle] = useState<string | null>(null);
   // Read again after every save: each one answers with the page's data anew.
   const latest = useLatestEdits("settings_sources", data);
+  const service = useServiceUsage();
+  const usageProps = {
+    usage: service.usage,
+    loading: service.loading,
+    failed: service.failed,
+    onRefresh: () => void service.refresh(),
+  };
+  /** A key saved on an AI service's card: the page anew, and that service's usage read with the new key. */
+  function keySaved(saved: Sources) {
+    setData(saved);
+    void service.reload();
+  }
 
   const load = useCallback(async () => {
     try {
@@ -457,14 +470,15 @@ export default function SourcesPage() {
                         name="cloudflare"
                         label="Cloudflare"
                         value={data.ai_images_cloudflare.key}
-                        onSaved={setData}
-                        note="Dán API token Workers AI của Cloudflare (quyền Workers AI › Read)."
+                        onSaved={keySaved}
+                        note="Dán API token Workers AI của Cloudflare (quyền Workers AI › Read; thêm Account Analytics › Read để thấy số neurons đã dùng hôm nay)."
                       />
                       {!data.ai_images_cloudflare.account_id_set && (
                         <Typography.Text type="warning">
                           Máy chủ chưa có IMAGE_GEN_CF_ACCOUNT_ID (Account ID của Cloudflare) trong file .env.
                         </Typography.Text>
                       )}
+                      <CloudflareUsage {...usageProps} />
                     </Flex>
                   </Card>
                 </Col>
@@ -489,8 +503,9 @@ export default function SourcesPage() {
                       Google giới hạn số lượt đọc mỗi ngày, hết lượt thì app báo lỗi chứ không tự đổi giọng.
                     </Typography.Text>
                     {data.ai_images.key && (
-                      <KeyField name="gemini" label="Gemini" value={data.ai_images.key} onSaved={setData} />
+                      <KeyField name="gemini" label="Gemini" value={data.ai_images.key} onSaved={keySaved} />
                     )}
+                    <GeminiUsage {...usageProps} />
                   </Flex>
                 </Card>
               </Col>
@@ -515,7 +530,8 @@ export default function SourcesPage() {
                         </Link>
                         .
                       </Typography.Text>
-                      <KeyField name="elevenlabs" label="ElevenLabs" value={data.voices.key} onSaved={setData} />
+                      <KeyField name="elevenlabs" label="ElevenLabs" value={data.voices.key} onSaved={keySaved} />
+                      <ElevenLabsUsage {...usageProps} />
                     </Flex>
                   </Card>
                 </Col>
