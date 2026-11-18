@@ -697,7 +697,7 @@ comments and the Page's dashboard keep to posts with one.
 "Bài đăng", read only): each Facebook reel live within 3 days with its saved and written "Bình luận thêm", what is
 left (the first comment included), a state, its place in the worker's queue (`post_comments.due_posts` order) and a
 rough end time walking that queue with the average rest, the 5-minute gap between videos and the Page's 100 a day;
-plus each Page's count today.
+plus each Page's count today. `owner=me` keeps the posts the member made or that are on a Page they own.
 
 [posts_board.py](../api/src/reels_api/posts_board.py) builds `GET /api/posts/board` (tab, platform, channel, missing_on,
 owner, date range, sort, q, cursor, limit) from every rendered video and its posts on Facebook, TikTok and YouTube:

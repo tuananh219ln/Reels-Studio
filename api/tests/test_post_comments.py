@@ -530,3 +530,17 @@ def test_the_tracker_shows_a_page_past_its_day_cap_finishing_the_next_day(an, db
     assert body["pages"][0]["today"] == post_comments.DAY_CAP
     eta = datetime.fromisoformat(body["posts"][0]["eta"]).astimezone(post_comments.VIETNAM_TIME)
     assert eta.date() > post_comments._today()
+
+
+def test_the_tracker_keeps_my_posts_and_pages_when_asked(an, db, me, storage, fakes):
+    mine = add_post(db, storage, me, fakes)
+    teammate = make_user(db, email="b@doi.vn", name="B")
+    page = fanpages.save(db, "page-b", "Trang của B", FACEBOOK_TOKEN, teammate.id)
+    db.flush()
+    theirs = add_post(db, storage, teammate, fakes)
+    theirs.fanpage_id = page.id
+    db.commit()
+    assert {mine.id, theirs.id} <= set(tracked(an))
+    body = an.get("/api/posts/comments?owner=me").json()
+    assert [row["post_id"] for row in body["posts"]] == [mine.id]
+    assert [p["name"] for p in body["pages"]] == ["Trang Dưỡng Sinh"]

@@ -51,7 +51,8 @@ def _next_day(at: datetime) -> datetime:
     return datetime.combine(local.date() + timedelta(days=1), time(0, 0), post_comments.VIETNAM_TIME)
 
 
-def tracker(db: DbSession) -> dict:
+def tracker(db: DbSession, owner_id: int | None = None) -> dict:
+    """With `owner_id` ("Của tôi"), only the posts that member made or that are on a Page they own, and their Pages."""
     at = now()
     since = at - post_comments.KEEP_FOR
     posts = [
@@ -66,6 +67,10 @@ def tracker(db: DbSession) -> dict:
         if is_published(post) and live_at(post) >= since
     ]
     pages = {page.id: page for page in db.scalars(select(Fanpage).where(Fanpage.id.in_({p.fanpage_id for p in posts})))}
+    if owner_id is not None:
+        mine = {page_id for page_id, page in pages.items() if page.owner_id == owner_id}
+        posts = [post for post in posts if post.created_by_id == owner_id or post.fanpage_id in mine]
+        pages = {page_id: page for page_id, page in pages.items() if page_id in {p.fanpage_id for p in posts}}
     today = post_comments._today()
     rows = []
     for post in posts:
