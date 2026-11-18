@@ -78,9 +78,13 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel")
     return added;
   };
   const pageName = () => {
-    // The Page's real name: the heading when it is one, else the tab title ("(2) Linh Đoàn - Reels | Facebook").
-    const heading = document.querySelector(selectors.pageName);
-    const generic = /^(facebook|reels|video|videos|thông báo|notifications)$/i;
+    // The Page's real name: the main area's heading when it is one (never Messenger's "Đoạn chat" panel or Facebook's
+    // bars), else the tab title ("(2) Linh Đoàn - Reels | Facebook").
+    const facebookParts = '[role="banner"], [role="navigation"], [role="complementary"], [role="dialog"]';
+    const headings = (root) => [...root.querySelectorAll(selectors.pageName)].filter((h) => !h.closest(facebookParts));
+    const main = document.querySelector('[role="main"]');
+    const heading = (main && headings(main)[0]) || headings(document)[0] || null;
+    const generic = /^(facebook|reels|video|videos|thông báo|notifications|đoạn chat|chats|tin nhắn|messages)$/i;
     const headingText = heading ? heading.innerText.trim() : "";
     if (headingText && !generic.test(headingText)) return headingText.slice(0, 200);
     const meta = document.querySelector('meta[property="og:title"]');
@@ -105,6 +109,10 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel")
       await flush();
       return { status: "partial", error: "Quá 30 phút, dừng để an toàn; bấm Tiếp tục để đọc tiếp", name: pageName() };
     }
+    // The last card is brought into view, so whichever box holds the grid scrolls: on a profile (profile.php?id=…)
+    // the grid is not in the window's own scroll, and scrolling the window alone stopped every profile at 10 reels.
+    const cards = document.querySelectorAll(linkSelector);
+    if (cards.length) cards[cards.length - 1].scrollIntoView({ block: "end" });
     window.scrollBy(0, window.innerHeight * 0.9);
     await pause(1500, 3000);
     const halt = stopped();

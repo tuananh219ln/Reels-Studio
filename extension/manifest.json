@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Reels Studio – Google Ảnh và Đối thủ",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA62uGxUIDWtG9ja48A7DaXy5XtlO2vfp24ACDCpUmiHG9EoZ3FHZZZFBzc65mdU393FqO2esU4/++53k3ERLjMWh9oRAqjpAT9XzjXvLJXiboAFtSo8gOT5CwxApGCE+3nWCWm9zuTpFtgN2ULAr6GSGdvag8oRW9Z1NwcWCiT0jdig1oeLYjN7sVbfqJbqyIY8CELSMdDpJsp9Q7Ee1+ZWa2TdZeDwDAHtxgoejEb4xTLSaTlphATvduedFnE0B8igndkFpUpjGByPvFseJx78zl8qa6CCjb6uPhKN13RRHZHdlzFhUYTPwR0JftwQFMdvYIUlLbcKpibHhTCUWvKwIDAQAB",
   "description": "Lấy ảnh Google Ảnh cho cảnh video và đọc lưới Reels của đối thủ Facebook, ngay trong Chrome của thành viên.",
   "permissions": ["contextMenus", "tabs", "storage", "scripting", "cookies"],
