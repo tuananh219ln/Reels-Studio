@@ -808,9 +808,10 @@ export type VideoOptions = {
   voice_speed: number;
   voice_volume: number;
   ducking: boolean;
-  transition: "fade" | "cut" | "slide";
-  motion: "zoom_in" | "zoom_out" | "pan" | "static";
-  zoom: "light" | "medium" | "strong";
+  /** The video's transition between scenes, a key of the scene transitions (preview/effects.ts). */
+  transition: "fade" | "cut" | "slide" | "zoom" | "flash" | "black" | "blur" | "smooth_slide";
+  motion: "zoom_in" | "zoom_out" | "pan" | "static" | "kenburns_diagonal" | "pan_vertical" | "handheld" | "punch_in";
+  zoom: "light" | "medium" | "strong" | "extreme";
   /** "box": a team box style's copied colours; yellow, white, dark and red are kept for older videos. */
   text_style: "yellow" | "white" | "dark" | "red" | "box" | "none";
   /** "auto", a named colour (older videos) or "#RRGGBB". */

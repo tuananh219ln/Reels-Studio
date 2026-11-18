@@ -141,26 +141,78 @@ def _progress(clip_frames: int, span: tuple[int, int] | None) -> str:
     return f"(on+{offset})/{max(total - 1, 1)}"
 
 
+def _frame(span: tuple[int, int] | None) -> str:
+    """The output frame `on`, counted from the video's start for a backdrop photo (`span`)."""
+    return "on" if span is None else f"(on+{span[0]})"
+
+
+def _eased(clip_frames: int, span: tuple[int, int] | None) -> str:
+    """The progress eased in and out (sine), as a camera operator starts and stops a move. Only the motions added on
+    2026-11-19 ease: the first four stay linear, so no video saved before renders differently."""
+    return f"(1-cos(PI*{_progress(clip_frames, span)}))/2"
+
+
+# "Đẩy nhanh" (punch_in) zooms all the way in over this many frames (0.3 s), easing out, then holds.
+PUNCH_FRAMES = round(0.3 * FPS)
+# "Cầm tay" (handheld) zooms only this share of the way, just enough room to shake in, and the shake reaches at
+# most this share of that room, so no edge of the photo ever shows. zoompan also clamps x and y inside the photo.
+HANDHELD_ZOOM = 0.5
+HANDHELD_REACH = 0.6
+
+
 def zoom_expression(
     clip_frames: int, motion: str = "zoom_in", zoom_end: float = ZOOM_END, span: tuple[int, int] | None = None
 ) -> str:
-    """zoom_in: linear from 1.00 on the clip's first frame to zoom_end on its last; zoom_out the reverse; pan
-    holds zoom_end so there is room to travel sideways; static stays at 1.00. With `span`, over the whole video."""
+    """zoom_in: linear from 1.00 on the clip's first frame to zoom_end on its last; zoom_out the reverse; pan and
+    pan_vertical hold zoom_end so there is room to travel; static stays at 1.00; kenburns_diagonal zooms in eased;
+    handheld holds half the zoom; punch_in reaches zoom_end in PUNCH_FRAMES and holds. With `span`, over the whole
+    video."""
     progress = _progress(clip_frames, span)
     if motion == "zoom_out":
         return f"{zoom_end:.4f}-{zoom_end - 1:.4f}*{progress}"
-    if motion == "pan":
+    if motion in ("pan", "pan_vertical"):
         return f"{zoom_end:.4f}"
     if motion == "static":
         return "1"
+    if motion == "kenburns_diagonal":
+        return f"1+{zoom_end - 1:.4f}*{_eased(clip_frames, span)}"
+    if motion == "handheld":
+        return f"{1 + (zoom_end - 1) * HANDHELD_ZOOM:.4f}"
+    if motion == "punch_in":
+        frame = _frame(span)
+        return f"if(lt({frame},{PUNCH_FRAMES}),1+{zoom_end - 1:.4f}*(1-pow(1-{frame}/{PUNCH_FRAMES},3)),{zoom_end:.4f})"
     return f"1+{zoom_end - 1:.4f}*{progress}"
 
 
+def _shake(axis: str, span: tuple[int, int] | None) -> str:
+    """The handheld shake along `axis` ("w" across, "h" down), in -1…1 of the room the zoom leaves: two waves of
+    unrelated periods added, so it never settles into a beat one notices."""
+    frame = _frame(span)
+    if axis == "w":
+        return f"(sin({frame}/7)+0.5*sin({frame}/13))/1.5"
+    return f"(cos({frame}/9)+0.5*cos({frame}/17))/1.5"
+
+
 def _pan_x(clip_frames: int, motion: str, span: tuple[int, int] | None = None) -> str:
-    """Centred, except a pan that travels from the left edge of the zoomed frame to the right."""
+    """Centred, except a pan that travels from the left edge of the zoomed frame to the right, a diagonal Ken Burns
+    that drifts the same way eased, and a handheld shake."""
     if motion == "pan":
         return f"(iw-iw/zoom)*{_progress(clip_frames, span)}"
+    if motion == "kenburns_diagonal":
+        return f"(iw-iw/zoom)*{_eased(clip_frames, span)}"
+    if motion == "handheld":
+        return f"iw/2-(iw/zoom/2)+(iw-iw/zoom)/2*{HANDHELD_REACH}*{_shake('w', span)}"
     return "iw/2-(iw/zoom/2)"
+
+
+def _pan_y(clip_frames: int, motion: str, span: tuple[int, int] | None = None) -> str:
+    """Centred, except a vertical pan and a diagonal Ken Burns, which travel from the top down eased, and a handheld
+    shake."""
+    if motion in ("pan_vertical", "kenburns_diagonal"):
+        return f"(ih-ih/zoom)*{_eased(clip_frames, span)}"
+    if motion == "handheld":
+        return f"ih/2-(ih/zoom/2)+(ih-ih/zoom)/2*{HANDHELD_REACH}*{_shake('h', span)}"
+    return "ih/2-(ih/zoom/2)"
 
 
 def _seconds(frames: int) -> str:
@@ -185,7 +237,7 @@ def _photo_chain(
     return (
         f"[{source}:v]scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase:out_range=tv,"
         f"crop={scale_w}:{scale_h},format=yuv420p,setsar=1,"
-        f"zoompan=z='{zoom}':x='{_pan_x(frames, options.motion, span)}':y='ih/2-(ih/zoom/2)'"
+        f"zoompan=z='{zoom}':x='{_pan_x(frames, options.motion, span)}':y='{_pan_y(frames, options.motion, span)}'"
         f":d={frames}:s={FRAME_WIDTH}x{FRAME_HEIGHT}:fps={FPS},"
         f"{_graded(color)}format=yuv420p[{label}]"
     )

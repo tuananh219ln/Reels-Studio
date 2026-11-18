@@ -344,15 +344,18 @@ def built_in_defaults() -> dict:
 
 def member_defaults(db: DbSession, user_id: int) -> dict:
     """What a member's new videos start with: their own defaults, or the app's built-in ones while they have none. A
-    value their copy lacks (a setting added since they saved) is the built-in one. There is no team level (part 3 of
-    docs/specs/per-user-settings-ownership): the team's old row (DEFAULTS_KEY) is never read."""
+    value their copy lacks (a setting added since they saved) or no longer accepts (a preset since removed, or a
+    value written by newer code) is the built-in one; the rest of their copy still counts. There is no team level
+    (part 3 of docs/specs/per-user-settings-ownership): the team's old row (DEFAULTS_KEY) is never read."""
     own = db.get(UserVideoDefaults, user_id)
     if own is None or not isinstance(own.value, dict):
         return built_in_defaults()
-    try:
-        stored = clean(own.value, allow_video_fields=True)
-    except OptionError:
-        return built_in_defaults()
+    stored: dict = {}
+    for name, value in own.value.items():
+        try:
+            stored |= clean({name: value}, allow_video_fields=True)
+        except OptionError:
+            continue
     return built_in_defaults() | stored
 
 

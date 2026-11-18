@@ -73,6 +73,33 @@ def test_bad_defaults_are_refused(an):
         assert refused.status_code == 422 and refused.json()["message"].startswith(message), values
 
 
+def test_the_added_image_effects_are_saved_and_given_back(an, db, me, storage):
+    values = {"transition": "smooth_slide", "motion": "handheld", "zoom": "extreme"}
+    for transition in ("zoom", "flash", "black", "blur", "smooth_slide"):
+        for motion in ("kenburns_diagonal", "pan_vertical", "handheld", "punch_in"):
+            saved = an.put(DEFAULTS_URL, json={"values": {"transition": transition, "motion": motion}})
+            assert saved.status_code == 200, (transition, motion)
+    an.put(DEFAULTS_URL, json={"values": values})
+    shown = an.get(DEFAULTS_URL).json()
+    assert {name: shown[name] for name in values} == values
+    video = make_video(db, storage, me)
+    payload = an.patch(f"/api/videos/{video.id}", json={"options": values}).json()
+    assert {name: payload["options"][name] for name in values} == values
+    db.refresh(video)
+    options = video_options.render_options(video)
+    assert (options.transition, options.motion, options.zoom_end) == ("smooth_slide", "handheld", 1.6)
+    choices = video_options.choices()
+    assert "punch_in" in choices["motion"] and "extreme" in choices["zoom"] and "smooth_slide" in choices["transition"]
+
+
+def test_a_stored_default_no_longer_accepted_falls_back_alone(an, db, me):
+    # A value the app does not know (removed since, or written by newer code) is the built-in one; the rest stays.
+    db.add(UserVideoDefaults(user_id=me.id, value={"motion": "spin", "zoom": "huge", "transition": "black"}))
+    db.commit()
+    shown = an.get(DEFAULTS_URL).json()
+    assert (shown["motion"], shown["zoom"], shown["transition"]) == ("zoom_in", "medium", "black")
+
+
 def test_a_video_changes_its_own_settings_and_later_defaults_never_change_them(an, db, me, storage):
     video = make_video(db, storage, me)
     before = an.get(f"/api/videos/{video.id}").json()["title_scene"]["preview_url"]

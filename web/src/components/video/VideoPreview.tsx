@@ -102,7 +102,84 @@ function savedLocks(videoId: number): Record<LockableTrack, boolean> {
 const XFADE_MS = 400;
 const VOICE_LEAD_MS = 200;
 const VOICE_TAIL_MS = 400;
-const ZOOMS = { light: 1.06, medium: 1.12, strong: 1.18 } as const;
+const ZOOMS = { light: 1.06, medium: 1.12, strong: 1.18, extreme: 1.6 } as const;
+// The motions added on 2026-11-19 ease in and out like the render's (1 - cos) / 2; the first four stay linear.
+const EASE_IN_OUT_SINE = "cubic-bezier(0.37, 0, 0.63, 1)";
+// "Đẩy nhanh": all the way in over 0.3 s, easing out (cubic), then held; "Cầm tay": half the zoom, a shake over 6 s.
+const PUNCH_SECONDS = 0.3;
+const EASE_OUT_CUBIC = "cubic-bezier(0.33, 1, 0.68, 1)";
+const HANDHELD_SECONDS = 6;
+
+/** The photo's motion as a CSS animation (globals.css `preview-motion`, editor.css `preview-handheld`), close to
+ * the render's zoompan (reels_render.graph.zoom_expression). */
+function motionAnimation(motion: VideoOptions["motion"], end: number, seconds: number): React.CSSProperties {
+  const room = `${(end - 1) * 50}%`;
+  const back = `${-(end - 1) * 50}%`;
+  const span = { animationName: "preview-motion", animationDuration: `${seconds}s` };
+  const still = { "--x0": "0%", "--x1": "0%", "--y0": "0%", "--y1": "0%" };
+  switch (motion) {
+    case "zoom_out":
+      return { ...span, ...still, "--z0": end, "--z1": 1, animationTimingFunction: "linear" } as React.CSSProperties;
+    case "pan":
+      return {
+        ...span,
+        ...still,
+        "--z0": end,
+        "--z1": end,
+        "--x0": room,
+        "--x1": back,
+        animationTimingFunction: "linear",
+      } as React.CSSProperties;
+    case "static":
+      return { ...span, ...still, "--z0": 1, "--z1": 1, animationTimingFunction: "linear" } as React.CSSProperties;
+    case "kenburns_diagonal":
+      // From the top left corner to the bottom right one while zooming in.
+      return {
+        ...span,
+        ...still,
+        "--z0": 1,
+        "--z1": end,
+        "--x1": back,
+        "--y1": back,
+        animationTimingFunction: EASE_IN_OUT_SINE,
+      } as React.CSSProperties;
+    case "pan_vertical":
+      return {
+        ...span,
+        ...still,
+        "--z0": end,
+        "--z1": end,
+        "--y0": room,
+        "--y1": back,
+        animationTimingFunction: EASE_IN_OUT_SINE,
+      } as React.CSSProperties;
+    case "punch_in":
+      return {
+        ...still,
+        "--z0": 1,
+        "--z1": end,
+        animationName: "preview-motion",
+        animationDuration: `${PUNCH_SECONDS}s`,
+        animationTimingFunction: EASE_OUT_CUBIC,
+      } as React.CSSProperties;
+    case "handheld": {
+      const zoom = 1 + (end - 1) * 0.5;
+      // The shake reaches 60% of the room the zoom leaves on each side, as in the render.
+      const reach = `${(zoom - 1) * 50 * 0.6}%`;
+      return {
+        "--z1": zoom,
+        "--hx": reach,
+        "--hy": reach,
+        animationName: "preview-handheld",
+        animationDuration: `${HANDHELD_SECONDS}s`,
+        animationTimingFunction: "ease-in-out",
+        animationIterationCount: "infinite",
+      } as React.CSSProperties;
+    }
+    default:
+      return { ...span, ...still, "--z0": 1, "--z1": end, animationTimingFunction: "linear" } as React.CSSProperties;
+  }
+}
 /** Frame pixels within which a dragged box snaps to the frame's middle. */
 const SNAP = 24;
 
@@ -1738,13 +1815,7 @@ function SceneLayer({
         }
       : {};
   const motionStyle = {
-    "--z0": motion === "zoom_out" ? end : motion === "static" ? 1 : motion === "pan" ? end : 1,
-    "--z1": motion === "zoom_in" ? end : motion === "pan" ? end : 1,
-    "--x0": motion === "pan" ? `${(end - 1) * 50}%` : "0%",
-    "--x1": motion === "pan" ? `${-(end - 1) * 50}%` : "0%",
-    animationName: "preview-motion",
-    animationDuration: `${scene.fitted_seconds}s`,
-    animationTimingFunction: "linear",
+    ...motionAnimation(motion, end, scene.fitted_seconds),
     animationFillMode: "both",
     // The scene going out holds its last frame while the next one comes in.
     // A scene started part-way (the playhead moved there) shows the motion that far along.
