@@ -8,6 +8,8 @@
  * PRESET_APPROX and gradeAdjustCss), MIT licence, Copyright (c) 2026 noti.vn; the full notice is in effects.py.
  */
 
+import type { VideoOptions } from "@/lib/api";
+
 export type SceneTransition =
   | "fade"
   | "cut"
@@ -20,7 +22,8 @@ export type SceneTransition =
   | "flash"
   | "dissolve"
   | "blur"
-  | "pixel";
+  | "pixel"
+  | "smooth_slide";
 
 export const SCENE_TRANSITIONS: { value: SceneTransition; label: string }[] = [
   { value: "fade", label: "Mờ dần" },
@@ -35,6 +38,20 @@ export const SCENE_TRANSITIONS: { value: SceneTransition; label: string }[] = [
   { value: "dissolve", label: "Hoà tan" },
   { value: "blur", label: "Nhoè ngang" },
   { value: "pixel", label: "Vỡ điểm ảnh" },
+  { value: "smooth_slide", label: "Lướt mượt" },
+];
+
+/** The video's transition between scenes (reels_render.options.TRANSITIONS), on Cài đặt › Thiết lập mặc định, the
+ * video's "Thiết lập" tab and the studio's bar; each a scene transition above, named for what it looks like. */
+export const VIDEO_TRANSITIONS: { value: VideoOptions["transition"]; label: string; tooltip: string }[] = [
+  { value: "fade", label: "Mờ dần", tooltip: "Hai cảnh hoà vào nhau" },
+  { value: "cut", label: "Cắt thẳng", tooltip: "Chuyển ngay, không hiệu ứng" },
+  { value: "slide", label: "Trượt", tooltip: "Cảnh sau đẩy cảnh trước sang bên" },
+  { value: "zoom", label: "Phóng qua", tooltip: "Lao vào cảnh sau, kiểu Reels/TikTok" },
+  { value: "flash", label: "Nháy sáng", tooltip: "Chớp trắng như đèn flash" },
+  { value: "black", label: "Chớp đen", tooltip: "Tối sập rồi sáng lại" },
+  { value: "blur", label: "Nhoè lia", tooltip: "Mờ ngang như lia máy nhanh" },
+  { value: "smooth_slide", label: "Lướt mượt", tooltip: "Trượt có biên mờ, êm hơn" },
 ];
 
 export const COLOR_PRESETS: { value: string; label: string; css: string }[] = [

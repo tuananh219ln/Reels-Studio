@@ -278,6 +278,46 @@
   }
 }
 
+@keyframes preview-smooth_slide {
+  from {
+    transform: translateX(100%);
+    mask-image: linear-gradient(to right, transparent, #000 25%);
+  }
+  to {
+    transform: translateX(0);
+    mask-image: linear-gradient(to right, transparent, #000 0%);
+  }
+}
+
+/* The photo motions added on 2026-11-19 (reels_render.graph): a shake for "Cầm tay", played over and over, in
+   steps of unrelated sizes so it never settles into a beat; --hx and --hy are its reach, inside the zoom's room. */
+@keyframes preview-handheld {
+  0% {
+    transform: translate(0, var(--hy)) scale(var(--z1));
+  }
+  13% {
+    transform: translate(calc(var(--hx) * 0.7), calc(var(--hy) * 0.4)) scale(var(--z1));
+  }
+  29% {
+    transform: translate(calc(var(--hx) * 0.9), calc(var(--hy) * -0.5)) scale(var(--z1));
+  }
+  41% {
+    transform: translate(calc(var(--hx) * 0.2), calc(var(--hy) * -0.9)) scale(var(--z1));
+  }
+  58% {
+    transform: translate(calc(var(--hx) * -0.6), calc(var(--hy) * -0.3)) scale(var(--z1));
+  }
+  71% {
+    transform: translate(calc(var(--hx) * -0.9), calc(var(--hy) * 0.5)) scale(var(--z1));
+  }
+  86% {
+    transform: translate(calc(var(--hx) * -0.4), calc(var(--hy) * 0.8)) scale(var(--z1));
+  }
+  100% {
+    transform: translate(0, var(--hy)) scale(var(--z1));
+  }
+}
+
 /* "Màu" in "Chỉnh cảnh N": each preset drawn on the scene's own picture. */
 .preview-colors {
   display: grid;

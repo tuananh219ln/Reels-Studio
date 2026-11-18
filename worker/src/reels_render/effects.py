@@ -51,6 +51,7 @@ SCENE_TRANSITIONS: dict[str, Transition] = {
     "dissolve": Transition("Hoà tan", "dissolve"),
     "blur": Transition("Nhoè ngang", "hblur"),
     "pixel": Transition("Vỡ điểm ảnh", "pixelize"),
+    "smooth_slide": Transition("Lướt mượt", "smoothleft"),
 }
 
 COLOR_PRESETS: dict[str, ColorPreset] = {

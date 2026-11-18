@@ -12,12 +12,7 @@ import {
 import { Button, Flex, Popconfirm, Popover, Segmented, Tooltip } from "antd";
 import { useRef } from "react";
 import type { VideoOptions } from "@/lib/api";
-
-const TRANSITIONS = [
-  { value: "fade", label: "Mờ dần" },
-  { value: "cut", label: "Cắt thẳng" },
-  { value: "slide", label: "Trượt" },
-];
+import { VIDEO_TRANSITIONS } from "./effects";
 
 /**
  * The small bar beside the phone while the preview stands still: undo and redo what was changed here, a new photo or
@@ -104,9 +99,11 @@ export default function PreviewToolbar({
         content={
           <Segmented
             aria-label="Chuyển cảnh"
+            className="segmented-wrap"
+            style={{ maxWidth: 320 }}
             value={transition}
-            onChange={(value) => onTransition(value as VideoOptions["transition"])}
-            options={TRANSITIONS}
+            onChange={onTransition}
+            options={VIDEO_TRANSITIONS}
           />
         }
       >
