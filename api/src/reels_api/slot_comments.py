@@ -566,9 +566,7 @@ def due_posts(db: DbSession, limit: int = BATCH) -> list[int]:
     """Live posts of articles that have a comment due now, or whose comments are not made yet and may be (a script with
     comments, a post live for less than START_WITHIN). Ids, oldest first."""
     at = now()
-    waiting = select(PostComment.publication_id).where(
-        PostComment.status == "pending", or_(PostComment.due_at.is_(None), PostComment.due_at <= at)
-    )
+    waiting = select(PostComment.publication_id).where(PostComment.status == "pending", PostComment.due_at <= at)
     started = select(PostComment.publication_id)
     has_comments = exists().where(
         ArticlePlanSlot.article_id == Publication.article_id,

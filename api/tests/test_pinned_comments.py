@@ -335,9 +335,11 @@ def live_article(db, user, fakes, pinned=None, pin_index=0, enabled=True):
     """An article made from a plan script, posted and live on the fake Facebook."""
     row = fanpages.save(db, FACEBOOK_PAGE, "Ăn Ngon Sống Khỏe", FACEBOOK_TOKEN, user.id)
     db.flush()
-    plan = ArticlePlan(fanpage_id=row.id, start_date=article_plans.today(), created_by_id=user.id)
-    db.add(plan)
-    db.flush()
+    plan = db.scalar(select(ArticlePlan).where(ArticlePlan.fanpage_id == row.id))
+    if plan is None:
+        plan = ArticlePlan(fanpage_id=row.id, start_date=article_plans.today(), created_by_id=user.id)
+        db.add(plan)
+        db.flush()
     article = Article(
         knowledge_topic_id=first_topic(db).id,
         kind="kien_thuc",
@@ -350,7 +352,7 @@ def live_article(db, user, fakes, pinned=None, pin_index=0, enabled=True):
     db.flush()
     slot = ArticlePlanSlot(
         plan_id=plan.id,
-        day=1,
+        day=db.query(ArticlePlanSlot).filter_by(plan_id=plan.id).count() + 1,
         slot=1,
         hook="Cà rốt",
         article_id=article.id,
@@ -476,7 +478,7 @@ def test_a_comment_that_already_has_its_facebook_id_is_never_written_again(db, m
     db.commit()
     assert slot_comments.retry_failed(db, post) == 0  # it has an id: put back as written, not tried again
     db.expire_all()
-    assert rows(db, post.id)[0].status == "posted" and len(messages(fakes, post)) == 1
+    assert rows(db, post.id)[0].status == "need_manual_pin" and len(messages(fakes, post)) == 1
 
 
 def test_a_post_that_is_gone_skips_what_is_left(db, me, fakes):
