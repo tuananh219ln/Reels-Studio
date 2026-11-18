@@ -193,6 +193,7 @@ failed check, look at the MP4's frames after it, and say the video is done only 
      **OAuth**. The workspace owner may need to allow custom connections.
    - **Claude (web, Desktop):** Settings › Connectors › add a custom connector with that URL.
    - **Claude Code:** `claude mcp add --transport http reels-studio <URL>`, then `/mcp` to sign in.
+   - **Gemini CLI:** `gemini mcp add --scope user --transport http reels-studio <URL>`, then `/mcp auth reels-studio` to sign in.
    - **Gemini CLI:** `gemini mcp add --transport http reels-studio <URL>`, then `/mcp auth reels-studio` to sign in. Google moved the Google AI Pro / free sign-in from Gemini CLI to Antigravity (2026-06-18), so a member on those plans uses `agy`.
    - **Antigravity CLI (`agy`):** add `{"mcpServers":{"reels-studio":{"serverUrl":"<URL>"}}}` to `~/.gemini/config/mcp_config.json` (the field is `serverUrl`), run `agy`, `/mcp`, choose reels-studio. It registers itself (DCR) with its hosted callback.
 
