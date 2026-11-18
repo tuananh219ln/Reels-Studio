@@ -1,16 +1,16 @@
 """ "Clone" from "Phân tích đối thủ": a video remembers the competitor's video it was built from (its Facebook link and
 the channel's name, as text) and the row its sample comments are read from, which goes with the competitor.
 
-Revision ID: 0107
-Revises: 0106
+Revision ID: 0109
+Revises: 0108
 Create Date: 2026-11-18
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0107"
-down_revision = "0106"
+revision = "0109"
+down_revision = "0108"
 branch_labels = None
 depends_on = None
 

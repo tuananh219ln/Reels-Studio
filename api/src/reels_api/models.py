@@ -324,7 +324,7 @@ class Video(Base):
     # Snapshot taken when "Nhân bản" was pressed: the source's title, topic, edited script and the change
     # request. A clone draft keeps it, so cancelling and writing again reruns the same clone.
     clone_source: Mapped[dict | None] = mapped_column(JSONB)
-    # "Clone" from "Phân tích đối thủ" (migration 0107, clone.py): the competitor's video it was built from, kept as
+    # "Clone" from "Phân tích đối thủ" (migration 0109, clone.py): the competitor's video it was built from, kept as
     # plain text (its Facebook link, the channel's name then) plus the row its sample comments are read from, which
     # goes when the competitor is deleted while the link and name stay. Copies ("Nhân bản", shuffles) keep all three.
     competitor_source_url: Mapped[str | None] = mapped_column(Text)
