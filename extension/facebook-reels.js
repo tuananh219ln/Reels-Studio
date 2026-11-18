@@ -183,7 +183,7 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel")
     seen.size < maxVideos
       ? `Dừng ở ${seen.size} video: lưới không tải thêm sau ${IDLE_ROUNDS} lần cuộn (${rounds} vòng, ${why}, trang cao ${document.documentElement.scrollHeight}px)`
       : null;
-  return { status: "done", name: pageName(), error: note };
+  return note ? { status: "done", name: pageName(), error: note } : { status: "done", name: pageName() };
 }
 
 /**
