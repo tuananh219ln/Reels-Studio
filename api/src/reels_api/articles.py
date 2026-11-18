@@ -358,6 +358,7 @@ def image_prompt_of(article: Article) -> str:
 
 
 def _plan_slot(db: DbSession, article_id: int) -> dict | None:
+    from . import slot_comments
     from .article_plans import slot_time
 
     row = db.execute(
@@ -378,6 +379,10 @@ def _plan_slot(db: DbSession, article_id: int) -> dict | None:
         "fanpage_name": page.name,
         "post_at": at.isoformat() if at else None,
         "image_urls": slot.image_urls,
+        **slot_comments.slot_fields(slot),
+        "comments_updated_at": slot.comments_updated_at.isoformat() if slot.comments_updated_at else None,
+        "type_labels": slot_comments.TYPE_LABELS,
+        **slot_comments.job_state(db, slot.id),
     }
 
 
@@ -402,6 +407,7 @@ def payload(db: DbSession, article: Article) -> dict:
         "caption": article.caption,
         "hashtags": article.hashtags,
         "pinned_comment": article.pinned_comment,
+        "post_comments_enabled": article.post_comments_enabled,
         "affiliates": article.affiliates,
         # The Shopee search of its product ideas, as a video's `suggest`.
         "suggest": {

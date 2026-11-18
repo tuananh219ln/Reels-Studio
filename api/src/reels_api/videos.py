@@ -158,6 +158,7 @@ JOB_KINDS = {
     "rework": "Nâng cấp kịch bản và tư liệu",
     "article_caption": "Viết bài viết",
     "article_image": "Tạo ảnh AI cho bài viết",
+    "slot_comments": "Tạo bình luận ghim",
     "motion": "Cảnh động",
     "tiktok_publish": "Đăng TikTok",
     "youtube_publish": "Tải lên YouTube",

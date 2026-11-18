@@ -536,6 +536,12 @@ class Job(Base):
             postgresql_where=text("status IN ('queued', 'running') AND kind = 'plan'"),
         ),
         Index(
+            "uq_jobs_active_slot_comments",
+            "plan_slot_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued', 'running') AND kind = 'slot_comments'"),
+        ),
+        Index(
             "uq_jobs_active_text_look",
             "knowledge_topic_id",
             unique=True,
@@ -566,6 +572,10 @@ class Job(Base):
     edit_prompt: Mapped[str | None] = mapped_column(Text)
     # The post an unpublish job takes down, or the TikTok post a tiktok_publish job sends.
     publication_id: Mapped[int | None] = mapped_column(Integer)
+    # A slot_comments job ("Tạo bình luận ghim") belongs to a plan script; `params` says {"index": n} for one comment
+    # only and {"overwrite": true} when a member asked for it by hand.
+    plan_slot_id: Mapped[int | None] = mapped_column(ForeignKey("article_plan_slots.id", ondelete="CASCADE"))
+    params: Mapped[dict | None] = mapped_column(JSONB)
     # A render or motion job handed to a member's render machine (render_nodes.py): "ready" once the VPS has packed
     # what it needs, "taken" while a machine renders it; None for a job the worker runs itself. The job stays
     # `running` meanwhile, so the video stays locked and the worker's restart and exit checks leave it alone.
@@ -1094,6 +1104,8 @@ class Article(Base):
     image_aspect: Mapped[str] = mapped_column(String(8), default="4:5", server_default="4:5")
     # The comment the worker writes under the post opens with this, then the products' links (as a video's).
     pinned_comment: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # "Đăng kèm bình luận": the plan script's pinned comments are written under the post once it is live.
+    post_comments_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     # Product ideas to search Shopee for ("Tìm sản phẩm"), and that search, as on a video (affiliate_rounds.suggest).
     affiliates: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
     suggest_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -1152,6 +1164,8 @@ class ArticlePlan(Base):
     topic_group_ids: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
     kind_mix: Mapped[dict] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))  # kind -> %
     tone: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # Who the Page's comments are written for ("35–55 tuổi"), read by "Tạo bình luận ghim" (slot_comments.py).
+    audience: Mapped[str] = mapped_column(String(200), default="", server_default="")
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -1198,9 +1212,47 @@ class ArticlePlanSlot(Base):
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="SET NULL"))
     keywords: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
     source: Mapped[str] = mapped_column(String(8), default="manual", server_default="manual")
+    # "Bình luận ghim" (slot_comments.py): up to 5 comments of {"type", "text"}, in the order they are posted under
+    # the article; `pin_index` is the one to pin. `comments_edited` is set when a member changes them by hand, so a
+    # bulk "Tạo bình luận ghim" leaves them alone.
+    pinned_comments: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    pin_index: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    comments_source: Mapped[str | None] = mapped_column(String(8))  # one of ARTICLE_SLOT_SOURCES
+    comments_edited: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    comments_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     skipped: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="SET NULL"), unique=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+POST_COMMENT_STATUSES = ("pending", "posted", "pinned", "need_manual_pin", "failed", "skipped")
+
+
+class PostComment(Base):
+    """One of the pinned comments written under a posted article (slot_comments.py). Made once the post is live, as a
+    copy of the plan script's comments at that moment, so editing the script later never changes what was posted."""
+
+    __tablename__ = "post_comments"
+    __table_args__ = (
+        CheckConstraint(f"status IN {POST_COMMENT_STATUSES}", name="status"),
+        Index("ix_post_comments_publication", "publication_id", "order"),
+        Index("ix_post_comments_status_due", "status", "due_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    publication_id: Mapped[int] = mapped_column(ForeignKey("publications.id", ondelete="CASCADE"))
+    script_id: Mapped[int | None] = mapped_column(ForeignKey("article_plan_slots.id", ondelete="SET NULL"))
+    order: Mapped[int] = mapped_column(Integer)  # 0–4, the place in the script
+    text: Mapped[str] = mapped_column(Text)
+    type: Mapped[str | None] = mapped_column(String(16))
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    fb_comment_id: Mapped[str | None] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
+    error: Mapped[str | None] = mapped_column(Text)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # None: due now
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

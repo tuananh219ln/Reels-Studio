@@ -22,6 +22,7 @@ import {
 } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 import ArticleImages from "@/components/article/ArticleImages";
+import PinnedCommentsCard from "@/components/article/PinnedCommentsCard";
 import { ArrowLeftOutlined, RobotOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Card, Col, Flex, Input, Result, Row, Select, Spin, Typography } from "antd";
 import Link from "next/link";
@@ -439,6 +440,7 @@ export default function ArticlePage() {
 
             <ArticleImages article={article} options={options} disabled={locked} onSaved={show} />
             <CommentCard article={article} options={options} disabled={locked} onSaved={show} reload={load} />
+            <PinnedCommentsCard article={article} disabled={locked} onSaved={show} reload={load} />
           </Flex>
         </Col>
         <Col xs={24} lg={10}>
