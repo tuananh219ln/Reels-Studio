@@ -2,6 +2,7 @@
 
 import {
   ApiOutlined,
+  BarChartOutlined,
   ControlOutlined,
   DesktopOutlined,
   PictureOutlined,
@@ -47,6 +48,12 @@ const GROUPS: { key: string; label: string; tabs: Tab[] }[] = [
         label: "Nguồn tư liệu",
         hint: "Kho ảnh, ảnh AI, giọng ElevenLabs",
         icon: <PictureOutlined />,
+      },
+      {
+        key: "/settings/competitors",
+        label: "Phân tích đối thủ",
+        hint: "Ngưỡng kênh lớn",
+        icon: <BarChartOutlined />,
       },
       { key: "/settings/templates", label: "Mẫu dựng", hint: "Thư viện mẫu của đội", icon: <ThunderboltOutlined /> },
       { key: "/settings/render-nodes", label: "Máy render", hint: "Chế độ render, các máy", icon: <DesktopOutlined /> },

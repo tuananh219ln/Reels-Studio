@@ -502,6 +502,7 @@ test("Cài đặt holds the defaults, AI model and sources as tabs, each with it
     "Chung cả nhóm",
     "Mô hình AI",
     "Nguồn tư liệu",
+    "Phân tích đối thủ",
     "Mẫu dựng",
     "Máy render",
   ]);
