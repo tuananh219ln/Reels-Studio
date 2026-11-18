@@ -199,6 +199,15 @@ def is_shopee_link(url: str) -> bool:
     return (urlsplit(url).hostname or "").lower() in PRODUCT_HOSTS | SHORT_HOSTS
 
 
+# A Shopee address anywhere in a comment, with or without "https://" (members paste "s.shopee.vn/abc" as is).
+LINK_IN_TEXT = re.compile(r"(?<![\w.-])(?:https?://)?(?:www\.|m\.|s\.)?(?:shopee\.vn|shp\.ee|shope\.ee)/\S", re.I)
+
+
+def has_link(text: str | None) -> bool:
+    """Whether a comment's text holds a Shopee link."""
+    return bool(text and LINK_IN_TEXT.search(text))
+
+
 def item_id_of(url: str) -> int | None:
     """The item id a product page link names; None for a short link or anything else."""
     parts = urlsplit(url)

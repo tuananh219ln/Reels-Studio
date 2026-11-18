@@ -110,58 +110,68 @@ export default function PostContent({ video }: { video: VideoDetail }) {
  * The "Bình luận & Sản phẩm" tab: the comments ("Bình luận ghim", "Bình luận thêm", the comment's posting state) and
  * the products (the AI's ideas, the Shopee suggestions, the approved products attached), each a block of its own.
  */
-export function EngageContent({ video }: { video: VideoDetail }) {
+export function EngageContent({ video, productsFirst = false }: { video: VideoDetail; productsFirst?: boolean }) {
   const { patch, warningsFor, copyButton } = usePostFields(video);
   const products = video.affiliate_product_ids.length;
   const shop = video.platform === "tiktok" ? "Sản phẩm TikTok Shop" : "Sản phẩm Shopee";
 
+  const comments = (
+    <Card
+      key="comments"
+      size="small"
+      title="Bình luận"
+      extra={copyButton("Copy ghim", video.pinned_comment_text, "bình luận ghim")}
+      style={block}
+      data-post-block="comments"
+    >
+      <Flex vertical gap={4}>
+        <PinnedComment video={video} save={(pinned_comment) => patch({ pinned_comment })} />
+        <Warnings messages={warningsFor("pinned_comment")} />
+        <ExtraComments video={video} />
+        {video.platform === "facebook" && !productsFirst && <CommentPosting video={video} />}
+      </Flex>
+    </Card>
+  );
+  const shopBlock = (
+    <Card
+      key="products"
+      size="small"
+      title={
+        <span>
+          {shop}{" "}
+          {products ? (
+            <StatusText tone="success">{products} sản phẩm</StatusText>
+          ) : (
+            <StatusText tone="warning">chưa gắn</StatusText>
+          )}
+        </span>
+      }
+      style={block}
+      data-post-block="products"
+    >
+      <Flex vertical gap={4}>
+        <AutoSaveField
+          label="Gợi ý sản phẩm (AI)"
+          value={video.affiliates.join("\n")}
+          multiline
+          hint={
+            video.platform === "tiktok"
+              ? "Từ khoá để tìm sản phẩm trong mục “Thêm sản phẩm” của app TikTok; mỗi dòng một sản phẩm"
+              : "Từ khoá app dùng để tìm sản phẩm trên Shopee; mỗi dòng một sản phẩm"
+          }
+          save={(text) => patch({ affiliates: lines(text) })}
+        />
+        {video.platform === "facebook" && <VideoSuggestions video={video} />}
+        <AttachedProducts video={video} />
+      </Flex>
+    </Card>
+  );
+
+  // "Bình luận và bài đăng" on Affiliate (`productsFirst`) opens on the products, the step a member comes to finish,
+  // and lists each post's comment under the blocks itself, so "Đăng bình luận" is left out there.
   return (
     <Flex vertical gap={12} className="panel-blocks" data-testid="engage-blocks">
-      <Card
-        size="small"
-        title="Bình luận"
-        extra={copyButton("Copy ghim", video.pinned_comment_text, "bình luận ghim")}
-        style={block}
-        data-post-block="comments"
-      >
-        <Flex vertical gap={4}>
-          <PinnedComment video={video} save={(pinned_comment) => patch({ pinned_comment })} />
-          <Warnings messages={warningsFor("pinned_comment")} />
-          <ExtraComments video={video} />
-          {video.platform === "facebook" && <CommentPosting video={video} />}
-        </Flex>
-      </Card>
-      <Card
-        size="small"
-        title={
-          <span>
-            {shop}{" "}
-            {products ? (
-              <StatusText tone="success">{products} sản phẩm</StatusText>
-            ) : (
-              <StatusText tone="warning">chưa gắn</StatusText>
-            )}
-          </span>
-        }
-        style={block}
-        data-post-block="products"
-      >
-        <Flex vertical gap={4}>
-          <AutoSaveField
-            label="Gợi ý sản phẩm (AI)"
-            value={video.affiliates.join("\n")}
-            multiline
-            hint={
-              video.platform === "tiktok"
-                ? "Từ khoá để tìm sản phẩm trong mục “Thêm sản phẩm” của app TikTok; mỗi dòng một sản phẩm"
-                : "Từ khoá app dùng để tìm sản phẩm trên Shopee; mỗi dòng một sản phẩm"
-            }
-            save={(text) => patch({ affiliates: lines(text) })}
-          />
-          {video.platform === "facebook" && <VideoSuggestions video={video} />}
-          <AttachedProducts video={video} />
-        </Flex>
-      </Card>
+      {productsFirst ? [shopBlock, comments] : [comments, shopBlock]}
     </Flex>
   );
 }

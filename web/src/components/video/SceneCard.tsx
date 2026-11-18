@@ -198,7 +198,7 @@ export function ScenePromptField({ scene }: { scene: SceneData }) {
       label="Prompt ảnh AI"
       help={
         "Tả thứ có trong ảnh (món, cách bày, góc chụp), nên viết tiếng Anh. Phong cách chung (ánh sáng, khung " +
-        "dọc, không chữ) được thêm tự động, sửa ở Cài đặt › Nguồn tư liệu." +
+        "dọc, không chữ) được thêm tự động, sửa ở Cài đặt › AI và nguồn tư liệu." +
         (scene.is_title ? " Để trống thì dùng dòng chữ đầu của cảnh tiêu đề." : "")
       }
       value={scene.image_prompt}

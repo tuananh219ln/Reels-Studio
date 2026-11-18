@@ -1,6 +1,6 @@
 # Routine for an always-on assistant (Muse) to fill footage
 
-Use this when the team's automatic footage switch (Cài đặt › Nguồn tư liệu) is off, to avoid the image-capable
+Use this when the team's automatic footage switch (Cài đặt › AI và nguồn tư liệu) is off, to avoid the image-capable
 LLM's API cost: the assistant on the member's own Claude plan looks at the frames instead. It needs the Reels
 Studio MCP connection with edit permission ([chatgpt.md](chatgpt.md)). Paste the text below into the assistant as
 a standing instruction (or schedule it, if the assistant can run on a timer; otherwise send it by message, e.g.

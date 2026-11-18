@@ -9,7 +9,7 @@ the video's topic group's order ("Thứ tự nguồn ảnh"; else the app's: Pex
 minus those turned off or without a key; a source that fails (Unsplash out of calls, say) is not asked again in the
 same job. A photo whose licence asks for credit keeps it on the scene, which then warns. It never generates AI photos. Each photo is stored with `image_auto`, shown
 as "Tự chọn, kiểm tra lại" until a member changes it: stock libraries often show the wrong dish for Vietnamese food.
-The team can turn it off on Cài đặt › Nguồn tư liệu.
+The team can turn it off on Cài đặt › AI và nguồn tư liệu.
 """
 
 import logging

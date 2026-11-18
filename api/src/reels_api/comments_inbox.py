@@ -14,7 +14,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
 
-from . import facebook, fanpages
+from . import facebook, fanpages, shopee
 from .facebook import FacebookError
 from .models import PageComment, Publication
 from .sessions import now
@@ -61,13 +61,14 @@ def read(db: DbSession, post: Publication) -> None:
     """Read the post's comments once and keep them. Commits."""
     post.comments_read_at = now()
     try:
-        found = facebook.visitor_comments(fanpages.load_page(db, post.fanpage_id), post.remote_id)
+        found, own, more = facebook.reel_comments(fanpages.load_page(db, post.fanpage_id), post.remote_id)
     except FacebookError as err:
         post.comments_error = err.message
         db.commit()
         log.warning("Could not read the comments of post %s: %s %s", post.id, err.message, err.detail)
         return
     post.comments_error = None
+    post.own_comment = _own_comment(post.own_comment, own, more)
     known = {
         row.remote_id: row
         for row in db.scalars(select(PageComment).where(PageComment.remote_id.in_([item["id"] for item in found])))
@@ -81,6 +82,19 @@ def read(db: DbSession, post: Publication) -> None:
         row.hidden = row.hidden or item["hidden"]
         row.answered = row.answered or item["answered"]
     db.commit()
+
+
+def _own_comment(before: str | None, own: list[str], more: bool) -> str | None:
+    """ "link", "no_link" or "none" for the Page's own comments read; a reel with more comments than one reading holds
+    may hide an older one of the Page (the one with the link, say), so there a reading that finds less keeps what was
+    known."""
+    if any(shopee.has_link(text) for text in own):
+        return "link"
+    if more and before == "link":
+        return before
+    if own:
+        return "no_link"
+    return before if more else "none"
 
 
 def run_round(factory: sessionmaker) -> None:

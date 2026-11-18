@@ -31,7 +31,7 @@ from . import affiliate, facebook, fanpages
 from .facebook import FacebookError
 from .models import Fanpage, Publication, Video
 from .sessions import now
-from .shopee import ShopeeError
+from .shopee import ShopeeError, has_link
 
 log = logging.getLogger("reels_api.post_comments")
 
@@ -357,4 +357,25 @@ def payload(post: Publication) -> dict:
         # How many of the video's "Bình luận thêm" are written under the post.
         "extra_count": len(post.extra_comment_ids or []),
         "at": post.commented_at.isoformat() if post.commented_at else None,
+        "links": link_state(post, state),
     }
+
+
+def link_state(post: Publication, state: str | None = None) -> str:
+    """Whether the Page's comments under the reel hold a Shopee link, from the comments the app wrote and what the
+    worker last read on Facebook (`own_comment`, links pasted by hand included): yes; updating (the app is about to
+    write or edit its comment); missing (the Page commented, with no link); none (no comment yet); unknown (never read
+    and not written by the app); off (not a Facebook post)."""
+    if post.platform != "facebook":
+        return "off"
+    state = state or payload(post)["state"]
+    if state == "pending":
+        return "updating"
+    written = [post.comment_text, *(post.extra_comment_texts or [])] if post.comment_id else []
+    if any(has_link(text) for text in written) or post.own_comment == "link":
+        return "yes"
+    if post.comment_id or post.own_comment == "no_link":
+        return "missing"
+    if post.own_comment == "none" or state == "waiting":
+        return "none"
+    return "unknown"

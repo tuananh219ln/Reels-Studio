@@ -1,4 +1,4 @@
-"""How much of each AI service's allowance is used, for the cards on Cài đặt › Nguồn tư liệu.
+"""How much of each AI service's allowance is used, for the cards on Cài đặt › AI và nguồn tư liệu.
 
 Each service tells a different amount:
 - ElevenLabs answers it exactly: the plan's characters used and allowed, and when they reset (GET

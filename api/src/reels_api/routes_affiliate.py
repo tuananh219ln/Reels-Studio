@@ -359,6 +359,8 @@ def _post_payload(db: DbSession, post: Publication) -> dict:
         # How the post's comment stands (post_comments.payload): off, waiting, pending, done or failed.
         "comment": post_comments.payload(post)["state"] if post.platform == "facebook" else "off",
         "comment_error": post.comment_error if post.platform == "facebook" else None,
+        # Whether its comments on Facebook hold a Shopee link (post_comments.link_state).
+        "links": post_comments.link_state(post),
     }
 
 
@@ -407,8 +409,11 @@ def _video_payload(db: DbSession, video: Video, posts: list[Publication], user_i
     where = [_post_payload(db, one) for one in posts]
     if video.manual_comment:
         # Nothing waits for the worker under a video pasted by hand; a comment it already wrote still shows.
-        for one in where:
+        for live, one in zip(posts, where, strict=True):
             one["comment"] = "off" if one["comment"] in ("waiting", "pending") else one["comment"]
+            # Nor will the app write the comment it was waiting for: until the worker reads the reel, nobody knows.
+            if one["links"] in ("none", "updating") and live.own_comment is None:
+                one["links"] = "unknown"
     return {
         "id": video.id,
         "title": video_name(video, title),

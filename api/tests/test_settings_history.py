@@ -1,4 +1,4 @@
-"""The team's shared settings (Mô hình AI, Nguồn tư liệu, Mẫu dựng, Máy render) log every change in "Lịch sử", with
+"""The team's shared settings (AI và nguồn tư liệu, Mẫu dựng, Máy render) log every change in "Lịch sử", with
 who made it and when, and never a key's value: only its last four characters (2026-11-09, Part 6)."""
 
 import json
@@ -95,7 +95,7 @@ def test_the_sources_page_logs_each_card_on_its_own(an, db):
     assert services[0]["changes"]["elevenlabs.key"] == {"old": None, "new": "…9876"}
     assert services[1]["changes"]["ai_style"]["new"] == "soft light"
     assert {entry["label"] for entry in services} == {"Dịch vụ AI"}
-    # VieNeu's key is pasted on Mô hình AI, so it is logged there.
+    # VieNeu's key is logged with the AI settings (card 2), as before the pages merged.
     assert [entry["changes"] for entry in history(an, "settings_ai", 2)] == [
         {"vieneu.key": {"old": None, "new": "…5555"}}
     ]

@@ -1,6 +1,6 @@
 """The spoken words of a sample video ("Từ video mẫu", reference.py), through ElevenLabs Speech-to-Text (Scribe).
 
-The same ElevenLabs key as narration (Cài đặt › Nguồn tư liệu, else ELEVENLABS_API_KEY). The language is left to
+The same ElevenLabs key as narration (Cài đặt › AI và nguồn tư liệu, else ELEVENLABS_API_KEY). The language is left to
 ElevenLabs to detect, since a sample may be in any language. The words come back with their seconds, grouped here
 into lines that start with the second they are said at, so the AI can tie them to the stills.
 """
@@ -113,7 +113,7 @@ def _error(status: int, body: str) -> TtsError:
             "Key ElevenLabs chưa bật quyền Speech to Text: bật quyền này cho key ở trang ElevenLabs", detail
         )
     if status == 401:
-        return TtsError("Key ElevenLabs không hợp lệ: kiểm tra lại ở Cài đặt › Nguồn tư liệu", detail)
+        return TtsError("Key ElevenLabs không hợp lệ: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu", detail)
     if status == 429:
         return TtsError("ElevenLabs đang giới hạn lượt gọi, thử lại sau", detail)
     if status >= 500:

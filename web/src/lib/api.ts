@@ -1518,6 +1518,7 @@ export type AffiliateVideoPost = {
   /** The app's comment under this post; "off" for TikTok and for a video pasted by hand. */
   comment: "off" | "waiting" | "pending" | "done" | "failed";
   comment_error: string | null;
+  links: CommentLinks;
 };
 
 /** Whose commission a product's link in one Page's comment earns: the Page's own account, the product's saved link
@@ -1599,8 +1600,15 @@ export type Post = {
     /** How many of the video's "Bình luận thêm" are written under the post. */
     extra_count?: number;
     at: string | null;
+    /** Whether the Page's comments under the reel hold a Shopee link (api post_comments.link_state). */
+    links?: CommentLinks;
   };
 };
+
+/** Whether a post's comments on Facebook hold a Shopee link: yes; updating (the app is about to write or edit its
+ * comment); missing (the Page commented without one); none (no comment yet); unknown (never read, not the app's);
+ * off (not on Facebook). A link pasted by hand is seen when the worker reads the reel's comments. */
+export type CommentLinks = "yes" | "updating" | "missing" | "none" | "unknown" | "off";
 
 /** A post's numbers on Facebook as of `measured_at`; a number is null when Facebook does not give it. */
 export type PostNumbers = {

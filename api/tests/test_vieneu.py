@@ -1,4 +1,4 @@
-"""VieNeu voices: the key on Cài đặt › Mô hình AI, its voices in the picker, and narration read by VieNeu."""
+"""VieNeu voices: the key on Cài đặt › AI và nguồn tư liệu, its voices in the picker, and narration read by VieNeu."""
 
 import pytest
 from conftest import login, make_user
@@ -68,7 +68,7 @@ def test_with_neither_key_the_voice_list_names_both_pages(an, fakes, monkeypatch
     monkeypatch.setenv("IMAGE_GEN_API_KEY", "")
     refused = an.get("/api/settings/voices")
     assert refused.status_code == 422
-    assert "Nguồn tư liệu" in refused.json()["message"] and "Mô hình AI" in refused.json()["message"]
+    assert "AI và nguồn tư liệu" in refused.json()["message"] and "AI và nguồn tư liệu" in refused.json()["message"]
 
 
 def test_a_vieneu_voice_name_with_spaces_is_a_valid_voice_id():
@@ -118,7 +118,7 @@ def test_render_with_a_vieneu_voice_and_no_key_says_where_to_paste_one(committed
     user, storage, video_id = voiced
     use_lan(committed, video_id)
     job = render(committed, storage, video_id, user.id)
-    assert job.status == "failed" and "Chưa có key VieNeu" in job.error and "Mô hình AI" in job.error
+    assert job.status == "failed" and "Chưa có key VieNeu" in job.error and "AI và nguồn tư liệu" in job.error
     assert fakes.vieneu_requests == [] and fakes.tts_requests == []
 
 
