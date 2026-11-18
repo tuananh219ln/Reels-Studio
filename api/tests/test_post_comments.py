@@ -447,7 +447,7 @@ def test_the_post_shows_its_comment_state(an, db, me, storage, fakes):
     assert row["comment"]["state"] == "waiting" and row["comment"]["auto"] is True
     post_comments.write(db, post)
     (row,) = an.get("/api/posts").json()
-    assert row["comment"]["state"] == "done" and row["comment"]["text"] == "Món nào nhà bạn hay nấu nhất?"
+    assert row["comment"]["state"] == "done" and row["comment"]["text"] == PINNED
     row = an.post(f"/api/posts/{post.id}/comment").json()
     assert row["comment"]["state"] == "pending"
 

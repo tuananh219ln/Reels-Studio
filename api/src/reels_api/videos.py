@@ -604,9 +604,10 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
 
 def run_checks(db: DbSession, video: Video, title: Scene | None, scenes: list[Scene]) -> Checks:
     title_input, scene_input = scene_inputs(video, title, scenes)
-    # The pinned comment is checked as it reads now, built from these scenes (pinned.py).
+    # Of the pinned comment, only its survey line is checked for banned words: its title and its list are the title
+    # scene and the scenes, which warn by themselves; a word there would otherwise warn twice (pinned.py).
     source = pinned.scenes_source(title, scenes, pinned.product_names(db, video.id), video.topic)
-    posts = {"caption": video.caption, "pinned_comment": pinned.render(video.pinned_survey, source)}
+    posts = {"caption": video.caption, "pinned_comment": video.pinned_survey}
     checks = check_script(title_input, scene_input, posts, knowledge.banned_words(db, video))
     checks.warnings.extend(pinned.validate(video.pinned_survey, source, video.extra_comments))
     for scene in scenes:
