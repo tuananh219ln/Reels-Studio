@@ -122,6 +122,92 @@ test("a profile's grid in its own scrolling box is read to the end, under the Pa
   expect(new Set(ids).size).toBe(40);
 });
 
+type Copy = { cookies: { name: string; value: string }[]; userId: string; savedAt: string };
+type Sync = { backup?: Copy; forget?: true };
+
+/** The extension's scan-account.js against a chrome.storage.local kept in memory, as a fresh install starts. */
+function extensionStore() {
+  const data: Record<string, unknown> = {};
+  const local = {
+    get: async (key: string) => (key in data ? { [key]: data[key] } : {}),
+    set: async (values: Record<string, unknown>) => Object.assign(data, values),
+    remove: async (key: string) => delete data[key],
+  };
+  const context: {
+    chrome: unknown;
+    syncScanAccount?: (copy: Copy | null) => Promise<Sync>;
+    saveScanAccount?: (text: string) => Promise<unknown>;
+    clearScanAccount?: () => Promise<void>;
+  } = { chrome: { storage: { local } } };
+  vm.runInNewContext(readFileSync(path.resolve(__dirname, "../../extension/scan-account.js"), "utf-8"), context);
+  return { data, sync: context.syncScanAccount!, save: context.saveScanAccount!, clear: context.clearScanAccount! };
+}
+
+test("an extension installed again takes the cookies back from the page's copy, never after Xóa", async () => {
+  const copy: Copy = {
+    cookies: [
+      { name: "c_user", value: "100099999999999" },
+      { name: "xs", value: "12:abc" },
+    ],
+    userId: "100099999999999",
+    savedAt: "2026-11-18T15:00:00.000Z",
+  };
+  // Installed again: nothing saved, the page's copy is taken back and nothing more is sent to the page.
+  const fresh = extensionStore();
+  expect(await fresh.sync(copy)).toEqual({});
+  expect(fresh.data.scanAccount).toMatchObject({ userId: "100099999999999", savedAt: copy.savedAt });
+
+  // Cookies pasted in the extension: the page gets them for its copy, whether it had none or an older one.
+  const saved = extensionStore();
+  await saved.save("c_user=100088888888888; xs=9:new");
+  expect((await saved.sync(null)).backup).toMatchObject({ userId: "100088888888888" });
+  expect((await saved.sync(copy)).backup).toMatchObject({ userId: "100088888888888" });
+
+  // "Xóa": the copy that predates it goes, and is not restored.
+  await saved.clear();
+  expect(await saved.sync(copy)).toEqual({ forget: true });
+  expect(saved.data.scanAccount).toBeUndefined();
+
+  // A copy without c_user and xs is never taken.
+  const broken = extensionStore();
+  expect(await broken.sync({ ...copy, cookies: [{ name: "datr", value: "x" }] })).toEqual({ forget: true });
+  expect(broken.data.scanAccount).toBeUndefined();
+});
+
+test("the page keeps the extension's copy of the cookies and sends it back with each question", async ({ page }) => {
+  const copy: Copy = {
+    cookies: [
+      { name: "c_user", value: "100099999999999" },
+      { name: "xs", value: "12:abc" },
+    ],
+    userId: "100099999999999",
+    savedAt: "2026-11-18T15:00:00.000Z",
+  };
+  await page.addInitScript((copy) => {
+    const asked: unknown[] = [];
+    (window as unknown as { __asked: unknown[] }).__asked = asked;
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (event.source !== window || data?.source !== "reels-page") return;
+      const answer = (body: object) => window.postMessage({ source: "reels-extension", ...body }, "*");
+      if (data.type === "hello") answer({ type: "ready", version: "1.7.0" });
+      if (data.type === "scan-account") {
+        asked.push(data.backup ?? null);
+        // The first question of the first visit gets the extension's cookies; later ones are answered plainly.
+        const first = asked.length === 1 && !data.backup;
+        answer({ type: "answer", id: data.id, userId: null, incognito: false, ...(first ? { backup: copy } : {}) });
+      }
+    });
+  }, copy);
+  await loginAsSeed(page);
+  await page.goto("/competitors");
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("reels-studio-scan-account") ?? "null")))
+    .toEqual(copy);
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __asked: unknown[] }).__asked[0])).toEqual(copy);
+});
+
 async function standIn(page: Page, account: { userId: string | null; incognito: boolean }) {
   await page.addInitScript((saved) => {
     const seen: { url?: string; details?: string[]; comments?: string[] } = {};

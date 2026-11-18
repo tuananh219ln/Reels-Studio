@@ -79,6 +79,37 @@ export function useExtensionVersion(): string {
   return version;
 }
 
+/*
+ * A copy of the second account's cookies in this Chrome's storage for this site, never sent to the api: removing the
+ * extension deletes its own storage, and an extension installed again takes the copy back when this page asks
+ * (extension/scan-account.js syncScanAccount). Storage that cannot be read or written (a private window, blocked site
+ * data) only means no copy.
+ */
+const COPY_KEY = "reels-studio-scan-account";
+
+type AccountCopy = { cookies: { name: string; value: string }[]; userId: string; savedAt: string };
+
+function readCopy(): AccountCopy | null {
+  try {
+    const copy = JSON.parse(window.localStorage.getItem(COPY_KEY) ?? "null");
+    return copy && Array.isArray(copy.cookies) && typeof copy.savedAt === "string" ? copy : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCopy(copy: AccountCopy | null): void {
+  try {
+    if (copy) {
+      window.localStorage.setItem(COPY_KEY, JSON.stringify(copy));
+    } else {
+      window.localStorage.removeItem(COPY_KEY);
+    }
+  } catch {
+    // No copy kept; the cookies stay in the extension.
+  }
+}
+
 /** Asks the extension whose cookies it holds; read again when the member comes back from its options page. */
 function useScanAccount(enabled: boolean): ScanAccount | null {
   const [account, setAccount] = useState<ScanAccount | null>(null);
@@ -90,9 +121,16 @@ function useScanAccount(enabled: boolean): ScanAccount | null {
     const listen = (event: MessageEvent) => {
       if (fromExtension(event) && event.data.type === "answer" && event.data.id === id) {
         setAccount({ userId: event.data.userId ?? null, incognito: Boolean(event.data.incognito) });
+        // The extension hands its newer cookies over for the copy, or says the copy is to go ("Xóa").
+        if (event.data.backup) {
+          writeCopy(event.data.backup);
+        } else if (event.data.forget) {
+          writeCopy(null);
+        }
       }
     };
-    const ask = () => window.postMessage({ source: FROM_PAGE, type: "scan-account", id }, window.location.origin);
+    const ask = () =>
+      window.postMessage({ source: FROM_PAGE, type: "scan-account", id, backup: readCopy() }, window.location.origin);
     const onVisible = () => {
       if (!document.hidden) ask();
     };
