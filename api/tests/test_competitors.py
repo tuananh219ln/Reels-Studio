@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import login, make_user
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from test_mcp import call, grant, mcp_client, payload, rpc  # noqa: F401  (mcp_client is a fixture)
 
 from reels_api import competitors
@@ -192,15 +192,19 @@ def test_a_scan_runs_through_the_page_and_a_resumed_one_never_doubles_videos(cli
     batch = _grid(0, 80, views="2.3M")
     batch[0]["views_raw"] = None
     client.post(f"/api/competitors/scans/{scan['id']}/videos", json={"videos": batch})
+    # Read again without a number: the number read before stays (checked before the scan ends, since the ending
+    # drops the videos under 100K of a big channel).
+    first = db.scalar(select(CompetitorVideo).where(CompetitorVideo.fb_video_id == "1000000"))
+    assert first.views == 10_000 and first.views_raw == "10K"
+    assert first.url == "https://www.facebook.com/reel/1000000/"
     done = client.post(
         f"/api/competitors/scans/{scan['id']}/finish",
         json={"status": "done", "name": "Linh Đoàn", "followers": "1,2 Tr"},
     ).json()
     assert done["videos_found"] == 80 and done["competitor"]["name"] == "Linh Đoàn"
-    first = db.scalar(select(CompetitorVideo).where(CompetitorVideo.fb_video_id == "1000000"))
-    # Read again without a number: the number read before stays.
-    assert first.views == 10_000 and first.views_raw == "10K"
-    assert first.url == "https://www.facebook.com/reel/1000000/"
+    # 79 of the 80 are 100K or more: a big channel, so the one of 10K is dropped from the list, not from the count.
+    assert done["scanned_count"] == 80 and done["stored_count"] == 79
+    assert db.scalar(select(CompetitorVideo).where(CompetitorVideo.fb_video_id == "1000000")) is None
     assert (
         db.scalar(select(Competitor.followers).where(Competitor.owner_id == me.id, Competitor.name == "Linh Đoàn"))
         == 1_200_000
@@ -693,3 +697,60 @@ def test_the_csv_never_lets_a_caption_run_as_a_formula(client, db):
     assert text.splitlines()[0].startswith("Hạng,Loại,Link,View,Caption")
     assert "'=HYPERLINK" in text and ",=HYPERLINK" not in text
     assert "https://www.facebook.com/reel/1000000/" in text
+
+
+def _mixed_grid(big: int, small: int) -> list[dict]:
+    """`big` videos of 200K views then `small` of 5K, as the grid shows them."""
+    views = ["200K"] * big + ["5K"] * small
+    return [{"fb_video_id": str(2_000_000 + n), "views_raw": raw, "position": n} for n, raw in enumerate(views)]
+
+
+def test_a_big_channel_keeps_only_its_100k_videos_but_the_numbers_cover_everything(client, db):
+    """Spec v2 4.9: 10 or more videos of 100K+ make a channel big; the list keeps only those, and the total, median
+    and buckets stay those of everything read."""
+    make_user(db)
+    login(client)
+    scan = _scan_done(client, videos=_mixed_grid(12, 30))
+    row = client.get("/api/competitors").json()["competitors"][0]["latest_scan"]
+    assert row["scanned_count"] == 42 and row["stored_count"] == 12 and row["threshold_applied"] == 100_000
+    assert row["video_count"] == 42 and row["stored_count"] == 12
+    assert row["total_views"] == 12 * 200_000 + 30 * 5_000 and row["median_views"] == 5_000
+    assert db.scalar(select(func.count()).where(CompetitorVideo.scan_id == scan["id"])) == 12
+
+    detail = client.get(f"/api/competitors/scans/{scan['id']}").json()["stats"]
+    assert detail["videos"] == 42 and detail["median_views"] == 5_000
+    assert [bucket["videos"] for bucket in detail["buckets"]] == [0, 12, 0, 30]
+    assert "Chỉ lưu 12 video từ 100K view trong 42 video đã đọc" in detail["limits"][0]
+    page = client.get(f"/api/competitors/{scan['competitor']['id']}/videos").json()
+    assert page["total"] == 12 and page["scanned_count"] == 42 and page["threshold_applied"] == 100_000
+
+
+def test_a_small_channel_keeps_every_video_and_a_mode_overrides_the_rule(client, db):
+    make_user(db)
+    login(client)
+    small = _scan_done(client, "facebook.com/small.page", videos=_mixed_grid(9, 20))
+    row = [r for r in client.get("/api/competitors").json()["competitors"] if r["id"] == small["competitor"]["id"]][0]
+    assert row["latest_scan"]["stored_count"] == 29 and row["latest_scan"]["threshold_applied"] is None
+
+    big = _scan_done(client, videos=_mixed_grid(12, 30))["competitor"]["id"]
+    chosen = client.patch(f"/api/competitors/{big}", json={"video_threshold_mode": "all"})
+    assert chosen.json()["video_threshold_mode"] == "all"
+    assert client.patch(f"/api/competitors/{big}", json={"video_threshold_mode": "x"}).status_code == 422
+    # The name is untouched by a PATCH that only sets the mode.
+    assert chosen.json()["custom_name"] is None
+    again = _scan_done(client, videos=_mixed_grid(12, 30))
+    assert db.scalar(select(func.count()).where(CompetitorVideo.scan_id == again["id"])) == 42
+
+    client.patch(f"/api/competitors/{big}", json={"video_threshold_mode": "1m"})
+    third = _scan_done(client, videos=_mixed_grid(12, 30))
+    assert db.scalar(select(func.count()).where(CompetitorVideo.scan_id == third["id"])) == 0
+    row = [r for r in client.get("/api/competitors").json()["competitors"] if r["id"] == big][0]
+    assert row["latest_scan"]["video_count"] == 42 and row["latest_scan"]["stored_count"] == 0
+
+
+def test_the_videos_can_be_filtered_by_views(client, db):
+    make_user(db)
+    login(client)
+    scan = _scan_done(client, "facebook.com/small.page", videos=_mixed_grid(3, 5))
+    page = client.get(f"/api/competitors/{scan['competitor']['id']}/videos?min_views=100000").json()
+    assert page["total"] == 3 and page["scanned_count"] == 8
