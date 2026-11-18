@@ -8,7 +8,7 @@ test.afterEach(async ({ page }, info) => {
     await page.screenshot({ path: info.outputPath("shared-actions.png"), animations: "disabled" });
 });
 
-test("shared actions: article list offers posting, making a Reel and deletion", async ({ page }) => {
+test("shared actions: article list offers posting and deletion, and no longer making a Reel", async ({ page }) => {
   await loginAsSeed(page);
   let releaseKnowledge: () => void = () => {};
   const knowledgeReady = new Promise<void>((resolve) => {
@@ -32,7 +32,7 @@ test("shared actions: article list offers posting, making a Reel and deletion", 
   await page.goto("/articles");
   const row = page.getByRole("row").filter({ hasText: "Bài kiểm tra thao tác dùng chung" });
   await expect(row.getByRole("button", { name: "Đăng bài", exact: true })).toBeVisible();
-  await expect(row.getByRole("button", { name: "Làm reel từ bài này" })).toBeVisible();
+  await expect(row.getByRole("button", { name: "Làm reel từ bài này" })).toHaveCount(0);
   await row.getByRole("button", { name: "Xoá bài viết" }).click();
   await page.getByRole("button", { name: "Xoá", exact: true }).last().click();
   await expect(row).toHaveCount(0);

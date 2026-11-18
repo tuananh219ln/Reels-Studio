@@ -23,8 +23,8 @@ import {
 } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 import { useUrlChoice } from "@/lib/urlState";
-import { PlusOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Flex, Form, Input, Segmented, Select, Spin, Table, Typography } from "antd";
+import { EyeOutlined, HeartOutlined, MessageOutlined, PlusOutlined } from "@ant-design/icons";
+import { Alert, App, Button, Card, Flex, Form, Input, Segmented, Select, Spin, Table, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -204,18 +204,26 @@ function Articles() {
     {
       title: "Bài viết",
       key: "article",
-      width: 320,
-      minWidth: 260,
+      ellipsis: true,
       render: (_, row) => (
         <Flex gap={12} align="center">
-          <ArticleThumb article={row} />
+          <ArticleThumb article={row} size={48} />
           <Flex vertical style={{ minWidth: 0 }}>
             <Link prefetch={false} href={`/articles/${row.id}`}>
-              <Typography.Text strong ellipsis style={{ maxWidth: 320 }}>
+              <Typography.Text strong ellipsis style={{ maxWidth: 360 }}>
                 {row.hook || row.topic || "(chưa có caption)"}
               </Typography.Text>
             </Link>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            <Typography.Text
+              type="secondary"
+              style={{
+                fontSize: 12,
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
               {row.topic && row.hook ? row.topic : row.images.length ? `${row.images.length} ảnh` : "Chỉ chữ"}
             </Typography.Text>
           </Flex>
@@ -225,7 +233,7 @@ function Articles() {
     {
       title: "Trạng thái",
       key: "status",
-      width: 120,
+      width: 110,
       render: (_, row) =>
         row.job?.status === "queued" || row.job?.status === "running" ? (
           <StatusText tone="active">AI đang viết…</StatusText>
@@ -236,7 +244,8 @@ function Articles() {
     {
       title: "Page",
       key: "pages",
-      width: 150,
+      width: 160,
+      ellipsis: true,
       render: (_, row) => {
         const pages = [
           ...new Set(
@@ -249,23 +258,39 @@ function Articles() {
       },
     },
     {
-      title: "Số 48h",
+      title: (
+        <Tooltip title="Cảm xúc, bình luận và reach đo 48 giờ sau khi đăng">
+          <span>Số 48h</span>
+        </Tooltip>
+      ),
       key: "numbers",
-      width: 230,
+      width: 160,
       render: (_, row) => {
         const post = row.posts.find((item) => item.numbers.at_48h);
         if (!post) {
           return row.posts.some((item) => item.status === "published") ? (
-            <Typography.Text type="secondary">chưa đo 48h</Typography.Text>
+            <Tooltip title="Số liệu sẽ có sau 48h kể từ khi đăng">
+              <Typography.Text type="secondary">Chưa đo</Typography.Text>
+            </Tooltip>
           ) : (
-            "—"
+            <Typography.Text type="secondary">—</Typography.Text>
           );
         }
         const { at_48h: mark, analysis } = post.numbers;
         return (
-          <Typography.Text strong={analysis.standout} style={{ fontSize: 13 }}>
-            {numbersLine(mark!, analysis.share_rate)}
-          </Typography.Text>
+          <Tooltip title={numbersLine(mark!, analysis.share_rate)}>
+            <Flex gap={12} style={{ whiteSpace: "nowrap", fontSize: 13, fontWeight: analysis.standout ? 600 : 400 }}>
+              <span>
+                <HeartOutlined aria-label="Cảm xúc" /> {mark!.reactions ?? "—"}
+              </span>
+              <span>
+                <MessageOutlined aria-label="Bình luận" /> {mark!.comments ?? "—"}
+              </span>
+              <span>
+                <EyeOutlined aria-label="Reach" /> {mark!.reach ?? "—"}
+              </span>
+            </Flex>
+          </Tooltip>
         );
       },
     },
@@ -305,7 +330,7 @@ function Articles() {
     {
       key: "actions",
       title: "Thao tác",
-      width: 280,
+      width: 180,
       fixed: "right",
       render: (_, row) => <ArticleActions article={row} onChanged={() => load(true)} />,
     },
@@ -381,6 +406,7 @@ function Articles() {
                 rowKey="id"
                 columns={columns}
                 dataSource={rows}
+                size="middle"
                 pagination={false}
                 scroll={{ x: "max-content" }}
                 locale={{
