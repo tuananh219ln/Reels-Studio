@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 
 /*
- * "Phân tích đối thủ": this page drives the team's Chrome extension (extension/ at the repo root, 1.4.0 or newer).
+ * "Phân tích đối thủ": this page drives the team's Chrome extension (extension/ at the repo root, 1.5.0 or newer).
  * While it is open with the extension there and a second Facebook account saved in it, it asks the api for the
  * member's next scan (made here or by their Claude through MCP), has the extension read the competitor's Reels grid
  * in an incognito window signed in as that account, saves each batch, then sends back the most viewed reels for the
@@ -24,6 +24,8 @@ export type CompetitorScan = {
   finished_at: string | null;
   error: string | null;
   include_videos: boolean;
+  /** "Cập nhật thông tin kênh": reads only the Page's header, no videos. */
+  meta_only: boolean;
   competitor: {
     id: number;
     fb_url: string;
@@ -42,7 +44,8 @@ export type ScanProgress = { scan: CompetitorScan; found: number; details?: { re
 
 const FROM_PAGE = "reels-page";
 const FROM_EXTENSION = "reels-extension";
-const MIN_VERSION = [1, 4, 0];
+// 1.5.0 reads the Page's header (name, followers, badge, avatar) and runs header-only scans.
+const MIN_VERSION = [1, 5, 0];
 // Nothing from the extension for this long: the window or the extension stopped; the scan is saved as partial.
 const SILENCE_MS = 3 * 60 * 1000;
 
@@ -115,7 +118,15 @@ export function openExtensionOptions(): void {
 type EnrichTarget = { fb_video_id: string; url: string; comments: boolean };
 
 type GridVideo = { fb_video_id: string; views_raw: string | null; position: number; type?: "reel" | "video" };
-type Ended = { status: "done" | "partial" | "failed"; error?: string | null; name?: string | null };
+type Ended = {
+  status: "done" | "partial" | "failed";
+  error?: string | null;
+  name?: string | null;
+  /** What the Page's header gave, saved with the end of the scan (api competitors.finish). */
+  followers?: string | null;
+  is_verified?: boolean | null;
+  avatar?: string | null;
+};
 
 /** Runs one claimed scan through the extension, saving everything in order; resolves with how it ended. */
 function runScan(scan: CompetitorScan, onProgress: (progress: ScanProgress) => void): Promise<Ended> {
@@ -187,7 +198,14 @@ function runScan(scan: CompetitorScan, onProgress: (progress: ScanProgress) => v
       } else if (data.type === "scan-tick" && typeof data.of === "number") {
         onProgress({ scan, found, details: { read: data.read, of: data.of } });
       } else if (data.type === "scan-done") {
-        end({ status: data.status ?? "failed", error: data.error ?? null, name: data.name ?? null });
+        end({
+          status: data.status ?? "failed",
+          error: data.error ?? null,
+          name: data.name ?? null,
+          followers: data.followers ?? null,
+          is_verified: typeof data.is_verified === "boolean" ? data.is_verified : null,
+          avatar: typeof data.avatar === "string" ? data.avatar : null,
+        });
       } else if (data.type === "answer" && data.started === false) {
         end({ status: "failed", error: data.error ?? "Tiện ích không bắt đầu quét được" });
       }
@@ -204,6 +222,7 @@ function runScan(scan: CompetitorScan, onProgress: (progress: ScanProgress) => v
         // M5: the Videos tab after Reels, when the scan asks for it.
         videosUrl: scan.include_videos ? scan.competitor.videos_url : undefined,
         maxVideos: scan.max_videos,
+        metaOnly: scan.meta_only,
       },
       window.location.origin,
     );

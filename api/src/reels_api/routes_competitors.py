@@ -5,7 +5,8 @@ member's own: another member's competitors and scans answer 404.
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session as DbSession
 
@@ -14,6 +15,7 @@ from .db import get_db
 from .errors import ApiError
 from .models import Session
 from .sessions import current_member
+from .storage import get_storage
 
 router = APIRouter(prefix="/api/competitors")
 
@@ -74,6 +76,14 @@ class FinishBody(BaseModel):
     error: str | None = Field(None, max_length=500)
     name: str | None = Field(None, max_length=200)
     followers: str | None = Field(None, max_length=60)
+    is_verified: bool | None = None
+    # The avatar as the extension read it: a small `data:image/...;base64,` URL, kept by the api as a 128 px copy.
+    avatar: str | None = Field(None, max_length=competitors.AVATAR_DATA_LIMIT)
+
+
+class PatchBody(BaseModel):
+    # None or empty restores the name the scan read.
+    custom_name: str | None = Field(None, max_length=200)
 
 
 @router.get("")
@@ -133,12 +143,70 @@ def resume_scan(scan_id: int, me: Session = Depends(current_member), db: DbSessi
     return competitors.scan_payload(scan)
 
 
+@router.patch("/{competitor_id}")
+def patch_competitor(
+    competitor_id: int, body: PatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """Only `custom_name` can be set: the member's own name for the channel, shown everywhere."""
+    competitor = competitors.own_competitor(db, competitor_id, me.user_id)
+    competitors.rename(competitor, body.custom_name)
+    db.commit()
+    return competitors.competitor_payload(competitor)
+
+
+@router.post("/{competitor_id}/refresh-meta", status_code=201)
+def refresh_meta(competitor_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Cập nhật thông tin kênh": a light scan that reads only the Page's header (name, avatar, followers)."""
+    competitor = competitors.own_competitor(db, competitor_id, me.user_id)
+    scan = competitors.start_scan(db, me.user_id, competitor.fb_url, meta_only=True)
+    db.commit()
+    return competitors.scan_payload(scan)
+
+
+@router.get("/{competitor_id}/avatar")
+def avatar(competitor_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> FileResponse:
+    competitor = competitors.team_competitor(db, competitor_id)
+    if not competitor.avatar_key or not get_storage().exists(competitor.avatar_key):
+        raise ApiError(404, "avatar_not_found", "Kênh này chưa có ảnh đại diện")
+    return FileResponse(
+        get_storage().path(competitor.avatar_key),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
+@router.get("/{competitor_id}/videos")
+def videos(
+    competitor_id: int,
+    page: int = Query(1, ge=1, le=10_000),
+    limit: int = Query(20, ge=1, le=100),
+    sort: Literal["views", "posted"] = "views",
+    q: str | None = Query(None, max_length=200),
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """A page of the videos of the competitor's latest scan, for the expanded row."""
+    return competitors.videos_page(db, competitors.team_competitor(db, competitor_id), page, limit, sort, q)
+
+
+@router.get("/{competitor_id}/videos.csv")
+def videos_csv(competitor_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> Response:
+    competitor = competitors.team_competitor(db, competitor_id)
+    return Response(
+        competitors.videos_csv(db, competitor),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="doi-thu-{competitor.id}.csv"'},
+    )
+
+
 @router.delete("/{competitor_id}", status_code=204)
 def delete_competitor(
     competitor_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> None:
     """ "Xóa dữ liệu": the competitor, every scan of it and every video read, for good."""
-    db.delete(competitors.own_competitor(db, competitor_id, me.user_id))
+    competitor = competitors.own_competitor(db, competitor_id, me.user_id)
+    get_storage().delete_prefix(f"competitors/{competitor.id}")
+    db.delete(competitor)
     db.commit()
 
 
@@ -203,6 +271,6 @@ def finish_scan(
     scan_id: int, body: FinishBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
     scan = competitors.own_scan(db, scan_id, me.user_id, lock=True)
-    competitors.finish(db, scan, body.status, body.error, body.name, body.followers)
+    competitors.finish(db, scan, body.status, body.error, body.name, body.followers, body.is_verified, body.avatar)
     db.commit()
     return competitors.scan_payload(scan)

@@ -135,8 +135,11 @@ app replaces CapCut, so the output is a finished MP4.
     the api sums the numbers (total, median, buckets, the top 10's share), and the member's Claude analyses topics,
     viewers' pains and what to make through MCP, on the member's plan, using sample comments of the top reels as
     evidence, and saves the report, shown under the scan. The Videos tab can be read too, posting dates of
-    samples down each grid give how often a competitor posts, and "So sánh" puts competitors side by side. See
-    [decision](decisions/2026-11-17-competitor-analyzer.md).
+    samples down each grid give how often a competitor posts, and "So sánh" puts competitors side by side. The table
+    names each channel with its avatar, verified badge and followers, read from the Page's header (a member may
+    rename it), and an expanded row shows the spread of views and a paged, exportable video list. See
+    [decision](decisions/2026-11-17-competitor-analyzer.md) and
+    [v2](decisions/2026-11-18-competitors-ui-v2.md).
 
 ---
 

@@ -1549,6 +1549,12 @@ class Competitor(Base):
     name: Mapped[str | None] = mapped_column(String(200))
     followers: Mapped[int | None] = mapped_column(BigInteger)
     bio: Mapped[str | None] = mapped_column(Text)
+    # What the scan read from the Page's header (migration 0101): the avatar is a small copy kept in storage (never
+    # Facebook's signed, expiring link), `custom_name` is the member's own name for it and wins over `name`.
+    avatar_key: Mapped[str | None] = mapped_column(Text)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    custom_name: Mapped[str | None] = mapped_column(String(200))
+    meta_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -1566,6 +1572,9 @@ class CompetitorScan(Base):
     # {"reels": true, "videos": false, "max_videos": 500}.
     scope: Mapped[dict] = mapped_column(JSONB, default=dict)
     videos_found: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # "Cập nhật thông tin kênh" (migration 0101): reads only the Page's header, no videos; never a competitor's
+    # "latest scan" for numbers.
+    meta_only: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
