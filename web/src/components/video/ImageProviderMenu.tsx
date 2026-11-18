@@ -14,7 +14,7 @@ const NOTES = { cloudflare: "miễn phí khoảng 57 ảnh/ngày", gemini: "tố
 
 /**
  * The arrow beside a "Tạo ảnh AI" button: makes the photos with a provider chosen for this press. The button itself
- * uses the team's default (Cài đặt › Nguồn tư liệu); the menu is how a member moves to Gemini when Cloudflare's
+ * uses the team's default (Cài đặt › AI và nguồn tư liệu); the menu is how a member moves to Gemini when Cloudflare's
  * free photos for the day are used up, since the app never switches to a paid provider by itself.
  */
 export default function ImageProviderMenu({

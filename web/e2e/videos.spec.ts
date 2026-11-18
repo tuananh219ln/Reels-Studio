@@ -2575,10 +2575,10 @@ test("an AI photo for one scene, then a new one in its place", async ({ page }) 
   await expect(preview).not.toHaveAttribute("src", first ?? "", { timeout: 30_000 });
 });
 
-test("AI image provider: the team default on Nguồn tư liệu, another one for a single press", async ({ page }) => {
+test("AI image provider: the team default on AI và nguồn tư liệu, another one for a single press", async ({ page }) => {
   test.setTimeout(240_000);
   await loginAsSeed(page);
-  await page.goto("/settings/sources");
+  await page.goto("/settings/ai");
   // The starting default depends on the server's .env (IMAGE_GEN_PROVIDER); choosing one here wins over it.
   const choice = page.getByTestId("ai-provider");
   await choice.getByLabel("Nguồn ảnh AI mặc định").getByText("Cloudflare (miễn phí)").click();
@@ -2628,7 +2628,7 @@ test("Tự tìm ảnh: after the script every scene gets a stock photo marked to
   test.setTimeout(240_000);
   await loginAsSeed(page);
   // Off for the other E2E tests (api/scripts/e2e_reset.py); on by default for a real team.
-  await page.goto("/settings/sources");
+  await page.goto("/settings/ai");
   const auto = page.getByRole("switch", { name: "Tự tìm ảnh sau khi viết kịch bản" });
   await expect(auto).not.toBeChecked();
   await auto.click();
@@ -2976,7 +2976,7 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
   await page.getByRole("menuitem", { name: "Cài đặt" }).click();
   // A tab clicked before /settings redirects to its first tab loses to that redirect.
   await expect(page).toHaveURL(/\/settings\/defaults$/);
-  await page.getByRole("tab", { name: "Mô hình AI" }).click();
+  await page.getByRole("tab", { name: "AI và nguồn tư liệu" }).click();
   await expect(page).toHaveURL(/\/settings\/ai$/);
   // With nothing set, the team writes with Claude from the server's environment.
   const claude = page.getByTestId("provider-anthropic");
@@ -3175,8 +3175,8 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
 
   await page.getByRole("menuitem", { name: "Cài đặt" }).click();
   await expect(page).toHaveURL(/\/settings\/defaults$/);
-  await page.getByRole("tab", { name: "Nguồn tư liệu" }).click();
-  await expect(page).toHaveURL(/\/settings\/sources$/);
+  await page.getByRole("tab", { name: "AI và nguồn tư liệu" }).click();
+  await expect(page).toHaveURL(/\/settings\/ai$/);
   await page.getByRole("switch", { name: "Bật Pexels" }).click();
   await expect(page.getByRole("switch", { name: "Bật Pexels" })).not.toBeChecked();
   // A key pasted here is stored encrypted and only its last characters come back.
@@ -3187,10 +3187,10 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await pixabayKey.getByRole("button", { name: "Lưu key" }).click();
   await expect(pixabayKey.getByTestId("key-status")).toHaveText("Đã lưu, kết thúc bằng …-key");
   // The team's settings say who changed them last, and their history never shows a key, only its last characters.
-  const stockSection = page.locator("section").filter({ hasText: "Kho ảnh và video miễn phí" });
+  const stockSection = page.getByTestId("group-stock");
   await expect(stockSection.getByTestId("last-edit")).toContainText(`Sửa lần cuối bởi ${SEED.name}`);
-  await page.getByRole("button", { name: "Lịch sử" }).click();
-  const history = page.getByRole("dialog", { name: "Lịch sử: Nguồn tư liệu" });
+  await page.getByTestId("history-stock").getByRole("button", { name: "Lịch sử" }).click();
+  const history = page.getByRole("dialog", { name: "Lịch sử: Kho ảnh và video miễn phí" });
   await expect(history.getByTestId("edit-history-entry")).toHaveCount(2);
   await expect(history).toContainText("Khoá (Pixabay): đã thêm khoá …-key");
   await expect(history).toContainText("Hiện trong hộp chọn (Pexels): Bật → Tắt");

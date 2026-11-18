@@ -301,6 +301,9 @@ class FakeServices:
         self._clip_bytes: bytes | None = None
         self.default_seconds = 4.0
         self.tts_mode = "ok"  # ok | quota | error500
+        # Narration keys whose quota ran out, whatever the mode; a test adds more keys of a service by appending
+        # "-" and anything to its fake key (valid_key), so it can tell which key a narration was read with.
+        self.exhausted_keys: set[str] = set()
         self.tts_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
         self.image_gen_mode = "ok"  # ok | quota | error500
         self.image_gen_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
@@ -592,7 +595,7 @@ class FakeServices:
     def _voices(self, key: str | None) -> tuple[int, dict]:
         with self.lock:
             self.voice_list_requests += 1
-        if key != ELEVENLABS_KEY:
+        if not self.valid_key(key, ELEVENLABS_KEY):
             return 401, {"detail": {"status": "invalid_api_key", "message": "Invalid API key"}}
         return 200, {
             "voices": [
@@ -880,6 +883,11 @@ class FakeServices:
             self.unsplash_downloads.append(name)
         return 200, {"url": self.image_url(name)}
 
+    @staticmethod
+    def valid_key(key: str | None, known: str) -> bool:
+        """The service's fake key, or another key of the same account a test made from it ("<known>-backup")."""
+        return bool(key) and (key == known or key.startswith(f"{known}-"))
+
     def _tts(self, voice_id: str, key: str, body: dict) -> tuple[int, object]:
         with self.lock:
             self.tts_requests.append(
@@ -891,10 +899,16 @@ class FakeServices:
                 }
                 # Only a request that set a speed records one.
                 | ({"speed": body["voice_settings"]["speed"]} if body.get("voice_settings") else {})
+                # Only a test's own extra key records which key read.
+                | ({"key": key} if key != ELEVENLABS_KEY else {})
             )
-        if key != ELEVENLABS_KEY:
+        if not self.valid_key(key, ELEVENLABS_KEY):
             return 401, {"detail": {"status": "invalid_api_key", "message": "Invalid API key"}}
-        if self.tts_mode == "quota" or (self.tts_ok_count is not None and len(self.tts_requests) > self.tts_ok_count):
+        if (
+            key in self.exhausted_keys
+            or self.tts_mode == "quota"
+            or (self.tts_ok_count is not None and len(self.tts_requests) > self.tts_ok_count)
+        ):
             return 401, {"detail": {"status": "quota_exceeded", "message": "This request exceeds your quota"}}
         if self.tts_mode == "error500":
             return 500, {"detail": "server error"}
@@ -920,9 +934,10 @@ class FakeServices:
         def failed(status: int, message: str, code: str | None = None) -> tuple[int, dict]:
             return status, {"error": {"message": message, "type": "error", "param": None, "code": code}}
 
-        if authorization != f"Bearer {VIENEU_KEY}":
+        key = (authorization or "").removeprefix("Bearer ")
+        if not self.valid_key(key, VIENEU_KEY):
             return failed(401, "Invalid or revoked API key.")
-        if self.vieneu_mode == "trial_limit":
+        if self.vieneu_mode == "trial_limit" or key in self.exhausted_keys:
             return failed(429, "Trial daily limit reached.", "TRIAL_API_DAILY_LIMIT")
         if self.vieneu_mode == "error500":
             return failed(500, "server error")
@@ -948,9 +963,9 @@ class FakeServices:
             refused_minute = self.gemini_tts_mode == "minute_limit" and self.gemini_tts_minute_failures > 0
             if refused_minute:
                 self.gemini_tts_minute_failures -= 1
-        if key != IMAGE_GEN_KEY:
+        if not self.valid_key(key, IMAGE_GEN_KEY):
             return self._gemini_failed(400, "API key not valid. Please pass a valid API key.", "INVALID_ARGUMENT")
-        if self.gemini_tts_mode == "daily_limit":
+        if self.gemini_tts_mode == "daily_limit" or key in self.exhausted_keys:
             return self._gemini_failed(
                 429,
                 "You exceeded your current quota.",

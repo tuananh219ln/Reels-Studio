@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import EditHistory, { type EditLogEntry } from "@/components/EditHistory";
 import { api, formatDateTime } from "@/lib/api";
 
-/** The history of a page of the team's shared settings (api edit_log.py): Mô hình AI, Nguồn tư liệu, Mẫu dựng and
+/** The history of a page of the team's shared settings (api edit_log.py): AI và nguồn tư liệu, Mẫu dựng and
  * Máy render. A card is a number within its page; a saved template is its id. */
 export type SharedSettings = "settings_ai" | "settings_sources" | "render_settings" | "edit_template";
 
@@ -24,6 +24,7 @@ const FIELD_NAMES: Record<string, string> = {
   auto_footage: "Tự tìm và chọn clip theo kịch bản",
   machine: "Máy render",
   name: "Tên mẫu",
+  backup_keys: "Key dự phòng",
 };
 const VALUES: Record<string, string> = { gemini: "Gemini", cloudflare: "Cloudflare" };
 
@@ -74,10 +75,11 @@ export function useLatestEdits(entityType: SharedSettings, version: unknown): Re
 type HistoryProps = { entityType: SharedSettings; title: string; owners?: Record<string, string> };
 
 /** "Lịch sử" of the whole page, for the page's header. */
-export function PageHistory({ entityType, title, owners }: HistoryProps) {
+export function PageHistory({ entityType, entityId, title, owners }: HistoryProps & { entityId?: number }) {
   return (
     <EditHistory
       entityType={entityType}
+      entityId={entityId}
       title={title}
       kind="settings"
       describe={(field, change) => describeChange(field, change, owners)}

@@ -1,4 +1,4 @@
-"""The edit history of the team's shared settings on Cài đặt › Mô hình AI and Nguồn tư liệu (edit_log.py), card by
+"""The edit history of the team's shared settings on Cài đặt › AI và nguồn tư liệu and Nguồn tư liệu (edit_log.py), card by
 card, as the pages show them. A key is never logged: only "…" and its last four characters, or None once removed
 (docs/decisions/2026-11-09-settings-mine-and-shared.md)."""
 
@@ -29,6 +29,12 @@ def _source_key(db: DbSession, name: str) -> str | None:
     return tail(source_keys._saved(db, name))
 
 
+def _backup_keys(db: DbSession, name: str) -> str | None:
+    """The team's backup narration keys in order, each its name and last characters; None for none."""
+    shown = [f"{row.label} …{row.tail}" for row in source_keys.rows(db, name)]
+    return ", ".join(shown) or None
+
+
 def _llm_card(db: DbSession) -> dict[str, Any]:
     rows = {row.id: row for row in db.scalars(select(LlmProvider))}
     values: dict[str, Any] = {"active": llm.BY_ID[llm.active_id(db)].name}
@@ -50,7 +56,10 @@ def snapshot(db: DbSession) -> dict[tuple[str, int], dict[str, Any]]:
             stock[f"{source}.key"] = _source_key(db, source)
     return {
         (edit_log.SETTINGS_AI, 1): _llm_card(db),
-        (edit_log.SETTINGS_AI, 2): {"vieneu.key": _source_key(db, "vieneu")},
+        (edit_log.SETTINGS_AI, 2): {
+            "vieneu.key": _source_key(db, "vieneu"),
+            "vieneu.backup_keys": _backup_keys(db, "vieneu"),
+        },
         (edit_log.SETTINGS_SOURCES, 1): stock,
         (edit_log.SETTINGS_SOURCES, 2): {
             "ai_provider": image_providers.saved(db),
@@ -58,6 +67,8 @@ def snapshot(db: DbSession) -> dict[tuple[str, int], dict[str, Any]]:
             "gemini.key": _source_key(db, "gemini"),
             "cloudflare.key": _source_key(db, "cloudflare"),
             "elevenlabs.key": _source_key(db, "elevenlabs"),
+            "gemini.backup_keys": _backup_keys(db, "gemini"),
+            "elevenlabs.backup_keys": _backup_keys(db, "elevenlabs"),
         },
     }
 

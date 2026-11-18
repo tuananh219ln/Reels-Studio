@@ -500,22 +500,29 @@ test("Cài đặt holds the defaults, AI model and sources as tabs, each with it
     "Tài khoản affiliate",
     "Kết nối MCP",
     "Chung cả nhóm",
-    "Mô hình AI",
-    "Nguồn tư liệu",
+    "AI và nguồn tư liệu",
     "Phân tích đối thủ",
     "Mẫu dựng",
     "Máy render",
   ]);
   await page.getByRole("tab", { name: "Kết nối MCP" }).click();
   await expect(page).toHaveURL(/\/settings\/mcp$/);
-  await page.getByRole("tab", { name: "Nguồn tư liệu" }).click();
-  await expect(page).toHaveURL(/\/settings\/sources$/);
+  await page.getByRole("tab", { name: "AI và nguồn tư liệu" }).click();
+  await expect(page).toHaveURL(/\/settings\/ai$/);
   await expect(page.getByTestId("source-elevenlabs")).toBeVisible();
+  // Each group closes on its name and stays closed after a reload, in this browser.
+  await page.getByRole("button", { name: /Kho ảnh và video miễn phí/ }).click();
+  await expect(page.getByTestId("source-pixabay")).toBeHidden();
   // A reload stays on the same tab, and the menu keeps Cài đặt selected.
   await page.reload();
-  await expect(page.getByRole("tab", { name: "Nguồn tư liệu" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "AI và nguồn tư liệu" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("menuitem", { name: "Cài đặt" })).toHaveClass(/ant-menu-item-selected/);
-  await page.getByRole("tab", { name: "Mô hình AI" }).click();
+  await expect(page.getByTestId("source-elevenlabs")).toBeVisible();
+  await expect(page.getByTestId("source-pixabay")).toBeHidden();
+  await page.getByRole("button", { name: /Kho ảnh và video miễn phí/ }).click();
+  await expect(page.getByTestId("source-pixabay")).toBeVisible();
+  // The old Nguồn tư liệu address lands on the merged page.
+  await page.goto("/settings/sources");
   await expect(page).toHaveURL(/\/settings\/ai$/);
 });
 

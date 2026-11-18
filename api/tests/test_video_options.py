@@ -167,7 +167,7 @@ def test_without_an_elevenlabs_key_the_voice_list_says_so(an, monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "")
     refused = an.get("/api/settings/voices")
     assert refused.status_code == 422
-    assert "Chưa có key ElevenLabs" in refused.json()["message"] and "Nguồn tư liệu" in refused.json()["message"]
+    assert "Chưa có key ElevenLabs" in refused.json()["message"] and "AI và nguồn tư liệu" in refused.json()["message"]
 
 
 def test_an_elevenlabs_key_pasted_on_the_sources_page_lists_the_voices(an, fakes, monkeypatch):
@@ -185,10 +185,15 @@ def test_an_elevenlabs_key_pasted_on_the_sources_page_lists_the_voices(an, fakes
 
 def test_a_wrong_elevenlabs_key_says_where_to_fix_it(an, fakes, monkeypatch):
     monkeypatch.setenv("IMAGE_GEN_API_KEY", "")  # with Gemini's voices there would be voices to show
+    # The .env key is tried after a saved one that fails (source_keys.chain), so leave the wrong key alone.
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "")
     an.put("/api/settings/sources/elevenlabs/key", json={"api_key": "not-the-fake-key"})
     refused = an.get("/api/settings/voices")
     assert refused.status_code == 422
-    assert "Key ElevenLabs không hợp lệ" in refused.json()["message"] and "Nguồn tư liệu" in refused.json()["message"]
+    assert (
+        "Key ElevenLabs không hợp lệ" in refused.json()["message"]
+        and "AI và nguồn tư liệu" in refused.json()["message"]
+    )
 
 
 @needs_ffmpeg

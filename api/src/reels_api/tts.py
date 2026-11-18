@@ -71,12 +71,27 @@ GEMINI_VOICES = {
 
 
 class TtsError(Exception):
-    """`message` is shown to members, `detail` is diagnostic."""
+    """`message` is shown to members, `detail` is diagnostic. `key_fault`: the key itself cannot read (wrong or revoked,
+    not allowed, its quota ran out), so another key of the same service may still; a busy or broken service, a
+    network failure or a missing voice is not the key's fault and fails at once."""
 
-    def __init__(self, message: str, detail: str = ""):
+    def __init__(self, message: str, detail: str = "", key_fault: bool = False):
         super().__init__(message)
         self.message = message
         self.detail = detail
+        self.key_fault = key_fault
+
+
+SERVICE_NAMES = {"elevenlabs": "ElevenLabs", "gemini": "Gemini", "vieneu": "VieNeu"}
+
+
+def all_keys_failed(service: str, count: int) -> str:
+    """The reason a narration fails once every one of the service's `count` keys was wrong or out of quota."""
+    name = SERVICE_NAMES.get(service, service)
+    return (
+        f"Đã thử hết {count} key {name} và key nào cũng lỗi hoặc hết hạn mức: xem lỗi của từng key ở "
+        "Cài đặt › AI và nguồn tư liệu, thêm key mới, hoặc chọn giọng dịch vụ khác cho video này"
+    )
 
 
 def spoken_text(voice_text: str) -> str:
@@ -126,9 +141,9 @@ def voice_signature(voice_text: str, voice_id: str | None = None, speed: float =
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
-NO_KEY = "Chưa có key ElevenLabs nên {}: nhập key ở Cài đặt › Nguồn tư liệu"
-NO_VIENEU_KEY = "Chưa có key VieNeu nên {}: nhập key ở Cài đặt › Mô hình AI"
-NO_GEMINI_KEY = "Chưa có key Gemini nên {}: nhập key ở Cài đặt › Nguồn tư liệu (cùng key tạo ảnh AI)"
+NO_KEY = "Chưa có key ElevenLabs nên {}: nhập key ở Cài đặt › AI và nguồn tư liệu"
+NO_VIENEU_KEY = "Chưa có key VieNeu nên {}: nhập key ở Cài đặt › AI và nguồn tư liệu"
+NO_GEMINI_KEY = "Chưa có key Gemini nên {}: nhập key ở Cài đặt › AI và nguồn tư liệu (cùng key tạo ảnh AI)"
 
 
 def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: float = 1.0) -> bytes:
@@ -195,15 +210,17 @@ def _vieneu_error(status: int, body: str) -> TtsError:
     detail = f"HTTP {status}: {body}"
     lowered = body.lower()
     if status == 401:
-        return TtsError("Key VieNeu không hợp lệ hoặc đã bị thu hồi: kiểm tra lại ở Cài đặt › Mô hình AI", detail)
+        return TtsError(
+            "Key VieNeu không hợp lệ hoặc đã bị thu hồi: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu", detail, True
+        )
     if status == 429:
         if "trial" in lowered:
-            return TtsError("Key VieNeu dùng thử đã hết lượt gọi trong ngày, thử lại sau 0 giờ", detail)
+            return TtsError("Key VieNeu dùng thử đã hết lượt gọi trong ngày, thử lại sau 0 giờ", detail, True)
         return TtsError("VieNeu đang giới hạn lượt gọi, thử lại sau", detail)
     if status == 402 or "credit" in lowered or "quota" in lowered or "balance" in lowered:
-        return TtsError("Tài khoản VieNeu đã hết lượt (credit), cần nạp thêm", detail)
+        return TtsError("Tài khoản VieNeu đã hết lượt (credit), cần nạp thêm", detail, True)
     if status == 403:
-        return TtsError("Tài khoản VieNeu chưa có gói API đang hoạt động", detail)
+        return TtsError("Tài khoản VieNeu chưa có gói API đang hoạt động", detail, True)
     if status == 400 and "voice" in lowered:
         return TtsError("VieNeu không có giọng đã chọn, hãy chọn giọng khác", detail)
     if status >= 500:
@@ -279,10 +296,12 @@ def _gemini_error(status: int, body: str) -> TtsError:
     detail = f"HTTP {status}: {body}"
     lowered = body.lower()
     if "api_key_invalid" in lowered or "api key not valid" in lowered or status == 401:
-        return TtsError("Key Gemini không hợp lệ: kiểm tra lại ở Cài đặt › Nguồn tư liệu", detail)
+        return TtsError(
+            "Key Gemini không hợp lệ hoặc đã bị thu hồi: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu", detail, True
+        )
     if status == 403:
         return TtsError(
-            "Key Gemini không được phép đọc lời (chưa bật quyền hoặc bị giới hạn): kiểm tra ở AI Studio", detail
+            "Key Gemini không được phép đọc lời (chưa bật quyền hoặc bị giới hạn): kiểm tra ở AI Studio", detail, True
         )
     if status == 429:
         if _gemini_daily_limit(body):
@@ -290,6 +309,7 @@ def _gemini_error(status: int, body: str) -> TtsError:
                 "Key Gemini đã hết lượt đọc lời trong ngày (làm mới khoảng 14–15 giờ Việt Nam): "
                 "thử lại sau, hoặc chọn giọng ElevenLabs/VieNeu cho video này",
                 detail,
+                True,
             )
         return TtsError("Gemini đang giới hạn số lượt gọi mỗi phút, thử lại sau ít phút", detail)
     if status == 404:
@@ -360,10 +380,13 @@ def change_speed(data: bytes, speed: float) -> bytes:
 
 def _http_error(status: int, body: str) -> TtsError:
     detail = f"HTTP {status}: {body}"
+    # ElevenLabs says a spent plan with HTTP 401 and "quota_exceeded", so this comes before the 401 of a wrong key.
     if "quota" in body.lower() or status == 402:
-        return TtsError("Tài khoản ElevenLabs đã hết ký tự (credit), cần nạp thêm", detail)
+        return TtsError("Tài khoản ElevenLabs đã hết ký tự (credit), cần nạp thêm", detail, True)
     if status == 401:
-        return TtsError("Key ElevenLabs không hợp lệ: kiểm tra lại ở Cài đặt › Nguồn tư liệu", detail)
+        return TtsError(
+            "Key ElevenLabs không hợp lệ hoặc đã bị thu hồi: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu", detail, True
+        )
     if status == 404:
         return TtsError(
             "ElevenLabs không có giọng hoặc model đã cấu hình (ELEVENLABS_VOICE_ID, ELEVENLABS_MODEL)", detail

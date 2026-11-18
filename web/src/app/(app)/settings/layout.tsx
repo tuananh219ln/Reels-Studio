@@ -5,7 +5,6 @@ import {
   BarChartOutlined,
   ControlOutlined,
   DesktopOutlined,
-  PictureOutlined,
   RobotOutlined,
   ShoppingOutlined,
   ThunderboltOutlined,
@@ -42,12 +41,11 @@ const GROUPS: { key: string; label: string; tabs: Tab[] }[] = [
     key: "group:team",
     label: "Chung cả nhóm",
     tabs: [
-      { key: "/settings/ai", label: "Mô hình AI", hint: "AI viết kịch bản, giọng VieNeu", icon: <RobotOutlined /> },
       {
-        key: "/settings/sources",
-        label: "Nguồn tư liệu",
-        hint: "Kho ảnh, ảnh AI, giọng ElevenLabs",
-        icon: <PictureOutlined />,
+        key: "/settings/ai",
+        label: "AI và nguồn tư liệu",
+        hint: "Kịch bản, giọng đọc, ảnh AI, kho ảnh",
+        icon: <RobotOutlined />,
       },
       {
         key: "/settings/competitors",
@@ -83,7 +81,12 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     ...group.tabs.map((tab) => ({
       key: tab.key,
       label: wide ? (
-        <Flex gap={10} align="flex-start" style={{ textAlign: "left", padding: "2px 0" }}>
+        // Wraps inside the column: a long hint on one line pushed the list over the page beside it.
+        <Flex
+          gap={10}
+          align="flex-start"
+          style={{ textAlign: "left", padding: "2px 0", whiteSpace: "normal", maxWidth: 196 }}
+        >
           <span style={{ fontSize: 16, lineHeight: "22px" }}>{tab.icon}</span>
           <Flex vertical gap={0}>
             <span>{tab.label}</span>
@@ -103,7 +106,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
       <PageHeader title="Cài đặt" />
       {wide ? (
         <Flex gap={28} align="flex-start">
-          <div style={{ position: "sticky", top: 16, width: 240, flex: "none" }}>
+          <div style={{ position: "sticky", top: 16, width: 240, flex: "none", minWidth: 0 }}>
             <Tabs
               tabPlacement="start"
               activeKey={active}

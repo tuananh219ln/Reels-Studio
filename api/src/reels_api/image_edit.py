@@ -219,7 +219,7 @@ def _png(image: Image.Image) -> bytes:
 
 def _cloudflare_fill(patch: Image.Image, mask: Image.Image, prompt: str, key: str) -> Image.Image:
     if not key:
-        raise ImageGenError("Chưa có API token Cloudflare: nhập token ở Cài đặt › Nguồn tư liệu")
+        raise ImageGenError("Chưa có API token Cloudflare: nhập token ở Cài đặt › AI và nguồn tư liệu")
     account = config.image_gen_cf_account_id()
     if not account:
         raise ImageGenError("Chưa cấu hình IMAGE_GEN_CF_ACCOUNT_ID (Account ID của Cloudflare) trong .env của server")
@@ -301,7 +301,7 @@ def _cf_error(status: int, body: str) -> ImageGenError:
     except ValueError:
         messages = ""
     if status in (401, 403):
-        return ImageGenError("API token Cloudflare không hợp lệ: kiểm tra lại ở Cài đặt › Nguồn tư liệu", detail)
+        return ImageGenError("API token Cloudflare không hợp lệ: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu", detail)
     if status == 429 or _cf_out_of_neurons(messages):
         return _cf_limit(detail)
     if status >= 500:
@@ -316,7 +316,7 @@ def _gemini_edit(image: Image.Image, prompt: str, key: str) -> bytes:
     if not prompt:
         raise ImageGenError("Hãy viết điều cần sửa trên ảnh")
     if not key:
-        raise ImageGenError("Chưa có key Gemini nên không sửa được ảnh: nhập key ở Cài đặt › Nguồn tư liệu")
+        raise ImageGenError("Chưa có key Gemini nên không sửa được ảnh: nhập key ở Cài đặt › AI và nguồn tư liệu")
     sent = image.copy()
     sent.thumbnail((GEMINI_MAX_SIDE, GEMINI_MAX_SIDE), Image.Resampling.LANCZOS)
     parts = [

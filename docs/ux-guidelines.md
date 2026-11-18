@@ -14,6 +14,16 @@ bản", "Render", "Tải MP4", "Thử lại", "Nhân bản".
 **Errors:** every refusal and failed job shows a plain Vietnamese reason where it happened (at the
 field, the scene, or the job banner); technical detail sits in a collapsed "Chi tiết lỗi".
 
+## Narration keys
+
+In "Giọng đọc" of Cài đặt › AI và nguồn tư liệu, the ElevenLabs, Gemini and VieNeu cards each keep the team's main key
+("API key"; Gemini's is the one under "Ảnh AI") with "Key dự phòng" under it: the backup keys in the order they are
+tried, each its name (renamed in place), "…" and its last four characters, "Lên" / "Xuống" / "Xoá" buttons, and a
+name field (optional, "Key dự phòng N" when empty) with "Thêm key". A key a narration could not use (wrong, not
+allowed, out of quota) shows its reason in red right under its row, with the Vietnam time and "Lời đọc đã tự chuyển
+sang key kế tiếp"; the main key's shows above "Key dự phòng". The line goes once the key reads again. A key is never
+shown again.
+
 ## ChatGPT and Claude connection
 
 Cài đặt › Kết nối MCP (`/settings/mcp`, a tab of "Của tôi"; `/chatgpt` sends there) shows the copyable server URL, how to add it in
@@ -706,7 +716,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
     "Chọn từ kho ảnh/video") has an "Ảnh | Video" switch when a source offers clips: "Video" lists
     vertical stock clips from Pexels and Pixabay (English keyword first) as 9:16 stills with their
     length, playing muted when pointed at; clicking one stores it as the scene's clip, like
-    an uploaded clip, in place of its photo or clip. Sources turned off on Nguồn tư liệu are left out;
+    an uploaded clip, in place of its photo or clip. Sources turned off on AI và nguồn tư liệu are left out;
   - blocking reasons in red at the scene, warnings in yellow; a scene with neither a photo nor photo
     keywords (a script can leave them out) warns "Cảnh chưa có từ khóa tìm ảnh"; "Render" is disabled until nothing
     blocks;
@@ -1105,17 +1115,17 @@ steps open the status card or the products block on its tab, the QC chip its pop
   "Thử lại" on a failed job and "Hủy job" on a waiting one; retry and cancel ask first. A row opens its video.
 - **Cài đặt** (`/settings`, opening its first tab), last in the sidebar, is one page titled "Cài đặt" whose tabs come in two groups, each
   headed by its name as a tag that cannot be chosen: **Của tôi** (blue: Thiết lập mặc định, Tài khoản affiliate,
-  Kết nối MCP) and **Chung cả nhóm** (cyan: Mô hình AI, Nguồn tư liệu, Phân tích đối thủ, Mẫu dựng, Máy render). One tab
+  Kết nối MCP) and **Chung cả nhóm** (cyan: AI và nguồn tư liệu, Phân tích đối thủ, Mẫu dựng, Máy render). One tab
   per job; no tab is split between the groups. Each tab has its own address so a link or a reload keeps the tab; the
   menu keeps "Cài đặt" selected on all of them. No tab carries a tag beside its title or a banner saying whose it
   is: the group in the list says it.
   From 1200 px the tabs are a list down the left (240 px, staying in view), each with its icon and a
-  line on what it holds ("Video mới của tôi", "Shopee, TikTok của tôi", "ChatGPT, Claude của tôi", "AI viết kịch bản,
-  giọng VieNeu", "Kho ảnh, ảnh AI, giọng ElevenLabs", "Thư viện mẫu của đội", "Chế độ render, các máy"), beside the tab;
-  narrower, a row above it. Every tab starts the
+  line on what it holds ("Video mới của tôi", "Shopee, TikTok của tôi", "ChatGPT, Claude của tôi", "Kịch bản, giọng
+  đọc, ảnh AI, kho ảnh", "Thư viện mẫu của đội", "Chế độ render, các máy"), wrapping inside the 240 px so a long line
+  never runs over the page beside it; narrower, a row above it. Every tab starts the
   same way ([SettingsBlocks](../web/src/components/settings/SettingsBlocks.tsx)): its name, a line on
   what it sets, and its main actions on the right; a tab's groups each have a heading and a line.
-  A tab of **Chung cả nhóm** has "Lịch sử" among its actions (the page's whole history, newest first, each change
+  A tab of **Chung cả nhóm** has "Lịch sử" among its actions (on AI và nguồn tư liệu, in each group's header) (the page's whole history, newest first, each change
   on a line: "Model (OpenAI): a → b", a key only as "Khoá (OpenAI): đã đổi khoá …k3P1" / "đã xoá khoá", never its value),
   and under each of its cards or groups a small "Sửa lần cuối bởi <tên>, <giờ VN>" that opens that card's history
   ([SharedHistory](../web/src/components/settings/SharedHistory.tsx)); nothing shows before a first logged change.
@@ -1130,35 +1140,33 @@ steps open the status card or the products block on its tab, the QC chip its pop
     tab's header, with "Huỷ" and "Lưu" while editing). While editing, the
     changes stay on the page ("Có thay đổi chưa lưu") until "Lưu" sends them together ("Đã lưu mặc
     định") or "Huỷ" drops them. They apply only to videos created afterwards.
-  - **Mô hình AI** (`/settings/ai`): "Đang dùng để viết kịch bản" picks the team's provider (a
-    provider not set up yet is greyed out, "chưa cấu hình"); from 1600 px it sits on the left,
-    staying in view, beside the providers. Below or beside it, one collapsible line per
-    provider with "Đang dùng", "Sẵn sàng" or "Chưa cấu hình" and its model; the one in use is open.
-    Opened: "API key" (pasted once with "Lưu key", then shown as "Đã lưu, kết thúc bằng …abcd" with
-    "Dán key mới" and "Xoá key"; Claude without a saved key says it uses the server's `.env` key),
-    "Base URL" (empty means the default shown as placeholder), "Model" (typed, or picked from the
-    names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết nối" (enabled once saved) and
-    "Dùng để viết kịch bản". What still stops a provider is shown in yellow under its fields.
-    Under the provider choice, the card "Giọng đọc VieNeu" ("Sẵn sàng" / "Chưa cấu hình") takes the VieNeu API key the
-    same way ("Lưu key", "Dán key mới", "Xoá key") with a link to VieNeu's developer page and one to Nguồn tư liệu
-    for ElevenLabs' key (whose card links back here); with a key, VieNeu's
-    voices join the "Giọng" picker. A service whose voices cannot be listed is named in yellow under the picker.
-  - **Nguồn tư liệu** (`/settings/sources`): two groups, "Kho ảnh và video miễn phí" and "Dịch vụ AI". "Kho ảnh và video miễn phí": first the switch "Tự tìm ảnh sau khi viết kịch bản"
-    (on by default: a stock photo for every scene once a script or clone is written) with "Thứ tự
-    tìm: Pexels → Pixabay → Openverse" (the sources in use); then the stock libraries side by side
-    (Pexels, marked "Mặc định", and Pixabay: photos and clips; Openverse: photos, no key), each
-    with "Sẵn sàng" or "Chưa có key", a switch (titled "Hiện trong hộp chọn") that hides a source
-    from the picker and "Tìm ảnh" for the whole team, and its API
-    key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang dùng key trong file .env
-    của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, "Nguồn ảnh AI mặc định"
-    ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh AI" button uses, with one line saying
-    which is in use and whether it costs ("Đang dùng: Gemini, mỗi ảnh AI tốn phí"; when nobody chose one there,
-    that the app follows the server's setting), and
-    "Phong cách ảnh AI" (the text added after every scene's prompt, "Lưu phong cách", "Dùng mặc
-    định" once edited; empty adds nothing) in the first card of "Dịch vụ AI", then its keys side by
-    side (three across from 1600 px): Cloudflare (a Workers AI API token) and Gemini, each with its
-    model and "Mặc định" on the default one, and ElevenLabs, the narration key. A
-    missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
+  - **AI và nguồn tư liệu** (`/settings/ai`; the old `/settings/sources` and "Mô hình AI" / "Nguồn tư liệu" tabs merged
+    into it on 2026-11-18, the old address redirects here): four groups that open and close on their name, all open
+    the first time; which are closed is remembered in the browser. Each group's header has its name, a line on what it
+    holds and, for "AI viết kịch bản", "Ảnh AI" and "Kho ảnh và video miễn phí", its own "Lịch sử".
+    - **AI viết kịch bản**: "Đang dùng để viết kịch bản" picks the team's provider (a provider not set up yet is
+      greyed out, "chưa cấu hình"); from 1600 px it sits on the left beside the providers. One collapsible line per
+      provider with "Đang dùng", "Sẵn sàng" or "Chưa cấu hình" and its model; the one in use is open. Opened: "API
+      key" (pasted once with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" with "Dán key mới" and "Xoá key"; Claude
+      without a saved key says it uses the server's `.env` key), "Base URL" (empty means the default shown as
+      placeholder), "Model" (typed, or picked from the names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết
+      nối" (enabled once saved) and "Dùng để viết kịch bản". What still stops a provider is shown in yellow.
+    - **Giọng đọc**: ElevenLabs, Gemini and VieNeu side by side (three across from 1600 px), each with "Sẵn sàng" or
+      "Chưa có key", its main key (ElevenLabs and VieNeu pasted here, Gemini's being the "Ảnh AI" one) and its backup
+      keys (see Narration keys); ElevenLabs' card also has its usage line (architecture, AI service usage). With a
+      key, a service's voices join the "Giọng" picker; a service whose voices cannot
+      be listed is named in yellow under the picker, a missing or rejected key with a link "Mở AI và nguồn tư liệu".
+    - **Ảnh AI**: first "Nguồn ảnh AI mặc định" ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh
+      AI" button uses, with one line saying which is in use and whether it costs (when nobody chose one, that the app
+      follows the server's setting), and "Phong cách ảnh AI" (the text added after every scene's prompt, "Lưu phong
+      cách", "Dùng mặc định" once edited; empty adds nothing); then Cloudflare (a Workers AI API token) and Gemini side
+      by side, each with its model, "Mặc định" on the default one and its usage line.
+    - **Kho ảnh và video miễn phí**: first the switches "Tự tìm ảnh sau khi viết kịch bản" (with "Thứ tự tìm chung:
+      Pexels → Pixabay → Openverse", the sources in use) and "Tự tìm và chọn clip theo kịch bản"; then the stock
+      libraries side by side (Pexels, marked "Mặc định", Pixabay, Unsplash, Wikimedia, Openverse), each with "Sẵn
+      sàng" or "Chưa có key", a switch (titled "Hiện trong hộp chọn") that hides a source from the picker and "Tìm
+      ảnh" for the whole team, and its API key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang
+      dùng key trong file .env của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link).
   - **Quản lý kênh** (`/fanpages`, under "Đăng và kiếm tiền" in the menu; "Quản lý Page" before 2026-11-14). Under the
     Pages, "Kênh TikTok, YouTube và đồng bộ Facebook": first each Page with the switch "Đồng bộ bài ngoài app" (on by
     default, its owner's), "Lần đồng bộ cuối …" or "Chưa đồng bộ", the last error in red and "Đồng bộ ngay"; then "Link kênh TikTok hoặc YouTube" and "Thêm kênh" (a TikTok channel becomes the

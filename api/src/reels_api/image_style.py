@@ -2,7 +2,7 @@
 
 Scene prompts (written by the script, editable on each card) describe only what is in the photo; this text says how
 every photo looks, so the scenes of a video match and the look can change without touching a script. It is app data,
-edited on Cài đặt › Nguồn tư liệu; an empty style adds nothing.
+edited on Cài đặt › AI và nguồn tư liệu; an empty style adds nothing.
 """
 
 from sqlalchemy.orm import Session as DbSession

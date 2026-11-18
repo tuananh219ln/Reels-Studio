@@ -121,11 +121,11 @@ def problem(target: Target) -> str | None:
     """Why this provider cannot be called yet, in the words members see; None when it can."""
     preset = BY_ID[target.provider]
     if preset.needs_key and not target.key:
-        return f"Chưa có API key cho {target.name}: nhập trong Cài đặt › Mô hình AI"
+        return f"Chưa có API key cho {target.name}: nhập trong Cài đặt › AI và nguồn tư liệu"
     if not target.base_url:
-        return f"Chưa có Base URL cho {target.name}: nhập trong Cài đặt › Mô hình AI"
+        return f"Chưa có Base URL cho {target.name}: nhập trong Cài đặt › AI và nguồn tư liệu"
     if not target.model:
-        return f"Chưa chọn model cho {target.name}: nhập trong Cài đặt › Mô hình AI"
+        return f"Chưa chọn model cho {target.name}: nhập trong Cài đặt › AI và nguồn tư liệu"
     return None
 
 
@@ -160,7 +160,7 @@ def complete(target: Target, prompt: str, label: str, images: Sequence[bytes] = 
         if images and "từ chối yêu cầu" in err.message:
             raise ClaudeError(
                 f"{err.message}: có thể model “{target.model}” không đọc được ảnh, hãy chọn model đọc được ảnh "
-                "(vd Claude, GPT-4o, Gemini) trong Cài đặt › Mô hình AI",
+                "(vd Claude, GPT-4o, Gemini) trong Cài đặt › AI và nguồn tư liệu",
                 err.detail,
             ) from None
         raise
@@ -201,7 +201,7 @@ def _anthropic_client(target: Target, timeout: float) -> anthropic.Anthropic:
 def _anthropic_error(target: Target, err: anthropic.APIError) -> ClaudeError:
     name = target.name
     if isinstance(err, anthropic.AuthenticationError):
-        return ClaudeError(f"API key của {name} không hợp lệ, kiểm tra trong Cài đặt › Mô hình AI")
+        return ClaudeError(f"API key của {name} không hợp lệ, kiểm tra trong Cài đặt › AI và nguồn tư liệu")
     if isinstance(err, anthropic.PermissionDeniedError):
         return ClaudeError(f"API key của {name} không có quyền gọi model này", str(err))
     if isinstance(err, anthropic.NotFoundError):
@@ -283,7 +283,7 @@ def _openai_request(target: Target, method: str, path: str, timeout: float, body
     status, detail = response.status_code, response.text[:2000]
     if status in (401, 403):
         raise ClaudeError(
-            f"API key của {name} không hợp lệ hoặc không có quyền, kiểm tra trong Cài đặt › Mô hình AI", detail
+            f"API key của {name} không hợp lệ hoặc không có quyền, kiểm tra trong Cài đặt › AI và nguồn tư liệu", detail
         )
     if status == 404:
         raise ClaudeError(f"{name} báo không tìm thấy (HTTP 404): kiểm tra Base URL và tên model", detail)

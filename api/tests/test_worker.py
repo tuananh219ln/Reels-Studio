@@ -239,7 +239,7 @@ def test_a_provider_without_a_key_fails_the_job_without_a_call(committed, servic
 
     job = wait_for_status(committed, job_id)
     assert (job.status, job.claude_calls) == ("failed", 0)
-    assert job.error == "Chưa có API key cho OpenAI: nhập trong Cài đặt › Mô hình AI"
+    assert job.error == "Chưa có API key cho OpenAI: nhập trong Cài đặt › AI và nguồn tư liệu"
     assert services.chat_requests == [] and services.claude_prompts == []
 
 

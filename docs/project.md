@@ -44,7 +44,7 @@ app replaces CapCut, so the output is a finished MP4.
    benefits, drafted by Claude, with food bank rows needing a member's approval before use. See
    [content.md](content.md#knowledge-base).
 3. **Script generation (built):** one LLM call (Claude by default; another provider can be chosen
-   on Cài đặt › Mô hình AI) turns a topic into 5 title options, a 5–7 scene
+   on Cài đặt › AI và nguồn tư liệu) turns a topic into 5 title options, a 5–7 scene
    script, a caption with hashtags, per-scene image prompts, affiliate
    suggestions, a safety self-review, and music suggestions. Every part is editable. "Nhân bản"
    writes one variant of an existing video from a change request. "Tự viết" makes a video without

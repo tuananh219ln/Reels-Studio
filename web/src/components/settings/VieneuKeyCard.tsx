@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { App, Button, Card, Flex, Input, Popconfirm, Space, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
+import ApiKeyList from "@/components/settings/ApiKeyList";
 import StatusText from "@/components/StatusText";
 import { forgetVoices } from "@/components/video/VideoSettings";
 import { api, errorMessage } from "@/lib/api";
@@ -13,8 +13,9 @@ type VieneuKey = {
   key: { origin: "saved" | "unreadable" | "env" | null; hint: string; signup_url: string };
 };
 
-/** "Giọng đọc VieNeu" on Cài đặt › Mô hình AI: paste, replace or remove the VieNeu API key. Its voices then join the
- * "Giọng" picker of Thiết lập mặc định and of each video. Stored like the other keys (api source_keys.py). */
+/** "VieNeu" under "Giọng đọc" on Cài đặt › AI và nguồn tư liệu: paste, replace or remove the VieNeu API key, and its
+ * backup keys. Its voices then join the "Giọng" picker of Thiết lập mặc định and of each video. Stored like the other
+ * keys (api source_keys.py). */
 /** `footer`: shown under the card's text (the "Sửa lần cuối" line); `onSaved` after a key is saved or removed. */
 export default function VieneuKeyCard({ footer, onSaved }: { footer?: React.ReactNode; onSaved?: () => void } = {}) {
   const { message } = App.useApp();
@@ -58,9 +59,10 @@ export default function VieneuKeyCard({ footer, onSaved }: { footer?: React.Reac
     <Card
       size="small"
       data-testid="vieneu-key"
+      style={{ height: "100%" }}
       title={
         <Flex wrap gap={8} align="center">
-          <span>Giọng đọc VieNeu</span>
+          <span>VieNeu</span>
           {state.configured ? (
             <StatusText tone="done">Sẵn sàng</StatusText>
           ) : (
@@ -76,10 +78,6 @@ export default function VieneuKeyCard({ footer, onSaved }: { footer?: React.Reac
           <a href={state.key.signup_url} target="_blank" rel="noreferrer">
             Tạo key ở trang Nhà phát triển của VieNeu
           </a>
-          . Key giọng ElevenLabs ở{" "}
-          <Link prefetch={false} href="/settings/sources">
-            Cài đặt › Nguồn tư liệu
-          </Link>
           .
         </Typography.Text>
         {origin === "unreadable" && (
@@ -132,6 +130,7 @@ export default function VieneuKeyCard({ footer, onSaved }: { footer?: React.Reac
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Key được mã hoá khi lưu và không bao giờ hiện lại.
         </Typography.Text>
+        <ApiKeyList service="vieneu" onChanged={onSaved} />
       </Flex>
       {footer}
     </Card>

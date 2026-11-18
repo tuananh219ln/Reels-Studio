@@ -1,4 +1,4 @@
-"""Choosing the AI image provider: the team's default on Cài đặt › Nguồn tư liệu, or one picked for a press."""
+"""Choosing the AI image provider: the team's default on Cài đặt › AI và nguồn tư liệu, or one picked for a press."""
 
 import pytest
 from conftest import login, make_user, make_video

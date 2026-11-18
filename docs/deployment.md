@@ -42,7 +42,7 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
 
 - **Automatic footage** uses the worker's existing Node 22 and `yt-dlp[default]` (including its bundled YouTube
   JS solver), installed from `api/pyproject.toml`. It does not fetch solver code at runtime. Local workers need
-  Node 22 on PATH as well as FFmpeg. Enable the shared switch on Nguồn tư liệu once after deployment; the active
+  Node 22 on PATH as well as FFmpeg. Enable the shared switch on Cài đặt › AI và nguồn tư liệu once after deployment; the active
   LLM must accept images. Public YouTube downloads may still be blocked, in which case video stock/photo fallback
   runs automatically. No new environment variables are required.
 
@@ -116,11 +116,11 @@ when set to an empty string. Containers use real environment variables only.
 
 | Variable | Purpose |
 |---|---|
-| `ANTHROPIC_API_KEY` | worker and api: Claude API, used when no Claude key is saved on Cài đặt › Mô hình AI (keys for other LLM providers are entered only there) |
-| `CLAUDE_MODEL` | worker and api: Claude's model when none is set on Cài đặt › Mô hình AI; the default is `claude-sonnet-5-5` |
-| `PIXABAY_API_KEY` | api: the scene picker's default stock source (and the render core CLI); a key pasted on Cài đặt › Nguồn tư liệu wins over it |
-| `PEXELS_API_KEY` | optional, api: a second picker source (locale vi-VN); without it (or a key pasted on Cài đặt › Nguồn tư liệu) the picker hides Pexels. Openverse needs no key |
-| `UNSPLASH_ACCESS_KEY` | optional, api: Unsplash's Access Key (free "demo" plan, 50 searches an hour for the team); a key pasted on Cài đặt › Nguồn tư liệu wins. Without either, the picker shows Unsplash greyed out ("chưa cấu hình key") and searching it says so. Wikimedia Commons needs no key |
+| `ANTHROPIC_API_KEY` | worker and api: Claude API, used when no Claude key is saved on Cài đặt › AI và nguồn tư liệu (keys for other LLM providers are entered only there) |
+| `CLAUDE_MODEL` | worker and api: Claude's model when none is set on Cài đặt › AI và nguồn tư liệu; the default is `claude-sonnet-5-5` |
+| `PIXABAY_API_KEY` | api: the scene picker's default stock source (and the render core CLI); a key pasted on Cài đặt › AI và nguồn tư liệu wins over it |
+| `PEXELS_API_KEY` | optional, api: a second picker source (locale vi-VN); without it (or a key pasted on Cài đặt › AI và nguồn tư liệu) the picker hides Pexels. Openverse needs no key |
+| `UNSPLASH_ACCESS_KEY` | optional, api: Unsplash's Access Key (free "demo" plan, 50 searches an hour for the team); a key pasted on Cài đặt › AI và nguồn tư liệu wins. Without either, the picker shows Unsplash greyed out ("chưa cấu hình key") and searching it says so. Wikimedia Commons needs no key |
 | `WIKIMEDIA_API_URL`, `UNSPLASH_API_URL` | tests and E2E only: point the two sources at `api/scripts/fake_services.py`; unset in production |
 | `OPENVERSE_CLIENT_ID`, `OPENVERSE_CLIENT_SECRET` | optional, api: a registered Openverse application for its higher rate limits; without them Openverse is called anonymously, and a failed token exchange falls back to anonymous |
 | `STORAGE_DIR` | api and worker: the shared files folder; `/data/storage` in production, `data/storage` at the repo root when empty |
@@ -130,13 +130,13 @@ when set to an empty string. Containers use real environment variables only.
 | `MCP_PUBLIC_URL` | api, optional: public web URL ending in `/api/mcp`; enables private ChatGPT and Claude MCP/OAuth. Empty disables it. HTTPS required except localhost; the origin must be in `ALLOWED_ORIGINS`. See [chatgpt.md](chatgpt.md) |
 | `REELS_SERVER`, `REELS_NODE_TOKEN` | render machine only (`python -m reels_api node` on a member's computer), never the api or the worker: the web address and the machine's token from Cài đặt › Máy render. `api/scripts/render-node.ps1` sets both for its run. See [Render machine](#render-machine) |
 | `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set on the Coolify application, empty on localhost |
-| `ELEVENLABS_API_KEY` | api + worker: scene narration and the voice list; a key pasted on Cài đặt › Nguồn tư liệu wins over it; with neither, a render with voice text fails with a clear reason |
-| `VIENEU_API_KEY` | api + worker, optional: VieNeu's Vietnamese narration voices (`vn_sk_…`, from VieNeu's Nhà phát triển page); a key pasted on Cài đặt › Mô hình AI wins over it. With a key, VieNeu's voices join the voice picker beside ElevenLabs'; a video whose voice is a VieNeu one (`vieneu:<name>`) is read by VieNeu |
-| `IMAGE_GEN_API_KEY` | worker: AI photos for scenes that have none (Gemini via Google AI Studio); a key pasted on Cài đặt › Nguồn tư liệu wins over it; with neither, an image job fails with a clear reason |
+| `ELEVENLABS_API_KEY` | api + worker: scene narration and the voice list; a key pasted on Cài đặt › AI và nguồn tư liệu wins over it; with neither, a render with voice text fails with a clear reason |
+| `VIENEU_API_KEY` | api + worker, optional: VieNeu's Vietnamese narration voices (`vn_sk_…`, from VieNeu's Nhà phát triển page); a key pasted on Cài đặt › AI và nguồn tư liệu wins over it. With a key, VieNeu's voices join the voice picker beside ElevenLabs'; a video whose voice is a VieNeu one (`vieneu:<name>`) is read by VieNeu |
+| `IMAGE_GEN_API_KEY` | worker: AI photos for scenes that have none (Gemini via Google AI Studio); a key pasted on Cài đặt › AI và nguồn tư liệu wins over it; with neither, an image job fails with a clear reason |
 | `IMAGE_GEN_MODEL` | worker, optional: the image model; the default is `gemini-2.5-flash-image` |
-| `IMAGE_GEN_PROVIDER` | api + worker, optional and kept for older servers: the team's default AI photo provider until one is chosen on Cài đặt › Nguồn tư liệu (`gemini` or `cloudflare`; any other value means `gemini`). Unset: Cloudflare when it is set up, else Gemini |
-| `IMAGE_GEN_CF_API_KEY` | api + worker: Cloudflare Workers AI API token; a token pasted on Cài đặt › Nguồn tư liệu wins over it |
-| `IMAGE_GEN_CF_ACCOUNT_ID` | api + worker: the Cloudflare account ID (dashboard, top right; not a secret), needed with `cloudflare`. Without it on the api, Cài đặt › Nguồn tư liệu shows Cloudflare as not set up even with a pasted token |
+| `IMAGE_GEN_PROVIDER` | api + worker, optional and kept for older servers: the team's default AI photo provider until one is chosen on Cài đặt › AI và nguồn tư liệu (`gemini` or `cloudflare`; any other value means `gemini`). Unset: Cloudflare when it is set up, else Gemini |
+| `IMAGE_GEN_CF_API_KEY` | api + worker: Cloudflare Workers AI API token; a token pasted on Cài đặt › AI và nguồn tư liệu wins over it |
+| `IMAGE_GEN_CF_ACCOUNT_ID` | api + worker: the Cloudflare account ID (dashboard, top right; not a secret), needed with `cloudflare`. Without it on the api, Cài đặt › AI và nguồn tư liệu shows Cloudflare as not set up even with a pasted token |
 | `IMAGE_GEN_CF_MODEL` | worker, optional: the Workers AI model; the default is `@cf/black-forest-labs/flux-1-schnell` |
 | `IMAGE_INPAINT_CF_MODEL` | worker, optional: the Workers AI inpainting model of "Sửa ảnh" › "Xóa vùng" with Cloudflare (same token and account); the default is `@cf/runwayml/stable-diffusion-v1-5-inpainting` |
 | `TEXT_DETECT_MODEL_PATH` | worker: PP-OCRv4's text detector (ONNX) of "Sửa ảnh" › "Tìm chữ/logo tự động". Set by [api/Dockerfile.worker](../api/Dockerfile.worker) to the file it bakes in (`/opt/lama/text_detect.onnx`); nothing to set on Coolify. Empty or missing: the job fails and the member draws the boxes by hand |

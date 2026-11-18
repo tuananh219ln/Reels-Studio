@@ -18,6 +18,7 @@ from reels_api.knowledge import default_clone_prompt, default_script_prompt
 from reels_api.models import (
     AffiliateAccount,
     AffiliateProduct,
+    ApiKey,
     AppSetting,
     Article,
     EditLog,
@@ -68,6 +69,7 @@ def main() -> int:
             MusicTrack,
             Setting,
             AppSetting,
+            ApiKey,
             EditTemplate,
             LlmProvider,
             McpClient,

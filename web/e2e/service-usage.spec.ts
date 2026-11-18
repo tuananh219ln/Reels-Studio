@@ -5,7 +5,7 @@ test.beforeEach(() => resetDatabase());
 
 test("each AI service card shows how much of its allowance is used", async ({ page }) => {
   await loginAsSeed(page);
-  await page.goto("/settings/sources");
+  await page.goto("/settings/ai");
 
   // ElevenLabs answers exactly: the fake plan has used 12,345 of 100,000 characters.
   const elevenlabs = page.getByTestId("usage-elevenlabs");

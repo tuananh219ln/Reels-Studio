@@ -160,7 +160,7 @@ def spoken_words(db: DbSession, path: Path, sample: clips.Sample, folder: Path, 
     key = source_keys.get(db, "elevenlabs")
     if not key:
         log.info("No ElevenLabs key: the sample's words are not written down")
-        return missing("Chưa có key ElevenLabs để tách lời: thêm key ở Cài đặt › Nguồn tư liệu")
+        return missing("Chưa có key ElevenLabs để tách lời: thêm key ở Cài đặt › AI và nguồn tư liệu")
     audio = folder / "sample-sound.mp3"
     try:
         clips.sound_mp3(path, sample, audio)
