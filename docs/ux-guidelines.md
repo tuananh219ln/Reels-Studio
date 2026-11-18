@@ -740,8 +740,10 @@ steps open the status card or the products block on its tab, the QC chip its pop
     "Tốc độ đọc" slider (0,70× to 1,30×, marked Chậm/Vừa/Nhanh), voice level, "Nhỏ nhạc khi có giọng đọc"); the music card (from the library
     ("Chọn từ thư viện", filtered by topic, mood, and name) or an uploaded MP3, optionally saved to
     the library with its topics and mood, with a volume slider); "Hình ảnh" (Chuyển cảnh: Mờ dần,
-    Cắt thẳng, Trượt; Chuyển động ảnh: Zoom vào, Zoom ra, Lia ngang, Đứng yên; Độ zoom: Nhẹ, Vừa,
-    Mạnh); "Chữ & phụ đề" (a "Chỉnh chữ cho" switch at the top, Các cảnh or Tiêu đề: Tiêu đề shows
+    Cắt thẳng, Trượt, Phóng qua, Nháy sáng, Chớp đen, Nhoè lia, Lướt mượt; Chuyển động ảnh: Zoom vào, Zoom
+    ra, Lia ngang, Đứng yên, Ken Burns chéo, Lia dọc, Cầm tay, Đẩy nhanh; Độ zoom: Nhẹ, Vừa, Mạnh, Cực mạnh,
+    disabled while the motion is Đứng yên, with "Ảnh độ phân giải thấp có thể bị vỡ." under Cực mạnh; each
+    choice says what it looks like in a tooltip, and the eight choices wrap onto more lines at phone width); "Chữ & phụ đề" (a "Chỉnh chữ cho" switch at the top, Các cảnh or Tiêu đề: Tiêu đề shows
     "Tiêu đề giống các cảnh", ticked by default (and unticked, with the yellow box, for a video made
     with the older "Hộp vàng"); unticking starts the title's own look from the scenes' and shows the
     same cards and colour rows for the title only; ticking it again drops the title's look; the
@@ -1319,8 +1321,10 @@ free colour or size sliders are not offered. A person watches a sample of each b
 relied on (samples in the PR that added them).
 
 - **Transition:** Mờ dần (the 0.4 s crossfade above), Cắt thẳng (hard cut; each scene is exactly its
-  seconds), Trượt (the next scene slides in from the right over 0.4 s). The total length is the
-  same for all three.
+  seconds), Trượt (the next scene slides in from the right over 0.4 s), and since 2026-11-19 Phóng qua
+  (`zoomin`), Nháy sáng (`fadewhite`), Chớp đen (`fadeblack`), Nhoè lia (`hblur`) and Lướt mượt (`smoothleft`),
+  the scene transitions `zoom`, `flash`, `black`, `blur` and `smooth_slide` below. Every one takes the same 0.4 s,
+  so the total length is the same for all of them; the studio's bar offers the same eight.
 - **Cỡ chữ** (`text_size` for the content scenes, `title_text_size` for the title; on "Thiết lập" › Chữ and on
   Cài đặt › Thiết lập mặc định): Lớn (the original template: the largest font that fits, the title 96 down to
   64 px in at most 5 lines, a scene 84 down to 60 px in 3), Vừa or Nhỏ. Vừa and Nhỏ start from the font Lớn would
@@ -1330,7 +1334,7 @@ relied on (samples in the PR that added them).
 - **A scene's own effects** ([reels_render/effects.py](../worker/src/reels_render/effects.py)), set in the
   studio's "Chỉnh cảnh N › Hiệu ứng", content scenes only (the title opens the video and is its cover):
   the transition into the scene, one of Mờ dần, Cắt thẳng, Trượt sang trái, Trượt lên, Quét ngang, Phóng
-  vào, Mở vòng tròn, Qua màu đen, Chớp trắng, Hoà tan, Nhoè ngang, Vỡ điểm ảnh ("Theo cả video" takes the
+  vào, Mở vòng tròn, Qua màu đen, Chớp trắng, Hoà tan, Nhoè ngang, Vỡ điểm ảnh, Lướt mượt ("Theo cả video" takes the
   video's); and a colour preset graded on the picture only, never the text box: Gốc (as shot), Tự nhiên,
   Tươi sáng, Rực rỡ, Điện ảnh, Xanh cam, Phim cũ, Phim mờ, Nắng vàng, Ấm, Lạnh, Đêm xanh, Trầm, Pastel,
   Đen trắng. Every transition takes 0.4 s around the boundary, so the length never changes; a Cắt thẳng among
@@ -1374,7 +1378,12 @@ relied on (samples in the PR that added them).
   scene's transition, colour, a sound and a few lines of text in the same call (see
   [content.md](content.md#script-generation-contract)), changeable in the studio like any effect.
 - **Motion (photos only):** Zoom vào (the default), Zoom ra (from the zoom back to 1.00), Lia ngang
-  (held at the zoom, travelling left to right), Đứng yên. **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18.
+  (held at the zoom, travelling left to right), Đứng yên; these four move at a steady rate. Added on 2026-11-19,
+  easing in and out (sine) like a camera operator's move: Ken Burns chéo (zooming in while drifting from the top
+  left to the bottom right), Lia dọc (held at the zoom, top to bottom), Cầm tay (held at half the zoom, shaking by
+  two waves of unrelated periods within 60% of the room that leaves, so no edge shows) and Đẩy nhanh (all the way
+  in over 0.3 s, easing out, then held). **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18, Cực mạnh 1.6 (a low-resolution
+  photo can look soft at it).
 - **Text box:** a team box style ("box": its box colour, opacity, text and keyword colours, copied
   into the video; with nothing chosen it is the yellow box) or Không hộp. Opacity: Đặc 100%, Hơi
   trong 88%, Trong 70%, Không nền (drawn exactly as Không hộp, the box colour as the outline's). The older presets below are no longer offered on the page and stay only so
@@ -1568,7 +1577,8 @@ pairing template and for later tuning.
 - **No zoom jitter (built):** photos are scaled to 2× the frame before `zoompan`, so its
   integer crop steps fall below one output pixel. Fine textures such as wood grain or a plate rim
   can still shimmer. The fix is a slower zoom or `PRESCALE = 3–4`, at the cost of render time.
-- **Slow, steady zoom:** zoom by 6–12% over the whole clip, at a steady rate (linear today).
+- **Slow, steady zoom:** zoom by 6–12% over the whole clip, at a steady rate (linear for the four original
+  motions; the ones added on 2026-11-19 ease in and out).
   Short clips need a smaller range: a pairing of 3.5 s should zoom from 1.00 to 1.06 at most,
   because a range that suits 5 s looks rushed at 3.5 s. The zoom must not restart within one
   continuous shot.

@@ -623,10 +623,10 @@ body {
 /* Video preview ("Xem trước"): the render's motion, crossfade and slide, played in the browser. */
 @keyframes preview-motion {
   from {
-    transform: translateX(var(--x0)) scale(var(--z0));
+    transform: translate(var(--x0), var(--y0, 0%)) scale(var(--z0));
   }
   to {
-    transform: translateX(var(--x1)) scale(var(--z1));
+    transform: translate(var(--x1), var(--y1, 0%)) scale(var(--z1));
   }
 }
 
@@ -676,4 +676,14 @@ body {
 }
 .competitor-row--open > td:first-child {
   box-shadow: inset 3px 0 0 var(--ant-color-primary);
+}
+
+/* A Segmented control with many choices ("Chuyển cảnh", "Chuyển động ảnh"): its choices wrap onto more lines
+   instead of running off a phone's screen. */
+.segmented-wrap.ant-segmented {
+  max-width: 100%;
+}
+
+.segmented-wrap .ant-segmented-group {
+  flex-wrap: wrap;
 }
