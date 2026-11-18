@@ -26,6 +26,7 @@ from . import (
     fanpages,
     image_providers,
     remote_media,
+    slot_comments,
 )
 from .db import get_db
 from .errors import ApiError
@@ -91,6 +92,7 @@ class ArticlePatchBody(BaseModel):
     caption: str | None = None
     hashtags: list[str] | None = None
     pinned_comment: str | None = None
+    post_comments_enabled: bool | None = None  # "Đăng kèm bình luận" (the plan script's 5 pinned comments)
     affiliates: list[str] | None = None  # product ideas, one per line on the page
     source_comment_id: int | None = None
     clear_source_comment: bool = False
@@ -308,6 +310,8 @@ def patch_article(
             article.pinned_comment = pinned
             # A comment already written under a live post is edited to match.
             _ask_comments(db, article)
+    if body.post_comments_enabled is not None:
+        article.post_comments_enabled = body.post_comments_enabled
     if body.affiliates is not None:
         ideas = [" ".join(idea.split())[:100] for idea in body.affiliates if idea.strip()]
         article.affiliates = list(dict.fromkeys(ideas))[:20]
@@ -785,6 +789,25 @@ def request_comment(post_id: int, me: Session = Depends(current_member), db: DbS
     if post.remote_id is None or not article_posts.is_published(post):
         raise ApiError(409, "post_not_live", "Chỉ bình luận được dưới bài đã lên Facebook")
     post.comment_requested_at = now()
+    return _saved(db, article)
+
+
+@router.post("/posts/{post_id}/pinned-comments/retry")
+def retry_pinned_comments(post_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Đăng lại bình luận lỗi": the failed ones of the plan script's comments are written again by the worker; one
+    already on Facebook is never written twice."""
+    article, post = _post(db, post_id)
+    if slot_comments.retry_failed(db, post) == 0:
+        raise ApiError(409, "no_failed_comments", "Không có bình luận lỗi nào để đăng lại")
+    return _saved(db, article)
+
+
+@router.post("/posts/{post_id}/pinned-comments/pinned")
+def pinned_comment_done(post_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Đã ghim": the member pinned the first comment on Facebook (the Graph API cannot do it)."""
+    article, post = _post(db, post_id)
+    if not slot_comments.mark_pinned(db, post):
+        raise ApiError(409, "no_comment_to_pin", "Không có bình luận nào đang chờ ghim tay")
     return _saved(db, article)
 
 

@@ -29,6 +29,7 @@ from . import (
     metrics,
     page_queue,
     post_comments,
+    slot_comments,
 )
 from .jobs import queue_post_checks, queue_tiktok_posts, work_dir
 from .models import Job
@@ -153,6 +154,7 @@ def serve(factory: sessionmaker, lock: Connection) -> None:
             metrics.measure_due(factory)
             fanpages.check_due(factory)
             post_comments.write_due(factory)
+            slot_comments.run_due(factory)
             comments_inbox.run_round(factory)
             affiliate_rounds.run_round(factory)
             meta_sync.run_due(factory)

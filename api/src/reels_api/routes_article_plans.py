@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import article_plans, articles, fanpages
+from . import article_plans, articles, fanpages, slot_comments
 from .db import get_db
 from .errors import ApiError
 from .models import ARTICLE_KINDS, ArticlePlan, ArticlePlanSlot, Fanpage, KnowledgeTopic, Session
@@ -26,6 +26,7 @@ class SettingsBody(BaseModel):
     topic_group_ids: list[int] = []
     kind_mix: dict[str, int] = {}
     tone: str = ""
+    audience: str = ""
 
 
 class SlotBody(BaseModel):
@@ -45,6 +46,21 @@ class SlotBody(BaseModel):
 
 class IdsBody(BaseModel):
     ids: list[int]
+
+
+class CommentsBody(BaseModel):
+    pinned_comments: list[dict]
+    pin_index: int = 0
+
+
+class GenerateCommentsBody(BaseModel):
+    index: int | None = None  # one comment only (↻); left out, all five
+
+
+class BulkCommentsBody(BaseModel):
+    scope: str = "missing"
+    ids: list[int] = []
+    overwrite: bool = False
 
 
 class ApplyBody(BaseModel):
@@ -183,7 +199,15 @@ def save_settings(
         db.add(plan)
     try:
         moved = article_plans.apply_settings(
-            db, plan, body.start_date, body.per_day, body.post_times, body.topic_group_ids, body.kind_mix, body.tone
+            db,
+            plan,
+            body.start_date,
+            body.per_day,
+            body.post_times,
+            body.topic_group_ids,
+            body.kind_mix,
+            body.tone,
+            body.audience,
         )
     except ValueError as err:
         raise invalid(str(err)) from None
@@ -290,3 +314,67 @@ def apply_import(
 def _modes(placement: str, conflict: str) -> None:
     if placement not in article_plans.PLACEMENTS or conflict not in article_plans.CONFLICTS:
         raise invalid("Cách xếp hoặc cách xử lý ô đã có kịch bản không hợp lệ")
+
+
+# --- Bình luận ghim (slot_comments.py) ---
+
+
+@router.put("/slots/{slot_id}/comments")
+def save_comments(
+    slot_id: int, body: CommentsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """The comments a member typed, dragged into order or chose a pin for: marked as edited by hand, so a bulk run
+    leaves them alone."""
+    page, _, slot = _slot(db, slot_id, me)
+    checked = slot_comments.check(body.pinned_comments, body.pin_index, slot.kind)
+    if checked.errors:
+        raise invalid("; ".join(checked.errors))
+    slot_comments.set_comments(slot, checked, "manual", edited=True)
+    return _saved(db, page, me, warnings=checked.warnings)
+
+
+@router.post("/slots/{slot_id}/comments/generate")
+def generate_comments(
+    slot_id: int, body: GenerateCommentsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Tạo lại bằng AI" (all five) or ↻ (one): a job; the member asked for it, so a hand edit is replaced."""
+    page, _, slot = _slot(db, slot_id, me)
+    if body.index is not None and not 0 <= body.index < slot_comments.MAX_COMMENTS:
+        raise invalid("Vị trí bình luận không hợp lệ")
+    queued = slot_comments.queue(db, [slot], me.user_id, overwrite=True, index=body.index)
+    return _saved(db, page, me, queued=queued)
+
+
+@router.post("/{fanpage_id}/comments/bulk")
+def bulk_comments(
+    fanpage_id: int, body: BulkCommentsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Tạo bình luận ghim": a job per script in the chosen scope; scripts edited by hand are skipped unless
+    "Ghi đè"."""
+    page, plan = _owned(db, fanpage_id, me)
+    if body.scope not in slot_comments.SCOPES:
+        raise invalid("Phạm vi không hợp lệ")
+    slots = slot_comments.scope_slots(db, plan, body.scope, body.ids)
+    skipped = sum(1 for slot in slots if slot.comments_edited) if not body.overwrite else 0
+    queued = slot_comments.queue(db, slots, me.user_id, overwrite=body.overwrite)
+    return _saved(db, page, me, queued=queued, skipped_edited=skipped)
+
+
+@router.get("/{fanpage_id}/comments/count")
+def count_comments(
+    fanpage_id: int,
+    scope: str = "missing",
+    ids: str = "",
+    overwrite: bool = False,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """How many scripts a "Tạo bình luận ghim" run would write for, shown in its dialog before it starts."""
+    page = _page(db, fanpage_id)
+    plan = article_plans.plan_of(db, page.id)
+    if plan is None or scope not in slot_comments.SCOPES:
+        raise invalid("Phạm vi không hợp lệ")
+    chosen = [int(part) for part in ids.split(",") if part.strip().isdigit()]
+    slots = slot_comments.scope_slots(db, plan, scope, chosen)
+    edited = sum(1 for slot in slots if slot.comments_edited)
+    return {"total": len(slots), "edited": edited, "will_run": len(slots) - (0 if overwrite else edited)}

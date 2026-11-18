@@ -43,6 +43,7 @@ from . import (
     pinned,
     plans,
     remote_media,
+    slot_comments,
     source_keys,
     stock_clips,
     text_looks,
@@ -57,6 +58,7 @@ from .models import (
     AffiliateProduct,
     AppSetting,
     Article,
+    ArticlePlanSlot,
     EditTemplate,
     Fanpage,
     Job,
@@ -2027,10 +2029,17 @@ def list_jobs(
     for job in jobs:
         # A plan job has no video: it is named after its topic group; an article's job after the article.
         owner = job.video_id or (
-            f"article-{job.article_id}" if job.article_id else f"topic-{job.knowledge_topic_id}-{job.kind}"
+            f"article-{job.article_id}"
+            if job.article_id
+            else f"slot-{job.plan_slot_id}"
+            if job.plan_slot_id
+            else f"topic-{job.knowledge_topic_id}-{job.kind}"
         )
         if owner not in titles:
-            if job.article_id is not None:
+            if job.plan_slot_id is not None:
+                slot = db.get(ArticlePlanSlot, job.plan_slot_id)
+                titles[owner] = f"Bình luận ghim · {slot.hook}" if slot else "Bình luận ghim"
+            elif job.article_id is not None:
                 article = db.get(Article, job.article_id)
                 titles[owner] = f"Bài viết · {article.topic or articles.KIND_LABELS[article.kind]}"
             elif job.video_id is None:
@@ -2101,6 +2110,8 @@ def cancel_job(job_id: int, me: Session = Depends(current_member), db: DbSession
         if job.kind == "motion":
             motion.fail_pending(db, job)
         render_nodes.clean(get_storage(), job.id)
+    if job.plan_slot_id is not None:
+        return {"id": job.id, "status": job.status}
     if job.article_id is not None:
         return article_posts.payload(db, db.get(Article, job.article_id))
     if job.video_id is None and job.kind == text_looks.JOB_KIND:
@@ -2112,10 +2123,14 @@ def cancel_job(job_id: int, me: Session = Depends(current_member), db: DbSession
 
 @router.post("/jobs/{job_id}/retry")
 def retry_job(job_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    owner = db.execute(select(Job.video_id, Job.knowledge_topic_id, Job.article_id).where(Job.id == job_id)).first()
+    owner = db.execute(
+        select(Job.video_id, Job.knowledge_topic_id, Job.article_id, Job.plan_slot_id).where(Job.id == job_id)
+    ).first()
     if owner is None:
         raise ApiError(404, "job_not_found", "Không tìm thấy job")
-    video_id, topic_id, article_id = owner
+    video_id, topic_id, article_id, slot_id = owner
+    if slot_id is not None:
+        return _retry_slot_comments(db, job_id, slot_id, me)
     if article_id is not None:
         return _retry_article(db, job_id, article_id, me)
     if video_id is None:
@@ -2140,6 +2155,20 @@ def retry_job(job_id: int, me: Session = Depends(current_member), db: DbSession 
         edit_prompt=job.edit_prompt,
     )
     return _saved(db, video)
+
+
+def _retry_slot_comments(db: DbSession, job_id: int, slot_id: int, me: Session) -> dict:
+    job = db.get(Job, job_id)
+    if job.status != "failed":
+        raise ApiError(409, "job_not_failed", "Chỉ thử lại được job bị lỗi")
+    slot = db.get(ArticlePlanSlot, slot_id)
+    params = job.params or {}
+    if not slot_comments.queue(
+        db, [slot], me.user_id, overwrite=bool(params.get("overwrite")), index=params.get("index")
+    ):
+        raise ApiError(409, "slot_comments_busy", "Kịch bản đang có bình luận chờ hoặc đang tạo")
+    db.commit()
+    return {"id": job.id, "status": job.status}
 
 
 def _retry_plan(db: DbSession, job_id: int, topic_id: int, me: Session) -> dict:

@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import affiliate, analytics, articles, facebook, post_comments
+from . import affiliate, analytics, articles, facebook, post_comments, slot_comments
 from . import hashtags as hashtag_rules
 from .models import (
     AffiliateProduct,
@@ -210,6 +210,7 @@ def post_payload(db: DbSession, post: Publication, by_page: dict | None = None) 
         "can_take_down": post.status in OPEN_POST_STATUSES,
         "can_check": post.status in (*LIVE_POST_STATUSES, "deleted") and post.remote_id is not None,
         "comment": post_comments.payload(post),
+        "pinned_comments": slot_comments.post_payload(db, post),
         "numbers": numbers_payload(post, analytics.article_medians(db) if by_page is None else by_page),
         "can_measure": post.remote_id is not None and is_published(post),
         "created_by": post.created_by.name,

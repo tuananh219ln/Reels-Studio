@@ -136,3 +136,45 @@ def test_the_tiktok_version_is_queued_as_the_webs_button_makes_it(mcp_client, db
     job = db.scalar(select(Job).where(Job.video_id == version.id))
     assert (job.kind, job.status, job.created_by_id) == ("clone", "queued", me.id)
     assert "Viết lại cho TikTok" in version.clone_source["request"]
+
+
+def test_claude_writes_a_scripts_pinned_comments_through_mcp(mcp_client, db):  # noqa: F811
+    from reels_api import article_plans
+    from reels_api.models import ArticlePlan, ArticlePlanSlot
+
+    me, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    mine = page(db, me, "Ăn Ngon Mỗi Ngày", page_id="998")
+    mine.owner_id = me.id
+    plan = ArticlePlan(fanpage_id=mine.id, start_date=article_plans.today(), audience="35–55 tuổi", created_by_id=me.id)
+    db.add(plan)
+    db.flush()
+    slot = ArticlePlanSlot(plan_id=plan.id, day=1, slot=1, hook="Cà rốt", kind="canh_bao", created_by_id=me.id)
+    db.add(slot)
+    db.commit()
+
+    listed = payload(call(mcp_client, token, "list_article_plan_scripts", fanpage_id=mine.id))
+    (script,) = listed["scripts"]
+    assert script["id"] == slot.id and script["comments_count"] == 0
+    assert script["type_set"][0] == "tac_hai" and listed["audience"] == "35–55 tuổi"
+
+    comments = [
+        {"type": label, "text": f"Bình luận số {place + 1} đủ dài để được lưu lại cho kịch bản."}
+        for place, label in enumerate(script["type_set"])
+    ]
+    saved = call(mcp_client, token, "save_script_comments", script_id=slot.id, pinned_comments=comments, pin_index=1)
+    assert not saved.get("isError"), saved
+    db.refresh(slot)
+    assert (len(slot.pinned_comments), slot.pin_index, slot.comments_source, slot.comments_edited) == (
+        5,
+        1,
+        "ai",
+        False,
+    )
+    assert payload(call(mcp_client, token, "list_article_plan_scripts", fanpage_id=mine.id))["scripts"] == []
+
+    bad = call(mcp_client, token, "save_script_comments", script_id=slot.id, pinned_comments=[{"text": "ngắn"}])
+    assert bad["isError"]
+    slot.comments_edited = True
+    db.commit()
+    assert call(mcp_client, token, "save_script_comments", script_id=slot.id, pinned_comments=comments)["isError"]
