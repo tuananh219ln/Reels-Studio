@@ -35,6 +35,19 @@ Google (see `docs/decisions.md`, 2026-11-08).
 2. "Load unpacked" › pick this `extension/` folder.
 3. Reload the Reels Studio tab. The video page shows "Lấy ảnh Google cho cảnh thiếu ảnh" once it sees the extension.
 
+## Update (keeps the saved cookies)
+
+`manifest.json` carries a fixed `key`, so the extension's id is always `ncnafhaoejkcbljpkomboinfnmkgolph` whatever
+folder it is loaded from, and the second account's cookies (`chrome.storage.local`) survive every update.
+
+1. Put the new files in place (`git pull`, or copy them over the old folder).
+2. `chrome://extensions` › Reels Studio › the reload arrow (↻). Reload the Reels Studio tab.
+
+Never "Xóa" (Remove) the extension to update it: Chrome deletes its saved data with it, and the cookies must be
+pasted again. Loading another folder is fine, but turn the old copy off or remove it first (both have the same id).
+The first update to 1.6.2 changes the id once (versions before it had none fixed), so the cookies are pasted one last
+time.
+
 The extension runs only on `https://reels.quangdang.xyz`, `http://localhost:3000`, Google's search pages and the
 Facebook windows it opens for a scan. A new
 version of the app domain needs `manifest.json` changed.
