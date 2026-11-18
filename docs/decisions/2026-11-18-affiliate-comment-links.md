@@ -9,7 +9,7 @@ list and the drawer approved in the session ("ok làm hết đi").
   commission: that stays the products column's job.
 - **Two sources, no new Facebook call.** The texts the app wrote (`comment_text`, `extra_comment_texts`), and the
   Page's own comments the worker already received when reading visitors' comments (it dropped them before); only
-  `link` / `no_link` / `none` is kept (`publications.own_comment`, migration 0107), not their text. So a link pasted
+  `link` / `no_link` / `none` is kept (`publications.own_comment`, migration 0108), not their text. So a link pasted
   by hand is seen within about 30 minutes, but only for reels of the last 14 days (the reading's window); older ones
   pasted by hand show "Chưa rõ".
 - **"Thiếu link" is a tab of its own** beside the attach tabs, since it cuts across them: a video counts when one of

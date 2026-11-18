@@ -913,7 +913,7 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     `auto`, `error`, `text`, `at`, and `links`). Members still pin the comment on Facebook. `links`
     (`post_comments.link_state`, also on each of `GET /api/affiliate-products/videos`'s `posts`) says whether the
     Page's comments under the reel hold a Shopee link (`shopee.has_link`, with or without `https://`): `yes` when the
-    texts the app wrote or the Page's own comments last read on Facebook (`publications.own_comment`, migration 0107)
+    texts the app wrote or the Page's own comments last read on Facebook (`publications.own_comment`, migration 0108)
     hold one, `updating` while the app is asked to write or edit, `missing` when the Page commented without one,
     `none` before any comment, `unknown` when nothing was read and the app does not comment (a video pasted by hand
     on an old reel), `off` off Facebook.
