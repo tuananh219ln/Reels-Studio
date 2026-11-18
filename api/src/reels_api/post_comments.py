@@ -104,6 +104,34 @@ def due_posts(db: DbSession, limit: int = BATCH) -> list[Publication]:
     return list(db.scalars(query))
 
 
+def ask_after_edit(db: DbSession, video: Video) -> int:
+    """A member changed the video's pinned comment or "Bình luận thêm": ask the worker to bring the comments already
+    written under its live Facebook posts up to date, as "Cập nhật bình luận" does. A post with no comment yet is left
+    to "Tự bình luận" or "Bình luận ngay", a video marked "Đã dán link tay" is left alone, and a post resting before its
+    run's next comment keeps that time. Returns how many posts were asked. Does not commit."""
+    if video.manual_comment:
+        return 0
+    at, asked = now(), 0
+    posts = db.scalars(
+        select(Publication).where(
+            Publication.video_id == video.id,
+            Publication.platform == "facebook",
+            Publication.remote_id.is_not(None),
+            Publication.comment_sent_at.is_not(None),
+        )
+    )
+    for post in posts:
+        live = post.status == "published" or (
+            post.status == "scheduled" and post.scheduled_at is not None and post.scheduled_at <= at
+        )
+        written = post.comment_id is not None or bool(post.extra_comment_ids)
+        resting = post.comment_requested_at is not None and post.comment_requested_at > at
+        if live and written and not resting:
+            post.comment_requested_at = at
+            asked += 1
+    return asked
+
+
 def write(db: DbSession, post: Publication) -> None:
     """Write or edit the post's comment, or, when that is already as it should be, the next of its video's "Bình luận
     thêm" (one Facebook write per call: the Page rests between them, see `_rest`), and record what happened. Commits."""
