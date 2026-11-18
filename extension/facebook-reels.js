@@ -254,36 +254,39 @@ async function reelsStudioReadReel(selectors, withComments) {
 }
 
 /**
- * The Page's own avatar, never the signed-in account's: Facebook's top bar (role banner or navigation) shows the scan
- * account's picture as the first `svg image` of the page, which every channel got before. The picture is looked for
- * in the Page's header first (the smallest block around the name that holds one), then anywhere in the main area,
- * and is at least 40 px (a commenter's or a reaction's tiny picture is not the avatar). Null when none is found.
- */
-function pageAvatar(selectors, heading) {
-  const outside = (image) => !image.closest('[role="banner"], [role="navigation"], [role="complementary"]');
-  const big = (image) => {
-    const box = (image.closest("svg") || image).getBoundingClientRect();
-    // Square, so the cover photo beside the name is not taken for it.
-    return box.width >= 40 && box.height >= 40 && Math.abs(box.width - box.height) <= 0.2 * Math.max(box.width, box.height);
-  };
-  const usable = (root) => [...root.querySelectorAll(selectors.avatarImage)].filter((image) => outside(image) && big(image));
-  let block = heading && heading.parentElement;
-  for (let depth = 0; block && depth < 10; depth += 1, block = block.parentElement) {
-    if (block.matches('[role="main"], body')) break;
-    const found = usable(block);
-    if (found.length) return found[0];
-  }
-  const main = document.querySelector('[role="main"]');
-  return (main && usable(main)[0]) || null;
-}
-
-/**
  * The Page's header, read before its grid: the real name (the heading when it is one, else the tab title), the
  * followers as written ("125 N"), whether a verified badge sits beside the name, and the avatar's address (the
  * background fetches and shrinks it: Facebook's own link is signed and expires). Whatever is not found is null.
  * Returns {stopped} on a login or checkpoint page, like the grid.
+ *
+ * Chrome injects this function alone (chrome.scripting.executeScript `func`): everything it uses is defined inside it,
+ * never beside it in this file.
  */
 async function reelsStudioReadMeta(selectors) {
+  // Facebook's own parts around the Page: the top bar (the scan account's picture), the side columns, and Messenger's
+  // panel, whose "Đoạn chat" heading is an h1 too.
+  const facebookParts = '[role="banner"], [role="navigation"], [role="complementary"], [role="dialog"]';
+  const ours = (element) => !element.closest(facebookParts);
+  /**
+   * The Page's own avatar, never the signed-in account's: the first square picture of at least 40 px in the smallest
+   * block around the name that holds one, then in the main area (a commenter's or a reaction's tiny picture, or the
+   * cover beside the name, is not it). Null when none is found.
+   */
+  const pageAvatar = (heading) => {
+    const big = (image) => {
+      const box = (image.closest("svg") || image).getBoundingClientRect();
+      return box.width >= 40 && box.height >= 40 && Math.abs(box.width - box.height) <= 0.2 * Math.max(box.width, box.height);
+    };
+    const usable = (root) => [...root.querySelectorAll(selectors.avatarImage)].filter((image) => ours(image) && big(image));
+    let block = heading && heading.parentElement;
+    for (let depth = 0; block && depth < 10; depth += 1, block = block.parentElement) {
+      if (block.matches('[role="main"], body')) break;
+      const found = usable(block);
+      if (found.length) return found[0];
+    }
+    const main = document.querySelector('[role="main"]');
+    return (main && usable(main)[0]) || null;
+  };
   await new Promise((wait) => setTimeout(wait, 2500 + Math.random() * 1500));
   const body = document.body ? document.body.innerText.slice(0, 8000) : "";
   if (selectors.loginUrl.some((part) => location.pathname.includes(part)) || document.querySelector(selectors.loginForm)) {
@@ -295,8 +298,11 @@ async function reelsStudioReadMeta(selectors) {
   ) {
     return { stopped: "checkpoint" };
   }
-  const generic = /^(facebook|reels|video|videos|thông báo|notifications)$/i;
-  const heading = document.querySelector(selectors.pageName);
+  const generic = /^(facebook|reels|video|videos|thông báo|notifications|đoạn chat|chats|tin nhắn|messages)$/i;
+  // The name is the first heading of the Page itself: inside the main area when there is one, never Facebook's own.
+  const headings = (root) => [...root.querySelectorAll(selectors.pageName)].filter(ours);
+  const main = document.querySelector('[role="main"]');
+  const heading = (main && headings(main)[0]) || headings(document)[0] || null;
   let name = heading ? heading.innerText.trim() : "";
   if (!name || generic.test(name)) {
     const meta = document.querySelector('meta[property="og:title"]');
@@ -313,8 +319,13 @@ async function reelsStudioReadMeta(selectors) {
   const verified = Boolean(header && header.querySelector(selectors.verified));
   let avatar = document.querySelector('meta[property="og:image"]')?.getAttribute("content") || "";
   if (!avatar) {
-    const image = pageAvatar(selectors, heading);
-    avatar = (image && (image.getAttribute("xlink:href") || image.getAttribute("href") || image.getAttribute("src"))) || "";
+    try {
+      const image = pageAvatar(heading);
+      avatar = (image && (image.getAttribute("xlink:href") || image.getAttribute("href") || image.getAttribute("src"))) || "";
+    } catch {
+      // The name and followers are still sent without a picture.
+      avatar = "";
+    }
   }
   return {
     name: name ? name.slice(0, 200) : null,
