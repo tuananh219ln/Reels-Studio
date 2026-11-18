@@ -1694,6 +1694,8 @@ class CompetitorVideo(Base):
     reactions: Mapped[int | None] = mapped_column(BigInteger)
     comments: Mapped[int | None] = mapped_column(BigInteger)
     shares: Mapped[int | None] = mapped_column(BigInteger)
+    # A small copy of the video's picture, kept in storage (migration 0105); only the videos whose own page was opened.
+    thumb_key: Mapped[str | None] = mapped_column(Text)
 
 
 class CompetitorComment(Base):
