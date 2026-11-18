@@ -546,3 +546,150 @@ def test_mcp_runs_the_flow_from_a_link_to_the_top_videos(mcp_client, db):  # noq
 
     missing = call(mcp_client, token, "competitor_scan_get", scan_id=started["id"] + 999)
     assert missing.get("isError")
+
+
+def _scan_done(client, url="facebook.com/doanphuonglinh.hr", videos=None, **finish):
+    """Queues, claims and finishes one scan of `url` as the signed-in member; returns the scan."""
+    scan = client.post("/api/competitors/scans", json={"url": url}).json()
+    client.post("/api/competitors/scanner/claim")
+    if videos:
+        client.post(f"/api/competitors/scans/{scan['id']}/videos", json={"videos": videos})
+    client.post(f"/api/competitors/scans/{scan['id']}/finish", json={"status": "done", **finish})
+    return scan
+
+
+def test_the_channel_name_is_the_members_own_else_the_one_read_else_its_handle(client, db):
+    """Spec v2 §3.1: custom_name, then the name the scan read, then the handle, then "Kênh …" and the id's tail."""
+    make_user(db)
+    login(client)
+    vanity = _scan_done(client)["competitor"]["id"]
+    numeric = _scan_done(client, "facebook.com/profile.php?id=61591581477865")["competitor"]["id"]
+
+    def listed():
+        return {row["id"]: row for row in client.get("/api/competitors").json()["competitors"]}
+
+    assert listed()[vanity]["display_name"] == "doanphuonglinh.hr"
+    assert listed()[vanity]["handle"] == "doanphuonglinh.hr"
+    assert listed()[numeric]["display_name"] == "Kênh …477865"
+    assert listed()[numeric]["handle"] is None and listed()[numeric]["has_meta"] is False
+
+    db.get(Competitor, vanity).name = "Đoàn Phương Linh"
+    db.commit()
+    assert listed()[vanity]["display_name"] == "Đoàn Phương Linh"
+    renamed = client.patch(f"/api/competitors/{vanity}", json={"custom_name": "  Linh HR  "})
+    assert renamed.json()["display_name"] == "Linh HR" and renamed.json()["custom_name"] == "Linh HR"
+    # An empty name restores the one the scan read.
+    restored = client.patch(f"/api/competitors/{vanity}", json={"custom_name": ""})
+    assert restored.json()["custom_name"] is None and restored.json()["display_name"] == "Đoàn Phương Linh"
+
+    make_user(db, email="binh@doi.vn", name="Bình")
+    login(client, email="binh@doi.vn")
+    refused = client.patch(f"/api/competitors/{vanity}", json={"custom_name": "Của Bình"})
+    assert refused.status_code == 403 and refused.json()["code"] == "not_scan_owner"
+
+
+def test_a_header_scan_keeps_name_followers_badge_and_a_small_avatar_copy(client, db, storage):
+    from conftest import photo_bytes
+
+    make_user(db)
+    login(client)
+    first = _scan_done(client, videos=_grid(0, 3, "2M"))
+    competitor_id = first["competitor"]["id"]
+    refresh = client.post(f"/api/competitors/{competitor_id}/refresh-meta")
+    assert refresh.status_code == 201 and refresh.json()["meta_only"] is True
+    # Asking again answers the one already waiting; a header scan never doubles a video scan's place.
+    assert client.post(f"/api/competitors/{competitor_id}/refresh-meta").json()["id"] == refresh.json()["id"]
+    row = client.get("/api/competitors").json()["competitors"][0]
+    assert row["meta_busy"] is True and row["latest_scan"]["id"] == first["id"]
+
+    claimed = client.post("/api/competitors/scanner/claim").json()["scan"]
+    assert claimed["id"] == refresh.json()["id"]
+    import base64
+
+    avatar = (
+        "data:image/png;base64," + base64.b64encode(photo_bytes((10, 120, 200), size=(600, 400), kind="PNG")).decode()
+    )
+    done = client.post(
+        f"/api/competitors/scans/{claimed['id']}/finish",
+        json={
+            "status": "done",
+            "name": "Đoàn Phương Linh",
+            "followers": "125 N",
+            "is_verified": True,
+            "avatar": avatar,
+        },
+    )
+    assert done.status_code == 200, done.text
+    row = client.get("/api/competitors").json()["competitors"][0]
+    assert row["display_name"] == "Đoàn Phương Linh" and row["followers"] == 125_000 and row["is_verified"] is True
+    assert row["has_meta"] is True and row["meta_busy"] is False
+    # The numbers still come from the video scan, not from the header-only one.
+    assert row["latest_scan"]["id"] == first["id"] and row["latest_scan"]["video_count"] == 3
+    assert row["latest_scan"]["median_views"] == 2_000_000
+
+    served = client.get(row["avatar_url"])
+    assert served.status_code == 200 and served.headers["content-type"] == "image/jpeg"
+    from io import BytesIO
+
+    from PIL import Image
+
+    assert max(Image.open(BytesIO(served.content)).size) == competitors.AVATAR_SIZE
+    # Something that is not an image is ignored, and the avatar already kept stays.
+    again = client.post(f"/api/competitors/{competitor_id}/refresh-meta").json()
+    client.post("/api/competitors/scanner/claim")
+    bad = client.post(
+        f"/api/competitors/scans/{again['id']}/finish",
+        json={"status": "done", "avatar": "data:image/png;base64," + base64.b64encode(b"<svg onload=x>").decode()},
+    )
+    assert bad.status_code == 200
+    assert client.get(row["avatar_url"]).status_code == 200
+    # Deleting the competitor deletes its avatar file.
+    key = db.get(Competitor, competitor_id).avatar_key
+    assert storage.exists(key)
+    assert client.delete(f"/api/competitors/{competitor_id}").status_code == 204
+    assert not storage.exists(key)
+
+
+def test_the_videos_come_a_page_at_a_time_and_empty_columns_say_so(client, db):
+    make_user(db)
+    login(client)
+    scan = _scan_done(client, videos=_grid(0, 45, "10K"))
+    competitor_id = scan["competitor"]["id"]
+    db.execute(update(CompetitorVideo).where(CompetitorVideo.fb_video_id == "1000007").values(views=9_000_000))
+    db.commit()
+
+    first = client.get(f"/api/competitors/{competitor_id}/videos").json()
+    assert first["total"] == 45 and len(first["videos"]) == 20 and first["scan_id"] == scan["id"]
+    assert first["videos"][0]["fb_video_id"] == "1000007" and first["videos"][0]["rank"] == 1
+    assert first["has_engagement"] is False and first["has_published_at"] is False
+    last = client.get(f"/api/competitors/{competitor_id}/videos?page=3").json()
+    assert len(last["videos"]) == 5 and last["videos"][0]["rank"] == 41
+    assert client.get(f"/api/competitors/{competitor_id}/videos?limit=101").status_code == 422
+
+    db.execute(
+        update(CompetitorVideo)
+        .where(CompetitorVideo.fb_video_id == "1000003")
+        .values(reactions=5, caption="3 món giúp xương chắc", posted_at=datetime(2026, 11, 1, tzinfo=UTC))
+    )
+    db.commit()
+    detail = client.get(f"/api/competitors/{competitor_id}/videos?sort=posted&limit=5").json()
+    assert detail["has_engagement"] is True and detail["has_published_at"] is True
+    assert detail["videos"][0]["fb_video_id"] == "1000003" and detail["videos"][0]["rank"] > 1
+    found = client.get(f"/api/competitors/{competitor_id}/videos?q=XƯƠNG").json()
+    assert [video["fb_video_id"] for video in found["videos"]] == ["1000003"] and found["total"] == 1
+
+
+def test_the_csv_never_lets_a_caption_run_as_a_formula(client, db):
+    make_user(db)
+    login(client)
+    scan = _scan_done(client, videos=_grid(0, 2, "1,5M"))
+    db.execute(
+        update(CompetitorVideo).where(CompetitorVideo.fb_video_id == "1000000").values(caption='=HYPERLINK("x")')
+    )
+    db.commit()
+    response = client.get(f"/api/competitors/{scan['competitor']['id']}/videos.csv")
+    assert response.status_code == 200 and "attachment" in response.headers["content-disposition"]
+    text = response.content.decode("utf-8-sig")
+    assert text.splitlines()[0].startswith("Hạng,Loại,Link,View,Caption")
+    assert "'=HYPERLINK" in text and ",=HYPERLINK" not in text
+    assert "https://www.facebook.com/reel/1000000/" in text

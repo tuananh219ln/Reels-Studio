@@ -5,7 +5,12 @@ here in code, so the member's Claude analyses topics and pains through MCP witho
 docs/decisions/2026-11-17-competitor-analyzer.md; the extension's side is extension/facebook-reels.js.
 """
 
+import base64
+import binascii
+import csv
+import io
 import re
+import secrets
 import statistics
 import unicodedata
 from datetime import UTC, datetime, timedelta
@@ -13,10 +18,12 @@ from decimal import Decimal, InvalidOperation
 from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
+from PIL import Image
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session as DbSession
 
+from . import uploads
 from .errors import ApiError
 from .models import (
     COMPETITOR_VIDEO_TYPES,
@@ -28,6 +35,7 @@ from .models import (
     User,
 )
 from .sessions import now
+from .storage import get_storage
 
 MAX_VIDEOS_DEFAULT = 500
 MAX_VIDEOS_LIMIT = 2000
@@ -309,7 +317,11 @@ def compare(db: DbSession, competitor_ids: list[int]) -> list[dict]:
         competitor = team_competitor(db, competitor_id)
         scan = db.scalar(
             select(CompetitorScan)
-            .where(CompetitorScan.competitor_id == competitor.id, CompetitorScan.status.in_(("done", "partial")))
+            .where(
+                CompetitorScan.competitor_id == competitor.id,
+                CompetitorScan.meta_only.is_(False),
+                CompetitorScan.status.in_(("done", "partial")),
+            )
             .order_by(CompetitorScan.id.desc())
             .limit(1)
         )
@@ -351,9 +363,10 @@ def start_scan(
     captions_top: int = CAPTIONS_TOP_DEFAULT,
     comments_top: int = COMMENTS_TOP_DEFAULT,
     include_videos: bool = False,
+    meta_only: bool = False,
 ) -> CompetitorScan:
-    """A queued scan of the competitor at `url` (made on first use). One waiting or running scan per competitor: a
-    second request answers the one already there."""
+    """A queued scan of the competitor at `url` (made on first use). One waiting or running scan per competitor and
+    kind (videos, or the header only): a second request answers the one already there."""
     parsed = parse_url(url)
     competitor = db.scalar(
         select(Competitor).where(Competitor.owner_id == user_id, Competitor.fb_url == parsed["fb_url"])
@@ -364,7 +377,9 @@ def start_scan(
         db.flush()
     active = db.scalar(
         select(CompetitorScan).where(
-            CompetitorScan.competitor_id == competitor.id, CompetitorScan.status.in_(("queued", "running"))
+            CompetitorScan.competitor_id == competitor.id,
+            CompetitorScan.meta_only.is_(meta_only),
+            CompetitorScan.status.in_(("queued", "running")),
         )
     )
     if active is not None:
@@ -373,7 +388,12 @@ def start_scan(
         competitor_id=competitor.id,
         owner_id=user_id,
         status="queued",
+        meta_only=meta_only,
         scope={
+            "meta_only": True,
+        }
+        if meta_only
+        else {
             "reels": True,
             "videos": bool(include_videos),
             "max_videos": max(1, min(max_videos, MAX_VIDEOS_LIMIT)),
@@ -592,18 +612,66 @@ def add_details(db: DbSession, scan: CompetitorScan, details: list[dict]) -> int
 
 
 def finish(
-    db: DbSession, scan: CompetitorScan, status: str, error: str | None, name: str | None, followers: str | None
+    db: DbSession,
+    scan: CompetitorScan,
+    status: str,
+    error: str | None,
+    name: str | None,
+    followers: str | None,
+    is_verified: bool | None = None,
+    avatar: str | None = None,
 ) -> None:
-    """The page's last word: done, partial (stopped early: a checkpoint, the window closed, the time limit) or failed."""
+    """The page's last word: done, partial (stopped early: a checkpoint, the window closed, the time limit) or failed.
+    What the scan read from the Page's header (name, followers, verified badge, avatar) is kept even then."""
     ensure_running(scan)
     scan.status = status
     scan.error = (error or "").strip()[:500] or None
     scan.finished_at = now()
     scan.heartbeat_at = now()
+    competitor = scan.competitor
+    read = False
     if name and name.strip():
-        scan.competitor.name = name.strip()[:200]
+        competitor.name = name.strip()[:200]
+        read = True
     if followers:
-        scan.competitor.followers = parse_views(followers)
+        competitor.followers = parse_views(followers)
+        read = read or competitor.followers is not None
+    if is_verified is not None:
+        competitor.is_verified = is_verified
+        read = True
+    if avatar and save_avatar(competitor, avatar):
+        read = True
+    if read:
+        competitor.meta_updated_at = now()
+
+
+AVATAR_SIZE = 128
+AVATAR_DATA_LIMIT = 150_000
+
+
+def save_avatar(competitor: Competitor, data_url: str) -> bool:
+    """Keeps a small copy of the Page's avatar, sent by the extension as a `data:image/...;base64,` URL (Facebook's
+    own link is signed and expires). The bytes are decoded by Pillow and re-encoded as a 128 px JPEG, so whatever was
+    sent is never stored or served as it came. False when it is not an image."""
+    head, _, body = data_url.partition(",")
+    if not head.startswith("data:image/") or not head.endswith(";base64") or len(data_url) > AVATAR_DATA_LIMIT:
+        return False
+    try:
+        raw = base64.b64decode(body, validate=True)
+        uploads.image_extension(raw)  # decodes it fully and refuses a bomb or anything but JPG, PNG, WebP
+        with Image.open(io.BytesIO(raw)) as picture:
+            picture = picture.convert("RGB")
+            picture.thumbnail((AVATAR_SIZE, AVATAR_SIZE))
+            out = io.BytesIO()
+            picture.save(out, "JPEG", quality=85)
+    except (binascii.Error, ValueError, OSError):
+        return False
+    storage = get_storage()
+    key = f"competitors/{competitor.id}/avatar-{secrets.token_hex(4)}.jpg"
+    storage.save_bytes(key, out.getvalue())
+    storage.delete(competitor.avatar_key)
+    competitor.avatar_key = key
+    return True
 
 
 def resume(scan: CompetitorScan) -> None:
@@ -847,6 +915,7 @@ def scan_payload(scan: CompetitorScan) -> dict:
         "fetch_captions_top_n": captions_top(scan),
         "fetch_comments_top_n": comments_top(scan),
         "include_videos": bool((scan.scope or {}).get("videos")),
+        "meta_only": scan.meta_only,
         "created_at": scan.created_at.isoformat() if scan.created_at else None,
         "started_at": scan.started_at.isoformat() if scan.started_at else None,
         "finished_at": scan.finished_at.isoformat() if scan.finished_at else None,
@@ -855,12 +924,47 @@ def scan_payload(scan: CompetitorScan) -> dict:
     }
 
 
+def handle_of(competitor: Competitor) -> str | None:
+    """The Page's vanity name ("doanphuonglinh.hr"), None for a `profile.php?id=` address."""
+    if competitor.kind == "profile" or "profile.php" in competitor.fb_url:
+        return None
+    return urlsplit(competitor.fb_url).path.strip("/").split("/")[-1] or None
+
+
+def display_name(competitor: Competitor) -> str:
+    """The name shown everywhere: the member's own, else the one the scan read, else the handle, else "Kênh …" and
+    the last six digits of the id."""
+    if competitor.custom_name:
+        return competitor.custom_name
+    if competitor.name:
+        return competitor.name
+    handle = handle_of(competitor)
+    if handle:
+        return handle
+    return f"Kênh …{(competitor.fb_id or str(competitor.id))[-6:]}"
+
+
+def avatar_url(competitor: Competitor) -> str | None:
+    if not competitor.avatar_key:
+        return None
+    stamp = int(competitor.meta_updated_at.timestamp()) if competitor.meta_updated_at else 0
+    return f"/api/competitors/{competitor.id}/avatar?v={stamp}"
+
+
 def competitor_payload(competitor: Competitor) -> dict:
     return {
         "id": competitor.id,
         "fb_url": competitor.fb_url,
         "kind": competitor.kind,
         "name": competitor.name,
+        "custom_name": competitor.custom_name,
+        "display_name": display_name(competitor),
+        "handle": handle_of(competitor),
+        "fb_id": competitor.fb_id,
+        "avatar_url": avatar_url(competitor),
+        "is_verified": competitor.is_verified,
+        "has_meta": competitor.meta_updated_at is not None,
+        "meta_updated_at": competitor.meta_updated_at.isoformat() if competitor.meta_updated_at else None,
         "followers": competitor.followers,
         "reels_url": parse_url(competitor.fb_url)["reels_url"],
         "videos_url": parse_url(competitor.fb_url)["videos_url"],
@@ -868,28 +972,123 @@ def competitor_payload(competitor: Competitor) -> dict:
     }
 
 
+def rename(competitor: Competitor, custom_name: str | None) -> None:
+    """The member's own name for the channel; empty or None restores the one the scan read."""
+    competitor.custom_name = (custom_name or "").strip()[:200] or None
+
+
 def list_competitors(db: DbSession, user_id: int) -> list[dict]:
-    """The team's competitors, the member's own first then newest first, each with its latest scan and that scan's
-    view total; `is_mine` says whether the member may scan it again, resume or delete it."""
+    """The team's competitors, the member's own first then newest first, each with its latest scan of videos (not a
+    header-only one), that scan's numbers (summed here, not by the page), and whether a header refresh is waiting;
+    `is_mine` says whether the member may scan it again, resume, rename or delete it."""
     competitors = db.scalars(
         select(Competitor).order_by((Competitor.owner_id == user_id).desc(), Competitor.id.desc())
     ).all()
     rows = []
     for competitor in competitors:
-        latest = db.scalar(
-            select(CompetitorScan)
-            .where(CompetitorScan.competitor_id == competitor.id)
-            .order_by(CompetitorScan.id.desc())
-            .limit(1)
+        scans = select(CompetitorScan).where(CompetitorScan.competitor_id == competitor.id)
+        latest = db.scalar(scans.where(CompetitorScan.meta_only.is_(False)).order_by(CompetitorScan.id.desc()).limit(1))
+        meta_busy = db.scalar(
+            scans.where(CompetitorScan.meta_only.is_(True), CompetitorScan.status.in_(("queued", "running"))).limit(1)
         )
-        total = None
+        summary = None
         if latest is not None:
-            total = db.scalar(select(func.sum(CompetitorVideo.views)).where(CompetitorVideo.scan_id == latest.id))
+            rows_read = db.execute(
+                select(CompetitorVideo.views, CompetitorVideo.type).where(CompetitorVideo.scan_id == latest.id)
+            ).all()
+            views = [row.views for row in rows_read if row.views is not None]
+            summary = {
+                "total_views": sum(views),
+                "median_views": int(statistics.median(views)) if views else None,
+                "video_count": len(rows_read),
+                "reels_count": sum(1 for row in rows_read if row.type == "reel"),
+                "videos_count": sum(1 for row in rows_read if row.type == "video"),
+            }
         rows.append(
             {
                 **competitor_payload(competitor),
                 "is_mine": competitor.owner_id == user_id,
-                "latest_scan": scan_payload(latest) | {"total_views": int(total or 0)} if latest else None,
+                "meta_busy": meta_busy is not None,
+                "latest_scan": scan_payload(latest) | summary if latest else None,
             }
         )
     return rows
+
+
+def videos_page(
+    db: DbSession, competitor: Competitor, page: int, limit: int, sort: str, query: str | None = None
+) -> dict:
+    """The videos of the competitor's latest scan that read any, a page at a time (the page asks 20 at first), most
+    viewed first or newest posted first; `has_engagement` and `has_published_at` say whether those columns hold
+    anything, so the page hides them when they are empty."""
+    scan = db.scalar(
+        select(CompetitorScan)
+        .where(
+            CompetitorScan.competitor_id == competitor.id,
+            CompetitorScan.meta_only.is_(False),
+            CompetitorScan.videos_found > 0,
+        )
+        .order_by(CompetitorScan.id.desc())
+        .limit(1)
+    )
+    if scan is None:
+        return {
+            "scan_id": None,
+            "total": 0,
+            "page": page,
+            "limit": limit,
+            "videos": [],
+            "has_engagement": False,
+            "has_published_at": False,
+        }
+    everything = videos_of(db, scan.id)  # most viewed first: a video's place here is its rank
+    rank_of = {video.id: rank for rank, video in enumerate(everything, start=1)}
+    videos = everything
+    words = (query or "").strip().lower()
+    if words:
+        videos = [video for video in videos if words in (video.caption or "").lower()]
+    if sort == "posted":
+        dated = sorted((video for video in videos if video.posted_at), key=lambda video: video.posted_at, reverse=True)
+        videos = dated + [video for video in videos if not video.posted_at]
+    start = (page - 1) * limit
+    return {
+        "scan_id": scan.id,
+        "total": len(videos),
+        "page": page,
+        "limit": limit,
+        "videos": [video_payload(video, rank_of[video.id]) for video in videos[start : start + limit]],
+        "has_engagement": any(
+            value is not None for video in everything for value in (video.reactions, video.comments, video.shares)
+        ),
+        "has_published_at": any(video.posted_at is not None for video in everything),
+    }
+
+
+def _safe_cell(value: object) -> str:
+    """A cell for a spreadsheet: a caption a competitor wrote may start with `=` or `@`, which Excel would run."""
+    text = "" if value is None else str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+def videos_csv(db: DbSession, competitor: Competitor) -> str:
+    """Every video of the latest scan as CSV (with a BOM so Excel reads the Vietnamese), most viewed first."""
+    data = videos_page(db, competitor, 1, 100_000, "views")
+    out = io.StringIO()
+    out.write("\ufeff")
+    writer = csv.writer(out)
+    writer.writerow(["Hạng", "Loại", "Link", "View", "Caption", "Cảm xúc", "Bình luận", "Chia sẻ", "Ngày đăng"])
+    for video in data["videos"]:
+        writer.writerow(
+            [
+                video["rank"],
+                "Reels" if video["type"] == "reel" else "Video",
+                video["url"],
+                video["views"],
+                _safe_cell(video["caption"]),
+                video["reactions"],
+                video["comments"],
+                video["shares"],
+                video["posted_at"] or "",
+            ]
+        )
+    return out.getvalue()

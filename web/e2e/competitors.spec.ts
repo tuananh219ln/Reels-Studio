@@ -51,12 +51,17 @@ async function standIn(page: Page, account: { userId: string | null; incognito: 
       }
       const answer = (body: object) => window.postMessage({ source: "reels-extension", ...body }, "*");
       if (data.type === "hello") {
-        answer({ type: "ready", version: "1.4.0" });
+        answer({ type: "ready", version: "1.5.0" });
       } else if (data.type === "scan-account") {
         answer({ type: "answer", id: data.id, ...saved });
       } else if (data.type === "scan-reels") {
         seen.url = data.url;
         answer({ type: "answer", id: data.id, started: true });
+        if (data.metaOnly) {
+          // "Cập nhật thông tin kênh": the header only, no grid.
+          answer({ type: "scan-done", scanId: data.scanId, status: "done", name: "Linh Đoàn HR", followers: "130 N" });
+          return;
+        }
         const videos = [
           { fb_video_id: "1000001", views_raw: "4,5M", position: 0 },
           { fb_video_id: "1000002", views_raw: "288K", position: 1 },
@@ -84,7 +89,13 @@ async function standIn(page: Page, account: { userId: string | null; incognito: 
             },
           });
         }
-        answer({ type: "scan-done", scanId: data.scanId, status: "done" });
+        answer({
+          type: "scan-done",
+          scanId: data.scanId,
+          status: "done",
+          followers: "125 N",
+          is_verified: true,
+        });
       }
     });
   }, account);
@@ -94,15 +105,19 @@ test("a pasted link is scanned with the second account and its top videos get th
   await standIn(page, { userId: "100099999999999", incognito: true });
   await loginAsSeed(page);
   await page.goto("/competitors");
-  await expect(page.getByText("quét bằng tài khoản phụ 100099999999999", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Tiện ích sẵn sàng, TK phụ …9999999" })).toBeVisible();
 
   await page.getByLabel("Link Facebook của đối thủ").fill("https://m.facebook.com/linhdoan/reels/?ref=share");
   await page.getByRole("button", { name: /^(search )?Quét$/ }).click();
 
   const row = page.getByRole("row", { name: /Linh Đoàn/ });
   await expect(row.getByText("Xong", { exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(row.getByText("3 video", { exact: true })).toBeVisible();
-  await expect(row.getByText("4.795.600", { exact: true })).toBeVisible();
+  // The columns show short numbers, the tooltip the full one; the header read gave followers and the badge.
+  await expect(row.getByText("3", { exact: true })).toBeVisible();
+  await expect(row.getByText("4,8 Tr", { exact: true })).toBeVisible();
+  await expect(row.getByText("125 N theo dõi")).toBeVisible();
+  await expect(row.getByLabel("Đã xác minh")).toBeVisible();
+  await expect(page.getByTestId("competitor-kpis")).toContainText("4,8 Tr");
   const seen = await page.evaluate(
     () => (window as unknown as { __extension: { url: string; details: string[]; comments: string[] } }).__extension,
   );
@@ -112,13 +127,30 @@ test("a pasted link is scanned with the second account and its top videos get th
   // The first 10 of them also have their comments sampled.
   expect(seen.comments).toEqual(["1000001", "1000002", "1000003"]);
 
-  await row.getByRole("button", { name: /Expand row|Mở rộng/ }).click();
-  const top = page
-    .getByTestId("competitor-top-videos")
-    .getByRole("row", { name: /https:\/\/www\.facebook\.com\/reel\/1000001\// });
-  await expect(top.getByText("4.500.000", { exact: true })).toBeVisible();
+  await row.getByRole("button", { name: "Mở rộng Linh Đoàn" }).click();
+  await expect(page.getByTestId("competitor-metrics")).toContainText("Số video");
+  const top = page.getByTestId("competitor-videos").getByRole("row", { name: /…000001/ });
+  await expect(top.getByText("4,5 Tr", { exact: true })).toBeVisible();
   await expect(top.getByText("Caption của 1000001: 3 món giúp xương chắc")).toBeVisible();
-  await expect(top.getByText("1.200 · 45 · —", { exact: true })).toBeVisible();
+  await expect(top.getByText("1,2 N cảm xúc, 45 bình luận, — chia sẻ", { exact: true })).toBeVisible();
+  // Nothing is left to load: 3/3, and no "Xem thêm".
+  await expect(page.getByTestId("competitor-videos").getByText("3/3", { exact: true })).toBeVisible();
+
+  // The channel can be given a name of the member's own, and the name found can be restored.
+  await row.getByRole("button", { name: "Đổi tên kênh" }).click();
+  await page.getByRole("textbox", { name: "Đổi tên kênh" }).or(page.locator("textarea:focus")).fill("Linh HR");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("row", { name: /Linh HR/ })).toBeVisible();
+  await page.getByRole("button", { name: "Thêm thao tác với Linh HR" }).click();
+  await page.getByRole("menuitem", { name: "Khôi phục tên gốc" }).click();
+  await expect(page.getByRole("row", { name: /Linh Đoàn/ })).toBeVisible();
+
+  // "Cập nhật thông tin kênh" reads only the header, and the numbers stay those of the video scan.
+  await page.getByRole("button", { name: "Thêm thao tác với Linh Đoàn" }).click();
+  await page.getByRole("menuitem", { name: "Cập nhật thông tin kênh" }).click();
+  const refreshed = page.getByRole("row", { name: /Linh Đoàn HR/ });
+  await expect(refreshed.getByText("130 N theo dõi")).toBeVisible({ timeout: 30_000 });
+  await expect(refreshed.getByText("4,8 Tr", { exact: true })).toBeVisible();
 });
 
 test("without a second account saved the page asks for one and claims nothing", async ({ page }) => {
@@ -128,10 +160,10 @@ test("without a second account saved the page asks for one and claims nothing", 
   await expect(page.getByText("Chưa quét được: cần tài khoản Facebook phụ")).toBeVisible();
   await expect(page.getByRole("button", { name: "Cài đặt tài khoản phụ" })).toBeVisible();
 
+  // Offline: the chip says so and "Quét" stays disabled.
+  await expect(page.getByRole("button", { name: "Chưa kết nối tiện ích" })).toBeVisible();
   await page.getByLabel("Link Facebook của đối thủ").fill("facebook.com/linhdoan");
-  await page.getByRole("button", { name: /^(search )?Quét$/ }).click();
-  const row = page.getByRole("row", { name: /linhdoan/ });
-  await expect(row.getByText("Chờ quét", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^(search )?Quét$/ })).toBeDisabled();
 });
 
 test("without the extension the page says how to install it", async ({ page }) => {

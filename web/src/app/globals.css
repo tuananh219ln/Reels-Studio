@@ -669,3 +669,11 @@ body {
   outline: 2px solid #c2410c;
   outline-offset: 1px;
 }
+
+/* "Phân tích đối thủ": a row that opens on click, and the open one marked on its left edge. */
+.competitor-row {
+  cursor: pointer;
+}
+.competitor-row--open > td:first-child {
+  box-shadow: inset 3px 0 0 var(--ant-color-primary);
+}

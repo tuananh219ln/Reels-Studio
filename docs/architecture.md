@@ -172,7 +172,7 @@ Reels Studio" sends to; the photo comes back to that page as `send-image` and is
 Chrome. `parse_url` makes the pasted link canonical (`facebook.com/<name>`, its `/reels` and `/videos` tabs,
 `profile.php?id=`, `people/<name>/<id>`; other query parts dropped) and gives the grid's address. A scan is queued by
 the page (`POST /api/competitors/scans`) or by MCP (`competitor_scan_start`); one waiting or running scan per
-competitor. The member's open page, with extension 1.2.0 or newer holding a second Facebook account's cookies
+competitor and kind. The member's open page, with extension 1.5.0 or newer holding a second Facebook account's cookies
 (its options page, [scan-account.js](../extension/scan-account.js); never sent to the api) and allowed in
 incognito, claims the next one
 (`POST /api/competitors/scanner/claim`, once a minute and at once after queuing; one running scan per member, and a
@@ -194,6 +194,17 @@ summed in code (with `frequency`, how often each grid was posted to between its 
 latest report the member's Claude saved (`competitor_report_save`); `GET /api/competitors/compare?ids=` puts
 2–10 competitors side by side by their latest scan; "Xóa dữ liệu"
 (`DELETE /api/competitors/{id}`) removes the competitor with its scans, videos, comments and reports.
+
+
+Version 2 of the page ([decision](decisions/2026-11-18-competitors-ui-v2.md)): before the grid the extension reads the
+Page's header (`reelsStudioReadMeta`: name, followers, verified badge, avatar address) and its background shrinks the
+avatar to 128 px; the page sends them with `finish`, where `competitors.finish` keeps the name, followers, badge and
+`save_avatar` (Pillow re-encodes it to JPEG under `competitors/<id>/`, served by `GET /api/competitors/<id>/avatar`).
+`POST /api/competitors/<id>/refresh-meta` queues a `meta_only` scan (header only; never a competitor's latest scan for
+numbers). `GET /api/competitors` adds `display_name` (`custom_name`, else the name read, else the handle, else
+"Kênh …" and the id's tail), `handle`, `avatar_url`, `is_verified`, `median_views`, `video_count`, `reels_count` and
+`videos_count`; `PATCH /api/competitors/<id>` sets `custom_name` (the scanning member only);
+`GET /api/competitors/<id>/videos?page=&limit=&sort=&q=` pages the latest scan's videos and `videos.csv` exports them.
 
 ### Automatic scene footage
 

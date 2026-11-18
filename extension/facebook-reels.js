@@ -249,3 +249,50 @@ async function reelsStudioReadReel(selectors, withComments) {
     return [...samples].map(([value, likes]) => ({ text: value, likes_raw: likes }));
   }
 }
+
+/**
+ * The Page's header, read before its grid: the real name (the heading when it is one, else the tab title), the
+ * followers as written ("125 N"), whether a verified badge sits beside the name, and the avatar's address (the
+ * background fetches and shrinks it: Facebook's own link is signed and expires). Whatever is not found is null.
+ * Returns {stopped} on a login or checkpoint page, like the grid.
+ */
+async function reelsStudioReadMeta(selectors) {
+  await new Promise((wait) => setTimeout(wait, 2500 + Math.random() * 1500));
+  const body = document.body ? document.body.innerText.slice(0, 8000) : "";
+  if (selectors.loginUrl.some((part) => location.pathname.includes(part)) || document.querySelector(selectors.loginForm)) {
+    return { stopped: "login" };
+  }
+  if (
+    selectors.checkpointUrl.some((part) => location.pathname.includes(part)) ||
+    selectors.checkpointText.some((phrase) => body.includes(phrase))
+  ) {
+    return { stopped: "checkpoint" };
+  }
+  const generic = /^(facebook|reels|video|videos|thông báo|notifications)$/i;
+  const heading = document.querySelector(selectors.pageName);
+  let name = heading ? heading.innerText.trim() : "";
+  if (!name || generic.test(name)) {
+    const meta = document.querySelector('meta[property="og:title"]');
+    const raw = (meta && meta.content) || document.title || "";
+    name = raw
+      .replace(/^\(\d+\+?\)\s*/, "")
+      .replace(/\s*[|\-–—]\s*Facebook\s*$/i, "")
+      .replace(/\s*[|\-–—]\s*(Reels|Video|Videos)\s*$/i, "")
+      .trim();
+  }
+  if (generic.test(name)) name = "";
+  const followers = body.match(new RegExp(selectors.followers, "i"));
+  const header = heading && heading.parentElement && heading.parentElement.parentElement;
+  const verified = Boolean(header && header.querySelector(selectors.verified));
+  let avatar = document.querySelector('meta[property="og:image"]')?.getAttribute("content") || "";
+  if (!avatar) {
+    const image = document.querySelector(selectors.avatarImage);
+    avatar = (image && (image.getAttribute("xlink:href") || image.getAttribute("href") || image.getAttribute("src"))) || "";
+  }
+  return {
+    name: name ? name.slice(0, 200) : null,
+    followers: followers ? followers[1].trim() : null,
+    is_verified: verified,
+    avatar_src: /^https:\/\//.test(avatar) ? avatar : null,
+  };
+}

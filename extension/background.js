@@ -115,7 +115,9 @@ function endScan(result) {
   }
   const { scanId, windowId } = scanning;
   const { keepOpen, ...ended } = result;
-  toApp({ type: "scan-done", scanId, ...ended });
+  // What the Page's header gave (name, followers, badge, avatar) goes with the end, whatever the end was.
+  const meta = scanning.meta || {};
+  toApp({ type: "scan-done", scanId, ...meta, ...ended, name: ended.name || meta.name || null });
   if (keepOpen) {
     chrome.windows.update(windowId, { focused: true }).catch(() => {});
   } else {
@@ -174,6 +176,23 @@ async function scanReels(message, appTabId, account) {
   try {
     await signInScanTab(tabId, account);
     await loadIn(tabId, message.url);
+    const meta = await run(reelsStudioReadMeta, [selectors]);
+    if (meta?.stopped) {
+      endScan(
+        meta.stopped === "login"
+          ? { status: "partial", error: "Tài khoản phụ không còn đăng nhập (cookie hết hạn hoặc bị đăng xuất): lấy cookie mới, lưu trong tiện ích rồi bấm Tiếp tục" }
+          : { status: "partial", keepOpen: true, error: "Facebook hiện checkpoint/CAPTCHA với tài khoản phụ: hãy xử lý tay trong cửa sổ đó rồi bấm Tiếp tục" },
+      );
+      return;
+    }
+    if (meta) {
+      const { avatar_src: source, ...read } = meta;
+      scanning.meta = { ...read, avatar: await avatarCopy(source) };
+    }
+    if (message.metaOnly) {
+      endScan({ status: "done" });
+      return;
+    }
     let grid = await run(reelsStudioScanReels, [message.scanId, message.maxVideos, selectors, "reel"]);
     const reelsEmpty = grid?.empty;
     // M5: the Videos tab after Reels, when the scan asks for it; a page without Reels may still have videos.
@@ -200,6 +219,30 @@ async function scanReels(message, appTabId, account) {
         ? error.message
         : "Cửa sổ Facebook đã đóng hoặc tải lại giữa chừng; bấm Tiếp tục để đọc tiếp",
     });
+  }
+}
+
+/**
+ * The avatar as a small JPEG data URL (128 px), or null: fetched here because the background may read Facebook's
+ * image servers while a page may not (CORS), and shrunk so what goes to Reels Studio stays a few KB.
+ */
+async function avatarCopy(source) {
+  try {
+    const host = new URL(source).hostname;
+    if (!(host.endsWith(".fbcdn.net") || host.endsWith(".facebook.com"))) return null;
+    const response = await fetch(source);
+    if (!response.ok) return null;
+    const bitmap = await createImageBitmap(await response.blob());
+    const scale = Math.min(1, 128 / Math.max(bitmap.width, bitmap.height));
+    const canvas = new OffscreenCanvas(Math.max(1, Math.round(bitmap.width * scale)), Math.max(1, Math.round(bitmap.height * scale)));
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.85 });
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return `data:image/jpeg;base64,${btoa(binary)}`;
+  } catch {
+    return null;
   }
 }
 
