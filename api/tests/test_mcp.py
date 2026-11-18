@@ -600,6 +600,21 @@ def test_gemini_cli_loopback_connects_on_its_own_path_and_is_named_gemini(mcp_cl
     assert authorize(mcp_client, cid, redirect_uri="http://localhost:40555/callback").status_code == 400
 
 
+# Antigravity CLI (agy): its hosted callback, from https://antigravity.google/oauth/client-metadata.json.
+ANTIGRAVITY_CALLBACK = "https://antigravity.google/oauth-callback"
+
+
+def test_antigravity_connects_through_its_hosted_callback_and_is_named_on_consent(mcp_client, db):
+    cid, details, code = grant_to(mcp_client, db, ANTIGRAVITY_CALLBACK, ANTIGRAVITY_CALLBACK)
+    assert details["app"] == "Antigravity"
+    assert details["redirect_host"] == "antigravity.google" and details["loopback"] is False
+    tokens = exchange(mcp_client, cid, code, ANTIGRAVITY_CALLBACK)
+    assert tokens.status_code == 200, tokens.text
+    assert [row["app"] for row in mcp_client.get("/api/mcp/connections").json()] == ["Antigravity"]
+    # Only that exact address on its host.
+    assert register(mcp_client, "https://antigravity.google/other").status_code == 400
+
+
 # Muse (Meta's assistant): the exact callback it sent, read from the "MCP registration refused" log line.
 MUSE_CALLBACK = "https://agent.meta.ai/api/hatch/oauth/callback"
 

@@ -65,7 +65,7 @@ export default function ChatGptPage() {
     <>
       <SettingsHeader
         title="Kết nối MCP"
-        description="Cấp quyền và quản lý các kết nối ChatGPT, Claude, Claude Code, Gemini CLI và Muse của bạn."
+        description="Cấp quyền và quản lý các kết nối ChatGPT, Claude, Claude Code, Gemini CLI, Antigravity và Muse của bạn."
       />
       <Flex vertical gap={16} style={{ maxWidth: 820 }}>
         {loading && <Spin />}
@@ -156,6 +156,19 @@ export default function ChatGptPage() {
               style={{ overflowWrap: "anywhere" }}
             >
               {`gemini mcp add --transport http reels-studio ${serverUrl}`}
+            </Typography.Paragraph>
+            <Typography.Paragraph>
+              <strong>Antigravity (agy):</strong> thêm khối dưới đây vào{" "}
+              <Typography.Text code>~/.gemini/config/mcp_config.json</Typography.Text>, mở{" "}
+              <Typography.Text code>agy</Typography.Text>, gõ <Typography.Text code>/mcp</Typography.Text> rồi chọn
+              reels-studio để đăng nhập.
+            </Typography.Paragraph>
+            <Typography.Paragraph
+              copyable={{ text: `{"mcpServers":{"reels-studio":{"serverUrl":"${serverUrl}"}}}` }}
+              code
+              style={{ overflowWrap: "anywhere" }}
+            >
+              {`{"mcpServers":{"reels-studio":{"serverUrl":"${serverUrl}"}}}`}
             </Typography.Paragraph>
             <Typography.Paragraph>
               <strong>Muse:</strong> trong luồng kết nối công cụ MCP của Muse, dán địa chỉ trên rồi bấm Kết nối.
