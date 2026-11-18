@@ -254,6 +254,30 @@ async function reelsStudioReadReel(selectors, withComments) {
 }
 
 /**
+ * The Page's own avatar, never the signed-in account's: Facebook's top bar (role banner or navigation) shows the scan
+ * account's picture as the first `svg image` of the page, which every channel got before. The picture is looked for
+ * in the Page's header first (the smallest block around the name that holds one), then anywhere in the main area,
+ * and is at least 40 px (a commenter's or a reaction's tiny picture is not the avatar). Null when none is found.
+ */
+function pageAvatar(selectors, heading) {
+  const outside = (image) => !image.closest('[role="banner"], [role="navigation"], [role="complementary"]');
+  const big = (image) => {
+    const box = (image.closest("svg") || image).getBoundingClientRect();
+    // Square, so the cover photo beside the name is not taken for it.
+    return box.width >= 40 && box.height >= 40 && Math.abs(box.width - box.height) <= 0.2 * Math.max(box.width, box.height);
+  };
+  const usable = (root) => [...root.querySelectorAll(selectors.avatarImage)].filter((image) => outside(image) && big(image));
+  let block = heading && heading.parentElement;
+  for (let depth = 0; block && depth < 10; depth += 1, block = block.parentElement) {
+    if (block.matches('[role="main"], body')) break;
+    const found = usable(block);
+    if (found.length) return found[0];
+  }
+  const main = document.querySelector('[role="main"]');
+  return (main && usable(main)[0]) || null;
+}
+
+/**
  * The Page's header, read before its grid: the real name (the heading when it is one, else the tab title), the
  * followers as written ("125 N"), whether a verified badge sits beside the name, and the avatar's address (the
  * background fetches and shrinks it: Facebook's own link is signed and expires). Whatever is not found is null.
@@ -289,7 +313,7 @@ async function reelsStudioReadMeta(selectors) {
   const verified = Boolean(header && header.querySelector(selectors.verified));
   let avatar = document.querySelector('meta[property="og:image"]')?.getAttribute("content") || "";
   if (!avatar) {
-    const image = document.querySelector(selectors.avatarImage);
+    const image = pageAvatar(selectors, heading);
     avatar = (image && (image.getAttribute("xlink:href") || image.getAttribute("href") || image.getAttribute("src"))) || "";
   }
   return {

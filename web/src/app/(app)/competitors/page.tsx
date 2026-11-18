@@ -196,10 +196,19 @@ function Competitors() {
     { label: "Quét gần nhất", value: lastScan ? formatAgo(new Date(lastScan).toISOString(), now) : "—" },
   ];
 
+  // A header click sorts like the "Sắp xếp" box (one direction each: numbers biggest first, names A to Z).
+  const sortable = (key: (typeof SORTS)[number]) => ({
+    sorter: true,
+    sortOrder: sort === key ? (key === "name" ? ("ascend" as const) : ("descend" as const)) : null,
+    sortDirections: [key === "name" ? ("ascend" as const) : ("descend" as const)],
+    showSorterTooltip: false,
+  });
+
   const columns: ColumnsType<Competitor> = [
     {
       title: "Kênh",
-      key: "channel",
+      key: "name",
+      ...sortable("name"),
       render: (_, row) => (
         <ChannelCell
           row={row}
@@ -211,7 +220,8 @@ function Competitors() {
       title: "Video",
       key: "videos",
       align: "right",
-      width: 150,
+      width: 130,
+      ...sortable("videos"),
       render: (_, row) => {
         const scan = row.latest_scan;
         if (!scan) return "—";
@@ -225,13 +235,16 @@ function Competitors() {
           </span>
         );
         if (kept != null) {
+          // Two lines like the channel beside it: the counts, then from how many views they were kept.
           return (
             <Tooltip
               title={`${formatFull(scan.stored_count)} video từ ${thresholdLabel(kept)} view được lưu, đã đọc ${formatFull(scan.video_count)} video`}
             >
-              <Flex gap={4} justify="end" align="center">
-                <Tag style={{ marginInlineEnd: 0 }}>≥{thresholdLabel(kept)}</Tag>
+              <Flex vertical align="end">
                 {text}
+                <Typography.Text type="secondary" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                  ≥{thresholdLabel(kept)} view
+                </Typography.Text>
               </Flex>
             </Tooltip>
           );
@@ -247,7 +260,8 @@ function Competitors() {
       title: "Tổng view",
       key: "views",
       align: "right",
-      width: 110,
+      width: 120,
+      ...sortable("views"),
       render: (_, row) =>
         row.latest_scan ? (
           <Tooltip title={formatFull(row.latest_scan.total_views)}>
@@ -261,7 +275,8 @@ function Competitors() {
       title: "Trung vị",
       key: "median",
       align: "right",
-      width: 100,
+      width: 110,
+      ...sortable("median"),
       responsive: ["xl"],
       render: (_, row) =>
         row.latest_scan?.median_views != null ? (
@@ -274,8 +289,9 @@ function Competitors() {
     },
     {
       title: "Quét gần nhất",
-      key: "scan",
-      width: 200,
+      key: "scanned",
+      width: 190,
+      ...sortable("scanned"),
       render: (_, row) => (
         <ScanCell
           row={row}
@@ -288,6 +304,7 @@ function Competitors() {
       title: "Thao tác",
       key: "actions",
       width: 96,
+      align: "center",
       render: (_, row) => <Actions row={row} onRescan={rescan} onAct={act} onDelete={() => confirmDelete([row])} />,
     },
   ];
@@ -420,7 +437,13 @@ function Competitors() {
             dataSource={shown}
             loading={competitors === null}
             pagination={false}
-            scroll={{ x: 760 }}
+            scroll={{ x: 820 }}
+            onChange={(_pagination, _filters, sorter) => {
+              const one = Array.isArray(sorter) ? sorter[0] : sorter;
+              const key = SORTS.find((value) => value === one?.columnKey);
+              // A second click on the sorted column would clear it: the list keeps its order instead.
+              if (key && one?.order) setSort(key);
+            }}
             rowClassName={(row) => (row.id === open ? "competitor-row competitor-row--open" : "competitor-row")}
             onRow={(row) => ({
               onClick: (event) => {
@@ -637,10 +660,11 @@ function ScanCell({
       <Flex vertical gap={2}>
         <Badge status={info.badge} text={info.label} />
         {live ? (
-          <Typography.Text type="secondary" style={{ fontVariantNumeric: "tabular-nums" }}>
-            <LoadingOutlined aria-hidden /> {formatFull(progress ? progress.found : scan.videos_found)}/
-            {formatFull(scan.max_videos)}
-            {progress?.details ? `, mở top video ${progress.details.read}/${progress.details.of}` : ""}
+          <Typography.Text type="secondary" style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+            <LoadingOutlined aria-hidden />{" "}
+            {progress?.details
+              ? `Top video ${progress.details.read}/${progress.details.of}`
+              : `${formatFull(progress ? progress.found : scan.videos_found)}/${formatFull(scan.max_videos)} video`}
           </Typography.Text>
         ) : (
           at && <Typography.Text type="secondary">{formatAgo(at, now)}</Typography.Text>
