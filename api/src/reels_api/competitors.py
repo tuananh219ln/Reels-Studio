@@ -27,6 +27,7 @@ from . import uploads
 from .errors import ApiError
 from .models import (
     COMPETITOR_VIDEO_TYPES,
+    AppSetting,
     Competitor,
     CompetitorComment,
     CompetitorReport,
@@ -592,6 +593,8 @@ def add_details(db: DbSession, scan: CompetitorScan, details: list[dict]) -> int
             value = parse_views(detail.get(f"{field}_raw"))
             if value is not None:
                 setattr(video, field, value)
+        if detail.get("thumbnail"):
+            save_thumbnail(scan.competitor_id, video, detail["thumbnail"])
         samples = [sample for sample in detail.get("comment_samples") or [] if (sample.get("text") or "").strip()][
             :COMMENTS_PER_VIDEO
         ]
@@ -647,15 +650,53 @@ def finish(
         apply_threshold(db, scan)
 
 
-def threshold_for(mode: str, views: list[int]) -> int | None:
-    """The views a video needs to be kept, None to keep all: "auto" keeps only 100K+ on a big channel."""
+SETTING_KEY = "competitor_threshold"
+MIN_HITS_RANGE = (1, 100)
+MIN_VIEWS_RANGE = (1_000, 100_000_000)
+
+
+def threshold_settings(db: DbSession) -> dict:
+    """The team's rule for "Tự động" (Cài đặt › Phân tích đối thủ): a channel with `min_hits` videos of `min_views`
+    or more is big and keeps only those. Defaults are the spec's 10 videos of 100K."""
+    row = db.get(AppSetting, SETTING_KEY)
+    saved = row.value if row is not None and isinstance(row.value, dict) else {}
+    hits, views = saved.get("min_hits"), saved.get("min_views")
+    return {
+        "min_hits": hits
+        if isinstance(hits, int) and MIN_HITS_RANGE[0] <= hits <= MIN_HITS_RANGE[1]
+        else BIG_CHANNEL_MIN_HITS,
+        "min_views": views
+        if isinstance(views, int) and MIN_VIEWS_RANGE[0] <= views <= MIN_VIEWS_RANGE[1]
+        else MIN_VIEWS_THRESHOLD,
+    }
+
+
+def save_threshold_settings(db: DbSession, min_hits: int, min_views: int, user_id: int) -> dict:
+    value = {"min_hits": min_hits, "min_views": min_views}
+    row = db.get(AppSetting, SETTING_KEY)
+    if row is None:
+        db.add(AppSetting(key=SETTING_KEY, value=value, updated_by_id=user_id))
+    else:
+        row.value, row.updated_by_id = value, user_id
+    return value
+
+
+def threshold_for(mode: str, views: list[int], rule: dict | None = None) -> int | None:
+    """The views a video needs to be kept, None to keep all: "auto" keeps only the videos above the team's threshold
+    on a big channel."""
+    rule = rule or {"min_hits": BIG_CHANNEL_MIN_HITS, "min_views": MIN_VIEWS_THRESHOLD}
     if mode == "100k":
         return 100_000
     if mode == "1m":
         return 1_000_000
-    if mode == "auto" and sum(1 for value in views if value >= MIN_VIEWS_THRESHOLD) >= BIG_CHANNEL_MIN_HITS:
-        return MIN_VIEWS_THRESHOLD
+    if mode == "auto" and sum(1 for value in views if value >= rule["min_views"]) >= rule["min_hits"]:
+        return rule["min_views"]
     return None
+
+
+def views_label(views: int) -> str:
+    """100000 as "100K", 1000000 as "1M"."""
+    return f"{views / 1_000_000:g}M" if views >= 1_000_000 else f"{views / 1_000:g}K"
 
 
 def apply_threshold(db: DbSession, scan: CompetitorScan) -> None:
@@ -667,7 +708,7 @@ def apply_threshold(db: DbSession, scan: CompetitorScan) -> None:
     videos = videos_of(db, scan.id)
     views = [video.views for video in videos if video.views is not None]
     scan.scanned_count = len(videos)
-    threshold = threshold_for(scan.competitor.video_threshold_mode, views)
+    threshold = threshold_for(scan.competitor.video_threshold_mode, views, threshold_settings(db))
     scan.threshold_applied = threshold
     if threshold is None:
         scan.stored_count = len(videos)
@@ -677,7 +718,11 @@ def apply_threshold(db: DbSession, scan: CompetitorScan) -> None:
     drop = [
         video.id
         for video in videos
-        if video.views is not None and video.views < threshold and video.posted_at is None and not video.caption
+        if video.views is not None
+        and video.views < threshold
+        and video.posted_at is None
+        and not video.caption
+        and not video.thumb_key
     ]
     if drop:
         db.execute(delete(CompetitorVideo).where(CompetitorVideo.id.in_(drop)))
@@ -693,28 +738,48 @@ AVATAR_SIZE = 128
 AVATAR_DATA_LIMIT = 150_000
 
 
-def save_avatar(competitor: Competitor, data_url: str) -> bool:
-    """Keeps a small copy of the Page's avatar, sent by the extension as a `data:image/...;base64,` URL (Facebook's
-    own link is signed and expires). The bytes are decoded by Pillow and re-encoded as a 128 px JPEG, so whatever was
-    sent is never stored or served as it came. False when it is not an image."""
+def _jpeg_copy(data_url: str, size: int) -> bytes | None:
+    """A `data:image/...;base64,` URL from the extension, decoded by Pillow and re-encoded as a JPEG of at most
+    `size` px a side, so whatever was sent is never stored or served as it came. None when it is not an image."""
     head, _, body = data_url.partition(",")
     if not head.startswith("data:image/") or not head.endswith(";base64") or len(data_url) > AVATAR_DATA_LIMIT:
-        return False
+        return None
     try:
         raw = base64.b64decode(body, validate=True)
         uploads.image_extension(raw)  # decodes it fully and refuses a bomb or anything but JPG, PNG, WebP
         with Image.open(io.BytesIO(raw)) as picture:
             picture = picture.convert("RGB")
-            picture.thumbnail((AVATAR_SIZE, AVATAR_SIZE))
+            picture.thumbnail((size, size))
             out = io.BytesIO()
             picture.save(out, "JPEG", quality=85)
+            return out.getvalue()
     except (binascii.Error, ValueError, OSError):
+        return None
+
+
+def save_avatar(competitor: Competitor, data_url: str) -> bool:
+    """Keeps a small copy of the Page's avatar (Facebook's own link is signed and expires). False when it is not an
+    image; the avatar already kept then stays."""
+    jpeg = _jpeg_copy(data_url, AVATAR_SIZE)
+    if jpeg is None:
         return False
     storage = get_storage()
     key = f"competitors/{competitor.id}/avatar-{secrets.token_hex(4)}.jpg"
-    storage.save_bytes(key, out.getvalue())
+    storage.save_bytes(key, jpeg)
     storage.delete(competitor.avatar_key)
     competitor.avatar_key = key
+    return True
+
+
+def save_thumbnail(competitor_id: int, video: CompetitorVideo, data_url: str) -> bool:
+    """A small picture of a video whose page the extension opened. One file per competitor and video, so a later scan
+    of the same video replaces it."""
+    jpeg = _jpeg_copy(data_url, AVATAR_SIZE)
+    if jpeg is None:
+        return False
+    key = f"competitors/{competitor_id}/thumbs/{video.fb_video_id}.jpg"
+    get_storage().save_bytes(key, jpeg)
+    video.thumb_key = key
     return True
 
 
@@ -750,7 +815,7 @@ def stats(db: DbSession, scan: CompetitorScan) -> dict:
     a threshold answers with the numbers summed over everything it read (apply_threshold)."""
     if scan.stats_snapshot:
         note = (
-            f"Chỉ lưu {scan.stored_count} video từ {(scan.threshold_applied or 0) // 1000}K view trong "
+            f"Chỉ lưu {scan.stored_count} video từ {views_label(scan.threshold_applied or 0)} view trong "
             f"{scan.scanned_count} video đã đọc; số liệu tính trên toàn bộ video đã đọc."
         )
         return {
@@ -943,8 +1008,11 @@ def report_payload(report: CompetitorReport) -> dict:
     }
 
 
-def video_payload(video: CompetitorVideo, rank: int | None = None) -> dict:
+def video_payload(video: CompetitorVideo, rank: int | None = None, competitor_id: int | None = None) -> dict:
     return {
+        "thumb_url": f"/api/competitors/{competitor_id}/thumbs/{video.fb_video_id}"
+        if competitor_id and video.thumb_key
+        else None,
         **({"rank": rank} if rank is not None else {}),
         "fb_video_id": video.fb_video_id,
         "url": video.url,
@@ -1135,7 +1203,7 @@ def videos_page(
         "total": len(videos),
         "page": page,
         "limit": limit,
-        "videos": [video_payload(video, rank_of[video.id]) for video in videos[start : start + limit]],
+        "videos": [video_payload(video, rank_of[video.id], competitor.id) for video in videos[start : start + limit]],
         "has_engagement": any(
             value is not None for video in everything for value in (video.reactions, video.comments, video.shares)
         ),

@@ -222,6 +222,17 @@ function VideoList({ competitorId, scanId }: { competitorId: number; scanId: num
         const label = video.caption || `${video.type === "video" ? "Video" : "Reel"} …${video.fb_video_id.slice(-6)}`;
         return (
           <Flex gap={8} align="center" style={{ minWidth: 0 }}>
+            {video.thumb_url && (
+              // eslint-disable-next-line @next/next/no-img-element -- a small private picture from the api, already shrunk
+              <img
+                src={video.thumb_url}
+                alt=""
+                width={48}
+                height={64}
+                loading="lazy"
+                style={{ objectFit: "cover", borderRadius: 4, flex: "none" }}
+              />
+            )}
             <Typography.Text ellipsis={{ tooltip: label }} style={{ maxWidth: 360 }}>
               {label}
             </Typography.Text>

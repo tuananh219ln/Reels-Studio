@@ -1085,7 +1085,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
   "Thử lại" on a failed job and "Hủy job" on a waiting one; retry and cancel ask first. A row opens its video.
 - **Cài đặt** (`/settings`, opening its first tab), last in the sidebar, is one page titled "Cài đặt" whose tabs come in two groups, each
   headed by its name as a tag that cannot be chosen: **Của tôi** (blue: Thiết lập mặc định, Tài khoản affiliate,
-  Kết nối MCP) and **Chung cả nhóm** (cyan: Mô hình AI, Nguồn tư liệu, Mẫu dựng, Máy render). One tab
+  Kết nối MCP) and **Chung cả nhóm** (cyan: Mô hình AI, Nguồn tư liệu, Phân tích đối thủ, Mẫu dựng, Máy render). One tab
   per job; no tab is split between the groups. Each tab has its own address so a link or a reload keeps the tab; the
   menu keeps "Cài đặt" selected on all of them. No tab carries a tag beside its title or a banner saying whose it
   is: the group in the list says it.

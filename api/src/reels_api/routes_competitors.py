@@ -63,6 +63,8 @@ class VideoDetail(BaseModel):
     shares_raw: str | None = Field(None, max_length=60)
     # The posting time as written ("3 ngày", "17 tháng 10"); read into posted_at by competitors.parse_posted.
     posted_raw: str | None = Field(None, max_length=200)
+    # A small picture of the video (`data:image/jpeg;base64,...`), shrunk by the extension; the api re-encodes it.
+    thumbnail: str | None = Field(None, max_length=competitors.AVATAR_DATA_LIMIT)
     # Only for the first fetch_comments_top_n reels; their text and likes, never who wrote them.
     comment_samples: list[CommentSample] = Field(default_factory=list, max_length=60)
 
@@ -86,6 +88,25 @@ class PatchBody(BaseModel):
     custom_name: str | None = Field(None, max_length=200)
     # Which videos of a scan are kept; applies from the next scan that ends.
     video_threshold_mode: Literal["auto", "all", "100k", "1m"] | None = None
+
+
+class ThresholdBody(BaseModel):
+    min_hits: int = Field(ge=competitors.MIN_HITS_RANGE[0], le=competitors.MIN_HITS_RANGE[1])
+    min_views: int = Field(ge=competitors.MIN_VIEWS_RANGE[0], le=competitors.MIN_VIEWS_RANGE[1])
+
+
+@router.get("/settings")
+def get_threshold(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """The team's rule for a big channel (Cài đặt › Phân tích đối thủ)."""
+    return competitors.threshold_settings(db)
+
+
+@router.put("/settings")
+def put_threshold(body: ThresholdBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """Applies to scans that end from now on; videos already dropped are not read again."""
+    value = competitors.save_threshold_settings(db, body.min_hits, body.min_views, me.user_id)
+    db.commit()
+    return value
 
 
 @router.get("")
@@ -178,6 +199,19 @@ def avatar(competitor_id: int, me: Session = Depends(current_member), db: DbSess
         get_storage().path(competitor.avatar_key),
         media_type="image/jpeg",
         headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
+@router.get("/{competitor_id}/thumbs/{fb_video_id}")
+def thumbnail(
+    competitor_id: int, fb_video_id: str, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> FileResponse:
+    competitors.team_competitor(db, competitor_id)
+    key = f"competitors/{competitor_id}/thumbs/{fb_video_id}.jpg"
+    if not fb_video_id.isdigit() or not get_storage().exists(key):
+        raise ApiError(404, "thumb_not_found", "Video này chưa có ảnh")
+    return FileResponse(
+        get_storage().path(key), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"}
     )
 
 
