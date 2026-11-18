@@ -175,8 +175,9 @@ the page (`POST /api/competitors/scans`) or by MCP (`competitor_scan_start`); on
 competitor and kind. The member's open page, with extension 1.5.0 or newer holding a second Facebook account's cookies
 (its options page, [scan-account.js](../extension/scan-account.js); never sent to the api) and allowed in
 incognito, claims the next one
-(`POST /api/competitors/scanner/claim`, once a minute and at once after queuing; one running scan per member, and a
-running one silent for 3 minutes is claimed again) and posts `scan-reels` to the extension, which opens an incognito
+(`POST /api/competitors/scanner/claim`, once a minute, at once after queuing and at once after a scan ends; one
+running scan per member, a queued header-only scan before queued video scans, and a running one silent for 3
+minutes is claimed again) and posts `scan-reels` to the extension, which opens an incognito
 window (a hidden tab would not load more as it scrolls), replaces that window's facebook.com cookies with the saved
 account's, opens the grid, injects [facebook-reels.js](../extension/facebook-reels.js)
 with [selectors.json](../extension/selectors.json) (then, with `scope.videos`, the Videos tab the same way,

@@ -445,8 +445,9 @@ def own_competitor(db: DbSession, competitor_id: int, user_id: int) -> Competito
 
 def claim(db: DbSession, user: User) -> CompetitorScan | None:
     """The next scan the member's open page should run, now marked running: a running one gone silent first (the
-    page was closed mid-way; it resumes), else the oldest queued one. None while one is genuinely running: one scan
-    at a time per member, so one Facebook account is never read twice at once."""
+    page was closed mid-way; it resumes), else the oldest queued header-only scan ("Cập nhật thông tin kênh" takes
+    seconds, so it never waits behind a long video scan), else the oldest queued one. None while one is genuinely
+    running: one scan at a time per member, so one Facebook account is never read twice at once."""
     # The member's row is the lock: two tabs claiming at once take turns, so only one gets a scan.
     db.execute(select(User.id).where(User.id == user.id).with_for_update())
     user.competitor_scanner_at = now()
@@ -457,7 +458,11 @@ def claim(db: DbSession, user: User) -> CompetitorScan | None:
         return None
     scan = stalled[0] if stalled else None
     if scan is None:
-        scan = db.scalar(mine.where(CompetitorScan.status == "queued").order_by(CompetitorScan.id).limit(1))
+        scan = db.scalar(
+            mine.where(CompetitorScan.status == "queued")
+            .order_by(CompetitorScan.meta_only.desc(), CompetitorScan.id)
+            .limit(1)
+        )
     if scan is None:
         return None
     scan.status = "running"
