@@ -151,11 +151,11 @@ export default function ChatGptPage() {
               <Typography.Text code>/mcp auth reels-studio</Typography.Text> để đăng nhập.
             </Typography.Paragraph>
             <Typography.Paragraph
-              copyable={{ text: `gemini mcp add --transport http reels-studio ${serverUrl}` }}
+              copyable={{ text: `gemini mcp add --scope user --transport http reels-studio ${serverUrl}` }}
               code
               style={{ overflowWrap: "anywhere" }}
             >
-              {`gemini mcp add --transport http reels-studio ${serverUrl}`}
+              {`gemini mcp add --scope user --transport http reels-studio ${serverUrl}`}
             </Typography.Paragraph>
             <Typography.Paragraph>
               <strong>Antigravity (agy):</strong> thêm khối dưới đây vào{" "}
