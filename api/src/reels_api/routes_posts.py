@@ -180,9 +180,12 @@ def get_board(
 
 
 @router.get("/comments")
-def comment_tracker_view(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """ "Bình luận": the reels live within the week, how many of their comments are up, and when the rest should be."""
-    return comment_tracker.tracker(db)
+def comment_tracker_view(
+    owner: str = "team", me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Bình luận": the reels live within 3 days, how many of their comments are up, and when the rest should be;
+    `owner=me` keeps the member's own posts and Pages ("Của tôi")."""
+    return comment_tracker.tracker(db, me.user_id if owner == "me" else None)
 
 
 @router.get("/videos/{video_id}")

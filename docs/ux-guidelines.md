@@ -1079,7 +1079,8 @@ steps open the status card or the products block on its tab, the QC chip its pop
     has a video; tapping a day opens the same drawer.
   - **Bình luận** (`/posts?view=comments`): the Page's comments under the reels live within 3 days. A card
     with each Page's "hôm nay đã bình luận N/100" (and "Page nghỉ tới hh:mm") and a grey line on the pacing,
-    then "Tất cả | Đang chờ đăng | Cần xử lý | Đã lên đủ" and a table: the video (link, its age "Mới" / "Ngày 2–3", Page, time live, "Mở
+    then "Của tôi | Cả đội" ("Của tôi" by default, in the address as `owner=all` otherwise: the reels a member posted or
+    that are on a Page they own, and those Pages) and "Tất cả | Đang chờ đăng | Cần xử lý | Đã lên đủ" and a table: the video (link, its age "Mới" / "Ngày 2–3", Page, time live, "Mở
     reel"), "Bình luận chi tiết đã lên" (written/saved with a thin bar and the scene count, or "Chưa có"),
     "Còn chờ", the state tag ("Đang chờ đăng", "Mỗi ngày 1 bình luận" with "Bình luận tiếp theo dd/mm, hh:mm",
     "Đã dừng (quá 3 ngày)", "Đã lên đủ", "Chưa nhờ đăng" with "Bấm “Bình luận ngay” trên

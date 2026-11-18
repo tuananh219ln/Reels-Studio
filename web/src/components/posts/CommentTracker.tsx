@@ -1,8 +1,10 @@
 "use client";
 
 import EmptyState from "@/components/EmptyState";
+import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 import { api, errorMessage, formatDayTime, type CommentTrackerData, type TrackedPost } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
+import { useUrlChoice } from "@/lib/urlState";
 import { App, Card, Flex, Progress, Segmented, Spin, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
@@ -46,13 +48,15 @@ export default function CommentTracker() {
   const { message } = App.useApp();
   const [data, setData] = useState<CommentTrackerData | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  // The member's own Pages first: "Cả đội" shows every Page's reels.
+  const [whose, setWhose] = useUrlChoice<Whose>("owner", "mine", ["all"]);
 
   const load = useCallback(
     () =>
-      api<CommentTrackerData>("/posts/comments").then(setData, (err) => {
+      api<CommentTrackerData>(`/posts/comments?owner=${whose === "mine" ? "me" : "team"}`).then(setData, (err) => {
         message.error(errorMessage(err));
       }),
-    [message],
+    [message, whose],
   );
   useEffect(() => {
     load();
@@ -152,7 +156,10 @@ export default function CommentTracker() {
           </Typography.Text>
         </Flex>
       </Card>
-      <Segmented<Filter> aria-label="Lọc bình luận" value={filter} onChange={setFilter} options={FILTERS} />
+      <Flex gap={12} wrap>
+        <WhoseFilter value={whose} onChange={setWhose} />
+        <Segmented<Filter> aria-label="Lọc bình luận" value={filter} onChange={setFilter} options={FILTERS} />
+      </Flex>
       {rows.length === 0 ? (
         <EmptyState description="Không có reel nào trong 3 ngày qua ở mục này" />
       ) : (
