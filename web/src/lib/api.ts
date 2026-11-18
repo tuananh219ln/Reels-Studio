@@ -438,6 +438,14 @@ export type VideoDetail = VideoRow & {
   /** When the script was written: its last job's end, or the video's making; null without a script. */
   script_at: string | null;
   clone_of: { title: string; request: string } | null;
+  /** "Clone" from "Phân tích đối thủ": the competitor's video it was built from (its Facebook link and the channel's
+   * name as saved) and that video's sample comments, text and likes only; null for any other video. */
+  competitor_source: {
+    url: string | null;
+    name: string | null;
+    has_comments: boolean;
+    comments: { text: string; like_count: number | null }[];
+  } | null;
   /** A "Nhân bản xáo cảnh" copy: its source, whether a new title is still asked for, and the videos with the same
    * title among its source and the source's other copies. Null for any other video. */
   shuffle: {

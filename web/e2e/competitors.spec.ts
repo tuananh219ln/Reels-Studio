@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { expect, test, type Page } from "@playwright/test";
-import { loginAsSeed, resetDatabase } from "./helpers";
+import { chooseOption, loginAsSeed, resetDatabase } from "./helpers";
 
 /*
  * "Phân tích đối thủ" (docs/decisions/2026-11-17-competitor-analyzer.md). Playwright does not load the Chrome
@@ -246,7 +246,8 @@ async function standIn(page: Page, account: { userId: string | null; incognito: 
             scanId: data.scanId,
             video: {
               fb_video_id: id,
-              caption: `Caption của ${id}: 3 món giúp xương chắc`,
+              // The least viewed has no caption: "Clone" is off for it.
+              caption: id === "1000003" ? null : `Caption của ${id}: 3 món giúp xương chắc`,
               audio_name: "Âm thanh gốc",
               reactions_raw: "1,2K",
               comments_raw: "45",
@@ -327,6 +328,42 @@ test("a pasted link is scanned with the second account and its top videos get th
   await expect(header).toHaveAttribute("aria-sort", "descending");
   await expect(page).toHaveURL(/sort=median/);
   await expect(page.getByText("Sắp xếp: Trung vị")).toBeVisible();
+});
+
+test("a competitor's video is cloned into a hand-written draft that names its source", async ({ page }) => {
+  await standIn(page, { userId: "100099999999999", incognito: true });
+  await loginAsSeed(page);
+  await page.goto("/competitors");
+  await page.getByLabel("Link Facebook của đối thủ").fill("https://www.facebook.com/linhdoan");
+  await page.getByRole("button", { name: /^(search )?Quét$/ }).click();
+  const row = page.getByRole("row", { name: /Linh Đoàn/ });
+  await expect(row.getByText("Xong", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await row.getByRole("button", { name: "Mở rộng Linh Đoàn" }).click();
+
+  const videos = page.getByTestId("competitor-videos");
+  // "Clone" sits by "Sao chép link"; a video without a caption cannot be cloned.
+  await expect(videos.getByRole("button", { name: "Sao chép link …000001" })).toBeVisible();
+  await expect(videos.getByRole("button", { name: "Clone video …000003" })).toBeDisabled();
+  await videos.getByRole("button", { name: "Clone video …000001" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Clone video" });
+  await expect(dialog.getByLabel("Tiêu đề")).toHaveValue("Caption của 1000001: 3 món giúp xương chắc");
+  await expect(dialog.getByTestId("clone-comments")).toHaveText("Bình luận mẫu: có 1");
+  // The script is shown before anything is made, and may be edited.
+  await dialog.getByLabel("Kịch bản").fill("Cảnh của tôi\nĐọc: Lời đọc của tôi");
+  await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
+  await dialog.getByRole("button", { name: "Tạo video" }).click();
+
+  await expect(page.getByText("Đã tạo video")).toBeVisible();
+  await page.getByTestId("clone-open").click();
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
+  const source = page.getByTestId("competitor-source");
+  await expect(source.getByRole("link", { name: "Linh Đoàn" })).toHaveAttribute(
+    "href",
+    "https://www.facebook.com/reel/1000001/",
+  );
+  await source.getByText("Bình luận mẫu (1)").click();
+  await expect(source.getByText("Mẹ tôi đau gối, ăn được không ạ?")).toBeVisible();
 });
 
 test("without a second account saved the page asks for one and claims nothing", async ({ page }) => {
