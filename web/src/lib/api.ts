@@ -1088,15 +1088,24 @@ export type Article = {
   /** The first photo's tag, so the list's thumbnail never shows an old one. */
   image_version: string | null;
   /** The plan script it was made from ("Ngày 5 · Khung 2"), its Page and the time planned for it. */
-  plan_slot: {
-    id: number;
-    day: number | null;
-    slot: number | null;
-    fanpage_id: number;
-    fanpage_name: string;
-    post_at: string | null;
-    image_urls: string[];
-  } | null;
+  plan_slot:
+    | ({
+        id: number;
+        day: number | null;
+        slot: number | null;
+        fanpage_id: number;
+        fanpage_name: string;
+        post_at: string | null;
+        image_urls: string[];
+        type_labels: Record<string, string>;
+        comments_updated_at: string | null;
+        /** A "Tạo bình luận ghim" job is queued or running for the script, or the last one failed. */
+        comments_pending: boolean;
+        comments_error: string | null;
+      } & SlotComments)
+    | null;
+  /** "Đăng kèm bình luận": the script's pinned comments are written under the post. */
+  post_comments_enabled: boolean;
   /** "Từ khóa tìm ảnh": what "Tìm ảnh" searches. */
   image_query: string;
   /** "Nâng cao: Prompt ảnh AI"; empty: the search words, then the topic. */
@@ -1191,7 +1200,7 @@ export type PlanSlot = {
   /** Its day at its slot's posting time; null in the Backlog. */
   post_at: string | null;
   created_by_id: number;
-};
+} & SlotComments;
 
 /** A Page's plan tab (GET /api/article-plans/{fanpage_id}). */
 export type ArticlePlanView = {
@@ -1209,17 +1218,61 @@ export type ArticlePlanView = {
     topic_group_ids: number[];
     kind_mix: Partial<Record<ArticleKind, number>>;
     tone: string;
+    /** Who the Page's comments are written for ("35–55 tuổi"). */
+    audience: string;
     total: number;
     used: number;
     scheduled: number;
     posted: number;
     empty_days: number;
     backlog: number;
+    /** "Bình luận: 72/87 kịch bản đủ 5/5". */
+    comments: { full: number; total: number };
+    /** "Tạo bình luận ghim" jobs still queued or running. */
+    comments_pending: number;
   } | null;
   slots: PlanSlot[];
   backlog: PlanSlot[];
   /** The earliest unused script from today on: "Tạo bài viết" offers it first. */
   next_slot_id: number | null;
+};
+
+/** One of a script's pinned comments; `type` is a label of its set (api slot_comments.TYPES_*) or null. */
+export type PinnedComment = { type: string | null; text: string };
+
+/** What a plan script carries of "Bình luận ghim". */
+export type SlotComments = {
+  pinned_comments: PinnedComment[];
+  pin_index: number;
+  comments_count: number;
+  comments_source: "import" | "ai" | "manual" | null;
+  comments_edited: boolean;
+  /** The label set for the script's kind, in the order the comments are written. */
+  type_set: string[];
+};
+
+/** One of a script's comments as written under a post. */
+export type PostCommentItem = {
+  id: number;
+  order: number;
+  type: string | null;
+  type_label: string | null;
+  text: string;
+  is_pinned: boolean;
+  status: "pending" | "posted" | "pinned" | "need_manual_pin" | "failed" | "skipped";
+  status_label: string;
+  error: string | null;
+  attempts: number;
+  posted_at: string | null;
+};
+
+export type PostPinnedComments = {
+  items: PostCommentItem[];
+  written: number;
+  total: number;
+  failed: number;
+  need_manual_pin: boolean;
+  url: string | null;
 };
 
 /** One row of a plan file as previewed (api article_plans.Row). */
@@ -1238,6 +1291,10 @@ export type PlanImportRow = {
   /** The kind and topic group as the file names them. */
   format: string;
   topic_group: string;
+  pinned_comments: PinnedComment[];
+  pin_index: number;
+  /** What saving does: add it, or skip it because its slot already has an article. */
+  action: "add" | "skip_posted" | "skip_used" | "skip";
   errors: string[];
   warnings: string[];
   /** "day:slot", "backlog" or "skip". */
@@ -1275,6 +1332,8 @@ export type ArticlePost = {
   can_check: boolean;
   can_measure: boolean;
   comment: Post["comment"];
+  /** The plan script's pinned comments as written under this post; null when none were made. */
+  pinned_comments: PostPinnedComments | null;
   /** Reach is the main number: a feed post has no views. The share/reach rate is null under 50 people reached. */
   numbers: {
     latest: ArticleNumbers | null;

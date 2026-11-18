@@ -19,7 +19,7 @@ from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import articles
+from . import articles, slot_comments
 from .article_posts import comparable
 from .models import (
     ARTICLE_KINDS,
@@ -43,6 +43,7 @@ MAX_BODY = 2000
 MAX_CTA = 300
 MAX_BRIEF = 500
 MAX_TONE = 500
+MAX_AUDIENCE = 200
 MAX_LINKS = 10
 RECENT_DAYS = 60  # a hook like one posted on the Page this recently is a warning
 SIMILAR = 0.8  # the share of words two hooks have in common to be "gần giống"
@@ -85,6 +86,17 @@ TEMPLATE_ROWS = [
         "image_urls": [],
         "format": "Mẹo",
         "topic_group": "Sức khỏe",
+        "pinned_comments": [
+            {"type": "cong_dung", "text": "Yến mạch giàu chất xơ, giúp no lâu và hỗ trợ tiêu hóa nhẹ nhàng hơn."},
+            {"type": "cach_lam", "text": "Ngâm yến mạch với sữa chua qua đêm, sáng ra chỉ việc thêm trái cây."},
+            {"type": "luu_y", "text": "Mỗi bữa khoảng 3–4 muỗng canh yến mạch là vừa, ăn nhiều dễ đầy bụng."},
+            {"type": "nen_dung", "text": "Hợp với người hay bỏ bữa sáng, dân văn phòng cần bữa nhanh gọn."},
+            {
+                "type": "han_che",
+                "text": "Người có bệnh dạ dày hoặc tiểu đường nên hỏi bác sĩ trước khi ăn thường xuyên.",
+            },
+        ],
+        "pin_index": 0,
     },
     {
         "day": None,
@@ -99,7 +111,25 @@ TEMPLATE_ROWS = [
         "topic_group": "Sức khỏe",
     },
 ]
-COLUMNS = ("day", "slot", "hook", "body", "cta", "hashtags", "image_brief", "image_urls", "format", "topic_group")
+COLUMNS = (
+    "day",
+    "slot",
+    "hook",
+    "body",
+    "cta",
+    "hashtags",
+    "image_brief",
+    "image_urls",
+    "format",
+    "topic_group",
+    "cmt_1",
+    "cmt_2",
+    "cmt_3",
+    "cmt_4",
+    "cmt_5",
+    "cmt_types",
+    "pin_index",
+)
 
 
 class PlanFileError(ValueError):
@@ -177,6 +207,7 @@ def apply_settings(
     topic_group_ids: list[int],
     kind_mix: dict[str, int],
     tone: str,
+    audience: str = "",
 ) -> int:
     """Checks and saves "Thiết lập"; with fewer posts a day, the scripts of the slots dropped go to the Backlog (never
     deleted). Returns how many moved. Raises ValueError with the reason."""
@@ -205,6 +236,9 @@ def apply_settings(
     tone = " ".join(tone.split())
     if len(tone) > MAX_TONE:
         raise ValueError(f"Giọng văn dài quá {MAX_TONE} ký tự")
+    audience = " ".join(audience.split())
+    if len(audience) > MAX_AUDIENCE:
+        raise ValueError(f"Nhóm đối tượng dài quá {MAX_AUDIENCE} ký tự")
     moved = 0
     if plan.id is not None and per_day < plan.per_day:
         dropped = db.scalars(
@@ -216,7 +250,7 @@ def apply_settings(
             to_backlog(slot)
             moved += 1
     plan.start_date, plan.per_day, plan.post_times = start_date, per_day, times
-    plan.topic_group_ids, plan.kind_mix, plan.tone = groups, mix, tone
+    plan.topic_group_ids, plan.kind_mix, plan.tone, plan.audience = groups, mix, tone, audience
     return moved
 
 
@@ -273,6 +307,7 @@ def slot_payload(slot: ArticlePlanSlot, plan: ArticlePlan, posts: list[Publicati
         "article_id": slot.article_id,
         "post_at": at.isoformat() if at else None,
         "created_by_id": slot.created_by_id,
+        **slot_comments.slot_fields(slot),
     }
 
 
@@ -307,12 +342,17 @@ def payload(db: DbSession, page: Fanpage, plan: ArticlePlan | None, user_id: int
             "topic_group_ids": plan.topic_group_ids,
             "kind_mix": plan.kind_mix,
             "tone": plan.tone,
+            "audience": plan.audience,
             "total": PLAN_DAYS * plan.per_day,
             "used": sum(1 for row in placed if row["status"] in ("used", "scheduled", "posted")),
             "scheduled": sum(1 for row in placed if row["status"] == "scheduled"),
             "posted": sum(1 for row in placed if row["status"] == "posted"),
             "empty_days": empty_days,
             "backlog": sum(1 for row in rows if row["day"] is None),
+            # "Bình luận: 72/87 kịch bản đủ 5/5" over the scripts on the grid, and the "Tạo bình luận ghim" jobs
+            # still queued or running.
+            "comments": slot_comments.summary(placed),
+            "comments_pending": slot_comments.progress(db, plan.id),
         },
         "slots": placed,
         "backlog": [row for row in rows if row["day"] is None],
@@ -396,6 +436,11 @@ class Row:
     # The kind and topic group as the file names them, so saving checks the same names again.
     format: str = ""
     topic_group: str = ""
+    # "Bình luận ghim" as the file gives them (slot_comments.py), and which one is pinned.
+    pinned_comments: list[dict] = field(default_factory=list)
+    pin_index: int = 0
+    # What saving does with it: "add", "skip_posted" or "skip_used" (the slot already has an article), or "skip".
+    action: str = "add"
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     # Where saving puts it: "day:slot", "backlog" or "skip", with why when it is not where the file says.
@@ -544,6 +589,14 @@ def read_rows(db: DbSession, plan: ArticlePlan, records: list[dict]) -> list[Row
             elif not row.errors:
                 # A row that is not saved does not hold its slot against a later one.
                 seen[(row.day, row.slot)] = index
+        checked, shown = slot_comments.from_record(record)
+        row.pinned_comments = [
+            {"type": item.get("type"), "text": item.get("text")} for item in shown if isinstance(item, dict)
+        ]
+        row.errors.extend(checked.errors)
+        row.warnings.extend(checked.warnings)
+        if not checked.errors:
+            row.pinned_comments, row.pin_index = slot_comments.stored(checked.items), checked.pin_index
         words = _hook_words(row.hook)
         like = next((when for hook, when in recent if _alike(words, hook)), None)
         if like is not None:
@@ -559,6 +612,7 @@ def _place(db: DbSession, plan: ArticlePlan, rows: list[Row], placement: str, co
         for slot in slots_of(db, plan.id)
         if slot.day is not None and slot.slot <= plan.per_day
     }
+    posts = _posts_by_article(db, [slot.article_id for slot in taken.values() if slot.article_id is not None])
     claimed: set[tuple[int, int]] = set()
     free = [
         (day, number)
@@ -567,8 +621,9 @@ def _place(db: DbSession, plan: ArticlePlan, rows: list[Row], placement: str, co
         if (day, number) not in taken
     ]
     for row in rows:
+        row.action = "add"
         if row.errors:
-            row.target, row.note = "skip", "Dòng lỗi không được lưu"
+            row.target, row.note, row.action = "skip", "Dòng lỗi không được lưu", "skip"
             continue
         if placement == "fill_empty":
             spot = next((cell for cell in free if cell not in claimed), None)
@@ -596,7 +651,13 @@ def _place(db: DbSession, plan: ArticlePlan, rows: list[Row], placement: str, co
         row.target = f"{spot[0]}:{spot[1]}"
         if there is None:
             continue
-        if conflict == "skip":
+        if there.article_id is not None:
+            # A slot an article was made from is never overwritten or moved: the file's row is skipped.
+            done = slot_status(there, posts.get(there.article_id, []))
+            row.target, row.action = "skip", "skip_posted" if done == "posted" else "skip_used"
+            row.note = "Ô đã đăng → bỏ qua" if done == "posted" else "Ô đã tạo bài → bỏ qua"
+        elif conflict == "skip":
+            row.action = "skip"
             row.target, row.note = "skip", "Ô đã có kịch bản → bỏ qua dòng mới"
         elif conflict == "overwrite" and there.article_id is None:
             row.note = "Ghi đè kịch bản cũ"
@@ -653,6 +714,12 @@ def apply_rows(
             source=source,
             created_by_id=user_id,
         )
+        if row.pinned_comments:
+            # Checked again here, so a row changed in the browser cannot store what a file may not.
+            checked = slot_comments.check(row.pinned_comments, row.pin_index, row.kind)
+            if checked.errors:
+                raise ValueError(f"Dòng {row.row}: " + "; ".join(checked.errors))
+            slot_comments.set_comments(slot, checked, "import", edited=False)
         if row.target != "backlog":
             day, number = (int(part) for part in row.target.split(":"))
             there = cell(db, plan.id, day, number)
@@ -697,12 +764,15 @@ def check_rows(db: DbSession, plan: ArticlePlan, rows: list[Row]) -> None:
             "image_urls": row.image_urls,
             "format": row.format,
             "topic_group": row.topic_group,
+            "pinned_comments": row.pinned_comments,
+            "pin_index": row.pin_index,
         }
         for row in rows
     ]
     for row, checked in zip(rows, read_rows(db, plan, records), strict=True):
         row.errors, row.warnings = checked.errors, checked.warnings
         row.hashtags, row.kind, row.knowledge_topic_id = checked.hashtags, checked.kind, checked.knowledge_topic_id
+        row.pinned_comments, row.pin_index = checked.pinned_comments, checked.pin_index
 
 
 def template(kind: str, group_name: str) -> tuple[bytes, str, str]:
@@ -714,9 +784,14 @@ def template(kind: str, group_name: str) -> tuple[bytes, str, str]:
     writer = csv.DictWriter(out, fieldnames=COLUMNS)
     writer.writeheader()
     for row in rows:
+        comments = row.get("pinned_comments", [])
+        cells = {f"cmt_{n}": comments[n - 1]["text"] if n <= len(comments) else "" for n in range(1, 6)}
         writer.writerow(
             {
-                **row,
+                **{key: value for key, value in row.items() if key in COLUMNS},
+                **cells,
+                "cmt_types": "|".join(item.get("type") or "" for item in comments),
+                "pin_index": row.get("pin_index", "") if comments else "",
                 "day": row["day"] or "",
                 "slot": row["slot"] or "",
                 "hashtags": " ".join(row["hashtags"]),
