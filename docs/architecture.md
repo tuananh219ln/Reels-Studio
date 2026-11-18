@@ -847,13 +847,13 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     ngay" / "Cập nhật bình luận", `POST /api/posts/{id}/comment` (409 unless live). The attempt is stamped
     before Facebook is asked; a comment already written is edited, never written again, and a retry after a
     lost answer first looks for the Page's comment with the same text. Then the video's "Bình luận thêm"
-    (`videos.extra_comments`, up to 5, set on "Nội dung đăng" with `PATCH /api/videos/{id}`) are written under the
-    reel in order, each kept by place in `publications.extra_comment_ids` / `extra_comment_texts` (migration 0080):
+    (`videos.extra_comments`, up to 12, set on "Nội dung đăng" with `PATCH /api/videos/{id}`) are written under the
+    reel in order, one Facebook write per worker turn with the Page resting between them (`fanpages.comments_next_at`, migration 0104: 30–60 s after the first comment, 45–90 s between the extras, 5 minutes after a video's last one before the Page starts another video's; a rest is a request dated ahead in `comment_requested_at`; at most 100 comments a Page a day in Vietnam time, `comments_day`/`comments_count`), each kept by place in `publications.extra_comment_ids` / `extra_comment_texts` (migration 0080):
     edited when its text changed, written once, and one removed from the video is left on Facebook. Facebook does
     not let an app tag (@) people, so an "@name" is plain text. A failed attempt (or no text to write)
     is recorded and waits for a member. Products are attached on the video page before posting, or on
     `/affiliate` after, with `PUT /api/affiliate-products/videos/{id}`; changing them asks the worker to edit
-    each live post's comment. `GET /api/affiliate-products/videos` gives each video its live posts (`posts`:
+    each live post's comment. A change to a product itself (its link, name or other fields, approval, removal, or the worker's daily check dropping it or finding a new product page) does the same for every live post whose video or article carries it (`affiliate.ask_comment_refresh`); a changed link also drops the Page-account short links made for it so the edit makes them again. `GET /api/affiliate-products/videos` gives each video its live posts (`posts`:
     the Page or TikTok account, its owner, and `has_shopee_account`, `affiliate.page_account` as the comment
     uses it), `mine` (posted by the member or live on a Page or account of theirs) and, per attached Shopee
     product, `commission`: for each Page, `affiliate.commission_to` (`page_account`, `saved_link` or `no_link`,

@@ -348,6 +348,16 @@ asks the assistant to write each copy a new title with the same idea and numbers
 the hook is rewritten on the member's own plan rather than the team's AI service. A changed title ends the copy's
 "Đổi tiêu đề" reminder as on the web.
 
+## A detailed comment per dish
+
+`list_videos_for_food_comments` (read) lists the member's videos that went live on Facebook within 7 days with each
+content scene's text and voice; the member's own assistant (Claude on the web, no AI cost to the team) writes one
+comment per dish from them and `set_food_comments` (write) saves them as the video's "Bình luận thêm"
+(`videos.extra_comments`, up to 12) and asks the comment worker to write them under each such post, after the pinned
+one ([food_comments.py](../api/src/reels_api/food_comments.py)). A comment of 80–1500 characters that promises a cure
+or holds a banned word of the video's group is refused; a video marked "Đã dán link tay" is saved but not posted.
+Decision: [2026-11-18-food-comments](decisions/2026-11-18-food-comments.md).
+
 ## Reading Pages, results, jobs and comments
 
 Four read-only tools let an assistant run the flow without screenshots: each reads what a web page reads, compactly,

@@ -7,7 +7,7 @@ import { api, errorMessage, type VideoDetail } from "@/lib/api";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 
 /** At most this many (api routes_videos.MAX_EXTRA_COMMENTS). */
-const MAX = 5;
+const MAX = 12;
 
 /** "Bình luận thêm" under "Bình luận ghim": more comments the Page writes under each reel after the first, in order,
  * when the post's comment is written (post_comments.py). Each saved line is edited in place; "Thêm bình luận" adds

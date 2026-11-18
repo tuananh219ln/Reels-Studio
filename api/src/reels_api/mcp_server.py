@@ -38,6 +38,7 @@ from . import (
     brands,
     clips,
     duplicate,
+    food_comments,
     footage_tools,
     frames,
     jobs,
@@ -704,6 +705,40 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     async def get_video(video_id: int) -> dict:
         """Đọc kịch bản, ID các cảnh, cảnh báo, điều kiện render và trạng thái job trước khi sửa."""
         return await run_in_threadpool(invoke, lambda db, me: video_link(videos.get_video(video_id, me, db)))
+
+    @tool("Liệt kê video cần bình luận chi tiết từng món", read=True)
+    async def list_videos_for_food_comments(days: Annotated[int, Field(ge=1, le=7)] = 7) -> dict:
+        """Video của thành viên đã lên Facebook trong `days` ngày qua, kèm tiêu đề, chữ và lời đọc của từng cảnh
+        (mỗi cảnh thường là một món) và số bình luận chi tiết đã lưu (comments_saved). Viết bình luận cho video có
+        comments_saved bằng 0 trước. Dùng trước "Lưu bình luận chi tiết từng món"."""
+        return await run_in_threadpool(
+            invoke, lambda db, me: {"videos": food_comments.candidates(db, me.user_id, days)}
+        )
+
+    @tool("Lưu bình luận chi tiết từng món", read=False)
+    async def set_food_comments(
+        video_id: int,
+        comments: Annotated[
+            list[str],
+            Field(
+                description=(
+                    "Mỗi món một bình luận, đúng thứ tự cảnh (bỏ cảnh kết/kêu gọi), 80–1500 ký tự mỗi bình luận"
+                ),
+                min_length=1,
+                max_length=food_comments.MAX_COMMENTS,
+            ),
+        ],
+    ) -> dict:
+        """Lưu bình luận chi tiết của video (thay toàn bộ lần trước) và nhờ worker đăng dưới các bài của video lên
+        Facebook trong 7 ngày qua, sau bình luận ghim. Viết bằng gói Claude của người dùng, từ chính chữ và lời đọc
+        của các cảnh, cụ thể hơn: tên món (dòng đầu, có số thứ tự), công dụng, cách làm gọn từng bước, ai không nên
+        ăn hoặc cần hỏi bác sĩ (bệnh nền, thai kỳ, đang dùng thuốc...). Giọng ấm áp như tờ rơi sức khỏe, không hứa
+        chữa khỏi bệnh, không thay thế thuốc, không dùng từ cấm của nhóm chủ đề; bình luận có từ đó bị từ chối. Không
+        bịa số liệu. Gọi lại với danh sách mới sẽ sửa bình luận đã đăng theo vị trí; bớt bình luận không xóa được
+        bình luận cũ trên Facebook."""
+        return await run_in_threadpool(
+            invoke, lambda db, me: food_comments.save(db, me.user_id, video_id, comments), write=True
+        )
 
     @tool("Đọc nhóm chủ đề", read=True)
     async def list_topic_groups() -> dict:
