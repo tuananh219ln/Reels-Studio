@@ -193,7 +193,7 @@ failed check, look at the MP4's frames after it, and say the video is done only 
      **OAuth**. The workspace owner may need to allow custom connections.
    - **Claude (web, Desktop):** Settings › Connectors › add a custom connector with that URL.
    - **Claude Code:** `claude mcp add --transport http reels-studio <URL>`, then `/mcp` to sign in.
-   - **Gemini CLI:** `gemini mcp add --transport http reels-studio <URL>`, then `/mcp auth reels-studio` to sign in.
+   - **Gemini CLI:** `gemini mcp add --scope user --transport http reels-studio <URL>`, then `/mcp auth reels-studio` to sign in.
 
    This server supports dynamic client registration (DCR), public clients and S256 PKCE; it does not
    support CIMD or a client secret, so Claude falls back to DCR.
