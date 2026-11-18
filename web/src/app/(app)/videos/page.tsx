@@ -1193,7 +1193,7 @@ function NewVideoModal({
               <>
                 {llm.problem}.{" "}
                 <Link prefetch={false} href="/settings/ai">
-                  Mở Cài đặt › Mô hình AI
+                  Mở Cài đặt › AI và nguồn tư liệu
                 </Link>
               </>
             ) : (

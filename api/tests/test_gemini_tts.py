@@ -51,7 +51,7 @@ def test_with_no_voice_key_at_all_the_voice_list_names_both_pages(an, fakes, mon
     refused = an.get("/api/settings/voices")
     assert refused.status_code == 422
     message = refused.json()["message"]
-    assert "Nguồn tư liệu" in message and "Mô hình AI" in message and "Gemini" in message
+    assert "AI và nguồn tư liệu" in message and "AI và nguồn tư liệu" in message and "Gemini" in message
 
 
 def test_a_gemini_voice_is_a_valid_voice_id_read_with_the_gemini_key():
@@ -96,7 +96,7 @@ def test_render_with_a_gemini_voice_and_no_key_says_where_to_paste_one(committed
     use_kore(committed, video_id)
     monkeypatch.setenv("IMAGE_GEN_API_KEY", "")
     job = render(committed, storage, video_id, user.id)
-    assert job.status == "failed" and "Chưa có key Gemini" in job.error and "Nguồn tư liệu" in job.error
+    assert job.status == "failed" and "Chưa có key Gemini" in job.error and "AI và nguồn tư liệu" in job.error
     assert fakes.gemini_tts_requests == []
 
 

@@ -6,9 +6,9 @@
   [architecture.md](architecture.md#tech-stack) for which work runs in the worker and how
   rendering is composited.
 - **Provider choice is configuration.** The ElevenLabs voice and model are selected by config; the
-  LLM provider, its base URL and model are chosen on Cài đặt › Mô hình AI ([llm.py](../api/src/reels_api/llm.py)).
+  LLM provider, its base URL and model are chosen on Cài đặt › AI và nguồn tư liệu ([llm.py](../api/src/reels_api/llm.py)).
   Nothing is hard-coded. Stock sources are offered when their key is set and the team has not turned
-  them off on Cài đặt › Nguồn tư liệu; the render core's CLI stays Pixabay-only.
+  them off on Cài đặt › AI và nguồn tư liệu; the render core's CLI stays Pixabay-only.
 - **Pages stay light on the web worker.** Every page render and every `/api` call passes through the
   OpenNext worker, which costs about a second or more per request in production. So pages poll with
   `usePolling` ([polling.ts](../web/src/lib/polling.ts)): the next poll waits for the previous

@@ -80,7 +80,7 @@ def test_only_a_ready_provider_can_be_put_in_use(an, fakes):
     refused = an.put(f"{URL}/active", json={"provider": "openai"})
     assert (refused.status_code, refused.json()["message"]) == (
         422,
-        "Chưa có API key cho OpenAI: nhập trong Cài đặt › Mô hình AI",
+        "Chưa có API key cho OpenAI: nhập trong Cài đặt › AI và nguồn tư liệu",
     )
     refused = an.put(f"{URL}/active", json={"provider": "custom"})
     assert refused.json()["message"].startswith("Chưa có API key cho Tùy chỉnh")

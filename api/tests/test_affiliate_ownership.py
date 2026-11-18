@@ -146,6 +146,7 @@ def test_a_tiktok_post_belongs_to_the_owner_of_its_tiktok_account(an, binh, db, 
         "has_shopee_account": False,
         "comment": "off",
         "comment_error": None,
+        "links": "off",
     }
     assert videos(binh)[video.id]["mine"] is True
 

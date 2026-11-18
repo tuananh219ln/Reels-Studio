@@ -493,7 +493,7 @@ def search_stock(
     if len(keyword) > MAX_KEYWORD_LENGTH:
         raise invalid(f"Từ khóa dài quá {MAX_KEYWORD_LENGTH} ký tự")
     if source in stock_turned_off(db):
-        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+        raise invalid("Nguồn này đang tắt trong Cài đặt › AI và nguồn tư liệu")
     client, error_type = stock_client(source, db)
     orientation = stock_orientation(orientation)
     db.rollback()
@@ -530,7 +530,7 @@ def choose_stock(
     as for a scene. Its address and any credit line its licence asks for are kept."""
     article_images.ensure_room(db, _editable(db, article_id).id)
     if body.source in stock_turned_off(db):
-        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+        raise invalid("Nguồn này đang tắt trong Cài đặt › AI và nguồn tư liệu")
     client, error_type = stock_client(body.source, db)
     orientation = stock_orientation(body.orientation)
     db.rollback()

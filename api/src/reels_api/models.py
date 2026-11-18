@@ -835,9 +835,33 @@ class AppSetting(Base):
     )
 
 
+class ApiKey(Base):
+    """A backup narration key of the team (source_keys.py), under the main key on the settings pages and tried in
+    `position` order after it once it fails. `service`: elevenlabs, gemini or vieneu. The key is stored encrypted
+    (crypto) and never sent back; `tail` keeps its last characters for the pages and the logs. `error`/`error_at`:
+    why and when a narration last could not use it (wrong key, quota spent), shown on its row until it reads again."""
+
+    __tablename__ = "api_keys"
+    __table_args__ = (Index("ix_api_keys_service_position", "service", "position"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    service: Mapped[str] = mapped_column(String(20))
+    label: Mapped[str] = mapped_column(String(40))
+    key_encrypted: Mapped[str] = mapped_column(Text)
+    tail: Mapped[str] = mapped_column(String(8))
+    position: Mapped[int] = mapped_column(Integer)
+    error: Mapped[str | None] = mapped_column(Text)
+    error_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class AiServiceCall(Base):
     """One request the app sent to Gemini or Cloudflare Workers AI (service_usage.py), for the calls-today count on
-    Cài đặt › Nguồn tư liệu. `kind`: image, edit or voice. Rows older than a few weeks are removed as new ones come."""
+    Cài đặt › AI và nguồn tư liệu. `kind`: image, edit or voice. Rows older than a few weeks are removed as new ones come."""
 
     __tablename__ = "ai_service_calls"
     __table_args__ = (Index("ix_ai_service_calls_service_created_at", "service", "created_at"),)
@@ -938,6 +962,9 @@ class Publication(Base):
     # When the worker last read the visitors' comments under the reel (comments_inbox.py), and what went wrong then.
     comments_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     comments_error: Mapped[str | None] = mapped_column(Text)
+    # The Page's own comments under the reel at that reading: "link" (one holds a Shopee link), "no_link" or "none";
+    # NULL until read. Covers links pasted by hand on Facebook (post_comments.link_state).
+    own_comment: Mapped[str | None] = mapped_column(String(10))
     # Where each scene starts and ends in the MP4 sent as `remote_id` ({label, start, end} in seconds), taken when it
     # was uploaded, so the retention curve is read against the scenes that were posted, not later edits.
     scene_marks: Mapped[list | None] = mapped_column(JSONB)

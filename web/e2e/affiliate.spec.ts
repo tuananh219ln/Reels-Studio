@@ -305,7 +305,7 @@ test("an article's products show even when its page never saw the search pending
 test("Video đã đăng starts on the member's own and says whose commission each product earns", async ({ page }) => {
   await loginAsSeed(page);
   const me = (await (await page.request.get("/api/me")).json()) as { id: number };
-  const post = (name: string, ownerId: number, owner: string) => ({
+  const post = (name: string, ownerId: number, owner: string, links = "missing") => ({
     platform: "facebook",
     fanpage_id: ownerId,
     name,
@@ -315,6 +315,7 @@ test("Video đã đăng starts on the member's own and says whose commission eac
     has_shopee_account: false,
     comment: "off",
     comment_error: null,
+    links,
   });
   const video = (id: number, title: string, mine: boolean, posts: object[], products: object[]) => ({
     id,
@@ -378,7 +379,7 @@ test("Video đã đăng starts on the member's own and says whose commission eac
         },
       ],
     ),
-    video(2, "Bài của đồng đội", false, [post("Trang Bình", me.id + 1, "Trần Bình")], []),
+    video(2, "Bài của đồng đội", false, [post("Trang Bình", me.id + 1, "Trần Bình", "yes")], []),
   ];
   await page.route("**/api/affiliate-products/videos", (route) => route.fulfill({ json: rows() }));
   // "Đã dán link tay" answers with the video marked, as the api does.
@@ -396,11 +397,20 @@ test("Video đã đăng starts on the member's own and says whose commission eac
   ]);
   await expect(page.getByRole("row", { name: /Bài của đồng đội/ })).toHaveCount(0);
 
-  // Pasted by hand: the comment is the member's, and the video moves to its own tab.
-  await expect(mine.getByTestId("comment-status")).toHaveText("Chưa bình luận");
-  await mine.getByRole("button", { name: "Đã dán link tay" }).click();
-  await expect(mine.getByTestId("comment-status")).toHaveText("Dán tay");
+  // The Page commented without a link: the row and the Page's dot say so, and "Thiếu link" lists it.
+  await expect(mine.getByTestId("comment-status")).toHaveText("Đã bình luận, thiếu link");
+  await expect(mine.getByTestId("link-dot")).toHaveAttribute("data-links", "missing");
   const linked = page.getByLabel("Lọc theo sản phẩm đã gắn");
+  await linked.getByText("Thiếu link (1)").click();
+  await expect(mine).toBeVisible();
+  await expect(mine.getByRole("button", { name: "Thêm link" })).toBeVisible();
+
+  // Pasted by hand (⋯): the comment is the member's, and the video moves to its own tab.
+  await expect(async () => {
+    await mine.getByRole("button", { name: "Thêm thao tác bình luận: Trà gừng cho người trên 50" }).click();
+    await page.getByRole("menuitem", { name: "Đã dán link tay" }).click({ timeout: 2_000 });
+  }).toPass();
+  await expect(mine.getByTestId("comment-status")).toHaveText("Dán tay · đã bình luận, thiếu link");
   await linked.getByText("Dán tay (1)").click();
   await expect(mine).toBeVisible();
   await linked.getByText("Tất cả (1)").click();
@@ -417,6 +427,8 @@ test("Video đã đăng starts on the member's own and says whose commission eac
   await page.getByLabel("Của ai").getByText("Cả đội (2)").click();
   const theirs = page.getByRole("row", { name: /Bài của đồng đội/ });
   await expect(theirs.getByTestId("video-post")).toHaveText("Trang Bình (Trần Bình)");
+  await expect(theirs.getByTestId("comment-status")).toHaveText("Có link");
+  await expect(theirs.getByRole("button", { name: "Xem bình luận" })).toBeVisible();
 });
 
 test("Sản phẩm: my groups first, who added each product, and stars or sales fixed on the row", async ({ page }) => {

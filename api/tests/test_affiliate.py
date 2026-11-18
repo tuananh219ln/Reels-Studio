@@ -535,3 +535,72 @@ def test_a_post_without_a_comment_or_not_live_is_left_to_write_its_first(an, db,
     db.commit()
     an.put(f"{URL}/{product['id']}", json=body(db, url="https://s.shopee.vn/newer"))
     assert not _asked(db, post)
+
+
+# Whether the Page's comments hold a link ("Thiếu link", decisions/2026-11-18-affiliate-comment-links.md)
+
+
+def _links(an, video) -> list[str]:
+    (row,) = [row for row in an.get(f"{URL}/videos").json() if row["id"] == video.id]
+    return [post["links"] for post in row["posts"]]
+
+
+def _post(db, video) -> Publication:
+    return db.query(Publication).filter_by(video_id=video.id).one()
+
+
+def test_a_comment_the_app_wrote_without_a_link_is_missing_one(an, db, me, storage):
+    video = posted_video(db, storage, me)
+    post = _post(db, video)
+    post.comment_id, post.comment_text = "c1", "Nếu là bạn, bạn sẽ đáp lại như thế nào?"
+    db.commit()
+    assert _links(an, video) == ["missing"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["ghim\nVừng đen: https://s.shopee.vn/abc", "ghim\nVừng đen: s.shopee.vn/abc", "https://shopee.vn/a-i.1.2"],
+)
+def test_a_comment_the_app_wrote_with_a_shopee_link_has_one(an, db, me, storage, text):
+    video = posted_video(db, storage, me)
+    post = _post(db, video)
+    post.comment_id, post.comment_text = "c1", text
+    db.commit()
+    assert _links(an, video) == ["yes"]
+
+
+def test_a_link_in_a_later_comment_counts(an, db, me, storage):
+    video = posted_video(db, storage, me)
+    post = _post(db, video)
+    post.comment_id, post.comment_text = "c1", "ghim"
+    post.extra_comment_ids, post.extra_comment_texts = ["c2"], ["Mua ở đây: shp.ee/xyz"]
+    db.commit()
+    assert _links(an, video) == ["yes"]
+
+
+def test_a_comment_about_to_be_edited_is_updating(an, db, me, storage):
+    video, _, post = _with_written_comment(db, storage, me, an)
+    post.comment_requested_at = datetime.now(UTC)
+    db.commit()
+    assert _links(an, video) == ["updating"]
+
+
+def test_a_link_pasted_by_hand_is_known_from_the_reading(an, db, me, storage):
+    video = posted_video(db, storage, me)
+    assert an.put(f"{URL}/videos/{video.id}/manual", json={"manual": True}).status_code == 200
+    assert _links(an, video) == ["unknown"]
+    post = _post(db, video)
+    post.own_comment = "link"
+    db.commit()
+    assert _links(an, video) == ["yes"]
+    post.own_comment = "none"
+    db.commit()
+    assert _links(an, video) == ["none"]
+
+
+def test_a_post_the_app_will_comment_on_has_none_yet(an, db, me, storage):
+    video = posted_video(db, storage, me)
+    post = _post(db, video)
+    post.auto_comment = True
+    db.commit()
+    assert _links(an, video) == ["none"]

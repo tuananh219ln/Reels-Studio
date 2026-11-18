@@ -469,6 +469,12 @@ def page_comment(page: Page, object_id: str, message: str) -> str | None:
 def visitor_comments(page: Page, object_id: str) -> list[dict]:
     """The newest 100 top-level comments under the reel that are not the Page's own: each `id`, `message`, `author`,
     `created` (UTC), `hidden`, and `answered` when the Page replied under it. Needs `pages_read_user_content`."""
+    return reel_comments(page, object_id)[0]
+
+
+def reel_comments(page: Page, object_id: str) -> tuple[list[dict], list[str], bool]:
+    """One reading of the newest 100 top-level comments under the reel: the visitors' (as `visitor_comments`), the
+    texts of the Page's own, and whether there may be older ones this reading did not reach."""
     query = urllib.parse.urlencode(
         {
             "fields": "id,message,from{id,name},created_time,is_hidden,comments.limit(25){from{id}}",
@@ -493,10 +499,14 @@ def visitor_comments(page: Page, object_id: str) -> list[dict]:
         if err.status == 404 or err.code == 100:
             raise _unreadable_comments(page, object_id, err) from None
         raise
-    found = []
-    for item in reply.get("data") or []:
+    found, own = [], []
+    items = reply.get("data") or []
+    for item in items:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
         author = item.get("from") or {}
-        if not isinstance(item, dict) or not item.get("id") or str(author.get("id")) == page.id:
+        if str(author.get("id")) == page.id:
+            own.append(str(item.get("message") or ""))
             continue
         replies = (item.get("comments") or {}).get("data") or []
         found.append(
@@ -509,7 +519,7 @@ def visitor_comments(page: Page, object_id: str) -> list[dict]:
                 "answered": any(str((one.get("from") or {}).get("id")) == page.id for one in replies),
             }
         )
-    return found
+    return found, own, len(items) >= 100 or bool((reply.get("paging") or {}).get("next"))
 
 
 def _unreadable_comments(page: Page, object_id: str, err: FacebookError) -> FacebookError:
