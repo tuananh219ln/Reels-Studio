@@ -164,3 +164,32 @@ def test_the_worker_round_reads_and_sends_nothing(committed, fakes, tmp_path):  
     with committed() as db:
         db.execute(PageComment.__table__.delete())
         db.commit()
+
+
+# The Page's own comments: whether one holds a Shopee link (decisions/2026-11-18-affiliate-comment-links.md)
+
+
+def own_comment(db, post) -> str | None:
+    db.refresh(post)
+    return post.own_comment
+
+
+def test_reading_records_whether_the_pages_own_comment_holds_a_link(db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    fakes.add_visitor_comment(post.remote_id, "https://s.shopee.vn/not-the-pages")
+    comments_inbox.read(db, post)
+    assert own_comment(db, post) == "none"
+    page_comment = fakes._comment(post.remote_id, {"access_token": FACEBOOK_TOKEN, "message": "Hay không?"}, True)
+    comments_inbox.read(db, post)
+    assert own_comment(db, post) == "no_link"
+    fakes.facebook_comments[page_comment[1]["id"]]["message"] = "Mua ở đây: s.shopee.vn/abc"
+    comments_inbox.read(db, post)
+    assert own_comment(db, post) == "link"
+
+
+def test_a_reading_that_may_not_reach_an_older_comment_keeps_the_link_it_knew():
+    assert comments_inbox._own_comment("link", [], more=True) == "link"
+    assert comments_inbox._own_comment("link", ["Hay không?"], more=True) == "link"
+    assert comments_inbox._own_comment(None, [], more=True) is None
+    assert comments_inbox._own_comment("link", [], more=False) == "none"
+    assert comments_inbox._own_comment("link", ["Hay không?"], more=False) == "no_link"

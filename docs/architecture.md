@@ -897,7 +897,13 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     the same choice `link_for` makes) and whose it is. A video marked "Đã dán link tay" (`videos.manual_comment`, migration 0072,
     `PUT /api/affiliate-products/videos/{id}/manual`) is skipped by the comment worker, its product changes ask
     for no edit, and "Bình luận ngay" on its posts answers 409: a member pasted its links on Facebook. Every post payload has `comment` (`state`: off, waiting, pending, done or failed;
-    `auto`, `error`, `text`, `at`). Members still pin the comment on Facebook.
+    `auto`, `error`, `text`, `at`, and `links`). Members still pin the comment on Facebook. `links`
+    (`post_comments.link_state`, also on each of `GET /api/affiliate-products/videos`'s `posts`) says whether the
+    Page's comments under the reel hold a Shopee link (`shopee.has_link`, with or without `https://`): `yes` when the
+    texts the app wrote or the Page's own comments last read on Facebook (`publications.own_comment`, migration 0107)
+    hold one, `updating` while the app is asked to write or edit, `missing` when the Page commented without one,
+    `none` before any comment, `unknown` when nothing was read and the app does not comment (a video pasted by hand
+    on an old reel), `off` off Facebook.
   - **Shopee** ([affiliate_rounds.py](../api/src/reels_api/affiliate_rounds.py), [shopee.py](../api/src/reels_api/shopee.py))
     is the worker's too, between jobs: the suggestions of one asked video per round (a new script asks by itself
     when its writer has a Shopee account; "Tìm sản phẩm" is `POST /api/affiliate-products/videos/{id}/suggestions`,
@@ -916,7 +922,9 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
   - **Visitors' comments** ([comments_inbox.py](../api/src/reels_api/comments_inbox.py),
     [routes_comments.py](../api/src/reels_api/routes_comments.py)) are read by the worker too, between jobs: each
     round reads the comments of up to 3 live posts of the last 14 days due a reading (every 30 minutes). The Page's
-    own comments are left out. `GET /api/comments` lists the newest 300 (`state=open`: not answered or hidden;
+    own comments are not kept, only whether one holds a Shopee link (`own_comment`: `link`, `no_link` or `none`;
+    the same request, no extra Facebook call). A reel with more comments than one reading holds (100) keeps a
+    `link` it saw before and does not turn a finding of none into `none`. `GET /api/comments` lists the newest 300 (`state=open`: not answered or hidden;
     `whose=mine`: under a post the member made or on a Page they own), with the reel, its Page and the Pages whose
     reading failed; Bài viết uses it to pick the comment a "Trả lời bình luận" article answers. Nothing here writes
     to Facebook: the "Bình luận" page that answered, hid and set comments aside is gone (decisions 2026-11-10).

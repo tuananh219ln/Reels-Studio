@@ -930,6 +930,9 @@ class Publication(Base):
     # When the worker last read the visitors' comments under the reel (comments_inbox.py), and what went wrong then.
     comments_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     comments_error: Mapped[str | None] = mapped_column(Text)
+    # The Page's own comments under the reel at that reading: "link" (one holds a Shopee link), "no_link" or "none";
+    # NULL until read. Covers links pasted by hand on Facebook (post_comments.link_state).
+    own_comment: Mapped[str | None] = mapped_column(String(10))
     # Where each scene starts and ends in the MP4 sent as `remote_id` ({label, start, end} in seconds), taken when it
     # was uploaded, so the retention curve is read against the scenes that were posted, not later edits.
     scene_marks: Mapped[list | None] = mapped_column(JSONB)

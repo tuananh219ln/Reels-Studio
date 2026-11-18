@@ -16,12 +16,36 @@ import {
   type AffiliateProduct,
   type AffiliateVideo,
 } from "@/lib/api";
+import { lacksLink, linksSummary } from "@/lib/commentLinks";
 import { useUrlChoice, useUrlId, useUrlPage } from "@/lib/urlState";
-import { AppstoreOutlined, CloseOutlined, ProfileOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Segmented, Select, Table, Tag, Tooltip, Typography } from "antd";
+import {
+  AppstoreOutlined,
+  CloseOutlined,
+  EllipsisOutlined,
+  LinkOutlined,
+  ProfileOutlined,
+  SearchOutlined,
+  TableOutlined,
+} from "@ant-design/icons";
+import {
+  App,
+  Button,
+  Card,
+  Dropdown,
+  Flex,
+  Input,
+  Segmented,
+  Select,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+  theme,
+} from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import StatusText from "@/components/StatusText";
 import PlacesChip from "./PlacesChip";
 
 type Product = AffiliateVideo["products"][number];
@@ -32,16 +56,27 @@ function usable(product: Product): boolean {
 }
 
 /** Where a video stands with its products: none yet, every one fine, one to look at again, or pasted by hand. */
-type Linked = "all" | "none" | "linked" | "manual" | "review";
+type Linked = "all" | "missing" | "none" | "linked" | "manual" | "review";
 
-function linkedState(video: AffiliateVideo): Exclude<Linked, "all"> {
+function linkedState(video: AffiliateVideo): Exclude<Linked, "all" | "missing"> {
   if (video.manual_comment) return "manual";
   if (video.products.length === 0) return "none";
   return video.products.every(usable) ? "linked" : "review";
 }
 
+/** "Thiếu link": a Facebook post whose comments on Facebook hold no Shopee link yet, pasted by hand or not
+ * (decisions/2026-11-18-affiliate-comment-links.md). It cuts across the other tabs, which say what is attached. */
+function lacksAnyLink(video: AffiliateVideo): boolean {
+  return video.posts.some((post) => lacksLink(post.links));
+}
+
+function inTab(video: AffiliateVideo, tab: Linked): boolean {
+  return tab === "all" || (tab === "missing" ? lacksAnyLink(video) : linkedState(video) === tab);
+}
+
 const LINKED: { value: Linked; label: string }[] = [
   { value: "all", label: "Tất cả" },
+  { value: "missing", label: "Thiếu link" },
   { value: "none", label: "Chưa gắn" },
   { value: "linked", label: "Đã gắn" },
   { value: "manual", label: "Dán tay" },
@@ -95,32 +130,34 @@ function commissionWhy(line: AffiliateCommission): string {
   return `${page} có tài khoản Shopee riêng của chủ Page (${line.user_name}); link trong bình luận do tài khoản đó tạo nên hoa hồng về đó.`;
 }
 
-/** How the video's Facebook comment stands, from its live posts; TikTok's cart is set in TikTok's app. */
-function commentStatus(video: AffiliateVideo): { label: string; color?: string; tip?: string } {
+/** How the video's comments on Facebook stand: a failed comment first, then whether each Page's holds a link (from
+ * what the app wrote and what the worker read on Facebook, a link pasted by hand included); TikTok's cart is set in
+ * TikTok's app. */
+function commentStatus(video: AffiliateVideo): {
+  label: string;
+  tone: "success" | "warning" | "idle" | "danger";
+  tip?: string;
+} {
   const facebook = video.posts.filter((post) => post.platform === "facebook");
-  if (facebook.length === 0) {
-    return { label: "Gắn giỏ trong app TikTok" };
-  }
-  if (video.manual_comment) {
-    return { label: "Dán tay", color: "blue", tip: "Link đã dán tay trên Facebook: app không viết hay sửa bình luận" };
-  }
-  const failed = facebook.find((post) => post.comment === "failed");
+  const failed = video.manual_comment ? undefined : facebook.find((post) => post.comment === "failed");
   if (failed) {
-    return { label: "Lỗi bình luận", color: "error", tip: failed.comment_error ?? undefined };
+    return { label: "Lỗi bình luận", tone: "danger", tip: failed.comment_error ?? undefined };
   }
-  if (facebook.some((post) => post.comment === "pending")) {
-    return { label: "Đang bình luận", color: "processing" };
+  const summary = linksSummary(facebook.map((post) => post.links));
+  if (video.manual_comment) {
+    return {
+      label: `Dán tay · ${summary.label.charAt(0).toLowerCase()}${summary.label.slice(1)}`,
+      tone: summary.tone,
+      tip: "Link dán tay trên Facebook: app không viết hay sửa bình luận, chỉ đọc lại xem đã có link chưa",
+    };
   }
-  if (facebook.some((post) => post.comment === "waiting")) {
-    return { label: "Chờ app bình luận", color: "processing" };
-  }
-  if (facebook.some((post) => post.comment === "done")) {
-    return { label: "App đã bình luận", color: "success" };
-  }
-  if (!video.products.some(usable)) {
-    return { label: "Chờ gắn sản phẩm" };
-  }
-  return { label: "Chưa bình luận", tip: "Bấm “Bình luận ngay” ở Bài đăng, hoặc sao chép rồi dán tay" };
+  return {
+    ...summary,
+    tip:
+      summary.tone === "success"
+        ? undefined
+        : "Bấm “Thêm link” để gắn sản phẩm; app viết hoặc sửa bình luận. Link dán tay trên Facebook được app đọc lại sau ít phút.",
+  };
 }
 
 /** Lower case and one Unicode form, so a typed "Đ" or a composed vowel still finds the title. */
@@ -140,6 +177,7 @@ export default function PostedVideos() {
   // The table's page is in the address too, back to 1 when a filter changes.
   const tablePage = useUrlPage();
   const { message } = App.useApp();
+  const { token } = theme.useToken();
   const { me } = useMe();
   const [videos, setVideos] = useState<AffiliateVideo[]>([]);
   // "Của tôi" or "Cả đội"; null until chosen (the default follows whether the member has a posted video).
@@ -151,7 +189,7 @@ export default function PostedVideos() {
   const [query, setQuery] = useUrlChoice<string>("q", "");
   const [platform, setPlatform] = useUrlChoice<AffiliateVideo["platform"] | null>("platform", null);
   const [fanpageId, setFanpageId] = useUrlId("fanpage");
-  const [linked, setLinked] = useUrlChoice<Linked>("linked", "all", ["none", "linked", "manual", "review"]);
+  const [linked, setLinked] = useUrlChoice<Linked>("linked", "all", ["missing", "none", "linked", "manual", "review"]);
   // "Lọc theo sản phẩm": only the videos a product is attached to, so each product shows where its link goes.
   const [productId, setProductId] = useUrlId("product");
   const [view, chooseView] = useView();
@@ -221,6 +259,7 @@ export default function PostedVideos() {
             platform: post.platform,
             name: post.name ?? "không rõ",
             owner: post.owner_id === me.id ? null : (post.owner_name ?? "chưa có chủ"),
+            links: post.links,
           }))}
         />
       </>
@@ -334,7 +373,12 @@ export default function PostedVideos() {
             )),
         )}
         {video.products.length === 0 && video.suggestions.length > 0 && (
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          // One line, the whole list on hover: the row stays low enough to scan many videos.
+          <Typography.Text
+            type="secondary"
+            style={{ fontSize: 12 }}
+            ellipsis={{ tooltip: video.suggestions.join("; ") }}
+          >
             Gợi ý: {video.suggestions.join("; ")}
           </Typography.Text>
         )}
@@ -342,40 +386,59 @@ export default function PostedVideos() {
     );
   }
 
-  /** The comment's state, "Sao chép" for pasting it by hand, and "Đã dán link tay" / "Bỏ dán tay". */
+  async function copyComment(video: AffiliateVideo) {
+    try {
+      await navigator.clipboard.writeText(pinnedText(video));
+      message.success("Đã sao chép bình luận và link");
+    } catch {
+      message.error("Trình duyệt không cho sao chép, hãy mở “Thêm link” rồi copy tay");
+    }
+  }
+
+  /** Whether the comments hold a link, one button to finish it ("Thêm link" opens the products and comments beside
+   * the list; "Xem bình luận" once every Page has one), and the rarer actions under ⋯. */
   function comment(video: AffiliateVideo) {
     const status = commentStatus(video);
     const onFacebook = video.posts.some((post) => post.platform === "facebook");
+    const done = status.tone === "success";
     return (
       <Flex vertical gap={6} align="flex-start">
         <Tooltip title={status.tip}>
-          <Tag color={status.color} style={{ marginInlineEnd: 0 }} data-testid="comment-status">
+          <StatusText tone={status.tone} data-testid="comment-status">
             {status.label}
-          </Tag>
+          </StatusText>
         </Tooltip>
-        {onFacebook && video.products.some(usable) && (
-          <Typography.Text copyable={{ text: pinnedText(video), tooltips: ["Sao chép", "Đã sao chép"] }}>
-            Sao chép
-          </Typography.Text>
-        )}
-        {onFacebook && <VideoPostsButton videoId={video.id} onChanged={reload} />}
         {onFacebook && (
-          <Tooltip
-            title={
-              video.manual_comment
-                ? "App sẽ viết bình luận như bình thường"
-                : "Đã dán link trên Facebook: app không viết hay sửa bình luận của video này, sản phẩm chỉ để ghi nhận"
-            }
-          >
-            <Button
-              size="small"
-              type={video.manual_comment ? "default" : "dashed"}
-              disabled={saving === video.id}
-              onClick={() => void setManual(video, !video.manual_comment)}
+          <Flex gap={4}>
+            <VideoPostsButton
+              videoId={video.id}
+              onChanged={reload}
+              label={done ? "Xem bình luận" : "Thêm link"}
+              icon={done ? undefined : <LinkOutlined />}
+            />
+            <Dropdown
+              trigger={["click"]}
+              menu={{
+                items: [
+                  ...(video.products.some(usable) ? [{ key: "copy", label: "Sao chép bình luận và link" }] : []),
+                  {
+                    key: "manual",
+                    label: video.manual_comment ? "Bỏ dán tay" : "Đã dán link tay",
+                    disabled: saving === video.id,
+                  },
+                ],
+                onClick: ({ key }) => {
+                  if (key === "copy") {
+                    void copyComment(video);
+                  } else {
+                    void setManual(video, !video.manual_comment);
+                  }
+                },
+              }}
             >
-              {video.manual_comment ? "Bỏ dán tay" : "Đã dán link tay"}
-            </Button>
-          </Tooltip>
+              <Button size="small" icon={<EllipsisOutlined />} aria-label={`Thêm thao tác bình luận: ${video.title}`} />
+            </Dropdown>
+          </Flex>
         )}
       </Flex>
     );
@@ -421,12 +484,9 @@ export default function PostedVideos() {
     .sort((a, b) => Number(b[1].mine) - Number(a[1].mine) || a[1].label.localeCompare(b[1].label, "vi"))
     .map(([id, { label }]) => ({ value: id, label }));
   const counts = Object.fromEntries(
-    LINKED.map(({ value }) => [
-      value,
-      value === "all" ? matching.length : matching.filter((video) => linkedState(video) === value).length,
-    ]),
+    LINKED.map(({ value }) => [value, matching.filter((video) => inTab(video, value)).length]),
   ) as Record<Linked, number>;
-  const shown = linked === "all" ? matching : matching.filter((video) => linkedState(video) === linked);
+  const shown = matching.filter((video) => inTab(video, linked));
   const filtered = Boolean(words) || platform !== null || fanpageId !== null || linked !== "all" || productId !== null;
   const emptyText = filtered
     ? "Không có video nào khớp"
@@ -516,7 +576,18 @@ export default function PostedVideos() {
         <Segmented<Linked>
           value={linked}
           onChange={setLinked}
-          options={LINKED.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
+          options={LINKED.map(({ value, label }) => ({
+            value,
+            // "Thiếu link" in the warning colour while some video lacks one: the tab a member works through.
+            label:
+              value === "missing" && counts.missing > 0 ? (
+                <span style={{ color: token.colorWarningText }}>
+                  <LinkOutlined /> {label} ({counts[value]})
+                </span>
+              ) : (
+                `${label} (${counts[value]})`
+              ),
+          }))}
         />
       </div>
 
@@ -602,11 +673,7 @@ export default function PostedVideos() {
                       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                         {formatDateTime(video.published_at)}, {video.products.length} sản phẩm
                       </Typography.Text>
-                      <span>
-                        <Tag color={status.color} style={{ marginInlineEnd: 0 }}>
-                          {status.label}
-                        </Tag>
-                      </span>
+                      <StatusText tone={status.tone}>{status.label}</StatusText>
                     </Flex>
                   </button>
                 );

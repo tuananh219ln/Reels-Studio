@@ -951,25 +951,33 @@ steps open the status card or the products block on its tab, the QC chip its pop
     is live on a Page or TikTok account of mine, starting on "Của tôi" once I have one, else on "Cả đội";
     "Tìm theo tiêu đề video", "Mọi Page", "Mọi nền tảng", "Mọi sản phẩm") and, at its end, "Kiểu hiển thị":
     a table (the default), cards with the cover, or a list beside the open video, remembered in the
-    browser. Under it, tabs with counts over the videos the filters leave ("Tất cả", "Chưa gắn", "Đã
+    browser. Under it, tabs with counts over the videos the filters leave ("Tất cả", "Thiếu link" in yellow
+    while it holds any: a Facebook post whose comments on Facebook have no Shopee link yet, "Chưa gắn", "Đã
     gắn", "Dán tay", "Cần xem lại" for a product that lost its approval or no longer meets the rules);
     "Không có video nào khớp" when nothing matches. Each video shows its cover, title, platform, time and
     "Xem Reel" on one line, then one chip per Page or TikTok account it is live on (a teammate's in gold
-    with its owner's name; the tooltip says whose commission it is). Its products are tags ("×" takes one
+    with its owner's name; the tooltip says whose commission it is), a Page's chip opening with a dot: green when
+    its comments hold a link, yellow when it commented without one or the app is about to update it, grey when it
+    has not commented or it is not known yet. Its products are tags ("×" takes one
     off) with "+ Gắn sản phẩm", a picker of approved products of the video's platform (labelled with the
     expected commission per order, and "Người thêm: <tên>" when a teammate added it); the script's ideas
-    show under it while nothing is attached. Under the tags, one short line per attached Shopee product
+    show under it on one line while nothing is attached (the whole list on hover). Under the tags, one short line per attached Shopee product
     and Page whose commission is not the member's own ("<sản phẩm> → hoa hồng về <tên> (link lưu sẵn)",
     the Page named only when the video is on several; the tooltip gives the whole reason): in yellow whose
     it is (the Page's own Shopee account, its owner's; or, on a Page without a Shopee account with App ID,
     the product's saved link, the member who added it), in red when the Page has no such account and the
     product has no saved link, so it is left out of that Page's comment. Nothing is refused for it. A
     product that lost its approval or no longer meets the rules stays attached in yellow, and its link is
-    left out of the copied text. The comment column tells how the app's comment stands ("Chờ gắn sản
-    phẩm", "Chưa bình luận", "Chờ app bình luận", "Đang bình luận", "App đã bình luận", "Lỗi bình luận"
-    with the error on hover, "Dán tay", "Gắn giỏ trong app TikTok"), with "Sao chép" for the pinned comment
-    and "Đã dán link tay" / "Bỏ dán tay": a video marked so is never commented by the app (nor edited),
-    and its products are only a record;
+    left out of the copied text. The comment column says, as a dot and words, whether the comments on
+    Facebook hold a link ("Có link", "1/2 Page có link", "Đã bình luận, thiếu link", "Đang cập nhật link",
+    "Chưa bình luận", "Chưa rõ", "Lỗi bình luận" with the error on hover, "Dán tay · …" before them for a
+    video pasted by hand, "Gắn giỏ trong app TikTok"), then one button, "Thêm link" (or "Xem bình luận" once
+    every Page has one), and ⋯ with "Sao chép bình luận và link" and "Đã dán link tay" / "Bỏ dán tay": a video
+    marked so is never commented by the app (nor edited), and its products are only a record. Both buttons
+    open "Bình luận và bài đăng", a drawer with the video page's "Sản phẩm Shopee" block first (AI ideas,
+    Shopee suggestions and pasted links, attached products), then "Bình luận" (pinned comment, "Bình luận
+    thêm"), then "Bài đăng": each post with its link state and its comment's actions; the list reloads when
+    it closes;
   - "Sản phẩm": the topic groups on the left ("Tất cả nhóm", then "Nhóm của tôi", the groups of the Pages the member
     owns and uses, and "Nhóm khác"), each with how many products it holds and the Pages that post it (one by name,
     several as a logo and "+n" named on hover, gold when a teammate's is among them). On the right the open group's
