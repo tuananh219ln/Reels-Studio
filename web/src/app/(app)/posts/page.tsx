@@ -6,6 +6,7 @@ import FilterSelect from "@/components/FilterSelect";
 import PageHeader from "@/components/PageHeader";
 import PostCalendar from "@/components/PostCalendar";
 import { formatCount } from "@/components/PostMetrics";
+import CommentTracker from "@/components/posts/CommentTracker";
 import PasteLinksModal, { type PasteTarget } from "@/components/posts/PasteLinksModal";
 import PlatformCell from "@/components/posts/PlatformCell";
 import { formatDayMonth, PLATFORM_LABEL } from "@/components/posts/boardText";
@@ -30,6 +31,7 @@ import { usePolling } from "@/lib/polling";
 import { useUrlChoice, useUrlPage, useUrlParam } from "@/lib/urlState";
 import {
   CalendarOutlined,
+  CommentOutlined,
   LinkOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -76,7 +78,7 @@ const SORTS: { value: BoardSort; label: string }[] = [
   { value: "oldest_render", label: "Render cũ nhất" },
 ];
 
-type View = "list" | "calendar";
+type View = "list" | "calendar" | "comments";
 
 /** A "Video ngoài" row: a post followed without a video, with the platform's own cover and caption. */
 function ExternalCell({ item }: { item: BoardItem }) {
@@ -113,7 +115,7 @@ export default function PostsPage() {
 
 function Posts() {
   const { message } = App.useApp();
-  const [view, setView] = useUrlChoice<View>("view", "list", ["calendar"]);
+  const [view, setView] = useUrlChoice<View>("view", "list", ["calendar", "comments"]);
   const [tab, setTab] = useUrlChoice<BoardTab>("tab", "all", TAB_VALUES);
   const [platform, setPlatform] = useUrlChoice<BoardPlatform | null>("platform", null, PLATFORMS);
   const [missing, setMissing] = useUrlChoice<BoardPlatform | null>("missing", null, PLATFORMS);
@@ -241,9 +243,23 @@ function Posts() {
       options={[
         { value: "list", icon: <UnorderedListOutlined />, label: "Danh sách" },
         { value: "calendar", icon: <CalendarOutlined />, label: "Lịch" },
+        { value: "comments", icon: <CommentOutlined />, label: "Bình luận" },
       ]}
     />
   );
+
+  if (view === "comments") {
+    return (
+      <>
+        <PageHeader
+          title="Bài đăng"
+          description="Bình luận của Page dưới các reel lên Facebook trong 7 ngày qua: đã lên bao nhiêu, còn chờ bao nhiêu và khi nào xong."
+          actions={viewSwitch}
+        />
+        <CommentTracker />
+      </>
+    );
+  }
 
   if (view === "calendar") {
     return (

@@ -673,6 +673,12 @@ takes the suggestions, `PATCH /api/posts/{id}` sets `video_id` (null: back to "C
 video nor an article only as `meta_suite` or `manual_link` (the `one_target` check, migration 0089); readings of
 comments and the Page's dashboard keep to posts with one.
 
+[comment_tracker.py](../api/src/reels_api/comment_tracker.py) builds `GET /api/posts/comments` ("Bình luận" of
+"Bài đăng", read only): each Facebook reel live within 7 days with its saved and written "Bình luận thêm", what is
+left (the first comment included), a state, its place in the worker's queue (`post_comments.due_posts` order) and a
+rough end time walking that queue with the average rest, the 5-minute gap between videos and the Page's 100 a day;
+plus each Page's count today.
+
 [posts_board.py](../api/src/reels_api/posts_board.py) builds `GET /api/posts/board` (tab, platform, channel, missing_on,
 owner, date range, sort, q, cursor, limit) from every rendered video and its posts on Facebook, TikTok and YouTube:
 a post's board state is its status, `pending` read as `publishing` (or `failed` when the video's last `publish` or

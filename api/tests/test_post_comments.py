@@ -426,3 +426,52 @@ def test_the_worker_round_writes_due_comments_and_survives_a_failure(committed, 
     post_comments.write_due(committed)
     with committed() as db:
         assert db.get(Publication, good).comment_id
+
+
+# "Bình luận" on "Bài đăng" (comment_tracker.py): where each live reel's comments stand
+
+
+def tracked(an) -> dict:
+    response = an.get("/api/posts/comments")
+    assert response.status_code == 200
+    return {row["post_id"]: row for row in response.json()["posts"]}
+
+
+def test_the_tracker_counts_what_is_up_and_what_is_left_in_the_workers_order(an, db, me, storage, fakes):
+    first = add_post(db, storage, me, fakes)
+    second = add_post(db, storage, me, fakes)
+    for post in (first, second):
+        db.get(Video, post.video_id).extra_comments = ["Một", "Hai"]
+    db.commit()
+    rows = tracked(an)
+    assert (rows[first.id]["state"], rows[first.id]["left"], rows[first.id]["position"]) == ("queued", 3, 1)
+    assert rows[second.id]["position"] == 2 and rows[second.id]["eta"] > rows[first.id]["eta"]
+    write_all(db, first)
+    row = tracked(an)[first.id]
+    assert (row["state"], row["saved"], row["written"], row["left"], row["position"]) == ("done", 2, 2, 0, None)
+
+
+def test_the_tracker_tells_a_post_never_asked_a_hand_pasted_video_and_skips_old_posts(an, db, me, storage, fakes):
+    never = add_post(db, storage, me, fakes, auto=False)
+    pasted = add_post(db, storage, me, fakes)
+    old = add_post(db, storage, me, fakes, live_minutes_ago=8 * 24 * 60)
+    for post in (never, pasted, old):
+        db.get(Video, post.video_id).extra_comments = ["Một"]
+    db.get(Video, pasted.video_id).manual_comment = True
+    db.commit()
+    rows = tracked(an)
+    assert rows[never.id]["state"] == "not_asked" and rows[never.id]["left"] == 2
+    assert (rows[pasted.id]["state"], rows[pasted.id]["left"]) == ("manual", 0)
+    assert old.id not in rows
+
+
+def test_the_tracker_shows_a_page_past_its_day_cap_finishing_the_next_day(an, db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    db.get(Video, post.video_id).extra_comments = ["Một"]
+    page = db.get(Fanpage, post.fanpage_id)
+    page.comments_day, page.comments_count = post_comments._today(), post_comments.DAY_CAP
+    db.commit()
+    body = an.get("/api/posts/comments").json()
+    assert body["pages"][0]["today"] == post_comments.DAY_CAP
+    eta = datetime.fromisoformat(body["posts"][0]["eta"]).astimezone(post_comments.VIETNAM_TIME)
+    assert eta.date() > post_comments._today()
