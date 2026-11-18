@@ -28,7 +28,6 @@ export default function PinnedCommentsCard({
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const dragged = useRef<number | null>(null);
-  const asked = useRef(false);
   const pending = slot?.comments_pending ?? false;
   const slotId = slot?.id ?? null;
   const serverKey = slot ? JSON.stringify([slot.pinned_comments, slot.pin_index]) : "";
@@ -62,14 +61,6 @@ export default function PinnedCommentsCard({
     },
     [slotId, reload, message],
   );
-
-  // A script with no comments gets them written when the page opens (once).
-  useEffect(() => {
-    if (slot && slot.comments_count === 0 && !slot.comments_pending && !asked.current && !slot.comments_error) {
-      asked.current = true;
-      void generate();
-    }
-  }, [slot, generate]);
 
   if (!slot) return null;
   const labels = slot.type_labels;
@@ -155,6 +146,14 @@ export default function PinnedCommentsCard({
       <Flex vertical gap={10}>
         {pending && <Alert type="info" showIcon title="AI đang viết bình luận…" />}
         {slot.comments_error && !pending && <Alert type="error" showIcon title={slot.comments_error} />}
+        {slot.comments_count === 0 && !pending && !dirty && (
+          <Alert
+            type="warning"
+            showIcon
+            title="Kịch bản này chưa có bình luận ghim"
+            description="Nhập file kế hoạch có pinned_comments, nhờ Claude viết qua MCP (Lưu bình luận ghim của kịch bản), gõ tay ở đây, hoặc bấm Tạo lại bằng AI (tốn tiền AI của nhóm)."
+          />
+        )}
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Bình luận được đăng dưới tên Page theo thứ tự này (kéo để đổi). Bình luận chọn ghim được đăng trước; Facebook
           không cho app ghim, nên bạn ghim tay trên Facebook rồi bấm “Đã ghim”.
