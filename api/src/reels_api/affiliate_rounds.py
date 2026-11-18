@@ -185,14 +185,19 @@ def check_offer(db: DbSession, product: AffiliateProduct) -> None:
         db.commit()
         log.warning("Could not check product %s: %s %s", product.id, err.message, err.detail)
         return
+    old_page = product.page_url
     if offer is None:
         product.status, product.checked_at, product.checked_by_id = "draft", None, None
         log.info("Product %s is no longer offered, back to draft", product.id)
+        affiliate.ask_comment_refresh(db, [product.id])
     else:
         _fill(product, offer)
         if affiliate.problems(product):
             product.status, product.checked_at, product.checked_by_id = "draft", None, None
             log.info("Product %s no longer meets the rules, back to draft", product.id)
+            affiliate.ask_comment_refresh(db, [product.id])
+        elif product.page_url != old_page:
+            affiliate.ask_comment_refresh(db, [product.id], forget_links=True)
     db.commit()
 
 
@@ -228,6 +233,7 @@ def lookup(db: DbSession, product: AffiliateProduct) -> None:
     _fill(product, offer)
     if product.status == "approved" and affiliate.problems(product):
         product.status, product.checked_at, product.checked_by_id = "draft", None, None
+        affiliate.ask_comment_refresh(db, [product.id])
     db.commit()
     log.info("Read product %s (item %s) from Shopee", product.id, item_id)
 

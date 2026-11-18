@@ -1071,11 +1071,15 @@ def update_product(
 ) -> dict:
     product = _get(db, product_id)
     fields = _fields(db, body)
-    if any(getattr(product, name) != value for name, value in fields.items()):
+    changed = {name for name, value in fields.items() if getattr(product, name) != value}
+    if changed:
         _clear_approval(product)
     for name, value in fields.items():
         setattr(product, name, value)
     product.lookup_error = None  # filled in by hand
+    # Comments already written under live posts carry the old link, name or approval.
+    if changed:
+        affiliate.ask_comment_refresh(db, [product.id], forget_links=bool(changed & {"url", "page_url"}))
     db.commit()
     db.refresh(product)
     return _payload(product)
@@ -1090,6 +1094,7 @@ def approve_product(product_id: int, me: Session = Depends(current_member), db: 
     if problems:
         raise ApiError(409, "product_not_approvable", f"Chưa duyệt được: {'; '.join(problems)}")
     product.status, product.checked_at, product.checked_by_id = "approved", datetime.now(UTC), me.user_id
+    affiliate.ask_comment_refresh(db, [product.id])  # a product left out while it failed the rules comes back
     db.commit()
     db.refresh(product)
     return _payload(product)
@@ -1099,6 +1104,7 @@ def approve_product(product_id: int, me: Session = Depends(current_member), db: 
 def unapprove_product(product_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     product = _get(db, product_id)
     _clear_approval(product)
+    affiliate.ask_comment_refresh(db, [product.id])
     db.commit()
     db.refresh(product)
     return _payload(product)
@@ -1117,6 +1123,7 @@ def approve_products(
         raise invalid(f"Mỗi lần duyệt tối đa {MAX_IMPORT_ROWS} sản phẩm")
     approved = skipped = 0
     at = datetime.now(UTC)
+    newly: list[int] = []
     for product in db.scalars(select(AffiliateProduct).where(AffiliateProduct.id.in_(ids))):
         if product.status == "approved":
             continue
@@ -1125,6 +1132,8 @@ def approve_products(
             continue
         product.status, product.checked_at, product.checked_by_id = "approved", at, me.user_id
         approved += 1
+        newly.append(product.id)
+    affiliate.ask_comment_refresh(db, newly)
     db.commit()
     return {"approved": approved, "skipped": skipped}
 
@@ -1140,6 +1149,8 @@ def delete_products(
     if len(ids) > MAX_IMPORT_ROWS:
         raise invalid(f"Mỗi lần xoá tối đa {MAX_IMPORT_ROWS} sản phẩm")
     products = list(db.scalars(select(AffiliateProduct).where(AffiliateProduct.id.in_(ids))))
+    affiliate.ask_comment_refresh(db, [product.id for product in products])
+    db.flush()
     for product in products:
         db.delete(product)
     db.commit()
@@ -1150,6 +1161,8 @@ def delete_products(
 def delete_product(product_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     product = _get(db, product_id)
     ensure_owner(product.created_by_id, me.user_id, "sản phẩm này")
+    affiliate.ask_comment_refresh(db, [product.id])
+    db.flush()
     db.delete(product)
     db.commit()
     return {"ok": True}

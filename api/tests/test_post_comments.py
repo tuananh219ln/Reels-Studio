@@ -77,6 +77,19 @@ def due(db) -> list[int]:
     return [post.id for post in post_comments.due_posts(db, limit=100)]
 
 
+def write_all(db, post: Publication, limit: int = 30) -> int:
+    """Write until the run is over, letting each pause pass at once; how many times the worker wrote."""
+    for turns in range(1, limit + 1):
+        post_comments.write(db, post)
+        db.refresh(post)
+        if post.comment_requested_at is None or post.comment_sent_at >= post.comment_requested_at:
+            return turns
+        row = db.get(Fanpage, post.fanpage_id)
+        row.comments_next_at, post.comment_requested_at = None, datetime.now(UTC)
+        db.commit()
+    raise AssertionError("the run never ended")
+
+
 def comments_on(fakes, post: Publication) -> list[dict]:
     return [comment for comment in fakes.facebook_comments.values() if comment["object"] == post.remote_id]
 
@@ -211,7 +224,7 @@ def test_extra_comments_follow_the_first_in_order_once_each(db, me, storage, fak
     post = add_post(db, storage, me, fakes)
     db.get(Video, post.video_id).extra_comments = ["Bố mẹ nhà bạn thích món nào?", "Lưu lại nấu cuối tuần nhé!"]
     db.commit()
-    post_comments.write(db, post)
+    write_all(db, post)
     messages = [comment["message"] for comment in comments_on(fakes, post)]
     assert messages == ["Món nào nhà bạn hay nấu nhất?", "Bố mẹ nhà bạn thích món nào?", "Lưu lại nấu cuối tuần nhé!"]
     assert len(post.extra_comment_ids) == 2 and post.comment_error is None
@@ -222,13 +235,13 @@ def test_an_edited_extra_comment_is_edited_and_a_new_one_is_added(an, db, me, st
     post = add_post(db, storage, me, fakes)
     db.get(Video, post.video_id).extra_comments = ["Một"]
     db.commit()
-    post_comments.write(db, post)
+    write_all(db, post)
     db.get(Video, post.video_id).extra_comments = ["Một, sửa lại", "Hai"]
     db.commit()
     an.post(f"/api/posts/{post.id}/comment")
     db.expire_all()
     post = db.get(Publication, post.id)
-    post_comments.write(db, post)
+    write_all(db, post)
     extras = comments_on(fakes, post)[1:]
     assert [(comment["message"], comment["edits"]) for comment in extras] == [("Một, sửa lại", 1), ("Hai", 0)]
 
@@ -238,17 +251,82 @@ def test_extra_comments_alone_are_something_to_say(db, me, storage, fakes):
     video = db.get(Video, post.video_id)
     video.pinned_comment, video.extra_comments = "", ["Chia sẻ cho bạn bè nhé!"]
     db.commit()
-    post_comments.write(db, post)
+    write_all(db, post)
     assert [comment["message"] for comment in comments_on(fakes, post)] == ["Chia sẻ cho bạn bè nhé!"]
     assert post.comment_error is None
 
 
-def test_extra_comments_are_saved_trimmed_and_at_most_five(an, db, me, storage):
+def test_extra_comments_are_saved_trimmed_and_at_most_twelve(an, db, me, storage):
     video = make_video(db, storage, me, scene_count=1)
     saved = an.patch(f"/api/videos/{video.id}", json={"extra_comments": [" Một ", "", "Hai"]})
     assert saved.status_code == 200 and saved.json()["extra_comments"] == ["Một", "Hai"]
-    too_many = an.patch(f"/api/videos/{video.id}", json={"extra_comments": [str(n) for n in range(6)]})
+    too_many = an.patch(f"/api/videos/{video.id}", json={"extra_comments": [str(n) for n in range(13)]})
     assert too_many.status_code == 422
+
+
+# Pacing: one comment at a time, the Page resting between them
+
+
+@pytest.fixture
+def shortest_rests(monkeypatch):
+    monkeypatch.setattr(post_comments.random, "uniform", lambda low, high: low)
+
+
+def test_a_run_of_extra_comments_goes_one_at_a_time_with_a_rest_between(db, me, storage, fakes, shortest_rests):
+    post = add_post(db, storage, me, fakes)
+    db.get(Video, post.video_id).extra_comments = ["Một", "Hai", "Ba"]
+    db.commit()
+    row = db.get(Fanpage, post.fanpage_id)
+
+    post_comments.write(db, post)
+    assert [c["message"] for c in comments_on(fakes, post)] == ["Món nào nhà bạn hay nấu nhất?"]
+    wait = (row.comments_next_at - datetime.now(UTC)).total_seconds()
+    assert 25 < wait <= 30, "30 to 60 seconds after the first comment"
+    assert due(db) == [], "nothing is written while the Page rests"
+
+    for expected in (["Một"], ["Một", "Hai"]):
+        row.comments_next_at, post.comment_sent_at, post.comment_requested_at = None, ago(2), ago(1)
+        db.commit()
+        assert due(db) == [post.id]
+        post_comments.write(db, post)
+        assert [c["message"] for c in comments_on(fakes, post)][1:] == expected
+        wait = (row.comments_next_at - datetime.now(UTC)).total_seconds()
+        assert 40 < wait <= 45, "45 to 90 seconds between the extras"
+
+    row.comments_next_at, post.comment_sent_at, post.comment_requested_at = None, ago(2), ago(1)
+    db.commit()
+    post_comments.write(db, post)
+    assert [c["message"] for c in comments_on(fakes, post)][1:] == ["Một", "Hai", "Ba"]
+    assert post.commented_at is not None and post.comment_error is None
+    assert 290 < (row.comments_next_at - datetime.now(UTC)).total_seconds() <= 300, "5 minutes before another video"
+    assert due(db) == []
+
+
+def test_another_video_waits_for_the_page_to_stop_resting(db, me, storage, fakes, shortest_rests):
+    first = add_post(db, storage, me, fakes)
+    db.get(Video, first.video_id).extra_comments = ["Một", "Hai"]
+    db.commit()
+    post_comments.write(db, first)
+    second = add_post(db, storage, me, fakes)
+    assert due(db) == []
+    row = db.get(Fanpage, first.fanpage_id)
+    row.comments_next_at = ago(0.01)
+    db.commit()
+    assert second.id in due(db)
+
+
+def test_a_page_stops_at_its_daily_number_and_goes_on_the_next_day(db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    row = db.get(Fanpage, post.fanpage_id)
+    row.comments_day, row.comments_count = post_comments._today(), post_comments.DAY_CAP
+    db.commit()
+    assert due(db) == []
+    row.comments_day = post_comments._today() - timedelta(days=1)
+    db.commit()
+    assert due(db) == [post.id]
+    post_comments.write(db, post)
+    db.refresh(row)
+    assert (row.comments_day, row.comments_count) == (post_comments._today(), 1)
 
 
 # The post's payload and "Bình luận ngay"

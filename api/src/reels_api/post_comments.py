@@ -16,7 +16,8 @@ the Page already wrote with the same text. A failed attempt is recorded on the p
 """
 
 import logging
-from datetime import timedelta
+import random
+from datetime import timedelta, timezone
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session as DbSession
@@ -24,7 +25,7 @@ from sqlalchemy.orm import sessionmaker
 
 from . import affiliate, facebook, fanpages
 from .facebook import FacebookError
-from .models import Publication, Video
+from .models import Fanpage, Publication, Video
 from .sessions import now
 from .shopee import ShopeeError
 
@@ -33,6 +34,14 @@ log = logging.getLogger("reels_api.post_comments")
 # Facebook needs a moment after a reel goes live before it takes comments on it.
 DELAY = timedelta(minutes=2)
 BATCH = 3
+# Pacing, so a run of detailed comments never looks like spam (decisions/2026-11-18-food-comments.md): seconds to rest
+# after the first comment, between the extras, and after a video's last one before the Page starts another video's;
+# and the most comments a Page gets in a day (Vietnam time).
+FIRST_GAP = (30, 60)
+EXTRA_GAP = (45, 90)
+VIDEO_GAP = 300
+DAY_CAP = 100
+VIETNAM_TIME = timezone(timedelta(hours=7))
 NOTHING_TO_SAY = "Video chưa có bình luận ghim hay sản phẩm affiliate nào để bình luận"
 
 
@@ -41,16 +50,35 @@ def _live_at():
     return func.coalesce(Publication.scheduled_at, Publication.published_at, Publication.created_at)
 
 
-def _asked():
+def _asked(at):
+    # A request dated in the future is the worker's own pause before the next comment of a run.
     return and_(
         Publication.comment_requested_at.is_not(None),
+        Publication.comment_requested_at <= at,
         or_(Publication.comment_sent_at.is_(None), Publication.comment_sent_at < Publication.comment_requested_at),
+    )
+
+
+def _today():
+    return (now().astimezone(VIETNAM_TIME)).date()
+
+
+def _may_write(at):
+    """The Page is not resting and has not had its day's comments."""
+    return or_(
+        Publication.fanpage_id.is_(None),
+        Publication.fanpage_id.in_(
+            select(Fanpage.id).where(
+                or_(Fanpage.comments_next_at.is_(None), Fanpage.comments_next_at <= at),
+                or_(Fanpage.comments_day.is_(None), Fanpage.comments_day != _today(), Fanpage.comments_count < DAY_CAP),
+            )
+        ),
     )
 
 
 def due_posts(db: DbSession, limit: int = BATCH) -> list[Publication]:
     at = now()
-    asked = _asked()
+    asked = _asked(at)
     automatic = and_(
         Publication.auto_comment.is_(True), Publication.comment_sent_at.is_(None), _live_at() <= at - DELAY
     )
@@ -64,6 +92,7 @@ def due_posts(db: DbSession, limit: int = BATCH) -> list[Publication]:
                 and_(Publication.status == "scheduled", Publication.scheduled_at <= at),
             ),
             or_(asked, automatic),
+            _may_write(at),
             or_(
                 Publication.video_id.is_(None),
                 Publication.video_id.not_in(select(Video.id).where(Video.manual_comment.is_(True))),
@@ -76,8 +105,8 @@ def due_posts(db: DbSession, limit: int = BATCH) -> list[Publication]:
 
 
 def write(db: DbSession, post: Publication) -> None:
-    """Write or edit the post's comment, then its video's "Bình luận thêm", once each, and record what happened.
-    Commits."""
+    """Write or edit the post's comment, or, when that is already as it should be, the next of its video's "Bình luận
+    thêm" (one Facebook write per call: the Page rests between them, see `_rest`), and record what happened. Commits."""
     may_exist = post.comment_sent_at is not None and post.comment_id is None
     tried_before = post.comment_sent_at is not None
     try:
@@ -95,15 +124,18 @@ def write(db: DbSession, post: Publication) -> None:
         db.commit()
         return
     db.commit()
+    spent = False
     try:
         page = fanpages.load_page(db, post.fanpage_id)
         if text:
             if post.comment_id:
                 if text != post.comment_text:
                     facebook.edit_comment(page, post.comment_id, text)
+                    spent = True
             else:
                 found = facebook.page_comment(page, post.remote_id, text) if may_exist else None
                 post.comment_id = found or facebook.post_comment(page, post.remote_id, text)
+                spent = True
             post.comment_text = text
             db.commit()
     except FacebookError as err:
@@ -111,8 +143,23 @@ def write(db: DbSession, post: Publication) -> None:
         db.commit()
         log.warning("Could not comment on post %s: %s %s", post.id, err.message, err.detail)
         return
-    if not _write_extras(db, post, page, extras, tried_before):
-        return
+    row = db.get(Fanpage, post.fanpage_id)
+    if spent:
+        _count(row)
+        if _next_place(post, extras) is not None:
+            _rest(db, post, row, FIRST_GAP)
+            return
+    elif _next_place(post, extras) is not None:
+        place = _next_place(post, extras)
+        if not _write_extra(db, post, page, extras, place, tried_before):
+            return
+        _count(row)
+        if _next_place(post, extras) is not None:
+            _rest(db, post, row, EXTRA_GAP)
+            return
+        # The run is over: the Page does not start another video's comments straight away.
+        if row is not None:
+            row.comments_next_at = now() + timedelta(seconds=VIDEO_GAP)
     post.commented_at, post.comment_error = now(), None
     db.commit()
     log.info("Commented on post %s as %s, %d more", post.id, post.comment_id, len(extras))
@@ -123,29 +170,56 @@ def _extras(db: DbSession, post: Publication) -> list[str]:
     return [text for text in (video.extra_comments if video else []) if text.strip()]
 
 
-def _write_extras(db: DbSession, post: Publication, page, extras: list[str], tried_before: bool) -> bool:
-    """ "Bình luận thêm" by place: an earlier one edited when its text changed, a new one written (or, after an
-    attempt whose answer may have been lost, found first). Each is recorded as soon as Facebook takes it, so a later
-    failure never writes it twice. One removed from the video is left on Facebook. False when one failed."""
+def _next_place(post: Publication, extras: list[str]) -> int | None:
+    """The first of the video's "Bình luận thêm" still to write (or to edit, its text having changed)."""
     ids, texts = list(post.extra_comment_ids or []), list(post.extra_comment_texts or [])
     for place, text in enumerate(extras):
-        try:
-            if place < len(ids):
-                if texts[place] != text:
-                    facebook.edit_comment(page, ids[place], text)
-                    texts[place] = text
-            else:
-                found = facebook.page_comment(page, post.remote_id, text) if tried_before else None
-                ids.append(found or facebook.post_comment(page, post.remote_id, text))
-                texts.append(text)
-        except FacebookError as err:
-            post.comment_error = f"Bình luận thêm {place + 1}: {err.message}"
-            db.commit()
-            log.warning("Could not write extra comment %d on post %s: %s", place + 1, post.id, err.detail)
-            return False
-        finally:
-            post.extra_comment_ids, post.extra_comment_texts = list(ids), list(texts)
+        if place >= len(ids) or texts[place] != text:
+            return place
+    return None
+
+
+def _count(row: Fanpage | None) -> None:
+    """One more comment written by the Page today (Vietnam time)."""
+    if row is None:
+        return
+    day = _today()
+    row.comments_count = (row.comments_count + 1) if row.comments_day == day else 1
+    row.comments_day = day
+
+
+def _rest(db: DbSession, post: Publication, row: Fanpage | None, gap: tuple[int, int]) -> None:
+    """Stop for a random while before the run's next comment: the Page writes nothing until then, and the post is asked
+    again for that time (a request dated ahead), so the worker's next round after it carries on."""
+    until = now() + timedelta(seconds=random.uniform(*gap))
+    if row is not None:
+        row.comments_next_at = until
+    post.comment_requested_at = until
+    db.commit()
+    log.info("Post %s rests until %s before its next comment", post.id, until.isoformat())
+
+
+def _write_extra(db: DbSession, post: Publication, page, extras: list[str], place: int, tried_before: bool) -> bool:
+    """One "Bình luận thêm": an earlier one edited when its text changed, a new one written (or, after an attempt whose
+    answer may have been lost, found first). It is recorded as soon as Facebook takes it, so a later failure never
+    writes it twice. One removed from the video is left on Facebook. False when it failed."""
+    ids, texts = list(post.extra_comment_ids or []), list(post.extra_comment_texts or [])
+    text = extras[place]
+    try:
+        if place < len(ids):
+            facebook.edit_comment(page, ids[place], text)
+            texts[place] = text
+        else:
+            found = facebook.page_comment(page, post.remote_id, text) if tried_before else None
+            ids.append(found or facebook.post_comment(page, post.remote_id, text))
+            texts.append(text)
+    except FacebookError as err:
+        post.comment_error = f"Bình luận thêm {place + 1}: {err.message}"
         db.commit()
+        log.warning("Could not write extra comment %d on post %s: %s", place + 1, post.id, err.detail)
+        return False
+    post.extra_comment_ids, post.extra_comment_texts = list(ids), list(texts)
+    db.commit()
     return True
 
 

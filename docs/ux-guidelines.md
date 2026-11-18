@@ -98,8 +98,11 @@ why and does not report success.
   suggested time, missing/stale MP4, active job, unavailable own Page or duplicate MP4 refuses it
   with a reason. Approval sends the existing publish request with automatic comments, then reloads
   the surface. An ordinary video without a planned time uses "Đăng bài".
-- **Articles:** the list offers the detail page's publishing drawer, "Làm reel từ bài này" and the
-  maker's delete confirmation. Publishing loads Page options when opened; no request per list row.
+- **Articles:** the list offers the detail page's publishing drawer and the maker's delete confirmation,
+  side by side in one row ("Làm reel từ bài này" is on the detail page only). The table is `size="middle"` with
+  48 px thumbnails so a 1440×900 screen shows 7 rows or more; "Số 48h" reads "—" (draft), "Chưa đo" (posted, under
+  48 h) or the heart, comment and eye counts (reactions, comments, reach). Publishing loads Page options when
+  opened; no request per list row.
 - **Pages:** the dashboard reuses the card's token replacement and stop confirmation, and exposes
   the same account/owner and Page-logo controls through "Tài khoản và chủ Page". Token errors can be fixed in place.
 - **Posts:** the posts table exposes affiliate-comment actions; a Page's content library can open

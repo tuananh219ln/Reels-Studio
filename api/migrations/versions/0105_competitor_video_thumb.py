@@ -1,15 +1,15 @@
 """'Phân tích đối thủ': a small copy of a video's picture for the videos whose own page was opened.
 
-Revision ID: 0103
-Revises: 0102
+Revision ID: 0105
+Revises: 0104
 Create Date: 2026-11-18
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0103"
-down_revision = "0102"
+revision = "0105"
+down_revision = "0104"
 branch_labels = None
 depends_on = None
 

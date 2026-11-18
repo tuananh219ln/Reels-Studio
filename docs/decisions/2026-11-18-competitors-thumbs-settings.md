@@ -13,7 +13,7 @@ Finishes what [2026-11-18-competitors-video-threshold](2026-11-18-competitors-vi
   most viewed ones (30 by default) and the timeline samples, not every video of the grid: opening every one would take
   hours (M5). On each reel's page the extension reads `og:image`, its background fetches and shrinks it to 128 px
   (as the avatar, 2026-11-18 ui-v2), and the api re-encodes it as a JPEG under `competitors/<id>/thumbs/<video id>.jpg`,
-  served to members at `GET /api/competitors/<id>/thumbs/<video id>` (`competitor_videos.thumb_key`, migration 0103).
+  served to members at `GET /api/competitors/<id>/thumbs/<video id>` (`competitor_videos.thumb_key`, migration 0105).
   A video with no picture shows none. A video holding a picture is never dropped by the big-channel rule. Extension
   1.6.0; the page still asks only for 1.5.0, since older ones simply send no pictures.
 - **Not built:** the link to a failed scan's log. Scans are not rows of `jobs`, so the reason stays in the scan's
