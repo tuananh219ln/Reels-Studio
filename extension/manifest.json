@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Reels Studio – Google Ảnh và Đối thủ",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Lấy ảnh Google Ảnh cho cảnh video và đọc lưới Reels của đối thủ Facebook, ngay trong Chrome của thành viên.",
   "permissions": ["contextMenus", "tabs", "storage", "scripting", "cookies"],
   "incognito": "spanning",
