@@ -188,7 +188,7 @@ then asks `POST /api/competitors/scans/{id}/enrich-targets` for `targets` (`{fb_
 date) and sends them back as `scan-details`; the extension opens each reel 4–8 s apart and sends `scan-detail` (caption, sound,
 length, counts and posting time as written, and for the first `comment_ids` up to 30 comments' text and
 likes), saved with
-`POST /api/competitors/scans/{id}/details`, then `scan-done`. The page ends it (`/finish`: `done`, `partial` or `failed`, with the Page's name). A checkpoint or login page ends it as
+`POST /api/competitors/scans/{id}/details`, then `scan-done`. The page ends it (`/finish`: `done`, `partial` or `failed`, with the Page's name, read from the heading, else from the tab title). A checkpoint or login page ends it as
 `partial` and its window is left in front. `GET /api/competitors/scans/{id}` and `competitor_stats` give the numbers
 summed in code (with `frequency`, how often each grid was posted to between its dated samples, M5), with the
 latest report the member's Claude saved (`competitor_report_save`); `GET /api/competitors/compare?ids=` puts

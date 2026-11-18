@@ -177,25 +177,38 @@ export default function CompetitorsPage() {
 
   const columns: ColumnsType<Competitor> = [
     {
-      // The competitor's Page name as the scan read it; before that, its address.
-      title: "Kênh",
+      // The competitor's real Page name as the scan read it; empty until the first scan.
+      title: "Tên kênh",
       key: "channel",
-      width: 220,
-      render: (_, row) => (
-        <Typography.Text strong>{row.name || row.fb_url.replace("https://www.facebook.com/", "")}</Typography.Text>
-      ),
+      width: 200,
+      render: (_, row) =>
+        row.name ? (
+          <Typography.Text strong>{row.name}</Typography.Text>
+        ) : (
+          <Typography.Text type="secondary">Chưa có tên (quét lại để lấy)</Typography.Text>
+        ),
     },
     {
-      title: "Đối thủ",
-      key: "name",
+      title: "Link Facebook",
+      key: "fb",
       width: 220,
       render: (_, row) => (
         <Flex vertical gap={2}>
-          <Typography.Link href={row.reels_url} target="_blank" rel="noreferrer">
-            <LinkOutlined /> Mở tab Reels
+          <Typography.Link href={row.fb_url} target="_blank" rel="noreferrer">
+            {row.fb_url.replace("https://www.facebook.com/", "")}
           </Typography.Link>
           <Typography.Text type="secondary">{row.is_mine ? "Bạn quét" : `${row.owner.name} quét`}</Typography.Text>
         </Flex>
+      ),
+    },
+    {
+      title: "Reels",
+      key: "reels",
+      width: 140,
+      render: (_, row) => (
+        <Typography.Link href={row.reels_url} target="_blank" rel="noreferrer">
+          <LinkOutlined /> Mở tab Reels
+        </Typography.Link>
       ),
     },
     {
