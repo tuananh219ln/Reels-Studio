@@ -48,6 +48,7 @@ from . import (
     render_nodes,
     revise,
     rework,
+    service_usage,
     slot_comments,
     source_keys,
     text_looks,
@@ -667,6 +668,10 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
         if not text or (made_voice_seconds(video, scene) is not None and storage.exists(scene.voice_key)):
             continue
         label = _scene_label(scene, index)
+        if tts_key_name(voice) == "gemini":
+            # Counted before the call (Cài đặt › Nguồn tư liệu shows Gemini's requests today).
+            service_usage.record(db, "gemini", "voice")
+            db.commit()
         try:
             data = synthesize(text, source_keys.get(db, tts_key_name(voice)), voice, voice_speed(video))
         except TtsError as err:
@@ -1232,6 +1237,7 @@ def run_article_image_job(db: DbSession, job: Job, storage: DirectoryStorage) ->
         raise JobFailure(f"Bài đã đủ {article_images.MAX_IMAGES} ảnh, hãy bỏ bớt ảnh rồi tạo lại")
     provider = job.image_provider or image_providers.default(db)
     db.execute(update(Job).where(Job.id == job.id).values(image_calls=Job.image_calls + 1))
+    service_usage.record(db, provider, "image")
     db.commit()
     try:
         data = generate_image(
@@ -1293,6 +1299,7 @@ def run_image_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 raise ImageGenError("Cảnh chưa có prompt ảnh, cũng chưa có chữ để tạo ảnh")
             # Counted before the call, like the script job counts Claude: a killed job keeps the count.
             db.execute(update(Job).where(Job.id == job.id).values(image_calls=Job.image_calls + 1))
+            service_usage.record(db, provider, "image")
             db.commit()
             data = generate_image(image_style.styled(prompt, style), source_keys.get(db, provider), provider)
             if len(data) > MAX_IMAGE_BYTES:
@@ -1350,6 +1357,7 @@ def run_image_edit_job(db: DbSession, job: Job, storage: DirectoryStorage) -> No
     if engine != "lama":
         # Counted before the call, like the image job: a killed job keeps the count.
         db.execute(update(Job).where(Job.id == job.id).values(image_calls=Job.image_calls + 1))
+        service_usage.record(db, engine, "edit")
         db.commit()
     try:
         data = image_edit.edit(
