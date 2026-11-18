@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { expect, test, type Page } from "@playwright/test";
-import { loginAsSeed, resetDatabase } from "./helpers";
+import { chooseOption, loginAsSeed, resetDatabase } from "./helpers";
 
 /*
  * "Phân tích đối thủ" (docs/decisions/2026-11-17-competitor-analyzer.md). Playwright does not load the Chrome
@@ -265,8 +265,7 @@ test("a competitor's video is cloned into a hand-written draft that names its so
   await expect(dialog.getByTestId("clone-comments")).toHaveText("Bình luận mẫu: có 1");
   // The script is shown before anything is made, and may be edited.
   await dialog.getByLabel("Kịch bản").fill("Cảnh của tôi\nĐọc: Lời đọc của tôi");
-  await dialog.getByLabel("Nhóm chủ đề").click();
-  await page.getByRole("option").first().click();
+  await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   await dialog.getByRole("button", { name: "Tạo video" }).click();
 
   await expect(page.getByText("Đã tạo video")).toBeVisible();
