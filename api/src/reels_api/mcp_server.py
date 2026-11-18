@@ -33,6 +33,7 @@ from reels_render.sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 
 from . import (
+    article_plans,
     auto_approve,
     brands,
     clips,
@@ -44,9 +45,11 @@ from . import (
     motion,
     remote_media,
     shuffle,
+    slot_comments,
     video_options,
 )
 from . import routes_affiliate as affiliate_routes
+from . import routes_article_plans as article_plans_routes
 from . import routes_comments as comment_routes
 from . import routes_layers as layer_routes
 from . import routes_media as media_routes
@@ -537,6 +540,78 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                 raise ApiError(409, "queue_changed", "Danh sách không khớp hàng chờ hiện tại, hãy đọc lại hàng chờ")
             queue_routes.reorder(fanpage_id, queue_routes.OrderBody(ids=[by_video[v] for v in video_ids]), me, db)
             return _queue_of(db, me, fanpage_id)
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Đọc kịch bản bài viết của Page", read=True)
+    async def list_article_plan_scripts(
+        fanpage_id: int,
+        only_missing_comments: bool = True,
+        limit: Annotated[int, Field(ge=1, le=50)] = 20,
+    ) -> dict:
+        """Kịch bản trong Kế hoạch 30 ngày của Bài viết của một Page (chưa có bài, chưa bỏ qua), mặc định chỉ các
+        kịch bản chưa đủ 5 bình luận ghim: hook, nội dung, câu kêu gọi, dạng bài và bộ nhãn `type_set` của nó. Viết 5
+        bình luận cho từng kịch bản rồi gọi “Lưu bình luận ghim của kịch bản” (không tốn tiền AI của nhóm)."""
+
+        def operation(db, me):
+            page = db.get(Fanpage, fanpage_id)
+            plan = article_plans.plan_of(db, fanpage_id) if page is not None else None
+            if page is None or plan is None:
+                raise ToolError("Page này chưa có kế hoạch Bài viết")
+            rows = [
+                slot
+                for slot in article_plans.slots_of(db, plan.id)
+                if slot.article_id is None
+                and not slot.skipped
+                and (not only_missing_comments or len(slot_comments.comments_of(slot)) < slot_comments.MAX_COMMENTS)
+            ]
+            return {
+                "page": page.name,
+                "audience": plan.audience,
+                "rules": "Mỗi bình luận 2–3 câu (20–1000 ký tự), giọng gần gũi, theo đúng thứ tự nhãn type_set; "
+                "không hứa chữa bệnh, không mâu thuẫn caption, khuyên hỏi bác sĩ với người có bệnh nền, "
+                "không emoji, hashtag hay link.",
+                "scripts": [
+                    {
+                        "id": slot.id,
+                        "day": slot.day,
+                        "slot": slot.slot,
+                        "hook": slot.hook,
+                        "body": slot.body,
+                        "cta": slot.cta,
+                        "kind": slot.kind,
+                        "type_set": list(slot_comments.type_set(slot.kind)),
+                        "comments_count": len(slot_comments.comments_of(slot)),
+                        "comments_edited": slot.comments_edited,
+                    }
+                    for slot in rows[:limit]
+                ],
+                "total": len(rows),
+            }
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Lưu bình luận ghim của kịch bản", read=False)
+    async def save_script_comments(
+        script_id: int,
+        pinned_comments: Annotated[
+            list[dict], Field(description='Tối đa 5 phần tử {"type": nhãn trong type_set, "text": 20–1000 ký tự}')
+        ],
+        pin_index: Annotated[int, Field(description="Vị trí bình luận được ghim, 0 là bình luận đầu")] = 0,
+    ) -> dict:
+        """Lưu bình luận ghim Claude đã viết vào kịch bản của Page (chỉ chủ Page). Không gọi AI của nhóm. Kịch bản
+        thành viên đã sửa tay thì bị từ chối, để không ghi đè."""
+
+        def operation(db, me):
+            _, _, slot = article_plans_routes._slot(db, script_id, me)
+            if slot.comments_edited:
+                raise ToolError("Kịch bản này đã được sửa tay bình luận, không ghi đè")
+            checked = slot_comments.check(pinned_comments, pin_index, slot.kind)
+            if checked.errors:
+                raise ToolError("; ".join(checked.errors))
+            slot_comments.set_comments(slot, checked, "ai", edited=False)
+            db.commit()
+            return {"script_id": slot.id, "count": len(checked.items), "warnings": checked.warnings}
 
         return await run_in_threadpool(invoke, operation, write=True)
 
