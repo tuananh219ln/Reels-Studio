@@ -15,6 +15,7 @@ from . import (
     image_style,
     llm,
     routes_videos,
+    service_usage,
     settings_log,
     source_keys,
     tts,
@@ -372,6 +373,15 @@ def _sources(db: DbSession) -> dict:
 def get_image_providers(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     """For the arrow beside "Tạo ảnh AI" buttons: both providers, whether each is set up, and the default."""
     return image_providers.offered(db)
+
+
+@router.get("/sources/usage")
+def get_sources_usage(
+    fresh: bool = False, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """How much of each AI service's allowance is used (service_usage.py); read apart from /sources so the page shows
+    at once while the services answer. `fresh`: ask them again instead of the answer kept a few minutes."""
+    return service_usage.payload(db, fresh)
 
 
 @router.put("/image-provider")

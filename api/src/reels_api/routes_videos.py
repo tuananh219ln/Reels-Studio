@@ -42,6 +42,7 @@ from . import (
     music_topics,
     pinned,
     plans,
+    post_comments,
     remote_media,
     slot_comments,
     source_keys,
@@ -491,6 +492,7 @@ def patch_video(
     video = lock_video(db, video_id)
     ensure_unlocked(db, video)
     fields = body.model_fields_set
+    comments = video.pinned_comment, list(video.extra_comments)
     if "caption" in fields and body.caption is not None:
         video.caption = _clean_text(body.caption, MAX_LONG_TEXT_LENGTH, "Caption").strip()
     if "pinned_comment" in fields and body.pinned_comment is not None:
@@ -499,6 +501,8 @@ def patch_video(
         video.extra_comments = _clean_list(
             body.extra_comments, MAX_LONG_TEXT_LENGTH, "Bình luận thêm", max_items=MAX_EXTRA_COMMENTS
         )
+    if (video.pinned_comment, list(video.extra_comments)) != comments:
+        post_comments.ask_after_edit(db, video)
     if "hashtags" in fields and body.hashtags is not None:
         video.hashtags = _clean_list(body.hashtags, MAX_KEYWORD_LENGTH, "Hashtag")
     if "affiliates" in fields and body.affiliates is not None:

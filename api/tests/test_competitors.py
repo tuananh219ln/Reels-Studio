@@ -225,6 +225,18 @@ def test_a_scan_whose_page_went_silent_is_claimed_again(client, db):
     assert client.post("/api/competitors/scanner/claim").json()["scan"]["id"] == scan_id
 
 
+def test_a_header_scan_goes_before_the_video_scans_still_waiting(client, db):
+    # "Cập nhật thông tin kênh" takes seconds; it no longer waits behind a 500-video scan queued earlier.
+    make_user(db)
+    login(client)
+    first = _scan_done(client, videos=_grid(0, 3))
+    waiting = client.post("/api/competitors/scans", json={"url": "facebook.com/linhdoan"}).json()["id"]
+    header = client.post(f"/api/competitors/{first['competitor']['id']}/refresh-meta").json()["id"]
+    assert client.post("/api/competitors/scanner/claim").json()["scan"]["id"] == header
+    client.post(f"/api/competitors/scans/{header}/finish", json={"status": "done"})
+    assert client.post("/api/competitors/scanner/claim").json()["scan"]["id"] == waiting
+
+
 def test_stats_are_summed_in_code(client, db):
     make_user(db)
     login(client)

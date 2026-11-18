@@ -1,16 +1,16 @@
 """Backup narration keys of the team (api_keys), tried after the main key once it fails. The main key stays where it
 is (app_settings "source_keys"), so nothing is moved.
 
-Revision ID: 0106
-Revises: 0105
+Revision ID: 0107
+Revises: 0106
 Create Date: 2026-11-18
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0106"
-down_revision = "0105"
+revision = "0107"
+down_revision = "0106"
 branch_labels = None
 depends_on = None
 

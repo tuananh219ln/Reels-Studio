@@ -24,6 +24,7 @@ import type { EditLogEntry } from "@/components/EditHistory";
 import ApiKeyList from "@/components/settings/ApiKeyList";
 import VieneuKeyCard from "@/components/settings/VieneuKeyCard";
 import StatusText from "@/components/StatusText";
+import { CloudflareUsage, ElevenLabsUsage, GeminiUsage, useServiceUsage } from "@/components/settings/ServiceUsage";
 
 /** The history names a source's fields by the source ("Pexels · Khoá: đã đổi khoá …k3P1"). */
 export const SOURCE_NAMES: Record<string, string> = {
@@ -179,6 +180,18 @@ export function useSources() {
   const [style, setStyle] = useState<string | null>(null);
   // Read again after every save: each one answers with the page's data anew.
   const latest = useLatestEdits("settings_sources", data);
+  const service = useServiceUsage();
+  const usage = {
+    usage: service.usage,
+    loading: service.loading,
+    failed: service.failed,
+    onRefresh: () => void service.refresh(),
+  };
+  /** A key saved on an AI service's card: the page anew, and that service's usage read with the new key. */
+  function keySaved(saved: Sources) {
+    setData(saved);
+    void service.reload();
+  }
 
   const load = useCallback(async () => {
     try {
@@ -209,6 +222,8 @@ export function useSources() {
   return {
     data,
     setData,
+    keySaved,
+    usage,
     load,
     busy,
     style,
@@ -438,14 +453,15 @@ export function AiImagesPanel({ state }: { state: SourcesState }) {
                   name="cloudflare"
                   label="Cloudflare"
                   value={data.ai_images_cloudflare.key}
-                  onSaved={state.setData}
-                  note="Dán API token Workers AI của Cloudflare (quyền Workers AI › Read)."
+                  onSaved={state.keySaved}
+                  note="Dán API token Workers AI của Cloudflare (quyền Workers AI › Read; thêm Account Analytics › Read để thấy số neurons đã dùng hôm nay)."
                 />
                 {!data.ai_images_cloudflare.account_id_set && (
                   <Typography.Text type="warning">
                     Máy chủ chưa có IMAGE_GEN_CF_ACCOUNT_ID (Account ID của Cloudflare) trong file .env.
                   </Typography.Text>
                 )}
+                <CloudflareUsage {...state.usage} />
               </Flex>
             </Card>
           </Col>
@@ -469,8 +485,9 @@ export function AiImagesPanel({ state }: { state: SourcesState }) {
                 luôn dùng key này.
               </Typography.Text>
               {data.ai_images.key && (
-                <KeyField name="gemini" label="Gemini" value={data.ai_images.key} onSaved={state.setData} />
+                <KeyField name="gemini" label="Gemini" value={data.ai_images.key} onSaved={state.keySaved} />
               )}
+              <GeminiUsage {...state.usage} />
             </Flex>
           </Card>
         </Col>
@@ -509,7 +526,8 @@ export function VoicePanel({ state, vieneuFooter }: { state: SourcesState; viene
                 <Typography.Text type="secondary">
                   Đọc lời từng cảnh khi render, và danh sách giọng ở Thiết lập mặc định.
                 </Typography.Text>
-                <KeyField name="elevenlabs" label="ElevenLabs" value={data.voices.key} onSaved={state.setData} />
+                <KeyField name="elevenlabs" label="ElevenLabs" value={data.voices.key} onSaved={state.keySaved} />
+                <ElevenLabsUsage {...state.usage} />
                 <ApiKeyList service="elevenlabs" onChanged={reload} />
               </Flex>
             </Card>

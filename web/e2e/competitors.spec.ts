@@ -40,6 +40,46 @@ test("the second account's cookies are read from a header or a cookie-export JSO
   expect(() => parseCookies("[not json")).toThrow(/JSON/);
 });
 
+type Meta = { name: string | null; followers: string | null; avatar_src: string | null };
+
+/** Runs the extension's header reader the way Chrome does (executeScript `func`): its own source alone in the page. */
+async function readMeta(page: Page): Promise<Meta> {
+  const context: { reelsStudioReadMeta?: (selectors: unknown) => Promise<Meta> } = {};
+  vm.runInNewContext(readFileSync(path.resolve(__dirname, "../../extension/facebook-reels.js"), "utf-8"), context);
+  const selectors = JSON.parse(readFileSync(path.resolve(__dirname, "../../extension/selectors.json"), "utf-8"));
+  return page.evaluate(`(${context.reelsStudioReadMeta!.toString()})(${JSON.stringify(selectors)})`) as Promise<Meta>;
+}
+
+test("the channel's name and avatar are the Page's own, never Messenger's heading or the scan account's picture", async ({
+  page,
+}) => {
+  // A Page as Facebook draws it: the top bar with the signed-in account's picture, Messenger's panel with its own h1,
+  // then the cover and the Page's avatar beside its name. Before, the first `svg image` (the account's) was taken for
+  // every channel, the panel's "Đoạn chat" became a channel's name, and a helper beside the reader was not injected
+  // with it, so nothing at all was read.
+  await page.setContent(`
+    <div role="banner"><svg width="40" height="40"><image href="https://scontent.fbcdn.net/account.jpg" width="40" height="40"/></svg></div>
+    <div role="dialog"><h1>Đoạn chat</h1></div>
+    <div role="main">
+      <div>
+        <img alt="Ảnh bìa" src="https://scontent.fbcdn.net/cover.jpg" style="width:900px;height:300px;display:block">
+        <div>
+          <svg width="168" height="168"><image href="https://scontent.fbcdn.net/page.jpg" width="168" height="168"/></svg>
+          <div><h1>Kênh đối thủ</h1><span>262 N người theo dõi</span></div>
+        </div>
+      </div>
+      <svg width="16" height="16"><image href="https://scontent.fbcdn.net/reaction.png" width="16" height="16"/></svg>
+    </div>`);
+  expect(await readMeta(page)).toMatchObject({
+    name: "Kênh đối thủ",
+    followers: "262 N",
+    avatar_src: "https://scontent.fbcdn.net/page.jpg",
+  });
+  // A Page with no picture of its own gives none rather than the account's, and its name is still read.
+  await page.evaluate(() => document.querySelector('[role="main"] svg')?.remove());
+  expect(await readMeta(page)).toMatchObject({ name: "Kênh đối thủ", avatar_src: null });
+});
+
 async function standIn(page: Page, account: { userId: string | null; incognito: boolean }) {
   await page.addInitScript((saved) => {
     const seen: { url?: string; details?: string[]; comments?: string[] } = {};
@@ -151,6 +191,14 @@ test("a pasted link is scanned with the second account and its top videos get th
   const refreshed = page.getByRole("row", { name: /Linh Đoàn HR/ });
   await expect(refreshed.getByText("130 N theo dõi")).toBeVisible({ timeout: 30_000 });
   await expect(refreshed.getByText("4,8 Tr", { exact: true })).toBeVisible();
+
+  // A column's header sorts the list like the "Sắp xếp" box, and the box follows it.
+  const header = page.getByRole("columnheader", { name: /Trung vị/ });
+  await expect(page.getByRole("columnheader", { name: /Tổng view/ })).toHaveAttribute("aria-sort", "descending");
+  await header.click();
+  await expect(header).toHaveAttribute("aria-sort", "descending");
+  await expect(page).toHaveURL(/sort=median/);
+  await expect(page.getByText("Sắp xếp: Trung vị")).toBeVisible();
 });
 
 test("without a second account saved the page asks for one and claims nothing", async ({ page }) => {

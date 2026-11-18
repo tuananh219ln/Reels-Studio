@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import analytics, metrics, post_links, posts_board
+from . import analytics, comment_tracker, metrics, post_links, posts_board
 from .db import get_db
 from .errors import ApiError
 from .models import Channel, Job, PostMetricSnapshot, Publication, Session, User, Video
@@ -177,6 +177,15 @@ def get_board(
         query=q.strip(),
     )
     return posts_board.board(db, filters, max(cursor, 0), min(max(limit, 1), posts_board.MAX_PAGE_SIZE))
+
+
+@router.get("/comments")
+def comment_tracker_view(
+    owner: str = "team", me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Bình luận": the reels live within 3 days, how many of their comments are up, and when the rest should be;
+    `owner=me` keeps the member's own posts and Pages ("Của tôi")."""
+    return comment_tracker.tracker(db, me.user_id if owner == "me" else None)
 
 
 @router.get("/videos/{video_id}")

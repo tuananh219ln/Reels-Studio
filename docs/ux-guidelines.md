@@ -1087,6 +1087,15 @@ steps open the status card or the products block on its tab, the QC chip its pop
     Vietnam time whatever the browser's time zone: the hour and day a reel sits under, the week and
     month it opens on, and today's mark. On a phone the month is compact, with a dot on each day that
     has a video; tapping a day opens the same drawer.
+  - **Bình luận** (`/posts?view=comments`): the Page's comments under the reels live within 3 days. A card
+    with each Page's "hôm nay đã bình luận N/100" (and "Page nghỉ tới hh:mm") and a grey line on the pacing,
+    then "Của tôi | Cả đội" ("Của tôi" by default, in the address as `owner=all` otherwise: the reels a member posted or
+    that are on a Page they own, and those Pages) and "Tất cả | Đang chờ đăng | Cần xử lý | Đã lên đủ" and a table: the video (link, its age "Mới" / "Ngày 2–3", Page, time live, "Mở
+    reel"), "Bình luận chi tiết đã lên" (written/saved with a thin bar and the scene count, or "Chưa có"),
+    "Còn chờ", the state tag ("Đang chờ đăng", "Mỗi ngày 1 bình luận" with "Bình luận tiếp theo dd/mm, hh:mm",
+    "Đã dừng (quá 3 ngày)", "Đã lên đủ", "Chưa nhờ đăng" with "Bấm “Bình luận ngay” trên
+    trang video", "Lỗi" with the reason, "Chưa có bình luận chi tiết", "Dán link tay"), "Lượt" (#N in the
+    worker's queue) and "Dự kiến lên đủ" (~dd/mm, hh:mm). It reads itself again every 30 seconds.
 - **Nhật ký job** (`/jobs`): every job, newest first, refreshed every 5 seconds. Filters over the loaded
   jobs: a search by video title first, a status Segmented with counts ("Tất cả", "Đang chạy" (waiting or
   running), "Lỗi", "Xong"), "Mọi loại" and "Mọi người" ("Không có job nào khớp" when nothing matches).
@@ -1136,13 +1145,14 @@ steps open the status card or the products block on its tab, the QC chip its pop
       nối" (enabled once saved) and "Dùng để viết kịch bản". What still stops a provider is shown in yellow.
     - **Giọng đọc**: ElevenLabs, Gemini and VieNeu side by side (three across from 1600 px), each with "Sẵn sàng" or
       "Chưa có key", its main key (ElevenLabs and VieNeu pasted here, Gemini's being the "Ảnh AI" one) and its backup
-      keys (see Narration keys). With a key, a service's voices join the "Giọng" picker; a service whose voices cannot
+      keys (see Narration keys); ElevenLabs' card also has its usage line (architecture, AI service usage). With a
+      key, a service's voices join the "Giọng" picker; a service whose voices cannot
       be listed is named in yellow under the picker, a missing or rejected key with a link "Mở AI và nguồn tư liệu".
     - **Ảnh AI**: first "Nguồn ảnh AI mặc định" ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh
       AI" button uses, with one line saying which is in use and whether it costs (when nobody chose one, that the app
       follows the server's setting), and "Phong cách ảnh AI" (the text added after every scene's prompt, "Lưu phong
       cách", "Dùng mặc định" once edited; empty adds nothing); then Cloudflare (a Workers AI API token) and Gemini side
-      by side, each with its model and "Mặc định" on the default one.
+      by side, each with its model, "Mặc định" on the default one and its usage line.
     - **Kho ảnh và video miễn phí**: first the switches "Tự tìm ảnh sau khi viết kịch bản" (with "Thứ tự tìm chung:
       Pexels → Pixabay → Openverse", the sources in use) and "Tự tìm và chọn clip theo kịch bản"; then the stock
       libraries side by side (Pexels, marked "Mặc định", Pixabay, Unsplash, Wikimedia, Openverse), each with "Sẵn

@@ -851,6 +851,19 @@ class ApiKey(Base):
     )
 
 
+class AiServiceCall(Base):
+    """One request the app sent to Gemini or Cloudflare Workers AI (service_usage.py), for the calls-today count on
+    Cài đặt › AI và nguồn tư liệu. `kind`: image, edit or voice. Rows older than a few weeks are removed as new ones come."""
+
+    __tablename__ = "ai_service_calls"
+    __table_args__ = (Index("ix_ai_service_calls_service_created_at", "service", "created_at"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    service: Mapped[str] = mapped_column(String(20))
+    kind: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Publication(Base):
     """One post of a video, or of an article ("Bài viết"), to a platform; posted again, it has one row per post, kept
     after it is cancelled or deleted. The publish job reads what to do from the one pending row. Code that lists every
