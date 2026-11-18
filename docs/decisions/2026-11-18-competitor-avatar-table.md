@@ -39,3 +39,12 @@ The cookies are in `chrome.storage.local`, which Chrome keys by the extension's 
 now carries a fixed public `key` (id `ncnafhaoejkcbljpkomboinfnmkgolph`; no private key is needed for an unpacked
 extension, and none is kept). The cookies still never leave the member's Chrome. Removing the extension still deletes
 them; `extension/README.md` says to update with the reload arrow instead.
+
+## Profiles' grids and the grid's name (1.6.3)
+
+Every profile (`profile.php?id=…`) stopped at 10 reels: its grid scrolls in a box of its own, and the scan scrolled
+only the window. The scan now brings the last reel card into view each round (whichever box scrolls), then scrolls the
+window as before. The grid's own name reading leaves Facebook's parts out like the header's, and the header's name
+wins over the grid's at the end of a scan, so "Đoạn chat" no longer comes back with a video scan. Checked in headless
+Chromium against a page drawn that way: 1.6.2 read 10 of 40 and "Đoạn chat", 1.6.3 all 40 and the Page's name; the
+same page is now an E2E test.
