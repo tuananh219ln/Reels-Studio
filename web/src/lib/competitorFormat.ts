@@ -51,3 +51,8 @@ export function plain(text: string): string {
     .replace(/đ/g, "d")
     .toLowerCase();
 }
+
+/** A views threshold as the page writes it: 100000 as "100K", 1000000 as "1M". */
+export function thresholdLabel(views: number): string {
+  return views >= 1_000_000 ? `${views / 1_000_000}M` : `${views / 1_000}K`;
+}

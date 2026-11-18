@@ -4,7 +4,7 @@ import { CopyOutlined, DownloadOutlined, LinkOutlined } from "@ant-design/icons"
 import { App, Button, Card, Flex, Input, Segmented, Skeleton, Table, Tooltip, Typography, theme } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, formatDayTime } from "@/lib/api";
-import { formatCompact, formatFull } from "@/lib/competitorFormat";
+import { formatCompact, formatFull, thresholdLabel } from "@/lib/competitorFormat";
 import type { Frequency, Report, ScanDetail, Stats, VideoPage, VideoRow } from "./types";
 
 const PAGE = 20;
@@ -177,6 +177,9 @@ function VideoList({ competitorId, scanId }: { competitorId: number; scanId: num
   const { message } = App.useApp();
   const [sort, setSort] = useState<"views" | "posted">("views");
   const [query, setQuery] = useState("");
+  // A small channel keeps every video, so its list can be narrowed by views; a big one already holds only the top.
+  const [minViews, setMinViews] = useState(0);
+  const [threshold, setThreshold] = useState<number | null>(null);
   const [rows, setRows] = useState<VideoRow[]>([]);
   const [total, setTotal] = useState(0);
   const [flags, setFlags] = useState({ engagement: false, published: false });
@@ -189,9 +192,11 @@ function VideoList({ competitorId, scanId }: { competitorId: number; scanId: num
       try {
         const params = new URLSearchParams({ page: String(page), limit: String(PAGE), sort });
         if (query.trim()) params.set("q", query.trim());
+        if (minViews) params.set("min_views", String(minViews));
         const data = await api<VideoPage>(`/competitors/${competitorId}/videos?${params}`);
         setRows((before) => (replace ? data.videos : [...before, ...data.videos]));
         setTotal(data.total);
+        setThreshold(data.threshold_applied);
         setFlags({ engagement: data.has_engagement, published: data.has_published_at });
         if (data.videos.some((video) => video.caption)) setAnyCaption(true);
       } catch (err) {
@@ -200,7 +205,7 @@ function VideoList({ competitorId, scanId }: { competitorId: number; scanId: num
         setLoading(false);
       }
     },
-    [competitorId, message, query, sort],
+    [competitorId, message, minViews, query, sort],
   );
   // The first page again whenever the scan, the sort or the search changes (the search waits for a pause in typing).
   useEffect(() => {
@@ -288,7 +293,9 @@ function VideoList({ competitorId, scanId }: { competitorId: number; scanId: num
   return (
     <Flex vertical gap={8} data-testid="competitor-videos">
       <Flex wrap gap={8} justify="space-between" align="center">
-        <Typography.Text strong>Video ({formatFull(total)})</Typography.Text>
+        <Typography.Text strong>
+          {threshold != null ? `Video ≥${thresholdLabel(threshold)} view` : "Video"} ({formatFull(total)})
+        </Typography.Text>
         <Flex wrap gap={8} align="center">
           {anyCaption && (
             <Input.Search
@@ -299,6 +306,20 @@ function VideoList({ competitorId, scanId }: { competitorId: number; scanId: num
               style={{ width: 200 }}
               onSearch={setQuery}
               onChange={(event) => !event.target.value && setQuery("")}
+            />
+          )}
+          {threshold == null && (
+            <Segmented
+              size="small"
+              aria-label="Lọc video theo view"
+              value={minViews}
+              onChange={(value) => setMinViews(Number(value))}
+              options={[
+                { label: "Tất cả", value: 0 },
+                { label: "≥10K", value: 10_000 },
+                { label: "≥100K", value: 100_000 },
+                { label: "≥1M", value: 1_000_000 },
+              ]}
             />
           )}
           {flags.published && (

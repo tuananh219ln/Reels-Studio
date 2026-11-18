@@ -14,6 +14,8 @@ export type Competitor = {
   avatar_url: string | null;
   is_verified: boolean;
   /** False until a scan has read the Page's header. */
+  /** Which videos of a scan are kept: auto (a big channel keeps only 100K+), all, 100k or 1m. */
+  video_threshold_mode: "auto" | "all" | "100k" | "1m";
   has_meta: boolean;
   followers: number | null;
   reels_url: string;
@@ -27,7 +29,10 @@ export type Competitor = {
     | (CompetitorScan & {
         total_views: number;
         median_views: number | null;
+        /** Videos read; `stored_count` of them are kept, from `threshold_applied` views (null: all kept). */
         video_count: number;
+        stored_count: number;
+        threshold_applied: number | null;
         reels_count: number;
         videos_count: number;
       })
@@ -86,6 +91,8 @@ export type VideoRow = {
 
 export type VideoPage = {
   scan_id: number | null;
+  scanned_count: number;
+  threshold_applied: number | null;
   total: number;
   videos: VideoRow[];
   has_engagement: boolean;

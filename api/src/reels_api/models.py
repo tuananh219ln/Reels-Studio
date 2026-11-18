@@ -1555,6 +1555,9 @@ class Competitor(Base):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     custom_name: Mapped[str | None] = mapped_column(String(200))
     meta_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Which videos of a scan are kept (migration 0102): auto (a channel with many 100K+ videos keeps only those),
+    # all, 100k or 1m; see competitors.apply_threshold.
+    video_threshold_mode: Mapped[str] = mapped_column(String(8), default="auto", server_default="auto")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -1575,6 +1578,13 @@ class CompetitorScan(Base):
     # "Cập nhật thông tin kênh" (migration 0101): reads only the Page's header, no videos; never a competitor's
     # "latest scan" for numbers.
     meta_only: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # What was read against what was kept (migration 0102): `threshold_applied` is the views a video needed to be
+    # kept (None: all were kept). `stats_snapshot` holds the numbers summed over everything read, taken before the
+    # videos under the threshold were dropped, so total, median and buckets never shrink with the list.
+    scanned_count: Mapped[int | None] = mapped_column(Integer)
+    stored_count: Mapped[int | None] = mapped_column(Integer)
+    threshold_applied: Mapped[int | None] = mapped_column(BigInteger)
+    stats_snapshot: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -84,6 +84,8 @@ class FinishBody(BaseModel):
 class PatchBody(BaseModel):
     # None or empty restores the name the scan read.
     custom_name: str | None = Field(None, max_length=200)
+    # Which videos of a scan are kept; applies from the next scan that ends.
+    video_threshold_mode: Literal["auto", "all", "100k", "1m"] | None = None
 
 
 @router.get("")
@@ -147,9 +149,13 @@ def resume_scan(scan_id: int, me: Session = Depends(current_member), db: DbSessi
 def patch_competitor(
     competitor_id: int, body: PatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
-    """Only `custom_name` can be set: the member's own name for the channel, shown everywhere."""
+    """`custom_name` (the member's own name, shown everywhere) and `video_threshold_mode`."""
     competitor = competitors.own_competitor(db, competitor_id, me.user_id)
-    competitors.rename(competitor, body.custom_name)
+    fields = body.model_fields_set
+    if "custom_name" in fields:
+        competitors.rename(competitor, body.custom_name)
+    if body.video_threshold_mode is not None:
+        competitors.set_threshold_mode(competitor, body.video_threshold_mode)
     db.commit()
     return competitors.competitor_payload(competitor)
 
@@ -182,11 +188,12 @@ def videos(
     limit: int = Query(20, ge=1, le=100),
     sort: Literal["views", "posted"] = "views",
     q: str | None = Query(None, max_length=200),
+    min_views: int = Query(0, ge=0, le=1_000_000_000),
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
 ) -> dict:
     """A page of the videos of the competitor's latest scan, for the expanded row."""
-    return competitors.videos_page(db, competitors.team_competitor(db, competitor_id), page, limit, sort, q)
+    return competitors.videos_page(db, competitors.team_competitor(db, competitor_id), page, limit, sort, q, min_views)
 
 
 @router.get("/{competitor_id}/videos.csv")

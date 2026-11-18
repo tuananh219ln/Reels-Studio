@@ -205,6 +205,10 @@ numbers). `GET /api/competitors` adds `display_name` (`custom_name`, else the na
 "Kênh …" and the id's tail), `handle`, `avatar_url`, `is_verified`, `median_views`, `video_count`, `reels_count` and
 `videos_count`; `PATCH /api/competitors/<id>` sets `custom_name` (the scanning member only);
 `GET /api/competitors/<id>/videos?page=&limit=&sort=&q=` pages the latest scan's videos and `videos.csv` exports them.
+When a scan ends `done`, `competitors.apply_threshold` ([decision](decisions/2026-11-18-competitors-video-threshold.md)):
+a channel with 10 or more videos of 100K+ (or its `video_threshold_mode`) keeps only those; the numbers over everything
+read are first stored in `competitor_scans.stats_snapshot`, which `stats()` returns, with `scanned_count`,
+`stored_count` and `threshold_applied`. The videos endpoint takes `min_views`.
 
 ### Automatic scene footage
 

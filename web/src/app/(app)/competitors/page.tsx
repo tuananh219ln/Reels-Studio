@@ -39,7 +39,7 @@ import ScanDetailView from "@/components/competitors/ScanDetailView";
 import { ScannerChip, ScannerHelp, type ScannerState } from "@/components/competitors/ScannerStatus";
 import type { Competitor } from "@/components/competitors/types";
 import { api, errorMessage, formatDateTime } from "@/lib/api";
-import { avatarColor, formatAgo, formatCompact, formatFull, plain } from "@/lib/competitorFormat";
+import { avatarColor, formatAgo, formatCompact, formatFull, plain, thresholdLabel } from "@/lib/competitorFormat";
 import { useCompetitorScanner, type CompetitorScan } from "@/lib/competitorScanner";
 import { usePolling } from "@/lib/polling";
 import { useUrlChoice } from "@/lib/urlState";
@@ -211,11 +211,31 @@ function Competitors() {
       title: "Video",
       key: "videos",
       align: "right",
-      width: 90,
+      width: 150,
       render: (_, row) => {
         const scan = row.latest_scan;
         if (!scan) return "—";
-        const text = <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatFull(scan.video_count)}</span>;
+        // A big channel keeps only its videos above the threshold: "23 / 300", with a mark saying from how many views.
+        const kept = scan.threshold_applied;
+        const text = (
+          <span style={{ fontVariantNumeric: "tabular-nums" }}>
+            {kept != null
+              ? `${formatFull(scan.stored_count)} / ${formatFull(scan.video_count)}`
+              : formatFull(scan.video_count)}
+          </span>
+        );
+        if (kept != null) {
+          return (
+            <Tooltip
+              title={`${formatFull(scan.stored_count)} video từ ${thresholdLabel(kept)} view được lưu, đã đọc ${formatFull(scan.video_count)} video`}
+            >
+              <Flex gap={4} justify="end" align="center">
+                <Tag style={{ marginInlineEnd: 0 }}>≥{thresholdLabel(kept)}</Tag>
+                {text}
+              </Flex>
+            </Tooltip>
+          );
+        }
         return scan.videos_count > 0 ? (
           <Tooltip title={`Reels ${scan.reels_count}, Video ${scan.videos_count}`}>{text}</Tooltip>
         ) : (
@@ -672,13 +692,32 @@ function Actions({
             { key: "meta", label: "Cập nhật thông tin kênh", disabled: row.meta_busy },
             ...(scan && ["partial", "failed"].includes(scan.status) ? [{ key: "resume", label: "Tiếp tục quét" }] : []),
             ...(row.custom_name ? [{ key: "restore", label: "Khôi phục tên gốc" }] : []),
+            {
+              key: "threshold",
+              label: "Ngưỡng video",
+              children: (
+                [
+                  ["auto", "Tự động (kênh lớn chỉ lấy ≥100K)"],
+                  ["all", "Lấy tất cả"],
+                  ["100k", "≥100K"],
+                  ["1m", "≥1M"],
+                ] as const
+              ).map(([mode, label]) => ({
+                key: `threshold:${mode}`,
+                label: row.video_threshold_mode === mode ? `${label} (đang chọn)` : label,
+              })),
+            },
             { key: "open", label: "Mở trên Facebook" },
             { key: "copy", label: "Sao chép link" },
             { type: "divider" },
             { key: "delete", label: "Xóa dữ liệu", danger: true },
           ],
           onClick: ({ key }) => {
-            if (key === "meta")
+            if (key.startsWith("threshold:"))
+              void onAct(`/competitors/${row.id}`, "PATCH", "Ngưỡng video áp dụng từ lượt quét sau", {
+                video_threshold_mode: key.slice("threshold:".length),
+              });
+            else if (key === "meta")
               void onAct(`/competitors/${row.id}/refresh-meta`, "POST", "Đã xếp lượt lấy thông tin kênh");
             else if (key === "resume" && scan)
               void onAct(`/competitors/scans/${scan.id}/resume`, "POST", "Đã xếp lại lượt quét");

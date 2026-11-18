@@ -643,7 +643,51 @@ def finish(
         read = True
     if read:
         competitor.meta_updated_at = now()
+    if status == "done" and not scan.meta_only:
+        apply_threshold(db, scan)
 
+
+def threshold_for(mode: str, views: list[int]) -> int | None:
+    """The views a video needs to be kept, None to keep all: "auto" keeps only 100K+ on a big channel."""
+    if mode == "100k":
+        return 100_000
+    if mode == "1m":
+        return 1_000_000
+    if mode == "auto" and sum(1 for value in views if value >= MIN_VIEWS_THRESHOLD) >= BIG_CHANNEL_MIN_HITS:
+        return MIN_VIEWS_THRESHOLD
+    return None
+
+
+def apply_threshold(db: DbSession, scan: CompetitorScan) -> None:
+    """After a finished scan: a big channel keeps only its videos above the threshold. The numbers over everything
+    read are summed first and kept in `stats_snapshot` (stats() answers with them), because the dropped videos are
+    deleted. A video whose own page was read (a caption or a posting date) stays: the timeline samples and the
+    captions belong to it. A video with no readable views is never dropped."""
+    scan.stats_snapshot = None
+    videos = videos_of(db, scan.id)
+    views = [video.views for video in videos if video.views is not None]
+    scan.scanned_count = len(videos)
+    threshold = threshold_for(scan.competitor.video_threshold_mode, views)
+    scan.threshold_applied = threshold
+    if threshold is None:
+        scan.stored_count = len(videos)
+        return
+    snapshot = stats(db, scan)
+    scan.stats_snapshot = {key: value for key, value in snapshot.items() if key not in ("scan_id", "status")}
+    drop = [
+        video.id
+        for video in videos
+        if video.views is not None and video.views < threshold and video.posted_at is None and not video.caption
+    ]
+    if drop:
+        db.execute(delete(CompetitorVideo).where(CompetitorVideo.id.in_(drop)))
+    scan.stored_count = len(videos) - len(drop)
+
+
+THRESHOLD_MODES = ("auto", "all", "100k", "1m")
+# A channel with at least BIG_CHANNEL_MIN_HITS videos of MIN_VIEWS_THRESHOLD views is "big": only those are kept.
+BIG_CHANNEL_MIN_HITS = 10
+MIN_VIEWS_THRESHOLD = 100_000
 
 AVATAR_SIZE = 128
 AVATAR_DATA_LIMIT = 150_000
@@ -681,6 +725,8 @@ def resume(scan: CompetitorScan) -> None:
     scan.status = "queued"
     scan.finished_at = None
     scan.error = None
+    # Read again from the top: the numbers are summed afresh when it ends.
+    scan.stats_snapshot = None
 
 
 def videos_of(db: DbSession, scan_id: int) -> list[CompetitorVideo]:
@@ -700,7 +746,19 @@ BUCKETS = (
 
 
 def stats(db: DbSession, scan: CompetitorScan) -> dict:
-    """The scan's numbers, in code so an assistant never adds them up itself."""
+    """The scan's numbers, in code so an assistant never adds them up itself. A scan that kept only its videos above
+    a threshold answers with the numbers summed over everything it read (apply_threshold)."""
+    if scan.stats_snapshot:
+        note = (
+            f"Chỉ lưu {scan.stored_count} video từ {(scan.threshold_applied or 0) // 1000}K view trong "
+            f"{scan.scanned_count} video đã đọc; số liệu tính trên toàn bộ video đã đọc."
+        )
+        return {
+            **scan.stats_snapshot,
+            "scan_id": scan.id,
+            "status": scan.status,
+            "limits": [note, *scan.stats_snapshot["limits"]],
+        }
     videos = videos_of(db, scan.id)
     views = [video.views for video in videos if video.views is not None]
     total = sum(views)
@@ -916,6 +974,9 @@ def scan_payload(scan: CompetitorScan) -> dict:
         "fetch_comments_top_n": comments_top(scan),
         "include_videos": bool((scan.scope or {}).get("videos")),
         "meta_only": scan.meta_only,
+        "scanned_count": scan.scanned_count,
+        "stored_count": scan.stored_count,
+        "threshold_applied": scan.threshold_applied,
         "created_at": scan.created_at.isoformat() if scan.created_at else None,
         "started_at": scan.started_at.isoformat() if scan.started_at else None,
         "finished_at": scan.finished_at.isoformat() if scan.finished_at else None,
@@ -963,6 +1024,7 @@ def competitor_payload(competitor: Competitor) -> dict:
         "fb_id": competitor.fb_id,
         "avatar_url": avatar_url(competitor),
         "is_verified": competitor.is_verified,
+        "video_threshold_mode": competitor.video_threshold_mode,
         "has_meta": competitor.meta_updated_at is not None,
         "meta_updated_at": competitor.meta_updated_at.isoformat() if competitor.meta_updated_at else None,
         "followers": competitor.followers,
@@ -975,6 +1037,13 @@ def competitor_payload(competitor: Competitor) -> dict:
 def rename(competitor: Competitor, custom_name: str | None) -> None:
     """The member's own name for the channel; empty or None restores the one the scan read."""
     competitor.custom_name = (custom_name or "").strip()[:200] or None
+
+
+def set_threshold_mode(competitor: Competitor, mode: str) -> None:
+    """Applies from the next scan that ends; videos already dropped are not read again."""
+    if mode not in THRESHOLD_MODES:
+        raise ApiError(422, "bad_threshold_mode", "Ngưỡng video không hợp lệ")
+    competitor.video_threshold_mode = mode
 
 
 def list_competitors(db: DbSession, user_id: int) -> list[dict]:
@@ -993,16 +1062,16 @@ def list_competitors(db: DbSession, user_id: int) -> list[dict]:
         )
         summary = None
         if latest is not None:
-            rows_read = db.execute(
-                select(CompetitorVideo.views, CompetitorVideo.type).where(CompetitorVideo.scan_id == latest.id)
-            ).all()
-            views = [row.views for row in rows_read if row.views is not None]
+            numbers = stats(db, latest)
+            stored = db.scalar(select(func.count()).where(CompetitorVideo.scan_id == latest.id)) or 0
             summary = {
-                "total_views": sum(views),
-                "median_views": int(statistics.median(views)) if views else None,
-                "video_count": len(rows_read),
-                "reels_count": sum(1 for row in rows_read if row.type == "reel"),
-                "videos_count": sum(1 for row in rows_read if row.type == "video"),
+                "total_views": numbers["total_views"],
+                "median_views": numbers["median_views"],
+                # Videos read; `stored_count` is how many of them are kept and listed.
+                "video_count": numbers["videos"],
+                "stored_count": stored,
+                "reels_count": numbers["by_type"]["reel"],
+                "videos_count": numbers["by_type"]["video"],
             }
         rows.append(
             {
@@ -1016,7 +1085,13 @@ def list_competitors(db: DbSession, user_id: int) -> list[dict]:
 
 
 def videos_page(
-    db: DbSession, competitor: Competitor, page: int, limit: int, sort: str, query: str | None = None
+    db: DbSession,
+    competitor: Competitor,
+    page: int,
+    limit: int,
+    sort: str,
+    query: str | None = None,
+    min_views: int = 0,
 ) -> dict:
     """The videos of the competitor's latest scan that read any, a page at a time (the page asks 20 at first), most
     viewed first or newest posted first; `has_engagement` and `has_published_at` say whether those columns hold
@@ -1044,6 +1119,8 @@ def videos_page(
     everything = videos_of(db, scan.id)  # most viewed first: a video's place here is its rank
     rank_of = {video.id: rank for rank, video in enumerate(everything, start=1)}
     videos = everything
+    if min_views:
+        videos = [video for video in videos if (video.views or 0) >= min_views]
     words = (query or "").strip().lower()
     if words:
         videos = [video for video in videos if words in (video.caption or "").lower()]
@@ -1053,6 +1130,8 @@ def videos_page(
     start = (page - 1) * limit
     return {
         "scan_id": scan.id,
+        "scanned_count": scan.scanned_count if scan.scanned_count is not None else len(everything),
+        "threshold_applied": scan.threshold_applied,
         "total": len(videos),
         "page": page,
         "limit": limit,
