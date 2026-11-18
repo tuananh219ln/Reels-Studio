@@ -350,7 +350,8 @@ the hook is rewritten on the member's own plan rather than the team's AI service
 
 ## A detailed comment per dish
 
-`list_videos_for_food_comments` (read) lists the member's videos that went live on Facebook within 7 days with each
+`list_videos_for_food_comments` (read) lists the member's videos that went live on Facebook within 3 days, or are
+scheduled to within 48 hours (`coming`, so their comments are ready when they go live), with each
 content scene's text and voice; the member's own assistant (Claude on the web, no AI cost to the team) writes one
 comment per dish from them and `set_food_comments` (write) saves them as the video's "Bình luận thêm"
 (`videos.extra_comments`, up to 12) and asks the comment worker to write them under each such post, after the pinned

@@ -1077,6 +1077,14 @@ steps open the status card or the products block on its tab, the QC chip its pop
     Vietnam time whatever the browser's time zone: the hour and day a reel sits under, the week and
     month it opens on, and today's mark. On a phone the month is compact, with a dot on each day that
     has a video; tapping a day opens the same drawer.
+  - **Bình luận** (`/posts?view=comments`): the Page's comments under the reels live within 3 days. A card
+    with each Page's "hôm nay đã bình luận N/100" (and "Page nghỉ tới hh:mm") and a grey line on the pacing,
+    then "Tất cả | Đang chờ đăng | Cần xử lý | Đã lên đủ" and a table: the video (link, its age "Mới" / "Ngày 2–3", Page, time live, "Mở
+    reel"), "Bình luận chi tiết đã lên" (written/saved with a thin bar and the scene count, or "Chưa có"),
+    "Còn chờ", the state tag ("Đang chờ đăng", "Mỗi ngày 1 bình luận" with "Bình luận tiếp theo dd/mm, hh:mm",
+    "Đã dừng (quá 3 ngày)", "Đã lên đủ", "Chưa nhờ đăng" with "Bấm “Bình luận ngay” trên
+    trang video", "Lỗi" with the reason, "Chưa có bình luận chi tiết", "Dán link tay"), "Lượt" (#N in the
+    worker's queue) and "Dự kiến lên đủ" (~dd/mm, hh:mm). It reads itself again every 30 seconds.
 - **Nhật ký job** (`/jobs`): every job, newest first, refreshed every 5 seconds. Filters over the loaded
   jobs: a search by video title first, a status Segmented with counts ("Tất cả", "Đang chạy" (waiting or
   running), "Lỗi", "Xong"), "Mọi loại" and "Mọi người" ("Không có job nào khớp" when nothing matches).
