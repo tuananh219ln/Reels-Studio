@@ -105,7 +105,7 @@ test("a pasted link is scanned with the second account and its top videos get th
   await standIn(page, { userId: "100099999999999", incognito: true });
   await loginAsSeed(page);
   await page.goto("/competitors");
-  await expect(page.getByText("quét bằng tài khoản phụ 100099999999999", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Tiện ích sẵn sàng, TK phụ …9999999" })).toBeVisible();
 
   await page.getByLabel("Link Facebook của đối thủ").fill("https://m.facebook.com/linhdoan/reels/?ref=share");
   await page.getByRole("button", { name: /^(search )?Quét$/ }).click();
