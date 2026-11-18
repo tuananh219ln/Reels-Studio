@@ -309,6 +309,12 @@ class FakeServices:
         # Cloudflare Workers AI, apart from Gemini's state.
         self.cf_image_gen_mode = "ok"  # ok | quota | error500
         self.cf_image_gen_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
+        # Cài đặt › Nguồn tư liệu's usage lines: ElevenLabs' subscription and Cloudflare's neurons today.
+        self.elevenlabs_usage_mode = "ok"  # ok | no_permission
+        self.elevenlabs_usage = {"tier": "creator", "character_count": 12_345, "character_limit": 100_000}
+        self.cf_analytics_mode = "ok"  # ok | no_permission
+        self.cf_neurons_today = 1234.5
+        self.usage_requests: list[str] = []  # "elevenlabs" or "cloudflare:<date>", one per request
         self.cf_image_gen_refused: list[str] = []  # a prompt containing one of these is refused (200, success false)
         self.cf_image_gen_prompts: list[str] = []
         # Cloudflare's inpainting model ("Sửa ảnh" › "Xóa vùng"): each request's prompt and the sizes of the image and
@@ -1069,6 +1075,32 @@ class FakeServices:
         buffer = io.BytesIO()
         Image.new("RGB", (body.get("width") or 512, body.get("height") or 512), CF_INPAINT_COLOR).save(buffer, "PNG")
         return 200, buffer.getvalue()
+
+    def _subscription(self, key: str | None) -> tuple[int, dict]:
+        with self.lock:
+            self.usage_requests.append("elevenlabs")
+        if key != ELEVENLABS_KEY:
+            return 401, {"detail": {"status": "invalid_api_key", "message": "Invalid API key"}}
+        if self.elevenlabs_usage_mode == "no_permission":
+            return 401, {
+                "detail": {
+                    "status": "missing_permissions",
+                    "message": "The API key you used is missing the permission user_read to execute this operation.",
+                }
+            }
+        return 200, {**self.elevenlabs_usage, "status": "active", "next_character_count_reset_unix": 1795000000}
+
+    def _cf_graphql(self, authorization: str | None, body: dict) -> tuple[int, dict]:
+        variables = body.get("variables") or {}
+        with self.lock:
+            self.usage_requests.append(f"cloudflare:{variables.get('date')}")
+        if authorization != f"Bearer {IMAGE_GEN_CF_KEY}":
+            return 401, {"data": None, "errors": [{"message": "Authentication error"}]}
+        # Like Cloudflare: a token without Account Analytics › Read is answered 200 with an error.
+        if self.cf_analytics_mode == "no_permission" or "aiInferenceAdaptiveGroups" not in str(body.get("query")):
+            return 200, {"data": None, "errors": [{"message": "not authorized for that account"}]}
+        groups = [{"sum": {"totalNeurons": self.cf_neurons_today}}]
+        return 200, {"data": {"viewer": {"accounts": [{"aiInferenceAdaptiveGroups": groups}]}}, "errors": None}
 
     def _cf_image_gen(self, authorization: str | None, body: dict) -> tuple[int, dict]:
         prompt = str(body.get("prompt") or "")
@@ -1976,6 +2008,8 @@ class FakeServices:
                     self._send(*fake._chat(self.headers.get("Authorization"), body))
                 elif path.startswith("/gemini/v1beta/models/"):
                     self._send(*fake._image_gen(self.headers.get("x-goog-api-key"), body))
+                elif path == "/cloudflare/client/v4/graphql":
+                    self._send(*fake._cf_graphql(self.headers.get("Authorization"), body))
                 elif path.startswith("/cloudflare/client/v4/accounts/") and "/ai/run/" in path and "inpaint" in path:
                     status, reply = fake._cf_inpaint(self.headers.get("Authorization"), body)
                     self._send(status, reply, "image/png" if isinstance(reply, bytes) else "application/json")
@@ -2042,6 +2076,8 @@ class FakeServices:
                     self._send(200, {"ok": True})
                 elif parts.path == "/v1/voices":
                     self._send(*fake._voices(self.headers.get("xi-api-key")))
+                elif parts.path == "/v1/user/subscription":
+                    self._send(*fake._subscription(self.headers.get("xi-api-key")))
                 elif parts.path == "/vieneu/api/v1/voices":
                     self._send(*fake._vieneu_voices(dict(urllib.parse.parse_qsl(parts.query))))
                 elif parts.path == "/v1/models":
