@@ -1,16 +1,16 @@
 """One row per request the app sends to Gemini or Cloudflare Workers AI, so Cài đặt › Nguồn tư liệu can show how many
 it made today (Google has no API for the quota left; Cloudflare's needs an analytics permission).
 
-Revision ID: 0105
-Revises: 0104
+Revision ID: 0106
+Revises: 0105
 Create Date: 2026-11-18
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0105"
-down_revision = "0104"
+revision = "0106"
+down_revision = "0105"
 branch_labels = None
 depends_on = None
 
