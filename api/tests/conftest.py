@@ -225,7 +225,7 @@ def make_video(
         caption="caption",
         hashtags=["#a"],
         affiliates=["sữa"],
-        pinned_comment="ghim",
+        pinned_survey="ghim",
         self_review=["x"],
         music_suggestions=["Windy Hill"],
     )

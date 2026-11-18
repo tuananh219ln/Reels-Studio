@@ -9,11 +9,11 @@ import ShopeeSuggestions from "@/components/affiliate/ShopeeSuggestions";
 import PostComment from "@/components/PostComment";
 import StatusText from "@/components/StatusText";
 import { api, errorMessage, type AffiliateProduct, type VideoDetail } from "@/lib/api";
-import { followsScenes, PINNED_VARIABLES, renderPinned } from "@/lib/pinned";
+import { buildPinComment } from "@/lib/pinned";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 import ExtraComments from "./ExtraComments";
 
-type PostFields = Pick<VideoDetail, "caption" | "hashtags" | "affiliates" | "pinned_comment">;
+type PostFields = Pick<VideoDetail, "caption" | "hashtags" | "affiliates" | "pinned_survey">;
 
 const lines = (text: string) =>
   text
@@ -125,7 +125,7 @@ export function EngageContent({ video, productsFirst = false }: { video: VideoDe
       data-post-block="comments"
     >
       <Flex vertical gap={4}>
-        <PinnedComment video={video} save={(pinned_comment) => patch({ pinned_comment })} />
+        <PinnedComment video={video} save={(pinned_survey) => patch({ pinned_survey })} />
         <Warnings messages={warningsFor("pinned_comment")} />
         <ExtraComments video={video} />
         {video.platform === "facebook" && !productsFirst && <CommentPosting video={video} />}
@@ -220,37 +220,24 @@ function VideoSuggestions({ video }: { video: VideoDetail }) {
   );
 }
 
-const PINNED_HELP =
-  "Bình luận ghim là một mẫu: {title} là tiêu đề, {items} là các cảnh mỗi cảnh một dòng (dòng 1 của chữ trên màn " +
-  "hình là tên, các dòng sau là lợi ích), {item_names} là tên các món, {count} là số cảnh, {hook} là lời đọc của " +
-  "Cảnh tiêu đề, {products} là tên sản phẩm đã gắn. Sửa, thêm, xóa hay đổi thứ tự cảnh thì bình luận đổi theo.";
-
 /**
- * "Bình luận ghim": the template a member edits, with buttons that put a variable at the cursor, and under it the
- * comment as it reads now ("Xem trước"), rendered from the scenes as the template is typed
- * (docs/decisions/2026-11-14-pinned-comment-template.md).
+ * "Bình luận ghim": always the title, the scenes numbered from 1, then "Dòng khảo sát", the only part a member types
+ * (docs/decisions/2026-11-19-pinned-comment-fixed-shape.md). "Xem trước" follows the line as it is typed.
  */
 function PinnedComment({ video, save }: { video: VideoDetail; save: (text: string) => Promise<VideoDetail> }) {
-  // What is being typed, until the video holds a newer saved template.
+  // What is being typed, until the video holds a newer saved line.
   const [typed, setTyped] = useState<{ from: string; text: string } | null>(null);
-  const template = typed && typed.from === video.pinned_comment ? typed.text : video.pinned_comment;
-  const preview = renderPinned(template, video);
-  const fixed = template.trim() !== "" && !followsScenes(template);
+  const survey = typed && typed.from === video.pinned_survey ? typed.text : video.pinned_survey;
+  const preview = buildPinComment(survey, video);
 
   return (
     <Flex vertical gap={4} data-testid="pinned-comment">
       <AutoSaveField
-        label="Bình luận ghim"
-        value={video.pinned_comment}
-        multiline
-        help={PINNED_HELP}
+        label="Dòng khảo sát"
+        value={video.pinned_survey}
+        placeholder="Để trống nếu không cần dòng hỏi người xem"
         save={save}
-        onTextChange={(text) => setTyped({ from: video.pinned_comment, text })}
-        insertions={PINNED_VARIABLES.map((variable) => ({
-          label: `{${variable.name}}`,
-          text: `{${variable.name}}`,
-          title: variable.label,
-        }))}
+        onTextChange={(text) => setTyped({ from: video.pinned_survey, text })}
       />
       <Typography.Text strong style={{ marginTop: 8 }}>
         Xem trước
@@ -268,17 +255,9 @@ function PinnedComment({ video, save }: { video: VideoDetail; save: (text: strin
       >
         {preview || <Typography.Text type="secondary">Chưa có bình luận ghim</Typography.Text>}
       </div>
-      {fixed ? (
-        <Typography.Text type="warning" style={{ fontSize: 12 }} data-testid="pinned-fixed">
-          Bình luận không còn tự cập nhật theo cảnh: chèn {"{items}"} để liệt kê các cảnh.
-        </Typography.Text>
-      ) : (
-        template.trim() !== "" && (
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Tự cập nhật theo tiêu đề và các cảnh.
-          </Typography.Text>
-        )
-      )}
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        Tự cập nhật theo tiêu đề và các cảnh.
+      </Typography.Text>
     </Flex>
   );
 }

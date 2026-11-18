@@ -82,7 +82,7 @@ def test_script_job_writes_the_script_then_a_photo_search_fills_the_scenes(commi
     assert title.is_title and title.text == video.title_options[0] and title.seconds == 3
     assert title.voice_text == "Mời bạn xem đến cuối nhé" and content[0].voice_text == "Cá nhỏ giàu canxi"
     assert 5 <= len(content) <= 7 and all(scene.keywords for scene in content)
-    assert video.caption and len(video.hashtags) == 5 and len(video.affiliates) == 2 and video.pinned_comment
+    assert video.caption and len(video.hashtags) == 5 and len(video.affiliates) == 2 and video.pinned_survey
     assert video.self_review and video.music_suggestions
     assert "Chủ đề: xương khớp sau 50 tuổi" in services.claude_prompts[0]
     assert "chữa khỏi" in services.claude_prompts[0]

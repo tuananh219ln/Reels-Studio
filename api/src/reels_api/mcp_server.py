@@ -769,19 +769,18 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         video_id: int,
         caption: str | None = None,
         hashtags: list[str] | None = None,
-        pinned_comment: str | None = None,
+        pinned_survey: str | None = None,
     ) -> dict:
         """Lưu các trường được truyền vào; chuỗi rỗng hoặc danh sách rỗng xóa nội dung trường. Không đăng bài.
-        pinned_comment là mẫu: {title} (tiêu đề), {items} (mỗi cảnh một dòng "1. tên – lợi ích"), {item_names},
-        {count}, {hook}, {products} được điền từ cảnh lúc hiển thị và lúc đăng, nên giữ {items} để bình luận tự đổi
-        theo cảnh."""
+        Bình luận ghim luôn là: tiêu đề, rồi các cảnh mỗi cảnh một dòng "1. tên cảnh" (app tự đánh số theo thứ tự
+        cảnh), rồi pinned_survey: một dòng khảo sát mời người xem bình luận; chuỗi rỗng bỏ dòng này."""
         body = videos.VideoPatchBody(
             **{
                 key: value
                 for key, value in {
                     "caption": caption,
                     "hashtags": hashtags,
-                    "pinned_comment": pinned_comment,
+                    "pinned_survey": pinned_survey,
                 }.items()
                 if value is not None
             }

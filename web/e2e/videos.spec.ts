@@ -619,41 +619,47 @@ test("the pinned comment lists the scenes and follows an edited scene", async ({
   await loginAsSeed(page);
   await newVideoWithScript(page, "canxi cho bữa sáng");
   await sideTab(page, "Bình luận & Sản phẩm");
-  // A new script's comment is a template: the title and the scenes, filled in, then the AI's sentence.
-  const field = page.getByLabel("Bình luận ghim");
+  // A new script's comment: the title, the scenes numbered from 1, then the AI's question as "Dòng khảo sát".
+  const field = page.getByLabel("Dòng khảo sát");
   const preview = page.getByTestId("pinned-preview");
-  await expect(field).toHaveValue("{title}\n{items}\nLink sản phẩm ở đây nhé");
+  await expect(field).toHaveValue("Link sản phẩm ở đây nhé");
   await expect(preview).toContainText("1. ");
   await expect(preview).toContainText("Link sản phẩm ở đây nhé");
+  // The free template and its variable buttons are gone.
+  await expect(page.getByLabel("Bình luận ghim", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "{items}" })).toHaveCount(0);
   // No product attached: the "link" is flagged.
   await expect(page.getByText("Bình luận nhắc tới “link” nhưng video chưa gắn sản phẩm nào")).toBeVisible();
 
-  // Editing a scene changes the comment, and says so.
+  // Editing a scene changes the comment, and says so; a number the scene already has is not repeated.
   const first = page.getByTestId("scene").first();
   await openScene(first);
   const text = first.getByLabel("Chữ trên màn hình");
-  await text.fill("Cá nhỏ chiên\nGiàu *canxi*");
+  await text.fill("1. Cá nhỏ chiên\nGiàu *canxi*");
   await text.blur();
   await expect(page.getByText("Bình luận ghim đã được cập nhật theo cảnh")).toBeVisible();
-  await expect(preview).toContainText("1. Cá nhỏ chiên – Giàu canxi");
+  await expect(preview).toContainText("1. Cá nhỏ chiên");
+  await expect(preview).not.toContainText("1. 1.");
   const id = page.url().split("/videos/")[1];
   await expect
     .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_comment_text)
-    .toContain("1. Cá nhỏ chiên – Giàu canxi");
+    .toContain("1. Cá nhỏ chiên");
 
-  // The preview follows the template as it is typed; without {items} it no longer follows the scenes.
+  // The preview follows the survey line as it is typed, and it is saved.
   await field.fill("Nhà bạn hay ăn món nào?");
-  await expect(preview).toHaveText("Nhà bạn hay ăn món nào?");
-  await expect(page.getByTestId("pinned-fixed")).toBeVisible();
+  await expect(preview).toContainText("Nhà bạn hay ăn món nào?");
+  await expect(preview).toContainText("1. Cá nhỏ chiên");
   await field.blur();
-  // "{items}" puts the variable back, and the comment lists the scenes again.
-  await page.getByTestId("field-insertions").getByRole("button", { name: "{items}", exact: true }).click();
-  await expect(field).toHaveValue(/\{items\}/);
-  await expect(preview).toContainText("1. Cá nhỏ chiên – Giàu canxi");
-  await expect(page.getByTestId("pinned-fixed")).toHaveCount(0);
   await expect
-    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_comment)
-    .toMatch(/\{items\}/);
+    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_survey)
+    .toBe("Nhà bạn hay ăn món nào?");
+  // Cleared, the comment ends with the list.
+  await field.fill("");
+  await field.blur();
+  await expect(preview).not.toContainText("Nhà bạn hay ăn món nào?");
+  await expect
+    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_comment_text)
+    .not.toContain("Nhà bạn hay ăn món nào?");
 });
 
 test("a scene reuses a photo another video of its group already uses", async ({ page }) => {
@@ -1694,14 +1700,14 @@ test("the side panel: three tabs at its top, the blocks in order on each, the Lo
   await expect(engage).toHaveAttribute("aria-selected", "true");
   await expect(panel.locator('[data-post-block="products"]')).toBeInViewport();
   // A comment typed there stays when the member goes to another tab and back, and is saved.
-  const pinned = panel.getByLabel("Bình luận ghim");
+  const pinned = panel.getByLabel("Dòng khảo sát");
   await pinned.fill("Ghim thử khi đổi tab");
   await sideTab(page, "Đăng bài");
   await sideTab(page, "Bình luận & Sản phẩm");
   await expect(pinned).toHaveValue("Ghim thử khi đổi tab");
   const id = page.url().split("/videos/")[1];
   await expect
-    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_comment)
+    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_survey)
     .toBe("Ghim thử khi đổi tab");
   await sideTab(page, "Đăng bài");
   // The panel scrolls on its own; its tabs stay in view at its top.
