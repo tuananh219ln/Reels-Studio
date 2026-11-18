@@ -674,7 +674,7 @@ video nor an article only as `meta_suite` or `manual_link` (the `one_target` che
 comments and the Page's dashboard keep to posts with one.
 
 [comment_tracker.py](../api/src/reels_api/comment_tracker.py) builds `GET /api/posts/comments` ("Bình luận" of
-"Bài đăng", read only): each Facebook reel live within 7 days with its saved and written "Bình luận thêm", what is
+"Bài đăng", read only): each Facebook reel live within 3 days with its saved and written "Bình luận thêm", what is
 left (the first comment included), a state, its place in the worker's queue (`post_comments.due_posts` order) and a
 rough end time walking that queue with the average rest, the 5-minute gap between videos and the Page's 100 a day;
 plus each Page's count today.
@@ -857,8 +857,11 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     before Facebook is asked; a comment already written is edited, never written again, and a retry after a
     lost answer first looks for the Page's comment with the same text. Then the video's "Bình luận thêm"
     (`videos.extra_comments`, up to 12, set on "Nội dung đăng" with `PATCH /api/videos/{id}`) are written under the
-    reel in order, one Facebook write per worker turn with the Page resting between them (`fanpages.comments_next_at`, migration 0104: 30–60 s after the first comment, 45–90 s between the extras, 5 minutes after a video's last one before the Page starts another video's; a rest is a request dated ahead in `comment_requested_at`; at most 100 comments a Page a day in Vietnam time, `comments_day`/`comments_count`), each kept by place in `publications.extra_comment_ids` / `extra_comment_texts` (migration 0080):
-    edited when its text changed, written once, and one removed from the video is left on Facebook. Saving a changed
+    reel in order, one Facebook write per worker turn with the Page resting between them (`fanpages.comments_next_at`, migration 0104: 45–75 s after the first comment and between the extras, a minute after a video's last one before the Page starts another video's; a rest is a request dated ahead in `comment_requested_at`; at most 100 comments a Page a day in Vietnam time, `comments_day`/`comments_count`), each kept by place in `publications.extra_comment_ids` / `extra_comment_texts` (migration 0080):
+    edited when its text changed, written once, and one removed from the video is left on Facebook. By the reel's age
+    (`post_comments.stage`, from its live time): in the first 24 hours every one goes up in that run; from then to 3
+    days one new comment a day, the next set for a random time of 9h–21h Vietnam time the day after (a daily comment
+    due outside those hours is moved into them without an attempt); after 3 days no new one, only edits. Saving a changed
     pinned comment or "Bình luận thêm" asks the worker by itself for each live post that already has a comment
     (`post_comments.ask_after_edit`; not a post never commented, not a "Đã dán link tay" video, and a post resting
     keeps its time), so no "Cập nhật bình luận" is needed. Facebook does

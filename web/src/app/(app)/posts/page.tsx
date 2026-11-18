@@ -253,7 +253,7 @@ function Posts() {
       <>
         <PageHeader
           title="Bài đăng"
-          description="Bình luận của Page dưới các reel lên Facebook trong 7 ngày qua: đã lên bao nhiêu, còn chờ bao nhiêu và khi nào xong."
+          description="Bình luận của Page dưới các reel lên Facebook trong 3 ngày qua: đã lên bao nhiêu, còn chờ bao nhiêu và khi nào xong."
           actions={viewSwitch}
         />
         <CommentTracker />

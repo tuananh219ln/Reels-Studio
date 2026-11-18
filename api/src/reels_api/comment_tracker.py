@@ -1,10 +1,11 @@
-"""The "Bình luận" view of "Bài đăng": every reel live on Facebook within the week and where the Page's comments under
-it stand (the first comment and the video's "Bình luận thêm", post_comments.py), in the order the worker takes them,
+"""The "Bình luận" view of "Bài đăng": every reel live on Facebook within post_comments.KEEP_FOR and where the Page's
+comments under it stand (the first comment and the video's "Bình luận thêm", post_comments.py), in the order the worker takes them,
 with a rough time each run should end. Read only: it never asks the worker for anything and never calls Facebook.
 
-The estimate walks the queue as post_comments.due_posts orders it (asked first, then by post), one comment per
+A new reel's estimate walks the queue as post_comments.due_posts orders it (asked first, then by post), one comment per
 worker turn with the average rest between them, VIDEO_GAP between videos, and the Page's DAY_CAP a day in Vietnam
-time, so a run past the cap ends the next day."""
+time, so a run past the cap ends the next day. An older reel gets one comment a day, so its last is that many days on;
+past KEEP_FOR it gets no new one."""
 
 from datetime import datetime, time, timedelta
 
@@ -16,11 +17,16 @@ from .models import Fanpage, Publication, Video
 from .sessions import now
 from .videos import is_published, live_at, split_scenes, video_name
 
-DAYS = 7
 # The average rest between two comments of a run (post_comments.FIRST_GAP / EXTRA_GAP).
 AVERAGE_GAP = timedelta(
     seconds=(sum(post_comments.FIRST_GAP) / 2 + sum(post_comments.EXTRA_GAP) / 2) / 2,
 )
+
+
+def _edits(post: Publication, extras: list[str]) -> int:
+    """Comments already on Facebook whose text has changed since."""
+    ids, texts = list(post.extra_comment_ids or []), list(post.extra_comment_texts or [])
+    return sum(1 for place, text in enumerate(extras) if place < len(ids) and texts[place] != text)
 
 
 def _written(post: Publication, extras: list[str]) -> int:
@@ -47,7 +53,7 @@ def _next_day(at: datetime) -> datetime:
 
 def tracker(db: DbSession) -> dict:
     at = now()
-    since = at - timedelta(days=DAYS)
+    since = at - post_comments.KEEP_FOR
     posts = [
         post
         for post in db.scalars(
@@ -67,18 +73,22 @@ def tracker(db: DbSession) -> dict:
         title, scenes = split_scenes(db, video)
         extras = [text for text in video.extra_comments if text.strip()]
         written = _written(post, extras)
+        period = post_comments.stage(post)
         first_missing = post.comment_id is None and bool(video.pinned_comment.strip())
-        left = len(extras) - written + (1 if first_missing else 0)
+        new_ones = len(extras) - written - _edits(post, extras) if period != "stopped" else 0
+        left = new_ones + _edits(post, extras) + (1 if first_missing else 0)
         if video.manual_comment:
             state = "manual"
         elif not extras:
             state = "no_extras"
         elif left == 0:
-            state = "done"
-        elif _queued(post):
-            state = "queued"
-        elif post.comment_error:
+            state = "done" if written == len(extras) else "stopped"
+        elif post.comment_error and not _queued(post):
             state = "failed"
+        elif period == "daily" and new_ones > 0 and (_queued(post) or post.comment_requested_at):
+            state = "daily"
+        elif _queued(post) or (post.comment_requested_at and post.comment_requested_at > at):
+            state = "queued"
         else:
             state = "not_asked"
         resting = post.comment_requested_at if post.comment_requested_at and post.comment_requested_at > at else None
@@ -96,6 +106,7 @@ def tracker(db: DbSession) -> dict:
                 "written": written,
                 "left": 0 if state in ("manual", "done") else left,
                 "first": post_comments.payload(post)["state"],
+                "stage": period,
                 "state": state,
                 "error": post.comment_error,
                 "resting_until": resting.isoformat() if resting else None,
@@ -125,6 +136,13 @@ def tracker(db: DbSession) -> dict:
 def _estimate(rows: list[dict], posts: list[Publication], pages: dict, at: datetime, today) -> None:
     """Number the queued posts in the worker's order and give each a rough time its last comment goes up."""
     by_id = {post.id: post for post in posts}
+    for row in rows:
+        if row["state"] == "daily":
+            # One new comment a day, the first at its set time (or within today's hours).
+            post = by_id[row["post_id"]]
+            first = post.comment_requested_at if post.comment_requested_at and post.comment_requested_at > at else None
+            first = first or (at if post_comments.in_day_hours(at) else post_comments.day_slot(at, next_day=False))
+            row["eta"] = (first + timedelta(days=max(row["left"] - 1, 0))).isoformat()
     queued = [row for row in rows if row["state"] == "queued"]
     # post_comments.due_posts: the posts asked for come before the ones "Tự bình luận" has not run on, then by post.
     queued.sort(key=lambda row: (not _asked(by_id[row["post_id"]]), row["post_id"]))

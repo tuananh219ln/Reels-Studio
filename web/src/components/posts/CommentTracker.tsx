@@ -10,11 +10,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 const STATE: Record<TrackedPost["state"], { label: string; color: string }> = {
   queued: { label: "Đang chờ đăng", color: "processing" },
+  daily: { label: "Mỗi ngày 1 bình luận", color: "cyan" },
+  stopped: { label: "Đã dừng (quá 3 ngày)", color: "default" },
   done: { label: "Đã lên đủ", color: "success" },
   not_asked: { label: "Chưa nhờ đăng", color: "warning" },
   failed: { label: "Lỗi", color: "error" },
   no_extras: { label: "Chưa có bình luận chi tiết", color: "default" },
   manual: { label: "Dán link tay", color: "default" },
+};
+
+const STAGE: Record<TrackedPost["stage"], string> = {
+  new: "Mới",
+  daily: "Ngày 2–3",
+  stopped: "Quá 3 ngày",
 };
 
 type Filter = "all" | "queued" | "todo" | "done";
@@ -27,7 +35,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 ];
 
 function matches(post: TrackedPost, filter: Filter): boolean {
-  if (filter === "queued") return post.state === "queued";
+  if (filter === "queued") return post.state === "queued" || post.state === "daily";
   if (filter === "done") return post.state === "done";
   if (filter === "todo") return ["not_asked", "failed", "no_extras"].includes(post.state);
   return true;
@@ -64,7 +72,7 @@ export default function CommentTracker() {
         <Flex vertical gap={2}>
           <Link href={`/videos/${post.video_id}`}>{post.title}</Link>
           <Typography.Text type="secondary">
-            {post.fanpage ?? "Page đã gỡ"} · lên {formatDayTime(post.live_at)} ·{" "}
+            {STAGE[post.stage]} · {post.fanpage ?? "Page đã gỡ"} · lên {formatDayTime(post.live_at)} ·{" "}
             <a href={post.url} target="_blank" rel="noreferrer">
               Mở reel
             </a>
@@ -106,7 +114,9 @@ export default function CommentTracker() {
           )}
           {post.error && <Typography.Text type="danger">{post.error}</Typography.Text>}
           {post.resting_until && (
-            <Typography.Text type="secondary">Nghỉ tới {formatDayTime(post.resting_until)}</Typography.Text>
+            <Typography.Text type="secondary">
+              {post.state === "daily" ? "Bình luận tiếp theo" : "Nghỉ tới"} {formatDayTime(post.resting_until)}
+            </Typography.Text>
           )}
         </Flex>
       ),
@@ -136,14 +146,15 @@ export default function CommentTracker() {
             </Typography.Text>
           ))}
           <Typography.Text type="secondary">
-            Page viết từng bình luận một, nghỉ 30–90 giây giữa hai bình luận và 5 phút giữa hai video, tối đa{" "}
-            {data.day_cap} bình luận một ngày; phần dư sang ngày hôm sau. Giờ dự kiến là ước tính, giờ Việt Nam.
+            Reel mới (24 giờ đầu): Page đăng đủ bình luận trong một lượt, cách nhau 45–75 giây. Ngày 2–3: mỗi ngày thêm
+            1 bình luận vào giờ ngẫu nhiên 9h–21h. Quá 3 ngày: không thêm bình luận mới. Tối đa {data.day_cap} bình luận
+            một Page một ngày. Giờ dự kiến là ước tính, giờ Việt Nam.
           </Typography.Text>
         </Flex>
       </Card>
       <Segmented<Filter> aria-label="Lọc bình luận" value={filter} onChange={setFilter} options={FILTERS} />
       {rows.length === 0 ? (
-        <EmptyState description="Không có reel nào trong 7 ngày qua ở mục này" />
+        <EmptyState description="Không có reel nào trong 3 ngày qua ở mục này" />
       ) : (
         <Table<TrackedPost>
           rowKey="post_id"
