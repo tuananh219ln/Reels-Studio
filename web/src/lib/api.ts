@@ -1686,6 +1686,40 @@ export type PostRow = Post & {
   attempt: PostAttempt | null;
 };
 
+/** A reel live within 3 days on "Bình luận" of "Bài đăng" (GET /posts/comments). */
+export type TrackedPost = {
+  post_id: number;
+  video_id: number;
+  title: string;
+  fanpage_id: number | null;
+  fanpage: string | null;
+  live_at: string;
+  url: string;
+  /** Content scenes of the video, to compare with the detailed comments saved. */
+  scenes: number;
+  saved: number;
+  /** Of the saved "Bình luận thêm", how many are on Facebook as they read now. */
+  written: number;
+  /** Comments still to write or edit, the first comment included. */
+  left: number;
+  first: "off" | "waiting" | "pending" | "done" | "failed";
+  state: "done" | "queued" | "daily" | "stopped" | "not_asked" | "failed" | "no_extras" | "manual";
+  /** The reel's age: all its comments at once, one a day, or no new one. */
+  stage: "new" | "daily" | "stopped";
+  error: string | null;
+  resting_until: string | null;
+  /** Place in the worker's queue, from 1; null when not queued. */
+  position: number | null;
+  /** Rough time its last comment should be up. */
+  eta: string | null;
+};
+
+export type CommentTrackerData = {
+  day_cap: number;
+  pages: { id: number; name: string; today: number; resting_until: string | null }[];
+  posts: TrackedPost[];
+};
+
 export type JobRow = {
   id: number;
   /** null for a plan job, which belongs to a topic group, and an article's job. */

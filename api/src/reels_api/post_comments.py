@@ -13,11 +13,15 @@ Never two comments: the comment's id is kept and a later request edits that comm
 follow the first, in order, each kept by its id the same way. The attempt is stamped before
 Facebook is asked, so an answer lost on the way is not retried by itself; a member's retry first looks for a comment
 the Page already wrote with the same text. A failed attempt is recorded on the post and waits for a member.
+
+How fast the "Bình luận thêm" go up depends on the reel's age (decisions/2026-11-18-comment-pacing.md): in its first
+NEW_FOR the Page writes them all in one run, a comment every minute or so; then, until KEEP_FOR, one new comment a day
+at a random time of DAY_HOURS (Vietnam time); after that no new one, though a changed text is still edited.
 """
 
 import logging
 import random
-from datetime import timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session as DbSession
@@ -34,13 +38,17 @@ log = logging.getLogger("reels_api.post_comments")
 # Facebook needs a moment after a reel goes live before it takes comments on it.
 DELAY = timedelta(minutes=2)
 BATCH = 3
-# Pacing, so a run of detailed comments never looks like spam (decisions/2026-11-18-food-comments.md): seconds to rest
+# Pacing, so a run of detailed comments never looks like spam (decisions/2026-11-18-comment-pacing.md): seconds to rest
 # after the first comment, between the extras, and after a video's last one before the Page starts another video's;
 # and the most comments a Page gets in a day (Vietnam time).
-FIRST_GAP = (30, 60)
-EXTRA_GAP = (45, 90)
-VIDEO_GAP = 300
+FIRST_GAP = (45, 75)
+EXTRA_GAP = (45, 75)
+VIDEO_GAP = 60
 DAY_CAP = 100
+# A reel's age: all its comments at once while new, then one a day in the day's hours, then none.
+NEW_FOR = timedelta(hours=24)
+KEEP_FOR = timedelta(days=3)
+DAY_HOURS = (9, 21)
 VIETNAM_TIME = timezone(timedelta(hours=7))
 NOTHING_TO_SAY = "Video chưa có bình luận ghim hay sản phẩm affiliate nào để bình luận"
 
@@ -61,6 +69,33 @@ def _asked(at):
 
 def _today():
     return (now().astimezone(VIETNAM_TIME)).date()
+
+
+def stage(post: Publication) -> str:
+    """ "new" (all its comments in one run), "daily" (one new comment a day) or "stopped" (no new comment)."""
+    age = now() - (post.scheduled_at or post.published_at or post.created_at)
+    return "new" if age < NEW_FOR else "daily" if age < KEEP_FOR else "stopped"
+
+
+def in_day_hours(at: datetime) -> bool:
+    return DAY_HOURS[0] <= at.astimezone(VIETNAM_TIME).hour < DAY_HOURS[1]
+
+
+def day_slot(after: datetime, next_day: bool) -> datetime:
+    """A random time within DAY_HOURS: on the day after `after`, or else between `after` and the end of the first
+    such hours not over yet."""
+    local = after.astimezone(VIETNAM_TIME)
+    day = local.date() + timedelta(days=1) if next_day else local.date()
+    start = datetime.combine(day, time(DAY_HOURS[0]), VIETNAM_TIME)
+    end = datetime.combine(day, time(DAY_HOURS[1]), VIETNAM_TIME)
+    if not next_day:
+        start = max(start, local)
+        if start >= end:
+            start, end = (
+                start.replace(hour=DAY_HOURS[0], minute=0, second=0, microsecond=0) + timedelta(days=1),
+                end + timedelta(days=1),
+            )
+    return start + timedelta(seconds=random.uniform(0, (end - start).total_seconds()))
 
 
 def _may_write(at):
@@ -146,6 +181,15 @@ def write(db: DbSession, post: Publication) -> None:
         log.warning("Could not make Shopee links for post %s: %s %s", post.id, err.message, err.detail)
         return
     extras = _extras(db, post)
+    period = stage(post)
+    adds = period != "stopped"
+    first_done = not text or (post.comment_id is not None and text == post.comment_text)
+    place = _next_place(post, extras, adds)
+    if period == "daily" and first_done and _is_new(post, place) and not in_day_hours(now()):
+        # An older reel's daily comment waits for the day's hours; nothing is stamped, so it is not an attempt.
+        post.comment_requested_at = day_slot(now(), next_day=False)
+        db.commit()
+        return
     post.comment_sent_at = now()
     if not text and not extras:
         post.comment_error = NOTHING_TO_SAY
@@ -174,16 +218,19 @@ def write(db: DbSession, post: Publication) -> None:
     row = db.get(Fanpage, post.fanpage_id)
     if spent:
         _count(row)
-        if _next_place(post, extras) is not None:
+        if _next_place(post, extras, adds) is not None:
             _rest(db, post, row, FIRST_GAP)
             return
-    elif _next_place(post, extras) is not None:
-        place = _next_place(post, extras)
+    elif place is not None:
+        added = _is_new(post, place)
         if not _write_extra(db, post, page, extras, place, tried_before):
             return
         _count(row)
-        if _next_place(post, extras) is not None:
-            _rest(db, post, row, EXTRA_GAP)
+        if _next_place(post, extras, adds) is not None:
+            if period == "daily" and added:
+                _rest_until(db, post, row, day_slot(now(), next_day=True))
+            else:
+                _rest(db, post, row, EXTRA_GAP)
             return
         # The run is over: the Page does not start another video's comments straight away.
         if row is not None:
@@ -198,13 +245,21 @@ def _extras(db: DbSession, post: Publication) -> list[str]:
     return [text for text in (video.extra_comments if video else []) if text.strip()]
 
 
-def _next_place(post: Publication, extras: list[str]) -> int | None:
-    """The first of the video's "Bình luận thêm" still to write (or to edit, its text having changed)."""
+def _next_place(post: Publication, extras: list[str], adds: bool = True) -> int | None:
+    """The first of the video's "Bình luận thêm" still to write (or to edit, its text having changed); without
+    `adds`, only one to edit."""
     ids, texts = list(post.extra_comment_ids or []), list(post.extra_comment_texts or [])
     for place, text in enumerate(extras):
-        if place >= len(ids) or texts[place] != text:
+        if place >= len(ids):
+            return place if adds else None
+        if texts[place] != text:
             return place
     return None
+
+
+def _is_new(post: Publication, place: int | None) -> bool:
+    """The place is a comment not on Facebook yet (not an edit)."""
+    return place is not None and place >= len(post.extra_comment_ids or [])
 
 
 def _count(row: Fanpage | None) -> None:
@@ -225,6 +280,15 @@ def _rest(db: DbSession, post: Publication, row: Fanpage | None, gap: tuple[int,
     post.comment_requested_at = until
     db.commit()
     log.info("Post %s rests until %s before its next comment", post.id, until.isoformat())
+
+
+def _rest_until(db: DbSession, post: Publication, row: Fanpage | None, until: datetime) -> None:
+    """An older reel's run stops until its next day's comment; the Page rests only as after a video."""
+    if row is not None:
+        row.comments_next_at = now() + timedelta(seconds=VIDEO_GAP)
+    post.comment_requested_at = until
+    db.commit()
+    log.info("Post %s writes its next comment at %s", post.id, until.isoformat())
 
 
 def _write_extra(db: DbSession, post: Publication, page, extras: list[str], place: int, tried_before: bool) -> bool:
