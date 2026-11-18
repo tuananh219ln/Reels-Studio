@@ -194,7 +194,10 @@ async function reelsStudioReadReel(selectors, withComments) {
       }
     }
   }
+  // The video's picture, for a small copy the background makes (like the avatar).
+  const picture = document.querySelector('meta[property="og:image"]')?.getAttribute("content") || "";
   return {
+    thumb_src: /^https:\/\//.test(picture) ? picture : null,
     caption: caption.replace(/\s*(Ẩn bớt|See less)$/i, "").slice(0, 20000),
     audio_name: audio.slice(0, 1000) || null,
     posted_raw: posted.slice(0, 200) || null,
