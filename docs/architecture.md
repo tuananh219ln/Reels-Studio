@@ -208,7 +208,10 @@ numbers). `GET /api/competitors` adds `display_name` (`custom_name`, else the na
 When a scan ends `done`, `competitors.apply_threshold` ([decision](decisions/2026-11-18-competitors-video-threshold.md)):
 a channel with 10 or more videos of 100K+ (or its `video_threshold_mode`) keeps only those; the numbers over everything
 read are first stored in `competitor_scans.stats_snapshot`, which `stats()` returns, with `scanned_count`,
-`stored_count` and `threshold_applied`. The videos endpoint takes `min_views`.
+`stored_count` and `threshold_applied`. The videos endpoint takes `min_views`. The rule's two numbers are the team's
+setting `competitor_threshold` (Cài đặt › Phân tích đối thủ, `GET`/`PUT /api/competitors/settings`). A reel's page also
+gives `og:image`: the background shrinks it, `add_details` keeps a 128 px JPEG (`thumb_key`, served at
+`/api/competitors/<id>/thumbs/<video id>`) ([decision](decisions/2026-11-18-competitors-thumbs-settings.md)).
 
 ### Automatic scene footage
 

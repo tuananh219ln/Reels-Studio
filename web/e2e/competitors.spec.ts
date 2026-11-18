@@ -171,3 +171,14 @@ test("without the extension the page says how to install it", async ({ page }) =
   await page.goto("/competitors");
   await expect(page.getByText("Chưa thấy tiện ích Reels Studio")).toBeVisible();
 });
+
+test("the rule for a big channel is set on Cài đặt › Phân tích đối thủ and kept", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.goto("/settings/competitors");
+  await expect(page.getByLabel("Số video đạt ngưỡng để coi là kênh lớn")).toHaveValue("10");
+  await page.getByLabel("Số video đạt ngưỡng để coi là kênh lớn").fill("4");
+  await page.getByRole("button", { name: "Lưu ngưỡng" }).click();
+  await expect(page.getByText("Đã lưu ngưỡng kênh lớn")).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Số video đạt ngưỡng để coi là kênh lớn")).toHaveValue("4");
+});

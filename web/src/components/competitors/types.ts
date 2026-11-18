@@ -76,6 +76,8 @@ export type ScanDetail = CompetitorScan & { stats: Stats; report: Report | null 
 
 export type VideoRow = {
   rank: number;
+  /** A small picture, only for the videos whose own page the extension opened. */
+  thumb_url: string | null;
   fb_video_id: string;
   url: string;
   views: number | null;
