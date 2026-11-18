@@ -36,7 +36,8 @@ def test_only_my_videos_live_within_the_week_are_listed_with_their_scenes(mcp_cl
     post_for(db, other)
     listed = payload(call(mcp_client, token, "list_videos_for_food_comments"))["videos"]
     assert [row["video_id"] for row in listed] == [recent.id]
-    assert len(listed[0]["scenes"]) == 2 and listed[0]["comments_saved"] == 0 and never.id not in str(listed)
+    assert len(listed[0]["scenes"]) == 2 and listed[0]["comments_saved"] == 0
+    assert never.id not in [row["video_id"] for row in listed]
 
 
 def test_saving_stores_one_comment_per_dish_and_asks_the_worker_for_each_live_post(mcp_client, db, storage):  # noqa: F811
