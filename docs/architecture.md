@@ -849,7 +849,10 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     lost answer first looks for the Page's comment with the same text. Then the video's "Bình luận thêm"
     (`videos.extra_comments`, up to 12, set on "Nội dung đăng" with `PATCH /api/videos/{id}`) are written under the
     reel in order, one Facebook write per worker turn with the Page resting between them (`fanpages.comments_next_at`, migration 0104: 30–60 s after the first comment, 45–90 s between the extras, 5 minutes after a video's last one before the Page starts another video's; a rest is a request dated ahead in `comment_requested_at`; at most 100 comments a Page a day in Vietnam time, `comments_day`/`comments_count`), each kept by place in `publications.extra_comment_ids` / `extra_comment_texts` (migration 0080):
-    edited when its text changed, written once, and one removed from the video is left on Facebook. Facebook does
+    edited when its text changed, written once, and one removed from the video is left on Facebook. Saving a changed
+    pinned comment or "Bình luận thêm" asks the worker by itself for each live post that already has a comment
+    (`post_comments.ask_after_edit`; not a post never commented, not a "Đã dán link tay" video, and a post resting
+    keeps its time), so no "Cập nhật bình luận" is needed. Facebook does
     not let an app tag (@) people, so an "@name" is plain text. A failed attempt (or no text to write)
     is recorded and waits for a member. Products are attached on the video page before posting, or on
     `/affiliate` after, with `PUT /api/affiliate-products/videos/{id}`; changing them asks the worker to edit

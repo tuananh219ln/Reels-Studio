@@ -256,6 +256,49 @@ def test_extra_comments_alone_are_something_to_say(db, me, storage, fakes):
     assert post.comment_error is None
 
 
+def test_comments_typed_after_the_first_went_up_are_written_without_asking(an, db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    write_all(db, post)
+    assert due(db) == []
+    saved = an.patch(
+        f"/api/videos/{post.video_id}",
+        json={"pinned_comment": "Món nào nhà bạn nấu nhiều nhất?", "extra_comments": ["Lưu lại nhé!"]},
+    )
+    assert saved.status_code == 200
+    db.expire_all()
+    assert due(db) == [post.id], "no need to press Cập nhật bình luận"
+    post = db.get(Publication, post.id)
+    write_all(db, post)
+    comments = comments_on(fakes, post)
+    assert [(comment["message"], comment["edits"]) for comment in comments] == [
+        ("Món nào nhà bạn nấu nhiều nhất?", 1),
+        ("Lưu lại nhé!", 0),
+    ]
+
+
+def test_saving_the_same_comments_or_a_hand_pasted_video_asks_nothing(an, db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    db.get(Video, post.video_id).extra_comments = ["Một"]
+    db.commit()
+    write_all(db, post)
+    an.patch(f"/api/videos/{post.video_id}", json={"extra_comments": ["Một"], "caption": "Caption mới"})
+    db.expire_all()
+    assert due(db) == [], "nothing changed in the comments"
+    db.get(Video, post.video_id).manual_comment = True
+    db.commit()
+    asked_at = db.get(Publication, post.id).comment_requested_at
+    an.patch(f"/api/videos/{post.video_id}", json={"extra_comments": ["Một", "Hai"]})
+    db.expire_all()
+    assert db.get(Publication, post.id).comment_requested_at == asked_at, "links pasted by hand: the app keeps out"
+
+
+def test_a_post_never_commented_is_not_started_by_an_edit(an, db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes, auto=False)
+    an.patch(f"/api/videos/{post.video_id}", json={"extra_comments": ["Một"]})
+    db.expire_all()
+    assert due(db) == [], "a post without Tự bình luận waits for Bình luận ngay"
+
+
 def test_extra_comments_are_saved_trimmed_and_at_most_twelve(an, db, me, storage):
     video = make_video(db, storage, me, scene_count=1)
     saved = an.patch(f"/api/videos/{video.id}", json={"extra_comments": [" Một ", "", "Hai"]})
