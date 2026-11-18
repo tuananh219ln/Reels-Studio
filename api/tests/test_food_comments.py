@@ -11,12 +11,12 @@ from reels_api.models import Publication
 GOOD = "1. Rau muống luộc. Công dụng: cung cấp chất xơ, giúp no lâu. Cách làm: luộc 2 phút rồi vớt ra. Ai không nên ăn: người đang dùng thuốc cần hỏi bác sĩ."
 
 
-def post_for(db, video, hours_ago=1, **fields):
+def post_for(db, video, hours_ago=1, status="published", **fields):
     post = Publication(
         video_id=video.id,
         created_by_id=video.created_by_id,
         platform="facebook",
-        status="published",
+        status=status,
         remote_id="reel-1",
         published_at=datetime.now(UTC) - timedelta(hours=hours_ago),
         **fields,
@@ -32,7 +32,7 @@ def test_only_my_videos_live_within_the_week_are_listed_with_their_scenes(mcp_cl
     recent, old, never = (make_video(db, storage, me, scene_count=2) for _ in range(3))
     other = make_video(db, storage, make_user(db, email="b@doi.vn", name="B"), scene_count=1)
     post_for(db, recent)
-    post_for(db, old, hours_ago=24 * 8)
+    post_for(db, old, hours_ago=24 * 4)
     post_for(db, other)
     listed = payload(call(mcp_client, token, "list_videos_for_food_comments"))["videos"]
     assert [row["video_id"] for row in listed] == [recent.id]
@@ -82,3 +82,16 @@ def test_another_members_video_a_video_not_live_and_a_pasted_by_hand_video(mcp_c
     db.refresh(post)
     assert saved["posts_asked"] == 0 and saved["note"] and post.comment_requested_at is None
     assert db.scalar(select(Publication.id).where(Publication.video_id == manual.id)) is not None
+
+
+def test_a_video_scheduled_soon_can_have_its_comments_ready_before_it_goes_live(mcp_client, db, storage):  # noqa: F811
+    me, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    soon, later = (make_video(db, storage, me, scene_count=1) for _ in range(2))
+    for video, hours in ((soon, 5), (later, 72)):
+        post_for(db, video, status="scheduled", scheduled_at=datetime.now(UTC) + timedelta(hours=hours))
+    listed = payload(call(mcp_client, token, "list_videos_for_food_comments"))["videos"]
+    assert [row["video_id"] for row in listed] == [soon.id] and len(listed[0]["coming"]) == 1
+    saved = payload(call(mcp_client, token, "set_food_comments", video_id=soon.id, comments=[GOOD]))
+    assert (saved["saved"], saved["posts_asked"], saved["posts_coming"]) == (1, 0, 1) and saved["note"]
+    assert call(mcp_client, token, "set_food_comments", video_id=later.id, comments=[GOOD])["isError"]

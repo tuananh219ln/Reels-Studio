@@ -324,7 +324,7 @@ def test_a_run_of_extra_comments_goes_one_at_a_time_with_a_rest_between(db, me, 
     post_comments.write(db, post)
     assert [c["message"] for c in comments_on(fakes, post)] == ["Món nào nhà bạn hay nấu nhất?"]
     wait = (row.comments_next_at - datetime.now(UTC)).total_seconds()
-    assert 25 < wait <= 30, "30 to 60 seconds after the first comment"
+    assert 40 < wait <= 45, "45 to 75 seconds after the first comment"
     assert due(db) == [], "nothing is written while the Page rests"
 
     for expected in (["Một"], ["Một", "Hai"]):
@@ -334,15 +334,70 @@ def test_a_run_of_extra_comments_goes_one_at_a_time_with_a_rest_between(db, me, 
         post_comments.write(db, post)
         assert [c["message"] for c in comments_on(fakes, post)][1:] == expected
         wait = (row.comments_next_at - datetime.now(UTC)).total_seconds()
-        assert 40 < wait <= 45, "45 to 90 seconds between the extras"
+        assert 40 < wait <= 45, "45 to 75 seconds between the extras"
 
     row.comments_next_at, post.comment_sent_at, post.comment_requested_at = None, ago(2), ago(1)
     db.commit()
     post_comments.write(db, post)
     assert [c["message"] for c in comments_on(fakes, post)][1:] == ["Một", "Hai", "Ba"]
     assert post.commented_at is not None and post.comment_error is None
-    assert 290 < (row.comments_next_at - datetime.now(UTC)).total_seconds() <= 300, "5 minutes before another video"
+    assert 55 < (row.comments_next_at - datetime.now(UTC)).total_seconds() <= 60, "a minute before another video"
     assert due(db) == []
+
+
+@pytest.fixture
+def day_hours(monkeypatch):
+    monkeypatch.setattr(post_comments, "in_day_hours", lambda at: True)
+
+
+def test_an_older_reel_gets_one_new_comment_a_day_within_the_days_hours(
+    db, me, storage, fakes, shortest_rests, day_hours
+):
+    post = add_post(db, storage, me, fakes, live_minutes_ago=30 * 60)
+    db.get(Video, post.video_id).extra_comments = ["Một", "Hai"]
+    db.commit()
+    post_comments.write(db, post)  # the first comment, then a short rest
+    post.comment_sent_at, post.comment_requested_at = ago(2), ago(1)
+    db.get(Fanpage, post.fanpage_id).comments_next_at = None
+    db.commit()
+    post_comments.write(db, post)
+    assert [c["message"] for c in comments_on(fakes, post)][1:] == ["Một"]
+    tomorrow = post.comment_requested_at.astimezone(post_comments.VIETNAM_TIME)
+    assert tomorrow.date() == post_comments._today() + timedelta(days=1) and tomorrow.hour == 9
+    db.get(Fanpage, post.fanpage_id).comments_next_at = None
+    db.commit()
+    assert due(db) == [], "the next one waits for tomorrow"
+    post.comment_sent_at, post.comment_requested_at = ago(2), ago(1)
+    db.commit()
+    post_comments.write(db, post)
+    assert [c["message"] for c in comments_on(fakes, post)][1:] == ["Một", "Hai"]
+    assert post.commented_at is not None
+
+
+def test_an_older_reels_comment_outside_the_days_hours_waits_without_an_attempt(db, me, storage, fakes, monkeypatch):
+    monkeypatch.setattr(post_comments, "in_day_hours", lambda at: False)
+    post = add_post(db, storage, me, fakes, live_minutes_ago=30 * 60)
+    write_all(db, post)
+    db.get(Video, post.video_id).extra_comments = ["Một"]
+    post.comment_requested_at = datetime.now(UTC)
+    db.commit()
+    sent = post.comment_sent_at
+    post_comments.write(db, post)
+    assert len(comments_on(fakes, post)) == 1 and post.comment_sent_at == sent
+    assert post.comment_requested_at > datetime.now(UTC)
+
+
+def test_a_reel_past_three_days_gets_no_new_comment_but_an_edit(db, me, storage, fakes, day_hours):
+    post = add_post(db, storage, me, fakes)
+    db.get(Video, post.video_id).extra_comments = ["Một"]
+    db.commit()
+    write_all(db, post)
+    post.published_at = ago(4 * 24 * 60)
+    db.get(Video, post.video_id).extra_comments = ["Một, sửa lại", "Hai"]
+    db.commit()
+    write_all(db, post)
+    extras = comments_on(fakes, post)[1:]
+    assert [(comment["message"], comment["edits"]) for comment in extras] == [("Một, sửa lại", 1)]
 
 
 def test_another_video_waits_for_the_page_to_stop_resting(db, me, storage, fakes, shortest_rests):
@@ -426,3 +481,66 @@ def test_the_worker_round_writes_due_comments_and_survives_a_failure(committed, 
     post_comments.write_due(committed)
     with committed() as db:
         assert db.get(Publication, good).comment_id
+
+
+# "Bình luận" on "Bài đăng" (comment_tracker.py): where each live reel's comments stand
+
+
+def tracked(an) -> dict:
+    response = an.get("/api/posts/comments")
+    assert response.status_code == 200
+    return {row["post_id"]: row for row in response.json()["posts"]}
+
+
+def test_the_tracker_counts_what_is_up_and_what_is_left_in_the_workers_order(an, db, me, storage, fakes):
+    first = add_post(db, storage, me, fakes)
+    second = add_post(db, storage, me, fakes)
+    for post in (first, second):
+        db.get(Video, post.video_id).extra_comments = ["Một", "Hai"]
+    db.commit()
+    rows = tracked(an)
+    assert (rows[first.id]["state"], rows[first.id]["left"], rows[first.id]["position"]) == ("queued", 3, 1)
+    assert rows[second.id]["position"] == 2 and rows[second.id]["eta"] > rows[first.id]["eta"]
+    write_all(db, first)
+    row = tracked(an)[first.id]
+    assert (row["state"], row["saved"], row["written"], row["left"], row["position"]) == ("done", 2, 2, 0, None)
+
+
+def test_the_tracker_tells_a_post_never_asked_a_hand_pasted_video_and_skips_old_posts(an, db, me, storage, fakes):
+    never = add_post(db, storage, me, fakes, auto=False)
+    pasted = add_post(db, storage, me, fakes)
+    old = add_post(db, storage, me, fakes, live_minutes_ago=4 * 24 * 60)
+    for post in (never, pasted, old):
+        db.get(Video, post.video_id).extra_comments = ["Một"]
+    db.get(Video, pasted.video_id).manual_comment = True
+    db.commit()
+    rows = tracked(an)
+    assert rows[never.id]["state"] == "not_asked" and rows[never.id]["left"] == 2
+    assert (rows[pasted.id]["state"], rows[pasted.id]["left"]) == ("manual", 0)
+    assert old.id not in rows
+
+
+def test_the_tracker_shows_a_page_past_its_day_cap_finishing_the_next_day(an, db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    db.get(Video, post.video_id).extra_comments = ["Một"]
+    page = db.get(Fanpage, post.fanpage_id)
+    page.comments_day, page.comments_count = post_comments._today(), post_comments.DAY_CAP
+    db.commit()
+    body = an.get("/api/posts/comments").json()
+    assert body["pages"][0]["today"] == post_comments.DAY_CAP
+    eta = datetime.fromisoformat(body["posts"][0]["eta"]).astimezone(post_comments.VIETNAM_TIME)
+    assert eta.date() > post_comments._today()
+
+
+def test_the_tracker_keeps_my_posts_and_pages_when_asked(an, db, me, storage, fakes):
+    mine = add_post(db, storage, me, fakes)
+    teammate = make_user(db, email="b@doi.vn", name="B")
+    page = fanpages.save(db, "page-b", "Trang của B", FACEBOOK_TOKEN, teammate.id)
+    db.flush()
+    theirs = add_post(db, storage, teammate, fakes)
+    theirs.fanpage_id = page.id
+    db.commit()
+    assert {mine.id, theirs.id} <= set(tracked(an))
+    body = an.get("/api/posts/comments?owner=me").json()
+    assert [row["post_id"] for row in body["posts"]] == [mine.id]
+    assert [p["name"] for p in body["pages"]] == ["Trang Dưỡng Sinh"]

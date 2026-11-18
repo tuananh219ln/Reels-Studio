@@ -40,42 +40,44 @@ test("the second account's cookies are read from a header or a cookie-export JSO
   expect(() => parseCookies("[not json")).toThrow(/JSON/);
 });
 
-test("the channel's avatar is the Page's own picture, never the scan account's in Facebook's top bar", async ({
+type Meta = { name: string | null; followers: string | null; avatar_src: string | null };
+
+/** Runs the extension's header reader the way Chrome does (executeScript `func`): its own source alone in the page. */
+async function readMeta(page: Page): Promise<Meta> {
+  const context: { reelsStudioReadMeta?: (selectors: unknown) => Promise<Meta> } = {};
+  vm.runInNewContext(readFileSync(path.resolve(__dirname, "../../extension/facebook-reels.js"), "utf-8"), context);
+  const selectors = JSON.parse(readFileSync(path.resolve(__dirname, "../../extension/selectors.json"), "utf-8"));
+  return page.evaluate(`(${context.reelsStudioReadMeta!.toString()})(${JSON.stringify(selectors)})`) as Promise<Meta>;
+}
+
+test("the channel's name and avatar are the Page's own, never Messenger's heading or the scan account's picture", async ({
   page,
 }) => {
-  // A Page as Facebook draws it: the top bar first, with the signed-in account's picture, then the cover and the
-  // Page's avatar beside its name. Before, the first `svg image` (the account's) was taken for every channel.
+  // A Page as Facebook draws it: the top bar with the signed-in account's picture, Messenger's panel with its own h1,
+  // then the cover and the Page's avatar beside its name. Before, the first `svg image` (the account's) was taken for
+  // every channel, the panel's "Đoạn chat" became a channel's name, and a helper beside the reader was not injected
+  // with it, so nothing at all was read.
   await page.setContent(`
     <div role="banner"><svg width="40" height="40"><image href="https://scontent.fbcdn.net/account.jpg" width="40" height="40"/></svg></div>
+    <div role="dialog"><h1>Đoạn chat</h1></div>
     <div role="main">
       <div>
         <img alt="Ảnh bìa" src="https://scontent.fbcdn.net/cover.jpg" style="width:900px;height:300px;display:block">
         <div>
           <svg width="168" height="168"><image href="https://scontent.fbcdn.net/page.jpg" width="168" height="168"/></svg>
-          <div><h1>Kênh đối thủ</h1></div>
+          <div><h1>Kênh đối thủ</h1><span>262 N người theo dõi</span></div>
         </div>
       </div>
       <svg width="16" height="16"><image href="https://scontent.fbcdn.net/reaction.png" width="16" height="16"/></svg>
     </div>`);
-  await page.addScriptTag({
-    content: readFileSync(path.resolve(__dirname, "../../extension/facebook-reels.js"), "utf-8"),
+  expect(await readMeta(page)).toMatchObject({
+    name: "Kênh đối thủ",
+    followers: "262 N",
+    avatar_src: "https://scontent.fbcdn.net/page.jpg",
   });
-  const selectors = JSON.parse(readFileSync(path.resolve(__dirname, "../../extension/selectors.json"), "utf-8"));
-  const found = (name: string) =>
-    page.evaluate(
-      ({ selectors, name }) => {
-        const pick = (window as unknown as { pageAvatar: (s: unknown, h: Element | null) => Element | null })
-          .pageAvatar;
-        return pick(selectors, name ? document.querySelector("h1") : null)?.getAttribute("href") ?? null;
-      },
-      { selectors, name },
-    );
-  expect(await found("h1")).toBe("https://scontent.fbcdn.net/page.jpg");
-  // Without a heading the main area is searched, still never the top bar.
-  expect(await found("")).toBe("https://scontent.fbcdn.net/page.jpg");
-  // A Page with no picture of its own gives none rather than the account's.
+  // A Page with no picture of its own gives none rather than the account's, and its name is still read.
   await page.evaluate(() => document.querySelector('[role="main"] svg')?.remove());
-  expect(await found("h1")).toBeNull();
+  expect(await readMeta(page)).toMatchObject({ name: "Kênh đối thủ", avatar_src: null });
 });
 
 async function standIn(page: Page, account: { userId: string | null; incognito: boolean }) {

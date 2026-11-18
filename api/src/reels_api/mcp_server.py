@@ -707,10 +707,11 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         return await run_in_threadpool(invoke, lambda db, me: video_link(videos.get_video(video_id, me, db)))
 
     @tool("Liệt kê video cần bình luận chi tiết từng món", read=True)
-    async def list_videos_for_food_comments(days: Annotated[int, Field(ge=1, le=7)] = 7) -> dict:
-        """Video của thành viên đã lên Facebook trong `days` ngày qua, kèm tiêu đề, chữ và lời đọc của từng cảnh
-        (mỗi cảnh thường là một món) và số bình luận chi tiết đã lưu (comments_saved). Viết bình luận cho video có
-        comments_saved bằng 0 trước. Dùng trước "Lưu bình luận chi tiết từng món"."""
+    async def list_videos_for_food_comments(days: Annotated[int, Field(ge=1, le=7)] = 3) -> dict:
+        """Video của thành viên đã lên Facebook trong `days` ngày qua (tối đa 3 ngày, video cũ hơn không thêm bình
+        luận) và video hẹn lên trong 48 giờ tới (`coming`), kèm tiêu đề, chữ và lời đọc của từng cảnh (mỗi cảnh
+        thường là một món) và số bình luận chi tiết đã lưu (comments_saved). Viết sẵn cho video sắp lên để bình luận
+        lên đủ ngay sau khi đăng. Dùng trước "Lưu bình luận chi tiết từng món"."""
         return await run_in_threadpool(
             invoke, lambda db, me: {"videos": food_comments.candidates(db, me.user_id, days)}
         )
@@ -730,7 +731,8 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         ],
     ) -> dict:
         """Lưu bình luận chi tiết của video (thay toàn bộ lần trước) và nhờ worker đăng dưới các bài của video lên
-        Facebook trong 7 ngày qua, sau bình luận ghim. Viết bằng gói Claude của người dùng, từ chính chữ và lời đọc
+        Facebook trong 3 ngày qua, sau bình luận ghim; bài hẹn lên trong 48 giờ tới thì đăng khi reel lên. Trong 24
+        giờ đầu Page đăng liền một lượt, sau đó mỗi ngày thêm 1 bình luận. Viết bằng gói Claude của người dùng, từ chính chữ và lời đọc
         của các cảnh, cụ thể hơn: tên món (dòng đầu, có số thứ tự), công dụng, cách làm gọn từng bước, ai không nên
         ăn hoặc cần hỏi bác sĩ (bệnh nền, thai kỳ, đang dùng thuốc...). Giọng ấm áp như tờ rơi sức khỏe, không hứa
         chữa khỏi bệnh, không thay thế thuốc, không dùng từ cấm của nhóm chủ đề; bình luận có từ đó bị từ chối. Không

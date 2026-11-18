@@ -23,3 +23,19 @@ wrap, and sorting was only in the "Sắp xếp" box.
 
 E2E: a page drawn like Facebook's (top bar, cover, Page avatar, a reaction icon) gives the Page's picture, and none
 once it is removed; a header click sorts and moves the box. Needs a person to try a real scan with 1.6.1.
+
+## Correction (extension 1.6.2)
+
+1.6.1 put the avatar search in a helper beside `reelsStudioReadMeta`; Chrome injects that function alone, so the
+helper was missing on Facebook and the whole header (name, followers, avatar) was lost. The search now lives inside
+the function, and a failure there still sends the name and followers. The name is also the first `h1` of the main
+area outside Facebook's own parts (Messenger's panel, a `dialog`, has an `h1` "Đoạn chat" that became a channel's
+name). The E2E test runs the function's source alone in the page, as Chrome does.
+
+## Fixed extension id (1.6.2)
+
+The cookies are in `chrome.storage.local`, which Chrome keys by the extension's id; an unpacked extension without a
+`key` gets its id from its folder's path, so loading an update from another folder lost the cookies. `manifest.json`
+now carries a fixed public `key` (id `ncnafhaoejkcbljpkomboinfnmkgolph`; no private key is needed for an unpacked
+extension, and none is kept). The cookies still never leave the member's Chrome. Removing the extension still deletes
+them; `extension/README.md` says to update with the reload arrow instead.
