@@ -2079,14 +2079,19 @@ test("a posted reel takes an approved product and its link goes in the pinned co
   await page.getByRole("menuitem", { name: "Affiliate" }).click();
   const picker = page.getByLabel(/^Sản phẩm của video/);
   await chooseOption(page, picker, "Vừng đen rang (~10.000đ)");
-  await expect(page.getByRole("button", { name: "Sao chép" })).toBeVisible();
+  await expect(page.getByRole("row").getByText("Vừng đen rang", { exact: true }).first()).toBeVisible();
   await page.keyboard.press("Escape");
   await chooseOption(page, picker, "Trà sen (~5.000đ)");
   await page.keyboard.press("Escape");
   await page.reload();
 
+  // "Sao chép bình luận và link" is under the row's ⋯ (decisions/2026-11-18-affiliate-comment-links.md).
   const copied = async () => {
-    await page.getByRole("button", { name: "Sao chép" }).click();
+    await expect(async () => {
+      await page.getByRole("button", { name: /^Thêm thao tác bình luận/ }).click();
+      await page.getByRole("menuitem", { name: "Sao chép bình luận và link" }).click({ timeout: 2_000 });
+    }).toPass();
+    await expect(page.getByText("Đã sao chép bình luận và link").last()).toBeVisible();
     return page.evaluate(() => navigator.clipboard.readText());
   };
   // The pinned comment (the title, the scenes one per line, the script's sentence), then one line per product.
