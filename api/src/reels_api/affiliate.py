@@ -5,7 +5,7 @@ video, made with the Page's own Shopee account when it has one)."""
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session as DbSession
 
 from . import crypto, pinned, shopee
@@ -21,6 +21,7 @@ from .models import (
     VideoAffiliateProduct,
 )
 from .script_rules import banned_hits
+from .sessions import now
 
 log = logging.getLogger("reels_api.affiliate")
 
@@ -178,3 +179,35 @@ def comment_text(db: DbSession, post: Publication) -> str:
         if link:
             lines.append(f"{product.name}: {link}")
     return "\n".join(part for part in [opening, *lines] if part)[:MAX_COMMENT_LENGTH]
+
+
+def ask_comment_refresh(db: DbSession, product_ids: list[int], forget_links: bool = False) -> int:
+    """A product changed (its link, approval, rules or removal): ask the worker to edit the comment already written
+    under every live post whose video or article carries it, so the link there is the current one. A video marked
+    "Đã dán link tay" is left alone, and a post with no comment yet writes the new text when its turn comes. With
+    `forget_links`, the Page-account short links made for the product are dropped so the edit makes them again from
+    the product's new page. Returns how many posts were asked. Does not commit."""
+    if not product_ids:
+        return 0
+    if forget_links:
+        db.execute(delete(AffiliateLink).where(AffiliateLink.product_id.in_(product_ids)))
+    at, asked = now(), 0
+    video_ids = select(VideoAffiliateProduct.video_id).where(VideoAffiliateProduct.product_id.in_(product_ids))
+    article_ids = select(ArticleAffiliateProduct.article_id).where(ArticleAffiliateProduct.product_id.in_(product_ids))
+    manual = select(Video.id).where(Video.manual_comment.is_(True))
+    posts = db.scalars(
+        select(Publication).where(
+            Publication.platform == "facebook",
+            Publication.comment_id.is_not(None),
+            (Publication.video_id.in_(video_ids) & Publication.video_id.not_in(manual))
+            | Publication.article_id.in_(article_ids),
+        )
+    )
+    for post in posts:
+        live = post.status == "published" or (
+            post.status == "scheduled" and post.scheduled_at is not None and post.scheduled_at <= at
+        )
+        if live:
+            post.comment_requested_at = at
+            asked += 1
+    return asked
