@@ -80,6 +80,48 @@ test("the channel's name and avatar are the Page's own, never Messenger's headin
   expect(await readMeta(page)).toMatchObject({ name: "Kênh đối thủ", avatar_src: null });
 });
 
+test("a profile's grid in its own scrolling box is read to the end, under the Page's name", async ({ page }) => {
+  // A profile (profile.php?id=…) as Facebook draws it: the reels in a box that scrolls on its own, ten more each time
+  // its end is reached, and Messenger's panel with its own h1. Scrolling the window alone stopped every profile at 10
+  // reels, and the panel's "Đoạn chat" was taken for the name.
+  await page.setContent(`<body style="margin:0;overflow:hidden;height:100vh">
+    <div role="dialog"><h1>Đoạn chat</h1></div>
+    <div id="box" role="main" style="height:100vh;overflow-y:auto"><h1>Kênh đối thủ</h1><div id="grid"></div></div>
+    <script>
+      let next = 1;
+      const add = () => {
+        for (let i = 0; i < 10 && next <= 40; i++, next++) {
+          const a = document.createElement("a");
+          a.href = "/reel/" + (100000 + next) + "/";
+          a.style.cssText = "display:block;height:300px";
+          a.innerText = next + "K";
+          document.getElementById("grid").appendChild(a);
+        }
+      };
+      add();
+      document.getElementById("box").addEventListener("scroll", (event) => {
+        const box = event.target;
+        if (box.scrollTop + box.clientHeight >= box.scrollHeight - 50) add();
+      });
+    </script></body>`);
+  await page.evaluate(() => {
+    const sent: unknown[] = [];
+    Object.assign(window, { __sent: sent, chrome: { runtime: { sendMessage: async (m: unknown) => sent.push(m) } } });
+  });
+  const context: { reelsStudioScanReels?: (...args: unknown[]) => Promise<unknown> } = {};
+  vm.runInNewContext(readFileSync(path.resolve(__dirname, "../../extension/facebook-reels.js"), "utf-8"), context);
+  const selectors = readFileSync(path.resolve(__dirname, "../../extension/selectors.json"), "utf-8");
+  // As Chrome runs it: the function's own source alone in the page.
+  const ended = await page.evaluate(`(${context.reelsStudioScanReels!.toString()})(1, 40, ${selectors}, "reel")`);
+  expect(ended).toEqual({ status: "done", name: "Kênh đối thủ" });
+  const ids = await page.evaluate(() =>
+    (window as unknown as { __sent: { type: string; videos?: { fb_video_id: string }[] }[] }).__sent
+      .filter((message) => message.type === "scan-batch")
+      .flatMap((message) => message.videos!.map((video) => video.fb_video_id)),
+  );
+  expect(new Set(ids).size).toBe(40);
+});
+
 async function standIn(page: Page, account: { userId: string | null; incognito: boolean }) {
   await page.addInitScript((saved) => {
     const seen: { url?: string; details?: string[]; comments?: string[] } = {};
