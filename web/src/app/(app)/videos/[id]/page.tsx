@@ -249,15 +249,15 @@ export default function VideoPage() {
     }
   }, []);
 
-  /** The answer to the member's own change: when it changed the scenes and with them the pinned comment (its template
-   * unchanged), a toast says so (docs/decisions/2026-11-14-pinned-comment-template.md). Polling uses `receive`. */
+  /** The answer to the member's own change: when it changed the scenes and with them the pinned comment (its survey
+   * line unchanged), a toast says so (docs/decisions/2026-11-19-pinned-comment-fixed-shape.md). Polling uses `receive`. */
   const receiveOwn = useCallback(
     (next: VideoDetail) => {
       const before = last.current;
       if (
         before &&
         before.id === next.id &&
-        before.pinned_comment === next.pinned_comment &&
+        before.pinned_survey === next.pinned_survey &&
         before.pinned_comment_text !== next.pinned_comment_text
       ) {
         message.info("Bình luận ghim đã được cập nhật theo cảnh");

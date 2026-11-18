@@ -179,7 +179,7 @@ class VideoPatchBody(BaseModel):
     caption: str | None = None
     hashtags: list[str] | None = None
     affiliates: list[str] | None = None
-    pinned_comment: str | None = None
+    pinned_survey: str | None = None  # "Dòng khảo sát", the pinned comment's last line (pinned.py); "" for none
     extra_comments: list[str] | None = None  # "Bình luận thêm", at most MAX_EXTRA_COMMENTS
     music_suggestions: list[str] | None = None
     music_volume: int | None = None
@@ -492,16 +492,16 @@ def patch_video(
     video = lock_video(db, video_id)
     ensure_unlocked(db, video)
     fields = body.model_fields_set
-    comments = video.pinned_comment, list(video.extra_comments)
+    comments = video.pinned_survey, list(video.extra_comments)
     if "caption" in fields and body.caption is not None:
         video.caption = _clean_text(body.caption, MAX_LONG_TEXT_LENGTH, "Caption").strip()
-    if "pinned_comment" in fields and body.pinned_comment is not None:
-        video.pinned_comment = _clean_text(body.pinned_comment, MAX_LONG_TEXT_LENGTH, "Bình luận ghim").strip()
+    if "pinned_survey" in fields and body.pinned_survey is not None:
+        video.pinned_survey = pinned.normalize(_clean_text(body.pinned_survey, MAX_TEXT_LENGTH, "Dòng khảo sát"))
     if "extra_comments" in fields and body.extra_comments is not None:
         video.extra_comments = _clean_list(
             body.extra_comments, MAX_LONG_TEXT_LENGTH, "Bình luận thêm", max_items=MAX_EXTRA_COMMENTS
         )
-    if (video.pinned_comment, list(video.extra_comments)) != comments:
+    if (video.pinned_survey, list(video.extra_comments)) != comments:
         post_comments.ask_after_edit(db, video)
     if "hashtags" in fields and body.hashtags is not None:
         video.hashtags = _clean_list(body.hashtags, MAX_KEYWORD_LENGTH, "Hashtag")

@@ -12,7 +12,7 @@ from datetime import datetime, time, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import post_comments
+from . import pinned, post_comments
 from .models import Fanpage, Publication, Video
 from .sessions import now
 from .videos import is_published, live_at, split_scenes, video_name
@@ -79,7 +79,8 @@ def tracker(db: DbSession, owner_id: int | None = None) -> dict:
         extras = [text for text in video.extra_comments if text.strip()]
         written = _written(post, extras)
         period = post_comments.stage(post)
-        first_missing = post.comment_id is None and bool(video.pinned_comment.strip())
+        comment = pinned.render(video.pinned_survey, pinned.scenes_source(title, scenes, [], video.topic))
+        first_missing = post.comment_id is None and bool(comment)
         new_ones = len(extras) - written - _edits(post, extras) if period != "stopped" else 0
         left = new_ones + _edits(post, extras) + (1 if first_missing else 0)
         if video.manual_comment:

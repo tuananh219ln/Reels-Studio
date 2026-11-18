@@ -216,13 +216,13 @@ def test_field_saves_never_overwrite_other_fields(an, binh, db, me, storage):
     video = make_video(db, storage, me)
     first, second = scene_ids(db, video)[:2]
     an.patch(f"/api/videos/{video.id}", json={"caption": "Caption của An"})
-    binh.patch(f"/api/videos/{video.id}", json={"pinned_comment": "Ghim của Bình"})
+    binh.patch(f"/api/videos/{video.id}", json={"pinned_survey": "Ghim của Bình"})
     an.patch(f"/api/scenes/{first}", json={"text": "Chữ của An"})
     binh.patch(f"/api/scenes/{second}", json={"seconds": 5})
     binh.patch(f"/api/scenes/{first}", json={"keywords": ["cá cơm", " ", "cá"]})
 
     saved = an.get(f"/api/videos/{video.id}").json()
-    assert (saved["caption"], saved["pinned_comment"]) == ("Caption của An", "Ghim của Bình")
+    assert (saved["caption"], saved["pinned_survey"]) == ("Caption của An", "Ghim của Bình")
     assert saved["scenes"][0]["text"] == "Chữ của An" and saved["scenes"][0]["keywords"] == ["cá cơm", "cá"]
     assert saved["scenes"][1]["seconds"] == 5
 
@@ -233,7 +233,7 @@ def test_post_fields_and_image_prompt_are_editable(an, db, me, storage):
         "caption": "Mới",
         "hashtags": ["#x", "#y"],
         "affiliates": ["A", "B"],
-        "pinned_comment": "G",
+        "pinned_survey": "G",
         "music_suggestions": ["Windy Hill", "Nhạc 2"],
     }
     saved = an.patch(f"/api/videos/{video.id}", json=body).json()
@@ -441,7 +441,7 @@ def test_a_failed_rerender_keeps_done_with_a_label(an, db, me, storage):
         (("image", None), True),
         (("video", {"caption": "khác"}), False),
         (
-            ("video", {"hashtags": ["#khac"], "affiliates": ["x"], "pinned_comment": "y", "music_suggestions": ["z"]}),
+            ("video", {"hashtags": ["#khac"], "affiliates": ["x"], "pinned_survey": "y", "music_suggestions": ["z"]}),
             False,
         ),
         (("scene", {"keywords": ["khác"], "image_prompt": "khác"}), False),

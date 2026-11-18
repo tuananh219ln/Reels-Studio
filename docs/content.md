@@ -83,20 +83,18 @@ One LLM call per topic (the provider chosen on Cài đặt › AI và nguồn t�
    does not say, plus 5 hashtags kept apart from it. Hashtag-only lines a script still puts at the
    end of the caption move to the hashtags, and a post adds only the hashtags its caption does not
    already hold ([hashtags.py](../api/src/reels_api/hashtags.py)), so none is posted twice.
-4. 2 affiliate product suggestions plus the pinned comment's closing question. The app saves the pinned comment as
-   the template `{title}
-{items}
-<question>` ([pinned.py](../api/src/reels_api/pinned.py)): the title and the
-   scenes are filled in from the video whenever the comment is shown, copied or posted, so editing, adding,
-   deleting or reordering a scene changes it with no AI call. Variables: `{title}` (the title scene's text, else
-   the topic), `{hook}` (the title scene's narration, else the title), `{items}` (each content scene on its own
-   line, "1. first line – the other lines"), `{item_names}` (the first lines, comma-separated), `{count}` (the
-   number of content scenes), `{products}` (the attached products' names, one per line; their links still follow
-   the comment); an unknown `{name}` stays as typed and a comment without variables reads as itself. Warnings,
-   none blocking: a title counting other than the scenes ("7 món" over 6 scenes); "link" in the pinned comment or
-   a "Bình luận thêm" while no product is attached; more than 1,500 characters; and, in a comment typed without
-   `{items}`/`{item_names}`, a numbered line that matches no scene, a scene missing from it, or the scenes out of
-   order.
+4. 2 affiliate product suggestions plus the pinned comment's closing question. The pinned comment always has the
+   same three parts ([pinned.py](../api/src/reels_api/pinned.py), decisions 2026-11-19-pinned-comment-fixed-shape):
+   the title (the title scene's text, else the topic), then each content scene on its own line as "1. name" (the
+   first line of its on-screen text, with any number the script put before it dropped: "1.", "2)", "3 -", "#4:",
+   "Cặp 5:", only when a mark follows the number, so "5 loại rau" keeps its 5; then numbered again from 1, so adding,
+   deleting or reordering a scene renumbers the list and a name that already said "1." is not numbered twice), then
+   "Dòng khảo sát" (`videos.pinned_survey`), the only part a member types. A new script's survey line is the AI's
+   question; a video with none starts with "Bạn hay ăn cặp nào nhất? Bình luận số thứ tự nhé". A member may empty
+   it; an empty part is left out, never left as a blank line. The comment is built whenever it is shown, copied or
+   posted, never stored, so it cannot go stale. Warnings, none blocking: a title counting other than the scenes ("7
+   món" or "7 cặp" over 6 scenes); "link" in the pinned comment or a "Bình luận thêm" while no product is attached;
+   more than 1,500 characters.
 5. A safety self-review that lists the sentences it changed.
 6. 2–3 instrumental music suggestions that fit the topic, to pick in TikTok or Facebook when
    posting (those libraries cannot be used outside their apps).

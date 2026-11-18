@@ -25,6 +25,9 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+# A new video's "Dòng khảo sát" (pinned.py), when no script gave it a question of its own.
+DEFAULT_PINNED_SURVEY = "Bạn hay ăn cặp nào nhất? Bình luận số thứ tự nhé"
+
 NAMING = {
     "ix": "ix_%(column_0_label)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",
@@ -294,7 +297,13 @@ class Video(Base):
     caption: Mapped[str] = mapped_column(Text, default="")
     hashtags: Mapped[list] = mapped_column(JSONB, default=list)
     affiliates: Mapped[list] = mapped_column(JSONB, default=list)
+    # The pinned comment's template before migration 0110; no longer read or written, kept for a while in case the
+    # change has to be undone (docs/decisions/2026-11-19-pinned-comment-fixed-shape.md).
     pinned_comment: Mapped[str] = mapped_column(Text, default="")
+    # "Dòng khảo sát": the pinned comment's last line, under the title and the scenes (pinned.py); "" for none.
+    pinned_survey: Mapped[str] = mapped_column(
+        Text, default=DEFAULT_PINNED_SURVEY, server_default=DEFAULT_PINNED_SURVEY
+    )
     # "Bình luận thêm": more comments the Page writes under each reel after the first, in order (post_comments.py).
     extra_comments: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     self_review: Mapped[list] = mapped_column(JSONB, default=list)

@@ -326,7 +326,7 @@ def test_only_published_reels_are_listed_newest_first(an, db, me, storage):
 
     rows = an.get(f"{URL}/videos").json()
     assert [row["id"] for row in rows] == [went_live.id, newer.id, older.id]
-    assert rows[0]["reel_url"] and rows[0]["suggestions"] == ["sữa"] and rows[0]["pinned_comment"] == "ghim"
+    assert rows[0]["reel_url"] and rows[0]["suggestions"] == ["sữa"] and rows[0]["pinned_comment"].endswith("\nghim")
     # Its scheduled time, not the earlier end of the upload.
     assert datetime.fromisoformat(rows[0]["published_at"]) == now - timedelta(hours=1)
 
