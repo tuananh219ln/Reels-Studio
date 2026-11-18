@@ -67,7 +67,7 @@ words. Each scene with keywords gets a half-frame photo ("Ảnh chèn nửa khun
 "Tự tìm ảnh" fills like any scene photo. The answer is not called again when the AI fills keywords where it should
 not: a member removes that scene's half-frame photo.
 
-One LLM call per topic (the provider chosen on Cài đặt › Mô hình AI, Claude by default) returns JSON with:
+One LLM call per topic (the provider chosen on Cài đặt › AI và nguồn tư liệu, Claude by default) returns JSON with:
 
 1. 5 title options, each ≤ 12 words, written as ordinary sentences: the video draws them in capitals
    unless its "Dạng chữ tiêu đề" keeps the text as typed.
@@ -75,7 +75,7 @@ One LLM call per topic (the provider chosen on Cài đặt › Mô hình AI, Cla
    breaks), and an AI image prompt in English that describes only what is in the photo (the dish
    or ingredient, how it is laid out, the angle). The title scene gets one too
    (`title_image_prompt`). Light, the vertical frame and "no text" are not in these prompts: the
-   image job adds the team's shared style ("Phong cách ảnh AI", Cài đặt › Nguồn tư liệu, app data,
+   image job adds the team's shared style ("Phong cách ảnh AI", Cài đặt › AI và nguồn tư liệu, app data,
    [image_style.py](../api/src/reels_api/image_style.py)) after each one as "<prompt>. <style>".
    Scripts from before keep their Vietnamese prompts, and a title scene without a prompt uses its
    first line of text.
@@ -145,7 +145,7 @@ How the prompt is built (built, compact version):
   after the banned words, before the format, of both its script and clone prompts, telling the AI to
   write the keywords and AI image prompts by it; empty adds nothing. Only scripts written after a
   change follow it.
-  For automatic footage (Cài đặt › Nguồn tư liệu) the **first** keyword of each list is the clip search query,
+  For automatic footage (Cài đặt › AI và nguồn tư liệu) the **first** keyword of each list is the clip search query,
   so the format asks for the object plus a visible action or state ("múc canh bí đỏ", "serving pumpkin soup"),
   then the object's name for the photo fallback; never a benefit or a disease name, one main object per scene.
   The action only illustrates: the voice text still speaks of the dish, not of cooking steps. The default script

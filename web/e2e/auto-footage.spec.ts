@@ -5,7 +5,7 @@ test.beforeEach(() => resetDatabase());
 
 test("automatic footage is saved once and enables the job without pasted links", async ({ page }) => {
   await loginAsSeed(page);
-  await page.goto("/settings/sources");
+  await page.goto("/settings/ai");
   const footage = page.getByRole("switch", { name: "Tự tìm và chọn clip theo kịch bản", exact: true });
   const photos = page.getByRole("switch", { name: "Tự tìm ảnh sau khi viết kịch bản", exact: true });
   await expect(footage).not.toBeChecked();

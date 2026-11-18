@@ -205,8 +205,8 @@ export function VoicePicker({
     return (
       <Typography.Text type="warning">
         {voices.error}{" "}
-        <Link prefetch={false} href="/settings/sources">
-          Mở Nguồn tư liệu
+        <Link prefetch={false} href="/settings/ai">
+          Mở AI và nguồn tư liệu
         </Link>
       </Typography.Text>
     );

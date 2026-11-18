@@ -367,7 +367,7 @@ def test_render_without_an_elevenlabs_key_says_where_to_paste_one(committed, voi
     user, storage, video_id = voiced
     monkeypatch.setenv("ELEVENLABS_API_KEY", "")
     job = render(committed, storage, video_id, user.id)
-    assert job.status == "failed" and "Chưa có key ElevenLabs" in job.error and "Nguồn tư liệu" in job.error
+    assert job.status == "failed" and "Chưa có key ElevenLabs" in job.error and "AI và nguồn tư liệu" in job.error
     assert fakes.tts_requests == []
 
 

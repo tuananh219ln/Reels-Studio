@@ -843,7 +843,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
     @tool("Tạo video và viết kịch bản bằng API của nhóm", read=False, external=True)
     async def create_video(topic: str, knowledge_topic_id: int) -> dict:
-        """Tạo video mới và xếp job viết kịch bản bằng dịch vụ AI của nhóm (API key trong Cài đặt › Mô hình AI, TÍNH
+        """Tạo video mới và xếp job viết kịch bản bằng dịch vụ AI của nhóm (API key trong Cài đặt › AI và nguồn tư liệu, TÍNH
         PHÍ). Chỉ dùng khi người dùng nói rõ muốn dùng API của nhóm; mặc định hãy tự viết bằng "Lấy prompt viết kịch
         bản của nhóm" rồi "Tạo video từ kịch bản viết theo prompt nhóm". Kiểu video theo công tắc "Kiểu video" của
         nhóm. Không gọi lại để chờ."""

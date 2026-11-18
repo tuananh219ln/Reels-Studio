@@ -1,4 +1,4 @@
-"""Which AI image provider makes a photo: the team's default from Cài đặt › Nguồn tư liệu, or one chosen for a press.
+"""Which AI image provider makes a photo: the team's default from Cài đặt › AI và nguồn tư liệu, or one chosen for a press.
 
 The default is, in order: the provider saved on that page; IMAGE_GEN_PROVIDER from the server's .env when it is
 set (servers set up before the page keep working); Cloudflare when it is set up (free, about 57 photos a day);

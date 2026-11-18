@@ -104,7 +104,7 @@ export const theme: ThemeConfig = {
     Modal: { titleFontSize: 17 },
     Drawer: { footerPaddingBlock: 12 },
     Calendar: { itemActiveBg: COLORS.layout },
-    // Collapsible groups (Kho kiến thức, Mô hình AI) read as white cards, like every other card.
+    // Collapsible groups (Kho kiến thức, AI và nguồn tư liệu) read as white cards, like every other card.
     Collapse: { headerBg: COLORS.surface, contentBg: COLORS.surface },
   },
 };

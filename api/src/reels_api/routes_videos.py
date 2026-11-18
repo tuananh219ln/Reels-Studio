@@ -719,7 +719,7 @@ def edit_scene_image(
         raise invalid(str(err)) from None
     if body.engine != "lama" and not image_providers.configured(db, body.engine):
         name = image_edit.LABELS[body.engine]
-        raise invalid(f"Chưa cài đặt {name}: nhập key ở Cài đặt › Nguồn tư liệu")
+        raise invalid(f"Chưa cài đặt {name}: nhập key ở Cài đặt › AI và nguồn tư liệu")
     video, scene = lock_scene(db, scene_id)
     if not scene.image_key or scene.video_key:
         raise ApiError(409, "no_image", "Cảnh này chưa có ảnh để sửa")
@@ -1672,7 +1672,7 @@ def find_other_image(
     source = source or first_stock_source(db, video)
     client, error_type = stock_client(source, db)
     if source in stock_turned_off(db):
-        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+        raise invalid("Nguồn này đang tắt trong Cài đặt › AI và nguồn tư liệu")
     # Each source is searched in the language it indexes: Wikimedia and Openverse in Vietnamese, the others in
     # English; the other list is the fallback (scenes scripted before English keywords existed).
     keywords = stock_keywords(source, list(scene.keywords), list(scene.keywords_en))
@@ -1815,7 +1815,7 @@ def first_stock_source(db: DbSession, video: Video | None) -> str:
 
 
 def stock_turned_off(db: DbSession) -> set[str]:
-    """The sources the team turned off on Cài đặt › Nguồn tư liệu."""
+    """The sources the team turned off on Cài đặt › AI và nguồn tư liệu."""
     setting = db.get(AppSetting, STOCK_OFF_KEY)
     return (
         {item for item in setting.value if item in STOCK_SOURCES}
@@ -1833,7 +1833,7 @@ def stock_sources(
     video_id: int | None = None, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> list[dict]:
     """The picker's sources, in the video's topic group's order (the app's without a video); `clips` says which also
-    offer video clips, `missing_key` which cannot be used until a key is pasted on Cài đặt › Nguồn tư liệu."""
+    offer video clips, `missing_key` which cannot be used until a key is pasted on Cài đặt › AI và nguồn tư liệu."""
     video = db.get(Video, video_id) if video_id is not None else None
     return [
         {
@@ -1864,7 +1864,7 @@ def search_stock_clips(
     if len(keyword) > MAX_KEYWORD_LENGTH:
         raise invalid(f"Từ khóa dài quá {MAX_KEYWORD_LENGTH} ký tự")
     if source in stock_turned_off(db):
-        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+        raise invalid("Nguồn này đang tắt trong Cài đặt › AI và nguồn tư liệu")
     db.rollback()
     try:
         hits = stock_clips.search(source, keyword, FIND_IMAGE_SECONDS, source_keys.get(db, source))
@@ -1895,7 +1895,7 @@ def choose_stock_clip(
     video, _ = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     if body.source in stock_turned_off(db):
-        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+        raise invalid("Nguồn này đang tắt trong Cài đặt › AI và nguồn tư liệu")
     db.rollback()
     try:
         hit = next(
@@ -1948,7 +1948,7 @@ def search_stock(
     if len(keyword) > MAX_KEYWORD_LENGTH:
         raise invalid(f"Từ khóa dài quá {MAX_KEYWORD_LENGTH} ký tự")
     if source in stock_turned_off(db):
-        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+        raise invalid("Nguồn này đang tắt trong Cài đặt › AI và nguồn tư liệu")
     client, error_type = stock_client(source, db)
     db.rollback()
     try:
@@ -1987,7 +1987,7 @@ def choose_stock(
     video, _ = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     if body.source in stock_turned_off(db):
-        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+        raise invalid("Nguồn này đang tắt trong Cài đặt › AI và nguồn tư liệu")
     client, error_type = stock_client(body.source, db)
     db.rollback()
     deadline = time.monotonic() + FIND_IMAGE_SECONDS

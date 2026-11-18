@@ -81,7 +81,7 @@ from .models import (
 )
 from .sessions import now
 from .storage import DirectoryStorage
-from .tts import TtsError, service_name, synthesize, voice_signature
+from .tts import TtsError, all_keys_failed, service_name, synthesize, voice_signature
 from .tts import key_name as tts_key_name
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
 from .video_options import render_options, scene_voice, voice_pause, voice_speed
@@ -661,6 +661,7 @@ def reveal_layers(fields: dict, steps: list[dict], folder: Path, stem: str) -> l
 def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: DirectoryStorage) -> None:
     """Narration for every scene that has something to read but no MP3 made from it yet. Each MP3 is committed at once,
     so a retry after a failure pays the voice's service only for the scenes still missing."""
+    failed: set[str] = set()  # keys found wrong or spent in this job: the scenes after skip them
     for index, scene in enumerate(scenes):
         voice = scene_voice(video, scene)
         text = spoken(video, scene)
@@ -668,7 +669,7 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
             continue
         label = _scene_label(scene, index)
         try:
-            data = synthesize(text, source_keys.get(db, tts_key_name(voice)), voice, voice_speed(video))
+            data = narrate(db, video, text, voice, failed)
         except TtsError as err:
             raise JobFailure(f"{label}: {err.message}", err.detail) from None
         key = new_key(video.id, f"voice-{scene.id}", "mp3")
@@ -693,6 +694,43 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
         if old and old != key:
             storage.delete(old)
         log.info("Narration for video %s %s: %.1fs", video.id, label, seconds)
+
+
+def narrate(db: DbSession, video: Video, text: str, voice: str | None, failed: set[str]) -> bytes:
+    """One scene's narration, trying the service's keys in order (source_keys.chain: the team's main key, then its
+    backups): a key that is wrong, not allowed or out of quota passes the scene to the next, and its row on Cài đặt
+    says why at once (source_keys.mark); a busy or broken service fails at once, as with one key. A key that failed
+    earlier in the job (`failed`) is not asked again; one that reads again loses its old error."""
+    service = tts_key_name(voice)
+    keys = source_keys.chain(db, service)
+    if not keys:
+        return synthesize(text, "", voice, voice_speed(video))  # fails with "Chưa có key …"
+    last: TtsError | None = None
+    for ref in keys:
+        if ref.key in failed:
+            continue
+        try:
+            data = synthesize(text, ref.key, voice, voice_speed(video))
+        except TtsError as err:
+            if not err.key_fault:
+                raise
+            failed.add(ref.key)
+            source_keys.mark(db, service, ref, err.message)
+            db.commit()
+            if len(keys) == 1:
+                raise
+            last = err
+            log.warning(
+                "Narration for video %s: %s key %s failed (%s), trying the next",
+                video.id,
+                service,
+                ref.shown,
+                err.message,
+            )
+            continue
+        source_keys.mark(db, service, ref, None)
+        return data
+    raise TtsError(all_keys_failed(service, len(keys)), last.detail if last else "")
 
 
 def run_voice_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:

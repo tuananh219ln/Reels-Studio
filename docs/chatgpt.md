@@ -17,7 +17,7 @@ Where the script is written decides who pays, and the video page says which one 
 
 | Started from | Written by | Cost | Video page shows |
 | --- | --- | --- | --- |
-| "Tạo video" in the app (or `create_video` over MCP) | The team's AI service, a script job | API key on Cài đặt › Mô hình AI | "Kịch bản viết bởi Claude · <model>" (provider and model of the job) |
+| "Tạo video" in the app (or `create_video` over MCP) | The team's AI service, a script job | API key on Cài đặt › AI và nguồn tư liệu | "Kịch bản viết bởi Claude · <model>" (provider and model of the job) |
 | A chat in an assistant connected here (ChatGPT, Claude, Claude Code, Gemini CLI, Antigravity, Muse) | The member's own assistant | The member's own plan, nothing to the team | "Kịch bản viết bởi <assistant> của thành viên qua kết nối MCP", e.g. "Muse của thành viên…" ("Trợ lý AI" for videos made before 2026-11-08) |
 
 A topic group's video is written with the group's own prompt either way:
