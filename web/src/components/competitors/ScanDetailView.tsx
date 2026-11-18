@@ -1,10 +1,11 @@
 "use client";
 
-import { CopyOutlined, DownloadOutlined, LinkOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Segmented, Skeleton, Table, Tooltip, Typography, theme } from "antd";
+import { CopyOutlined, DownloadOutlined, ForkOutlined, LinkOutlined } from "@ant-design/icons";
+import { App, Button, Card, Flex, Grid, Input, Segmented, Skeleton, Table, Tooltip, Typography, theme } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, formatDayTime } from "@/lib/api";
 import { formatCompact, formatFull, thresholdLabel } from "@/lib/competitorFormat";
+import CloneVideoModal from "./CloneVideoModal";
 import type { Frequency, Report, ScanDetail, Stats, VideoPage, VideoRow } from "./types";
 
 const PAGE = 20;
@@ -185,6 +186,11 @@ function VideoList({ competitorId, scanId }: { competitorId: number; scanId: num
   const [flags, setFlags] = useState({ engagement: false, published: false });
   const [loading, setLoading] = useState(true);
   const [anyCaption, setAnyCaption] = useState(false);
+  // "Clone": the video whose dialog is open.
+  const [cloning, setCloning] = useState<VideoRow | null>(null);
+  // Below 768 px the buttons of a row are at least 44 px, for a finger.
+  const narrow = !Grid.useBreakpoint().md;
+  const touch = narrow ? { minWidth: 44, minHeight: 44 } : undefined;
 
   const load = useCallback(
     async (page: number, replace: boolean) => {
@@ -257,6 +263,17 @@ function VideoList({ competitorId, scanId }: { competitorId: number; scanId: num
                 }}
               />
             </Tooltip>
+            <Tooltip title={video.caption ? "Clone video này" : "Video chưa có caption"}>
+              <Button
+                type="text"
+                size="small"
+                icon={<ForkOutlined />}
+                style={touch}
+                disabled={!video.caption}
+                aria-label={`Clone video …${video.fb_video_id.slice(-6)}`}
+                onClick={() => setCloning(video)}
+              />
+            </Tooltip>
           </Flex>
         );
       },
@@ -303,6 +320,7 @@ function VideoList({ competitorId, scanId }: { competitorId: number; scanId: num
 
   return (
     <Flex vertical gap={8} data-testid="competitor-videos">
+      {cloning && <CloneVideoModal competitorId={competitorId} video={cloning} onClose={() => setCloning(null)} />}
       <Flex wrap gap={8} justify="space-between" align="center">
         <Typography.Text strong>
           {threshold != null ? `Video ≥${thresholdLabel(threshold)} view` : "Video"} ({formatFull(total)})
