@@ -3,9 +3,14 @@
  * pastes them once on the extension's options page; they stay in this Chrome (chrome.storage.local), are never sent
  * to Reels Studio's server, and are set only in the incognito window a scan opens, so the member's own Facebook in
  * their normal windows is never touched. Closing the last incognito window drops them from that window's store.
+ *
+ * Removing the extension deletes chrome.storage.local, so the "Đối thủ" page keeps a copy in its own storage in this
+ * same Chrome (never on the server): an extension installed again takes it back (syncScanAccount). "Xóa" on the
+ * options page leaves a mark, so a copy older than it is dropped, never restored.
  */
 
 const ACCOUNT_KEY = "scanAccount";
+const REMOVED_KEY = "scanAccountRemovedAt";
 // Cookies Facebook sets HttpOnly; the rest are readable by its pages, as in a real browser.
 const HTTP_ONLY = new Set(["xs", "fr", "datr", "sb", "spin", "ps_l", "ps_n"]);
 const COOKIE_DAYS = 30;
@@ -51,11 +56,39 @@ function parseScanCookies(text) {
 async function saveScanAccount(text) {
   const { cookies, userId } = parseScanCookies(text);
   await chrome.storage.local.set({ [ACCOUNT_KEY]: { cookies, userId, savedAt: new Date().toISOString() } });
+  await chrome.storage.local.remove(REMOVED_KEY);
   return { userId };
 }
 
 async function clearScanAccount() {
   await chrome.storage.local.remove(ACCOUNT_KEY);
+  await chrome.storage.local.set({ [REMOVED_KEY]: new Date().toISOString() });
+}
+
+/**
+ * The page's copy against the saved account, when the page asks for the status. No account saved and a copy that
+ * passes parseScanCookies and is newer than the last "Xóa": the copy is saved again (the extension was removed and
+ * installed). Returns what the page should do with its copy: `backup` (the saved account, when the copy is missing or
+ * older) or `forget` (no account, or the copy predates "Xóa").
+ */
+async function syncScanAccount(copy) {
+  let account = await scanAccount();
+  const removedAt = (await chrome.storage.local.get(REMOVED_KEY))[REMOVED_KEY] || null;
+  const savedAt = copy && typeof copy.savedAt === "string" ? copy.savedAt : "";
+  if (!account && copy && Array.isArray(copy.cookies) && savedAt && !(removedAt && savedAt <= removedAt)) {
+    try {
+      const header = copy.cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
+      const { cookies, userId } = parseScanCookies(header);
+      account = { cookies, userId, savedAt };
+      await chrome.storage.local.set({ [ACCOUNT_KEY]: account });
+    } catch {
+      account = null;
+    }
+  }
+  if (!account) {
+    return copy ? { forget: true } : {};
+  }
+  return savedAt === account.savedAt ? {} : { backup: account };
 }
 
 async function scanAccount() {
