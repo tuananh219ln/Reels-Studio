@@ -117,7 +117,8 @@ function endScan(result) {
   const { keepOpen, ...ended } = result;
   // What the Page's header gave (name, followers, badge, avatar) goes with the end, whatever the end was.
   const meta = scanning.meta || {};
-  toApp({ type: "scan-done", scanId, ...meta, ...ended, name: ended.name || meta.name || null });
+  // The header's name first: it is read with more care than the grid's (Messenger's heading is left out there).
+  toApp({ type: "scan-done", scanId, ...meta, ...ended, name: meta.name || ended.name || null });
   if (keepOpen) {
     chrome.windows.update(windowId, { focused: true }).catch(() => {});
   } else {
