@@ -231,8 +231,9 @@ function runScan(scan: CompetitorScan, onProgress: (progress: ScanProgress) => v
 
 /**
  * While the page is open with a new enough extension holding a second account: claims the member's next scan and
- * runs it. `onChange` is called whenever the list should be read again. Asks once a minute (UI Rules, "Refresh"), and
- * at once when the page queues a scan; a scan in progress is driven by the extension's messages, not by polling.
+ * runs it, then the next one at once. `onChange` is called whenever the list should be read again. Asks once a minute
+ * (UI Rules, "Refresh"), and at once when the page queues a scan; a scan in progress is driven by the extension's
+ * messages, not by polling.
  */
 export function useCompetitorScanner(onChange: () => void, wakeUp: number) {
   const version = useExtensionVersion();
@@ -251,11 +252,13 @@ export function useCompetitorScanner(onChange: () => void, wakeUp: number) {
       return;
     }
     busy.current = true;
+    let ran = false;
     try {
       const { scan } = await api<{ scan: CompetitorScan | null }>("/competitors/scanner/claim", "POST");
       if (!scan) {
         return;
       }
+      ran = true;
       setRunning({ scan, found: scan.videos_found });
       latest.current();
       const ended = await runScan(scan, setRunning);
@@ -264,6 +267,11 @@ export function useCompetitorScanner(onChange: () => void, wakeUp: number) {
       busy.current = false;
       setRunning(null);
       latest.current();
+    }
+    // The next waiting scan starts at once, not at the next minute's poll (several "Cập nhật thông tin kênh" in a
+    // row took a minute each). The loop ends when the api has nothing left to claim.
+    if (ran) {
+      void run.current();
     }
   }
 
