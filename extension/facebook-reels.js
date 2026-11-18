@@ -78,8 +78,19 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel")
     return added;
   };
   const pageName = () => {
+    // The Page's real name: the heading when it is one, else the tab title ("(2) Linh Đoàn - Reels | Facebook").
     const heading = document.querySelector(selectors.pageName);
-    return heading ? heading.innerText.trim().slice(0, 200) : null;
+    const generic = /^(facebook|reels|video|videos|thông báo|notifications)$/i;
+    const headingText = heading ? heading.innerText.trim() : "";
+    if (headingText && !generic.test(headingText)) return headingText.slice(0, 200);
+    const meta = document.querySelector('meta[property="og:title"]');
+    const raw = (meta && meta.content) || document.title || "";
+    const title = raw
+      .replace(/^\(\d+\+?\)\s*/, "")
+      .replace(/\s*[|\-–—]\s*Facebook\s*$/i, "")
+      .replace(/\s*[|\-–—]\s*(Reels|Video|Videos)\s*$/i, "")
+      .trim();
+    return title && !generic.test(title) ? title.slice(0, 200) : null;
   };
 
   await pause(2500, 4000); // the page's first grid
