@@ -381,6 +381,7 @@ def start_scan(
             CompetitorScan.competitor_id == competitor.id,
             CompetitorScan.meta_only.is_(meta_only),
             CompetitorScan.status.in_(("queued", "running")),
+            CompetitorScan.scope["comments_for"].is_(None),
         )
     )
     if active is not None:
@@ -479,8 +480,12 @@ def ensure_running(scan: CompetitorScan) -> None:
 
 def add_videos(db: DbSession, scan: CompetitorScan, videos: list[dict]) -> int:
     """Saves a batch from the grid; a video seen again (a resumed scan scrolls from the top) is updated, never
-    doubled. Returns the scan's number of videos."""
+    doubled. Returns the scan's number of videos. A comments scan keeps nothing of the grid (the extension reads a
+    screen of it before opening the videos)."""
     ensure_running(scan)
+    if comments_for(scan):
+        scan.heartbeat_at = now()
+        return 0
     rows = {}
     for video in videos:
         raw = (video.get("views_raw") or "").strip()[:60] or None
@@ -520,12 +525,81 @@ def comments_top(scan: CompetitorScan) -> int:
     return (scan.scope or {}).get("fetch_comments_top_n", 0)
 
 
+# "Quét bình luận video này" (decision 2026-11-18-competitor-clone-video): a header-only scan (`meta_only`, so it is
+# never a "latest scan" for numbers) whose scope names videos of an earlier scan, `source_scan_id`; the extension
+# opens only those and their comments replace the sample kept on that scan's rows.
+COMMENTS_SCAN_LIMIT = 20
+
+
+def comments_for(scan: CompetitorScan) -> list[str]:
+    return list((scan.scope or {}).get("comments_for") or [])
+
+
+def video_scan_id(scan: CompetitorScan) -> int:
+    """The scan whose videos this one writes to: its own, or for a comments scan the scan it reads comments for."""
+    if comments_for(scan):
+        return (scan.scope or {}).get("source_scan_id") or scan.id
+    return scan.id
+
+
+def _comments_scans(source_scan_id: int):
+    return select(CompetitorScan).where(
+        CompetitorScan.scope["source_scan_id"].as_integer() == source_scan_id,
+        CompetitorScan.status.in_(("queued", "running")),
+    )
+
+
+def active_comments_scan(db: DbSession, video: CompetitorVideo) -> CompetitorScan | None:
+    """A waiting or running comments scan that will read this video."""
+    scans = db.scalars(_comments_scans(video.scan_id).order_by(CompetitorScan.id))
+    return next((scan for scan in scans if video.fb_video_id in comments_for(scan)), None)
+
+
+def start_comments_scan(db: DbSession, user_id: int, video: CompetitorVideo) -> CompetitorScan:
+    """Queues the reading of one video's comments for the member who scans its competitor: one already waiting for
+    the same scan takes it too, and one already reading it is answered as it is."""
+    active = active_comments_scan(db, video)
+    if active is not None:
+        return active
+    waiting = db.scalar(
+        _comments_scans(video.scan_id)
+        .where(CompetitorScan.status == "queued")
+        .order_by(CompetitorScan.id)
+        .limit(1)
+        .with_for_update()
+    )
+    if waiting is not None and len(comments_for(waiting)) < COMMENTS_SCAN_LIMIT:
+        waiting.scope = {**waiting.scope, "comments_for": [*comments_for(waiting), video.fb_video_id]}
+        return waiting
+    source = db.get(CompetitorScan, video.scan_id)
+    scan = CompetitorScan(
+        competitor_id=source.competitor_id,
+        owner_id=user_id,
+        status="queued",
+        meta_only=True,
+        scope={"meta_only": True, "comments_for": [video.fb_video_id], "source_scan_id": video.scan_id},
+    )
+    db.add(scan)
+    db.flush()
+    return scan
+
+
 def enrich_targets(db: DbSession, scan: CompetitorScan) -> list[dict]:
     """The videos of a running scan whose own page the extension opens next, each {fb_video_id, url, comments}: the
     most viewed (M3; the first comments_top(scan) of them also have their comments sampled, M4), then the grid's
-    timeline samples (M5), only for their posting date."""
+    timeline samples (M5), only for their posting date. A comments scan: only its videos, comments read."""
     ensure_running(scan)
     scan.heartbeat_at = now()
+    if comments_for(scan):
+        named = db.scalars(
+            select(CompetitorVideo)
+            .where(
+                CompetitorVideo.scan_id == video_scan_id(scan),
+                CompetitorVideo.fb_video_id.in_(comments_for(scan)),
+            )
+            .order_by(CompetitorVideo.id)
+        )
+        return [{"fb_video_id": video.fb_video_id, "url": video.url, "comments": True} for video in named]
     top = list(
         db.scalars(
             select(CompetitorVideo)
@@ -577,7 +651,7 @@ def add_details(db: DbSession, scan: CompetitorScan, details: list[dict]) -> int
     for detail in details:
         video = db.scalar(
             select(CompetitorVideo).where(
-                CompetitorVideo.scan_id == scan.id, CompetitorVideo.fb_video_id == detail["fb_video_id"]
+                CompetitorVideo.scan_id == video_scan_id(scan), CompetitorVideo.fb_video_id == detail["fb_video_id"]
             )
         )
         if video is None:
@@ -1047,6 +1121,8 @@ def scan_payload(scan: CompetitorScan) -> dict:
         "fetch_comments_top_n": comments_top(scan),
         "include_videos": bool((scan.scope or {}).get("videos")),
         "meta_only": scan.meta_only,
+        # "Quét bình luận video này": the videos whose comments it reads (the page then keeps nothing of the grid).
+        "comments_for": comments_for(scan),
         "scanned_count": scan.scanned_count,
         "stored_count": scan.stored_count,
         "threshold_applied": scan.threshold_applied,
@@ -1131,7 +1207,11 @@ def list_competitors(db: DbSession, user_id: int) -> list[dict]:
         scans = select(CompetitorScan).where(CompetitorScan.competitor_id == competitor.id)
         latest = db.scalar(scans.where(CompetitorScan.meta_only.is_(False)).order_by(CompetitorScan.id.desc()).limit(1))
         meta_busy = db.scalar(
-            scans.where(CompetitorScan.meta_only.is_(True), CompetitorScan.status.in_(("queued", "running"))).limit(1)
+            scans.where(
+                CompetitorScan.meta_only.is_(True),
+                CompetitorScan.status.in_(("queued", "running")),
+                CompetitorScan.scope["comments_for"].is_(None),
+            ).limit(1)
         )
         summary = None
         if latest is not None:
@@ -1157,6 +1237,54 @@ def list_competitors(db: DbSession, user_id: int) -> list[dict]:
     return rows
 
 
+def latest_video_scan(db: DbSession, competitor: Competitor) -> CompetitorScan | None:
+    """The competitor's latest scan that read any videos: the one its videos are listed (and cloned) from."""
+    return db.scalar(
+        select(CompetitorScan)
+        .where(
+            CompetitorScan.competitor_id == competitor.id,
+            CompetitorScan.meta_only.is_(False),
+            CompetitorScan.videos_found > 0,
+        )
+        .order_by(CompetitorScan.id.desc())
+        .limit(1)
+    )
+
+
+def listed_video(db: DbSession, competitor: Competitor, fb_video_id: str) -> CompetitorVideo:
+    """A video of the competitor's latest scan, as its list shows it; 404 for any other."""
+    scan = latest_video_scan(db, competitor)
+    video = None
+    if scan is not None:
+        video = db.scalar(
+            select(CompetitorVideo).where(
+                CompetitorVideo.scan_id == scan.id, CompetitorVideo.fb_video_id == fb_video_id
+            )
+        )
+    if video is None:
+        raise ApiError(404, "competitor_video_not_found", "Không tìm thấy video này trong lượt quét mới nhất")
+    return video
+
+
+def comment_count(db: DbSession, video: CompetitorVideo) -> int:
+    return db.scalar(select(func.count()).where(CompetitorComment.video_id == video.id)) or 0
+
+
+def source_payload(db: DbSession, video) -> dict | None:
+    """Where a cloned video came from (videos.competitor_source_*), for its page: the link and channel name as saved,
+    and the sample comments while the competitor is kept (text and likes, never who wrote them)."""
+    if not (video.competitor_source_url or video.competitor_source_name):
+        return None
+    source = db.get(CompetitorVideo, video.competitor_source_video_id) if video.competitor_source_video_id else None
+    comments = comment_samples(db, source) if source is not None else []
+    return {
+        "url": video.competitor_source_url,
+        "name": video.competitor_source_name,
+        "has_comments": bool(comments),
+        "comments": comments,
+    }
+
+
 def videos_page(
     db: DbSession,
     competitor: Competitor,
@@ -1169,16 +1297,7 @@ def videos_page(
     """The videos of the competitor's latest scan that read any, a page at a time (the page asks 20 at first), most
     viewed first or newest posted first; `has_engagement` and `has_published_at` say whether those columns hold
     anything, so the page hides them when they are empty."""
-    scan = db.scalar(
-        select(CompetitorScan)
-        .where(
-            CompetitorScan.competitor_id == competitor.id,
-            CompetitorScan.meta_only.is_(False),
-            CompetitorScan.videos_found > 0,
-        )
-        .order_by(CompetitorScan.id.desc())
-        .limit(1)
-    )
+    scan = latest_video_scan(db, competitor)
     if scan is None:
         return {
             "scan_id": None,

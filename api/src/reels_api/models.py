@@ -324,6 +324,14 @@ class Video(Base):
     # Snapshot taken when "Nhân bản" was pressed: the source's title, topic, edited script and the change
     # request. A clone draft keeps it, so cancelling and writing again reruns the same clone.
     clone_source: Mapped[dict | None] = mapped_column(JSONB)
+    # "Clone" from "Phân tích đối thủ" (migration 0109, clone.py): the competitor's video it was built from, kept as
+    # plain text (its Facebook link, the channel's name then) plus the row its sample comments are read from, which
+    # goes when the competitor is deleted while the link and name stay. Copies ("Nhân bản", shuffles) keep all three.
+    competitor_source_url: Mapped[str | None] = mapped_column(Text)
+    competitor_source_name: Mapped[str | None] = mapped_column(String(200))
+    competitor_source_video_id: Mapped[int | None] = mapped_column(
+        ForeignKey("competitor_videos.id", ondelete="SET NULL"), index=True
+    )
     # The "Mẫu dựng" last put on the video ({id, name, source: video|group|member, data}): another one put on later
     # takes its sounds and layers off first (autoedit.put), and "video" (chosen on it) wins when its scenes are
     # written again.
