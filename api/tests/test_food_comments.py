@@ -14,6 +14,7 @@ GOOD = "1. Rau muống luộc. Công dụng: cung cấp chất xơ, giúp no lâ
 def post_for(db, video, hours_ago=1, **fields):
     post = Publication(
         video_id=video.id,
+        created_by_id=video.created_by_id,
         platform="facebook",
         status="published",
         remote_id="reel-1",
