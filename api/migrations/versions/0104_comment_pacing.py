@@ -1,18 +1,15 @@
 """A Page's comment pacing: the earliest time its next comment may be written and how many went out today.
 
 Revision ID: 0104
-Revises: 0102
+Revises: 0103
 Create Date: 2026-11-18
-
-Branched from 0102 because 0103 (PR #280) is not on main yet: whichever lands second sets its `down_revision` to the
-other, so there is one head.
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "0104"
-down_revision = "0102"
+down_revision = "0103"
 branch_labels = None
 depends_on = None
 

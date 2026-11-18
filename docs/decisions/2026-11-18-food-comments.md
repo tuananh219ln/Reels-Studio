@@ -12,5 +12,4 @@ it), written from the video's own scenes, with Claude on the web rather than the
 - **Pacing (agreed with tuananh219ln):** the worker writes one comment per turn and the Page rests a random 30–60 s
   after the pinned/first comment, 45–90 s between the extras and 5 minutes after a video's last comment before another
   video's start; at most 100 comments a Page a day (Vietnam time), the rest waits for the next day. State is on `fanpages`
-  (migration 0104, branched from 0102 because 0103 of PR #280 is not on main: the later PR to land re-points
-  `down_revision`). The rest applies to every comment the worker writes under a reel, not only these.
+  (migration 0104, after 0103). The rest applies to every comment the worker writes under a reel, not only these.
