@@ -80,6 +80,31 @@ test("the channel's name and avatar are the Page's own, never Messenger's headin
   expect(await readMeta(page)).toMatchObject({ name: "Kênh đối thủ", avatar_src: null });
 });
 
+test("a reel's caption and posting time are its own, never Messenger's panel opened after a new sign-in", async ({
+  page,
+}) => {
+  // After the cookies were pasted again Facebook opened Messenger's panel (no role of its own) before the page: every
+  // reel got the caption "Các đoạn chat của bạn chưa được sao lưu" and a chat's "5 phút" as its posting time.
+  await page.setContent(`
+    <div style="position:fixed;right:0;top:0;width:300px;height:400px;background:#fff">
+      <h1>Đoạn chat</h1>
+      <div><span dir="auto">Các đoạn chat của bạn chưa được sao lưu</span></div>
+      <a role="link" href="/messages/t/1"><span>5 phút</span></a>
+      <div role="button" aria-label="Đóng" onclick="window.__closed = true">x</div>
+    </div>
+    <div role="main"><video></video>
+      <div><span dir="auto">Mẹo ngủ ngon mỗi tối cho người lớn tuổi</span></div>
+      <a role="link" href="/reel/1"><span>3 ngày</span></a>
+    </div>`);
+  const context: { reelsStudioReadReel?: (...args: unknown[]) => Promise<unknown> } = {};
+  vm.runInNewContext(readFileSync(path.resolve(__dirname, "../../extension/facebook-reels.js"), "utf-8"), context);
+  const selectors = readFileSync(path.resolve(__dirname, "../../extension/selectors.json"), "utf-8");
+  const reel = await page.evaluate(`(${context.reelsStudioReadReel!.toString()})(${selectors}, false)`);
+  expect(reel).toMatchObject({ caption: "Mẹo ngủ ngon mỗi tối cho người lớn tuổi", posted_raw: "3 ngày" });
+  // The panel's close button was pressed.
+  expect(await page.evaluate(() => (window as unknown as { __closed?: boolean }).__closed)).toBe(true);
+});
+
 test("a profile's grid in its own scrolling box is read to the end, under the Page's name", async ({ page }) => {
   // A profile (profile.php?id=…) as Facebook draws it: the reels in a box that scrolls on its own, ten more each time
   // its end is reached, and Messenger's panel with its own h1. Scrolling the window alone stopped every profile at 10
