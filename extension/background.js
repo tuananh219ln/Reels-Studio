@@ -187,7 +187,7 @@ async function scanReels(message, appTabId, account) {
     }
     if (meta) {
       const { avatar_src: source, ...read } = meta;
-      scanning.meta = { ...read, avatar: await avatarCopy(source) };
+      scanning.meta = { ...read, avatar: await imageCopy(source) };
     }
     if (message.metaOnly) {
       endScan({ status: "done" });
@@ -223,10 +223,12 @@ async function scanReels(message, appTabId, account) {
 }
 
 /**
- * The avatar as a small JPEG data URL (128 px), or null: fetched here because the background may read Facebook's
- * image servers while a page may not (CORS), and shrunk so what goes to Reels Studio stays a few KB.
+ * A picture (the avatar, a video's) as a small JPEG data URL (128 px), or null: fetched here because the background
+ * may read Facebook's image servers while a page may not (CORS), and shrunk so what goes to Reels Studio stays a few
+ * KB.
  */
-async function avatarCopy(source) {
+async function imageCopy(source) {
+  if (!source) return null;
   try {
     const host = new URL(source).hostname;
     if (!(host.endsWith(".fbcdn.net") || host.endsWith(".facebook.com"))) return null;
@@ -272,7 +274,12 @@ async function readReels(targets) {
         endScan({ status: "partial", error: "Tài khoản phụ bị đăng xuất khi mở từng video: lấy cookie mới rồi bấm Tiếp tục" });
         return;
       }
-      toApp({ type: "scan-detail", scanId, video: { fb_video_id: id, ...detail } });
+      const { thumb_src: pictureSource, ...read } = detail;
+      toApp({
+        type: "scan-detail",
+        scanId,
+        video: { fb_video_id: id, ...read, thumbnail: await imageCopy(pictureSource) },
+      });
       toApp({ type: "scan-tick", scanId, read: index + 1, of: targets.length });
     } catch {
       endScan({ status: "partial", error: "Cửa sổ Facebook đã đóng khi đang mở từng video; bấm Tiếp tục để đọc tiếp" });

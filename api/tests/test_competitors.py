@@ -754,3 +754,64 @@ def test_the_videos_can_be_filtered_by_views(client, db):
     scan = _scan_done(client, "facebook.com/small.page", videos=_mixed_grid(3, 5))
     page = client.get(f"/api/competitors/{scan['competitor']['id']}/videos?min_views=100000").json()
     assert page["total"] == 3 and page["scanned_count"] == 8
+
+
+def test_the_teams_rule_for_a_big_channel_can_be_changed(client, db):
+    make_user(db)
+    login(client)
+    assert client.get("/api/competitors/settings").json() == {"min_hits": 10, "min_views": 100_000}
+    assert client.put("/api/competitors/settings", json={"min_hits": 0, "min_views": 100_000}).status_code == 422
+    assert client.put("/api/competitors/settings", json={"min_hits": 5, "min_views": 50}).status_code == 422
+    saved = client.put("/api/competitors/settings", json={"min_hits": 3, "min_views": 1_000_000})
+    assert saved.json() == {"min_hits": 3, "min_views": 1_000_000}
+    assert client.get("/api/competitors/settings").json() == saved.json()
+
+    # 4 videos of 1M make this channel big under the new rule, and only those 4 are kept (3 under the old one).
+    views = ["1,2M"] * 4 + ["20K"] * 8
+    videos = [{"fb_video_id": str(7_000_000 + n), "views_raw": raw, "position": n} for n, raw in enumerate(views)]
+    scan = _scan_done(client, videos=videos)
+    row = client.get("/api/competitors").json()["competitors"][0]["latest_scan"]
+    assert row["threshold_applied"] == 1_000_000 and row["stored_count"] == 4 and row["video_count"] == 12
+    notes = client.get(f"/api/competitors/scans/{scan['id']}").json()["stats"]["limits"][0]
+    assert "từ 1M view" in notes
+
+
+def test_a_video_page_that_was_opened_keeps_a_small_picture_that_is_served(client, db, storage):
+    import base64
+
+    from conftest import photo_bytes
+
+    make_user(db)
+    login(client)
+    scan = client.post("/api/competitors/scans", json={"url": "facebook.com/small.page"}).json()
+    client.post("/api/competitors/scanner/claim")
+    client.post(f"/api/competitors/scans/{scan['id']}/videos", json={"videos": _grid(0, 3, "20K")})
+    picture = "data:image/jpeg;base64," + base64.b64encode(photo_bytes((200, 30, 30), size=(720, 1280))).decode()
+    sent = client.post(
+        f"/api/competitors/scans/{scan['id']}/details",
+        json={
+            "videos": [
+                {"fb_video_id": "1000001", "thumbnail": picture},
+                {"fb_video_id": "1000002", "thumbnail": "data:image/png;base64," + base64.b64encode(b"x").decode()},
+            ]
+        },
+    )
+    assert sent.status_code == 200, sent.text
+    client.post(f"/api/competitors/scans/{scan['id']}/finish", json={"status": "done"})
+    competitor_id = scan["competitor"]["id"]
+    rows = {v["fb_video_id"]: v for v in client.get(f"/api/competitors/{competitor_id}/videos").json()["videos"]}
+    assert rows["1000001"]["thumb_url"] == f"/api/competitors/{competitor_id}/thumbs/1000001"
+    # A picture that is not an image is ignored.
+    assert rows["1000002"]["thumb_url"] is None and rows["1000000"]["thumb_url"] is None
+    served = client.get(rows["1000001"]["thumb_url"])
+    assert served.status_code == 200 and served.headers["content-type"] == "image/jpeg"
+    from io import BytesIO
+
+    from PIL import Image
+
+    assert max(Image.open(BytesIO(served.content)).size) == competitors.AVATAR_SIZE
+    assert client.get(f"/api/competitors/{competitor_id}/thumbs/1000000").status_code == 404
+    assert client.get(f"/api/competitors/{competitor_id}/thumbs/not-a-number").status_code == 404
+    assert storage.exists(f"competitors/{competitor_id}/thumbs/1000001.jpg")
+    assert client.delete(f"/api/competitors/{competitor_id}").status_code == 204
+    assert not storage.exists(f"competitors/{competitor_id}/thumbs/1000001.jpg")

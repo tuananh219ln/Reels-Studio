@@ -697,7 +697,7 @@ function Actions({
               label: "Ngưỡng video",
               children: (
                 [
-                  ["auto", "Tự động (kênh lớn chỉ lấy ≥100K)"],
+                  ["auto", "Tự động (theo Cài đặt)"],
                   ["all", "Lấy tất cả"],
                   ["100k", "≥100K"],
                   ["1m", "≥1M"],
