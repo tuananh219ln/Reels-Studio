@@ -298,7 +298,10 @@ chrome.windows.onRemoved.addListener((windowId) => {
 
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (message?.type === "scan-account" && sender.tab) {
-    scanAccountStatus().then(reply);
+    // The page's copy of the cookies comes with the question; an extension installed again takes it back.
+    syncScanAccount(message.backup || null)
+      .then(async (copy) => ({ ...(await scanAccountStatus()), ...copy }))
+      .then(reply);
     return true;
   }
   if (message?.type === "open-options") {
