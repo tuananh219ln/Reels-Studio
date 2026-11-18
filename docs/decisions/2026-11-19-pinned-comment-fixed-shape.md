@@ -8,7 +8,7 @@ when shown, never stored; warnings never blocking) stay.
   it again ("1. 1. CÀ TÍM..."); and the template with its six variable buttons was more than the team used: every
   pinned comment had the same shape.
 - **Built.** The comment is always the title, the content scenes one per line, then "Dòng khảo sát"
-  (`videos.pinned_survey`, migration 0109), each left out when empty ([pinned.py](../../api/src/reels_api/pinned.py),
+  (`videos.pinned_survey`, migration 0110), each left out when empty ([pinned.py](../../api/src/reels_api/pinned.py),
   its twin [pinned.ts](../../web/src/lib/pinned.ts) for the live preview). A scene's name is the first line of its
   text with the number before it dropped (only when a mark follows the number: "1.", "2)", "3 -", "#4:", "Cặp 5:"),
   then numbered again from 1, so reordering or deleting scenes renumbers the list and a scene with no number still

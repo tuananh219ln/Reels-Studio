@@ -136,8 +136,8 @@ def test_a_new_video_gets_the_default_survey(client, db):
 
 
 def _migration():
-    path = Path(__file__).resolve().parents[1] / "migrations" / "versions" / "0109_pinned_survey.py"
-    spec = importlib.util.spec_from_file_location("migration_0109", path)
+    path = Path(__file__).resolve().parents[1] / "migrations" / "versions" / "0110_pinned_survey.py"
+    spec = importlib.util.spec_from_file_location("migration_0110", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

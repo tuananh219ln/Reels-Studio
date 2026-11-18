@@ -4,8 +4,8 @@ scenes one per line, then "Dòng khảo sát" (`videos.pinned_survey`), the only
 no variable in it; a template without `{items}`, or with nothing after it, takes the default. The template column is
 kept, unread, in case the change has to be undone.
 
-Revision ID: 0109
-Revises: 0108
+Revision ID: 0110
+Revises: 0109
 Create Date: 2026-11-19
 """
 
@@ -14,8 +14,8 @@ import re
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0109"
-down_revision = "0108"
+revision = "0110"
+down_revision = "0109"
 branch_labels = None
 depends_on = None
 

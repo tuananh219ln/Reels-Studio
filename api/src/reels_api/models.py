@@ -297,7 +297,7 @@ class Video(Base):
     caption: Mapped[str] = mapped_column(Text, default="")
     hashtags: Mapped[list] = mapped_column(JSONB, default=list)
     affiliates: Mapped[list] = mapped_column(JSONB, default=list)
-    # The pinned comment's template before migration 0109; no longer read or written, kept for a while in case the
+    # The pinned comment's template before migration 0110; no longer read or written, kept for a while in case the
     # change has to be undone (docs/decisions/2026-11-19-pinned-comment-fixed-shape.md).
     pinned_comment: Mapped[str] = mapped_column(Text, default="")
     # "Dòng khảo sát": the pinned comment's last line, under the title and the scenes (pinned.py); "" for none.
