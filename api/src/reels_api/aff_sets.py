@@ -4,8 +4,9 @@ the food comments (post_comments.py), so no link is pasted by hand.
 
 - **Which sets** (`plan_sets`): a video's own choice when it made one, else `choose` over the Page's enabled sets with
   at least MIN_VALID usable products: the set whose tags (its own and its products') appear most in the video's title,
-  scenes and topic first (`match_then_rotate`), the rest the least recently used; a set used on the Page within
-  `no_repeat_days` only when nothing else is left. The choice is the same every time it is asked until the first set
+  scenes and topic first (`match_then_rotate`), the rest the sets free to use taking turns by video (`_in_turn`, so
+  videos not posted yet show different sets); a set used on the Page within `no_repeat_days` only when nothing else
+  is left. The choice is the same every time it is asked until the first set
   comment is written, then kept on the post (`publications.aff_set_ids`).
 - **What a comment says** (`render`): the opening line, one line per product (`line_format`, numbered from 1), the
   closing line. Products no longer usable are left out and the rest renumbered; a product already in an earlier set
@@ -189,11 +190,22 @@ def score(candidate: Candidate, text: str) -> int:
 
 
 def _rotation(candidates: list[Candidate]) -> list[Candidate]:
-    # Never used first, then the longest unused; higher priority and the older set break a tie.
+    # The longest unused first; higher priority and the older set break a tie.
     return sorted(
         candidates,
         key=lambda one: (one.last_used_at is not None, one.last_used_at or datetime.min, -one.priority, one.id),
     )
+
+
+def _in_turn(candidates: list[Candidate], seed: int, step: int) -> list[Candidate]:
+    """Sets equally free to use, in a cycle (higher priority, then the older set) that the video's id starts at its
+    own place, `step` further for each next video: videos made one after another show and get different sets, not
+    the same ones until one goes up."""
+    cycle = sorted(candidates, key=lambda one: (-one.priority, one.id))
+    if not cycle:
+        return []
+    start = (seed * step) % len(cycle)
+    return cycle[start:] + cycle[:start]
 
 
 def choose(candidates: list[Candidate], text: str, settings: dict, at: datetime, seed: int) -> list[int]:
@@ -216,10 +228,13 @@ def choose(candidates: list[Candidate], text: str, settings: dict, at: datetime,
         return [one.id for one in picks]
     if settings["strategy"] == "match_then_rotate":
         scored = [(score(one, text), one) for one in (fresh or stale)]
-        best = max((pair for pair in scored if pair[0] > 0), key=lambda pair: (pair[0], -pair[1].id), default=None)
-        if best is not None:
-            picks.append(best[1])
-    for one in _rotation(fresh) + _rotation(stale):
+        top = max((points for points, _ in scored), default=0)
+        if top > 0:
+            # Sets matching equally well take turns too.
+            picks.extend(_in_turn([one for points, one in scored if points == top], seed, 1)[:1])
+    # Fresh sets (not used within no_repeat_days) are equally free: they take turns by video. Recent ones come back
+    # only when too few are fresh, the longest unused first.
+    for one in _in_turn(fresh, seed, wanted) + _rotation(stale):
         if len(picks) >= wanted:
             break
         if one not in picks:

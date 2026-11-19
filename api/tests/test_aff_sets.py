@@ -38,13 +38,22 @@ def test_a_tag_is_matched_as_whole_words():
     assert not aff_sets.matches("cá", "các món ngon")
 
 
-def test_no_match_means_rotation_by_last_use_and_priority():
+def test_videos_made_one_after_another_take_the_fresh_sets_in_turn():
+    # Before any goes up, every video saw the same two sets (the never used, by priority then id).
+    sets = [Candidate(n, 3, None, [], 10) for n in range(1, 7)]
+    picks = [aff_sets.choose(sets, "", SETTINGS, AT, seed=video) for video in (101, 102, 103)]
+    assert sorted(set_id for pair in picks for set_id in pair) == [1, 2, 3, 4, 5, 6]
+    assert picks[0] == aff_sets.choose(sets, "", SETTINGS, AT, seed=101), "the same video, the same sets"
+
+
+def test_without_a_match_the_fresh_sets_cycle_higher_priority_first():
     sets = [
         Candidate(1, 3, ago(4), ["trà"], 10),
         Candidate(2, 5, None, [], 10),
         Candidate(3, 1, None, [], 10),
     ]
-    assert aff_sets.choose(sets, "bữa sáng", SETTINGS, AT, seed=1) == [2, 3]
+    one = SETTINGS | {"sets_per_post": 1}
+    assert [aff_sets.choose(sets, "bữa sáng", one, AT, seed=video) for video in (0, 1, 2)] == [[2], [1], [3]]
 
 
 def test_a_set_used_within_the_days_comes_back_only_when_nothing_else_is_left():

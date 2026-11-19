@@ -951,7 +951,7 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     the post left out, cut under 8000 characters) and a closing line, with the same links as the pinned comment
     (`affiliate.link_for`). The sets are the video's own choice (`PUT /api/aff-sets/videos/{id}`) or the app's
     (`aff_sets.choose`): enabled sets with at least 3 usable products, the one whose tags (and its products') appear
-    most in the video's title, scenes and topic first, the rest the longest unused, a set used on the Page within
+    most in the video's title, scenes and topic first, the rest the sets free to use in turn, each video starting the cycle at its own place (so videos not posted yet show different sets, decisions 2026-11-20-aff-sets-in-turn), a set used on the Page within
     `no_repeat_days` only when nothing else is left (`rotate`: rotation only; `random`: weighted by priority with the
     video's id as seed, so a preview stays true). The first set comment waits a random `first_delay` (5–10 minutes)
     after the last food comment, the others `delay` (3–7 minutes) apart, as a request dated ahead while the Page
