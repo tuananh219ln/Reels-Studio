@@ -72,7 +72,7 @@ all of them pass.
 - **Frontend:** Playwright E2E covers the main flows; it starts the api, a real worker, and the fake
   Claude/Pixabay ([web/playwright.config.ts](../web/playwright.config.ts)), so FFmpeg is
   needed there too. Every test resets `reels_e2e` first, so any subset runs on its own: CI splits
-  them over four machines, and locally `-g "<title>"`, a single spec file or `--last-failed` runs
+  them over eight machines, and locally `-g "<title>"`, a single spec file or `--last-failed` runs
   just the tests a change touches.
 - **E2E locators that hold.** Every rule here comes from a CI failure. Find elements by role or
   label scoped to their area (a card, a dialog, `getByTestId(...)`), with `exact: true` for short

@@ -48,7 +48,7 @@ jobs:
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           quick='["api (1)","api (2)","api (3)","api (4)","worker","web"]'
-          all='["api (1)","api (2)","api (3)","api (4)","worker","web","api-image","e2e (1)","e2e (2)","e2e (3)","e2e (4)"]'
+          all='["api (1)","api (2)","api (3)","api (4)","worker","web","api-image","e2e (1)","e2e (2)","e2e (3)","e2e (4)","e2e (5)","e2e (6)","e2e (7)","e2e (8)"]'
           # The latest run of each named check on a commit; true when every wanted one succeeded.
           passed() {
             gh api --paginate "repos/$REPO/commits/$1/check-runs?per_page=100" \
@@ -213,7 +213,9 @@ jobs:
           API_URL: https://api.invalid
         run: npx opennextjs-cloudflare build
 
-  # E2E on four machines at once, each with its own Postgres, api, worker and web build.
+  # E2E on eight machines at once, each with its own Postgres, api, worker and web build. Eight, not four: each
+  # machine spends about two minutes setting up, and four of them ran 6-11 minutes of tests each, so every CI round
+  # took 13-14 minutes. The "Protect main" ruleset requires every shard by name.
   e2e:
     needs: passed
     if: >-
@@ -224,7 +226,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     services:
       postgres:
         image: postgres:17
@@ -272,12 +274,12 @@ jobs:
           missing=$(find ~/.cache/ms-playwright -type f \( -name chrome -o -name chrome-headless-shell \) \
             -exec ldd {} \; | grep "not found" || true)
           if [ -n "$missing" ]; then echo "$missing"; npx playwright install-deps chromium; fi
-      # Every 4th test, not --shard: that splits in file order and puts all the render-heavy videos.spec.ts tests
+      # Every 8th test, not --shard: that splits in file order and puts all the render-heavy videos.spec.ts tests
       # on the last two machines.
-      - name: E2E (shard ${{ matrix.shard }}/4)
+      - name: E2E (shard ${{ matrix.shard }}/8)
         working-directory: web
         run: |
-          npx playwright test --list | grep '›' | awk -v n=4 -v i=${{ matrix.shard }} 'NR % n == i - 1' > e2e-shard.txt
+          npx playwright test --list | grep '›' | awk -v n=8 -v i=${{ matrix.shard }} 'NR % n == i - 1' > e2e-shard.txt
           test -s e2e-shard.txt
           npm run e2e -- --test-list e2e-shard.txt
 
