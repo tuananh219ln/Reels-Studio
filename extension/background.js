@@ -355,6 +355,14 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     reply({ ok: true });
     return false;
   }
+  // The scan's page is hidden (its window covered or minimised): the window comes back to the front, as it was opened.
+  if (message?.type === "scan-show" && scanning && sender.tab?.id === scanning.tabId) {
+    chrome.windows
+      .update(scanning.windowId, { state: "normal", focused: true })
+      .then(() => reply({ ok: true }))
+      .catch(() => reply({ ok: false }));
+    return true;
+  }
   if ((message?.type === "scan-batch" || message?.type === "scan-tick") && scanning && sender.tab?.id === scanning.tabId) {
     toApp(message);
     reply({ ok: true });
