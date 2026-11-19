@@ -10,7 +10,7 @@ from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN, INSTAGRAM_USER, INSTAGR
 from sqlalchemy import delete, select
 from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixtures)
 
-from reels_api import fanpages, ig_publish, instagram, jobs
+from reels_api import fanpages, ig_publish, instagram, jobs, worker
 from reels_api.models import Fanpage, Job, Publication, Video
 from reels_api.storage import DirectoryStorage
 from reels_api.videos import render_signature, split_scenes
@@ -376,3 +376,63 @@ def test_facebooks_round_of_checks_leaves_instagram_posts_alone(committed, ready
         jobs.queue_post_checks(db)
         db.commit()
         assert db.scalar(select(Job).where(Job.kind == "check")) is None
+
+
+# --- A worker restart in the middle of a post ---
+
+
+def test_a_post_cut_off_by_a_worker_restart_is_queued_again_once_and_goes_out_once(committed, ready, fakes):
+    user, storage, video_id, page_id = ready
+    fakes.instagram_publish_replies_lost = 1  # the Reel went out, but the worker died before hearing so
+    cut, post = send(committed, ready)
+    with committed() as db:
+        db.get(Job, cut.id).status, db.get(Job, cut.id).error = "running", None
+        db.commit()
+
+    worker.recover_interrupted(committed)
+
+    with committed() as db:
+        old = db.get(Job, cut.id)
+        again = db.scalar(select(Job).where(Job.video_id == video_id, Job.status == "queued"))
+        assert (old.status, old.error) == ("failed", worker.RESTARTED)
+        assert (again.kind, again.publication_id, again.retry_of_id, again.created_by_id) == (
+            "ig_publish",
+            post.id,
+            cut.id,
+            user.id,
+        )
+        again_id = again.id
+        again.status = "running"  # claimed, as the worker does with any queued job
+        db.commit()
+    jobs.run_job(again_id, committed, storage)
+    done = job_row(committed, again_id)
+    assert done.status == "done", (done.error, done.error_detail)
+    assert fakes.instagram_calls.count("publish") == 1, "never posted twice"
+    with committed() as db:
+        assert db.get(Publication, post.id).status == "published"
+
+
+def test_a_post_cut_off_twice_waits_for_thu_lai(committed, ready):
+    user, _, video_id, _ = ready
+    first = add_job(committed, video_id, user.id, kind="ig_publish", status="running", publication_id=1)
+    worker.recover_interrupted(committed)
+    with committed() as db:
+        again = db.scalar(select(Job).where(Job.video_id == video_id, Job.status == "queued"))
+        again.status = "running"
+        db.commit()
+        again_id = again.id
+
+    worker.recover_interrupted(committed)
+
+    with committed() as db:
+        statuses = [(j.id, j.status) for j in db.scalars(select(Job).where(Job.video_id == video_id).order_by(Job.id))]
+        assert statuses == [(first, "failed"), (again_id, "failed")], "a second restart does not queue it again"
+        assert db.get(Job, again_id).error == worker.RESTARTED
+
+
+def test_other_jobs_cut_off_by_a_restart_are_still_not_run_again(committed, ready):
+    user, _, video_id, _ = ready
+    add_job(committed, video_id, user.id, kind="publish", status="running")
+    worker.recover_interrupted(committed)
+    with committed() as db:
+        assert [j.status for j in db.scalars(select(Job).where(Job.video_id == video_id))] == ["failed"]
