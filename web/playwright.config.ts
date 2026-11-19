@@ -43,6 +43,8 @@ const BACKEND_ENV = {
   IMAGE_GEN_CF_ACCOUNT_ID: "test-account",
   IMAGE_GEN_CF_API_KEY: "fake-cloudflare-token",
   FACEBOOK_API_URL: `${FAKES_URL}/facebook`,
+  // Where an Instagram Reel's file goes (Instagram's own upload host in production).
+  INSTAGRAM_UPLOAD_URL: `${FAKES_URL}/instagram-upload`,
   SHOPEE_AFFILIATE_API_URL: `${FAKES_URL}/shopee/graphql`,
   SHOPEE_SHORT_LINK_URL: `${FAKES_URL}/shopee-short`,
   // The fake TikTok's own app; TikTok's authorize page on www.tiktok.com is answered by the test itself.

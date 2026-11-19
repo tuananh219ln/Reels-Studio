@@ -27,7 +27,12 @@ TABS = ("unposted", "pending_link", "scheduled", "published", "failed", "closed"
 # "Chưa khớp": reels imported from a Page (meta_sync.py) with no video yet.
 UNMATCHED = ("suggested", "unmatched")
 SORTS = ("latest", "views", "views_48h", "oldest_render")
-PUBLISH_JOBS = {"facebook": "publish", "tiktok": "tiktok_publish", "youtube": "youtube_publish"}
+PUBLISH_JOBS = {
+    "facebook": "publish",
+    "tiktok": "tiktok_publish",
+    "youtube": "youtube_publish",
+    "instagram": "ig_publish",
+}
 STALE_PENDING = timedelta(hours=24)
 UNPOSTED_WARNING_DAYS = 3
 PAGE_SIZE = 50

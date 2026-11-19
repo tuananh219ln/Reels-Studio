@@ -35,6 +35,7 @@ from . import (
     fanpages,
     footage,
     hashtags,
+    ig_publish,
     image_edit,
     image_providers,
     image_style,
@@ -187,6 +188,11 @@ def run_job(
                 try:
                     tiktok_publish.run(db, job, storage)
                 except tiktok_publish.PublishFailed as err:
+                    raise JobFailure(err.message, err.detail) from None
+            elif job.kind == "ig_publish":
+                try:
+                    ig_publish.run(db, job, storage)
+                except ig_publish.PublishFailed as err:
                     raise JobFailure(err.message, err.detail) from None
             elif job.kind == "youtube_publish":
                 try:
@@ -1082,6 +1088,7 @@ def queue_post_checks(db: DbSession) -> None:
     is not shown as posted. Once per scheduled time, failed or not: a member retries it or presses "Kiểm tra"."""
     due = db.scalars(
         select(Publication).where(
+            Publication.platform == "facebook",
             Publication.status == "scheduled",
             Publication.remote_id.is_not(None),
             Publication.scheduled_at <= now() - CHECK_DELAY,
@@ -1174,6 +1181,57 @@ def queue_tiktok_posts(db: DbSession) -> None:
         except IntegrityError:
             continue
         log.info("Queued a TikTok %s post of video %s for Page %s", mode, video.id, page.name)
+
+
+# An Instagram post this late (the worker was down) is not posted any more: its member decides again.
+INSTAGRAM_LATE_LIMIT = timedelta(hours=24)
+
+
+def queue_instagram_posts(db: DbSession) -> None:
+    """Start each Instagram post set for later whose time has come: Instagram has no scheduled time through its API, so
+    this round, which runs about once a minute, is the clock. A post more than `INSTAGRAM_LATE_LIMIT` late is
+    cancelled instead, with the reason on it, so a worker back after a long stop does not post old videos by itself."""
+    due = db.scalars(
+        select(Publication).where(
+            Publication.platform == "instagram",
+            Publication.status == "scheduled",
+            Publication.video_id.is_not(None),
+            Publication.scheduled_at <= now(),
+        )
+    ).all()
+    for post in due:
+        if post.scheduled_at < now() - INSTAGRAM_LATE_LIMIT:
+            post.status, post.closed_at = "cancelled", now()
+            log.warning("Instagram post %s missed its time by over a day: cancelled", post.id)
+            db.add(
+                Job(
+                    video_id=post.video_id,
+                    kind="ig_publish",
+                    status="failed",
+                    created_by_id=post.created_by_id,
+                    publication_id=post.id,
+                    error="Quá giờ hẹn hơn 24 giờ nên chưa đăng Instagram, hãy đăng lại nếu vẫn muốn",
+                    finished_at=now(),
+                )
+            )
+            continue
+        if active_job(db, post.video_id) is not None:
+            continue  # the next round tries again
+        try:
+            with db.begin_nested():
+                post.status = "pending"
+                db.add(
+                    Job(
+                        video_id=post.video_id,
+                        kind="ig_publish",
+                        status="queued",
+                        created_by_id=post.created_by_id,
+                        publication_id=post.id,
+                    )
+                )
+        except IntegrityError:
+            continue
+        log.info("Queued the Instagram post %s of video %s at its time", post.id, post.video_id)
 
 
 def run_check_job(db: DbSession, job: Job) -> None:

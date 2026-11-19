@@ -27,7 +27,7 @@ const NAMES: Record<ManualPlatform, { label: string; placeholder: string; app: s
 
 /** The Facebook slots (Vietnam time) a planned YouTube time defaults to when the video has no Facebook time ahead. */
 const FACEBOOK_SLOTS = ["07:00", "11:00", "18:00"];
-const TITLE_MAX = 100;
+export const YOUTUBE_TITLE_MAX = 100;
 
 /** When the member means to make the upload public: the video's Facebook post time when it is still ahead, else the
  * next Facebook slot from now, as a `datetime-local` value in Vietnam time. */
@@ -49,10 +49,10 @@ function defaultPlanned(video: VideoDetail): string {
 }
 
 /**
- * A platform the app does not post to publicly (YouTube Shorts, Instagram Reels): the member downloads the MP4, copies
- * the caption, posts in the platform's own app, then records the post here with its link ("Đã đăng tay"). YouTube also
- * takes the MP4 straight from the app, private, to a channel the member connected; they make it public in YouTube
- * Studio at the time they planned.
+ * YouTube Shorts and Instagram Reels in "Tùy chọn khác": the app sends to both from "Đăng lên N nền tảng" (YouTube
+ * private to a channel the member connected, Instagram to the account linked to their Page). Here a member may also
+ * post by hand (download the MP4, copy the caption, post in the platform's own app) and record the post with its link
+ * ("Đã đăng tay"). YouTube's own card also sets the title and the time planned to make it public.
  */
 export default function ManualPostCard({ video, platform }: { video: VideoDetail; platform: ManualPlatform }) {
   const { message } = App.useApp();
@@ -99,7 +99,7 @@ export default function ManualPostCard({ video, platform }: { video: VideoDetail
       <Typography.Text type="secondary">
         {platform === "youtube"
           ? "Hoặc đăng tay: tải MP4 về, chép caption rồi đăng trong app YouTube. Đăng xong dán link bài vào đây để cả nhóm biết video đã lên YouTube Shorts."
-          : `App chưa kết nối ${names.app}: tải MP4 về, chép caption rồi đăng trong app ${names.app}. Đăng xong dán link bài vào đây để cả nhóm biết video đã lên ${names.label}.`}
+          : `Bảng “Đăng bài” đăng thẳng lên Instagram của Page. Nếu đăng tay: tải MP4 về, chép caption rồi đăng trong app ${names.app}, xong dán link bài vào đây để cả nhóm biết video đã lên ${names.label}.`}
       </Typography.Text>
       <Flex wrap gap={8}>
         {video.mp4 && (
@@ -133,9 +133,10 @@ export default function ManualPostCard({ video, platform }: { video: VideoDetail
               <PostState post={post} label={names.label} />
               <Typography.Text type="secondary">
                 {post.channel ? `${post.channel} · ` : ""}
+                {post.fanpage ? `${post.fanpage} · ` : ""}
                 {post.created_by}, {formatDateTime(post.at)}
               </Typography.Text>
-              {post.created_by_id === me.id && post.status !== "pending" && (
+              {post.created_by_id === me.id && post.status !== "pending" && post.status !== "scheduled" && (
                 <Popconfirm
                   title="Xoá bài này khỏi app?"
                   description={`Bài trên ${names.app} không bị xoá.`}
@@ -157,7 +158,18 @@ export default function ManualPostCard({ video, platform }: { video: VideoDetail
 /** One post's line: its link, and for a YouTube upload where it stands (uploading, private until made public). */
 function PostState({ post, label }: { post: ManualPost; label: string }) {
   if (post.status === "pending") {
-    return <StatusText tone="idle">Đang tải lên YouTube…</StatusText>;
+    return (
+      <StatusText tone="idle">
+        {post.platform === "youtube" ? "Đang tải lên YouTube…" : "Đang đăng Instagram…"}
+      </StatusText>
+    );
+  }
+  if (post.status === "scheduled") {
+    return (
+      <StatusText tone="idle">
+        Hẹn đăng Instagram{post.scheduled_at ? ` lúc ${formatDateTime(post.scheduled_at)}` : ""}
+      </StatusText>
+    );
   }
   if (post.status === "private") {
     return (
@@ -189,7 +201,7 @@ function YouTubeUpload({ video }: { video: VideoDetail }) {
   const { me } = useMe();
   const [connections, setConnections] = useState<YouTubeConnection[] | null>(null);
   const [channelId, setChannelId] = useState<number | null>(null);
-  const [title, setTitle] = useState(() => (video.title || video.topic).slice(0, TITLE_MAX));
+  const [title, setTitle] = useState(() => (video.title || video.topic).slice(0, YOUTUBE_TITLE_MAX));
   const [planned, setPlanned] = useState(() => defaultPlanned(video));
   const [busy, setBusy] = useState(false);
   const uploading = video.manual_posts.some((post) => post.platform === "youtube" && post.status === "pending");
@@ -261,7 +273,7 @@ function YouTubeUpload({ video }: { video: VideoDetail }) {
             aria-label="Tiêu đề YouTube"
             placeholder="Tiêu đề video trên YouTube"
             value={title}
-            maxLength={TITLE_MAX}
+            maxLength={YOUTUBE_TITLE_MAX}
             showCount
             onChange={(event) => setTitle(event.target.value)}
             style={{ maxWidth: 480 }}

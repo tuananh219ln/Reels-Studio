@@ -31,7 +31,7 @@ from . import (
     post_comments,
     slot_comments,
 )
-from .jobs import queue_post_checks, queue_tiktok_posts, work_dir
+from .jobs import queue_instagram_posts, queue_post_checks, queue_tiktok_posts, work_dir
 from .models import Job
 from .sessions import now
 
@@ -135,6 +135,7 @@ def queue_checks(factory: sessionmaker) -> None:
         with factory() as db:
             queue_post_checks(db)
             queue_tiktok_posts(db)
+            queue_instagram_posts(db)
             article_posts.queue_retries(db)
             db.commit()
     except Exception:

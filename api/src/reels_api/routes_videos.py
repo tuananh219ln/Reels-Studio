@@ -854,6 +854,9 @@ def take_down(post_id: int, me: Session = Depends(current_member), db: DbSession
         raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
     video = lock_video(db, video_id)
     post = db.scalar(select(Publication).where(Publication.id == post_id).execution_options(populate_existing=True))
+    if post.platform != "facebook":
+        # Instagram's own "Hủy hẹn" is routes_instagram.cancel; nothing here may ask Facebook about another platform.
+        raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
     ensure_can_take_down(db, post, me.user_id)
     if post.status not in OPEN_POST_STATUSES:
         raise ApiError(409, "post_closed", "Bài này đã hủy hoặc đã xóa")
@@ -878,7 +881,7 @@ def check_post(post_id: int, me: Session = Depends(current_member), db: DbSessio
         raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
     video = lock_video(db, video_id)
     post = db.scalar(select(Publication).where(Publication.id == post_id).execution_options(populate_existing=True))
-    if post.status not in (*LIVE_POST_STATUSES, "deleted") or post.remote_id is None:
+    if post.platform != "facebook" or post.status not in (*LIVE_POST_STATUSES, "deleted") or post.remote_id is None:
         raise ApiError(409, "post_not_checkable", "Chỉ kiểm tra được bài đã lên Facebook, đã hẹn giờ hoặc đã xóa")
     if active_job(db, video.id) is not None:
         raise ApiError(409, "video_locked", "Video đang có job chạy, hãy đợi xong rồi kiểm tra bài")

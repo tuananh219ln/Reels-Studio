@@ -668,6 +668,10 @@ class Fanpage(Base):
     sync_tried_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sync_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sync_error: Mapped[str | None] = mapped_column(Text)
+    # The Instagram Business/Creator account linked to the Page, read at each check (migration 0111): where "Đăng bài" ›
+    # Instagram posts, with the Page's own token (ig_publish.py). None when the Page has none.
+    instagram_user_id: Mapped[str | None] = mapped_column(String(32))
+    instagram_username: Mapped[str | None] = mapped_column(String(100))
 
     updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
     owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])
