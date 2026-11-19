@@ -8,8 +8,8 @@ comments of up to 10 products each, written under its reels after the food comme
 - `publications.aff_set_ids` / `aff_comment_ids` / `aff_comment_texts`: the sets a post used, and the comments written
   for them by place, as `extra_comment_ids` / `extra_comment_texts` are kept.
 
-Revision ID: 0112
-Revises: 0111
+Revision ID: 0113
+Revises: 0112
 Create Date: 2026-11-19
 """
 
@@ -17,8 +17,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "0112"
-down_revision = "0111"
+revision = "0113"
+down_revision = "0112"
 branch_labels = None
 depends_on = None
 

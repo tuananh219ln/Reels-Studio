@@ -347,6 +347,11 @@ class FakeServices:
         self.instagram_container_error = False  # a container ends ERROR instead of FINISHED
         self.instagram_publish_replies_lost = 0  # that many publishes go through but answer 500
         self.instagram_refusal: int | None = None  # every Instagram call answers with this Graph error code
+        # The token may read the Page's linked account but not the account itself (no instagram_basic): asking for its
+        # username, nested or on its own, answers 403 code 10.
+        self.instagram_username_refused = False
+        # The Page field that holds the linked account: Meta fills `connected_instagram_account` for some links.
+        self.instagram_link_field = "instagram_business_account"
         self.instagram_calls: list[str] = []  # "container", "upload", "status", "publish", "permalink", "media"
         # Photo and text posts on the Page's feed ("Bài viết"), by post id: {"message", "published", "scheduled",
         # "photo": bytes or None, "photos": the attached photos of a post of several}; their numbers by post id (reach,
@@ -1344,11 +1349,19 @@ class FakeServices:
         ?fields=instagram_business_account{id,username}."""
         if query.get("access_token") != FACEBOOK_TOKEN:
             return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
-        if "instagram_business_account" in query.get("fields", ""):
+        fields = query.get("fields", "")
+        if "instagram_business_account" in fields or "connected_instagram_account" in fields:
             if self.instagram_refusal is not None:
                 return self._instagram_refused()
+            if self.instagram_username_refused and "username" in fields:
+                return 403, {"error": {"message": "(#10) Requires instagram_basic", "code": 10}}
             linked = self.instagram_account if page_id == FACEBOOK_PAGE else None
-            return 200, {"id": page_id, **({"instagram_business_account": dict(linked)} if linked else {})}
+            reply = {"id": page_id}
+            if linked and self.instagram_link_field in fields:
+                asked = fields.split(self.instagram_link_field, 1)[1]
+                nested = asked.startswith("{")
+                reply[self.instagram_link_field] = dict(linked) if nested else {"id": linked["id"]}
+            return 200, reply
         if self.facebook_page_info_refused:
             return 403, {"error": {"message": "(#200) Requires pages_read_engagement permission", "code": 200}}
         page = next(page for page in self.facebook_pages if page["id"] == page_id)
@@ -1427,6 +1440,10 @@ class FakeServices:
         if self.instagram_refusal is not None:
             return self._instagram_refused()
         with self.lock:
+            if target == INSTAGRAM_USER:
+                if self.instagram_username_refused:
+                    return 403, {"error": {"message": "(#10) Requires instagram_basic", "code": 10}}
+                return 200, {"id": INSTAGRAM_USER, "username": (self.instagram_account or {}).get("username")}
             if target == f"{INSTAGRAM_USER}/media":
                 self.instagram_calls.append("media")
                 return 200, {"data": [dict(item) for item in self.instagram_media]}

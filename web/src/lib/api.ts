@@ -687,6 +687,8 @@ export type Fanpage = {
   youtube_channel: { id: number; name: string; connected: boolean } | null;
   /** The Instagram account linked to the Page (read at its check), where "Đăng bài" › Instagram posts. */
   instagram: { id: string; username: string | null } | null;
+  /** Why the last check could not read the linked Instagram account; null when it read. */
+  instagram_error: string | null;
   /** The Page's brand ("Kênh") and its logo, laid on the videos made for it; null until a logo is added. */
   brand: { id: number; name: string; logo_badge_url: string | null; logo_default_on: boolean; owner_id: number } | null;
   /** The worker's last check of the token (api fanpages.check). */

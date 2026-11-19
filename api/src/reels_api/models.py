@@ -312,7 +312,7 @@ class Video(Base):
     # "Đã dán link tay" (migration 0071): a member pasted its affiliate links on Facebook, so the worker never writes or
     # edits a comment under its posts; products attached to it are only a record.
     manual_comment: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
-    # "Bình luận aff tự động" for this video alone (aff_sets.py, migration 0112): none at all, or these sets (ids of any
+    # "Bình luận aff tự động" for this video alone (aff_sets.py, migration 0113): none at all, or these sets (ids of any
     # Page's sets, in order; a Page none of them belongs to plans its own) instead of the app's choice.
     aff_comments_off: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     aff_set_ids: Mapped[list | None] = mapped_column(JSONB)
@@ -676,7 +676,9 @@ class Fanpage(Base):
     # Instagram posts, with the Page's own token (ig_publish.py). None when the Page has none.
     instagram_user_id: Mapped[str | None] = mapped_column(String(32))
     instagram_username: Mapped[str | None] = mapped_column(String(100))
-    # "Bộ bình luận" settings (aff_sets.DEFAULTS names them and fills what is missing; migration 0112).
+    # Why the last check could not read the linked account (migration 0112), shown on "Quản lý kênh"; None when it read.
+    instagram_error: Mapped[str | None] = mapped_column(Text)
+    # "Bộ bình luận" settings (aff_sets.DEFAULTS names them and fills what is missing; migration 0113).
     aff_settings: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
 
     updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
