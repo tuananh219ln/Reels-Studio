@@ -27,6 +27,7 @@ from . import (
     fanpages,
     meta_sync,
     metrics,
+    outro,
     page_queue,
     post_comments,
     slot_comments,
@@ -160,6 +161,15 @@ def queue_checks(factory: sessionmaker) -> None:
             db.commit()
     except Exception:
         log.exception("Could not queue the post checks")
+    # Apart, so an outro problem never holds the posts back.
+    try:
+        from .storage import get_storage
+
+        with factory() as db:
+            outro.fill(db, get_storage())
+            db.commit()
+    except Exception:
+        log.exception("Could not fill the outro scenes")
 
 
 def serve(factory: sessionmaker, lock: Connection) -> None:

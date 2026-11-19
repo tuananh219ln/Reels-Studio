@@ -42,6 +42,7 @@ from . import (
     knowledge,
     llm,
     motion,
+    outro,
     pinned,
     plans,
     qc,
@@ -158,7 +159,7 @@ def run_job(
         log.info("Job %s (%s) for %s started", job.id, job.kind, owner)
         try:
             if job.kind in ("script", "clone"):
-                run_script_job(db, job, call)
+                run_script_job(db, job, call, storage)
             elif job.kind == "learn":
                 run_learn_job(db, job, storage, call)
             elif job.kind == "plan":
@@ -295,7 +296,9 @@ def _finish(db: DbSession, job_id: int, status: str, error: str | None = None, d
 # --- Script ---
 
 
-def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | None) -> None:
+def run_script_job(
+    db: DbSession, job: Job, call: Callable[[str, str], str] | None, storage: DirectoryStorage | None = None
+) -> None:
     video = db.get(Video, job.video_id)
     # A retried job whose script was already saved has nothing to do: no new Claude call,
     # and nothing the members edited meanwhile is overwritten.
@@ -312,6 +315,8 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
                 topic.photo_hint,
                 content_types=team_content_types(db),
             )
+            if topic.outro_cta:
+                prompt = f"{prompt}\n\n{outro.SCRIPT_FORMAT}"
         else:
             idea = plans.idea_of_video(db, video.id)
             prompt = script_prompt(topic, video.topic, idea, video.ai_effects, False, team_content_types(db))
@@ -324,6 +329,11 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
         except ClaudeError as err:
             raise JobFailure(err.message, err.detail) from None
         save_script(db, video, script)
+        if storage is None:
+            from .storage import get_storage
+
+            storage = get_storage()
+        outro.add(db, storage, video)
         affiliate_rounds.ask_after_script(db, video, job.created_by_id)
         db.commit()
 
@@ -350,6 +360,8 @@ def script_prompt(
         prompt = f"{prompt}\n\n{autoedit.EFFECTS_FORMAT}"
     if group.text_ai:
         prompt = f"{prompt}\n\n{text_looks.SCRIPT_FORMAT}"
+    if group.outro_cta:
+        prompt = f"{prompt}\n\n{outro.SCRIPT_FORMAT}"
     if backdrop:
         prompt = f"{prompt}\n\n{BACKDROP_FORMAT}"
     return prompt
@@ -433,6 +445,8 @@ def run_learn_job(db: DbSession, job: Job, storage: DirectoryStorage, call: Call
     reference.attach_clips(storage, sample, title, scenes, learned, folder, lambda name: new_key(video.id, name, "mp4"))
     if title is not None and title.video_key:
         refresh_thumbnail(db, storage, video, title)
+    # After the sample's clips are matched to the scenes, so none of them lands on the outro.
+    outro.add(db, storage, video)
     affiliate_rounds.ask_after_script(db, video, job.created_by_id)
     db.commit()
     shutil.rmtree(folder, ignore_errors=True)
@@ -452,6 +466,8 @@ def _make_from_footage(
     title, _ = split_scenes(db, video)
     if title is not None:
         refresh_thumbnail(db, storage, video, title)
+    # After the sample's clips are matched to the scenes, so none of them lands on the outro.
+    outro.add(db, storage, video)
     affiliate_rounds.ask_after_script(db, video, job.created_by_id)
     db.commit()
     shutil.rmtree(folder, ignore_errors=True)

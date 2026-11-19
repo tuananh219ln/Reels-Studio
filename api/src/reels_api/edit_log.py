@@ -42,6 +42,7 @@ TOPIC_FIELDS = (
     "text_look",
     "text_ai",
     "no_people",
+    "outro_cta",
     "stock_order",
     "media_folder",
     "templates",

@@ -40,6 +40,7 @@ from . import (
     knowledge,
     llm,
     music_topics,
+    outro,
     pinned,
     plans,
     post_comments,
@@ -380,11 +381,13 @@ def start_video(
     if manual:
         _write_by_hand(db, video, topic, scenes)
         autoedit.apply_default(db, video)
+        outro.add(db, get_storage(), video)
     elif written is not None:
         # Imported here: the job module loads the render core, which the routes otherwise do not need at import.
         from . import jobs
 
         jobs.save_script(db, video, written)
+        outro.add(db, get_storage(), video)
         affiliate_rounds.ask_after_script(db, video, me.user_id)
         # As after a script job: "Tự tìm ảnh" looks for the scenes' photos, unless it is turned off.
         if auto_photos.enabled(db):
@@ -2415,6 +2418,7 @@ class TopicPatchBody(BaseModel):
     text_look: dict | None = None  # "Chữ & phụ đề" (text_looks.FIELDS); null or {} (when sent): the maker's
     text_ai: bool | None = None  # "AI chọn kiểu chữ cho từng video"
     no_people: bool | None = None  # "Không dùng cảnh có người"
+    outro_cta: bool | None = None  # "Cảnh kết Theo dõi & Chia sẻ" (outro.py)
     media_folder: str | None = None  # "Tư liệu": its folder in the "Kho tư liệu"; null or "" (when sent) unlinks
 
 
@@ -2459,6 +2463,7 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "text_look": text_looks.group_look(topic) or None,
                 "text_ai": topic.text_ai,
                 "no_people": topic.no_people,
+                "outro_cta": topic.outro_cta,
                 "text_suggestions": topic.text_suggestions,
                 "text_job": text_looks.job_payload(text_looks.job_of(db, topic.id)),
                 "created_by_id": topic.created_by_id,
@@ -2606,6 +2611,8 @@ def patch_topic(
         topic.text_ai = body.text_ai
     if body.no_people is not None:
         topic.no_people = body.no_people
+    if body.outro_cta is not None:
+        topic.outro_cta = body.outro_cta
     if "media_folder" in body.model_fields_set:
         from .routes_media import link_folder
 

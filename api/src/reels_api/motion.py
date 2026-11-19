@@ -269,6 +269,9 @@ def attach(db: DbSession, storage: DirectoryStorage, job: Job, target: Path) -> 
     # The motion is timed to its seconds, so the scene keeps them rather than following the narration.
     scene.seconds, scene.seconds_auto = motion["seconds"], False
     scene.motion = {**motion, "clip_key": key, "pending": False}
+    from . import outro
+
+    outro.keep(storage, scene, target)
     if scene.is_title:
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)
