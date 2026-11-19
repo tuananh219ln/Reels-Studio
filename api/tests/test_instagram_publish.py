@@ -247,7 +247,8 @@ def test_a_reel_goes_out_with_its_caption_and_link(committed, ready, fakes):
     fakes.instagram_busy_reads = 2
     job, post = send(committed, ready)
     assert job.status == "done", (job.error, job.error_detail)
-    (container_id, container), (media,) = (*fakes.instagram_containers.items(),), fakes.instagram_media
+    ((container_id, container),) = fakes.instagram_containers.items()
+    (media,) = fakes.instagram_media
     assert (container["caption"], container["bytes"], container["state"]) == (
         "Ăn vừng đen mỗi sáng\n\n#vungden",
         len(MP4),
