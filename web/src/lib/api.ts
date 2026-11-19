@@ -627,6 +627,8 @@ export type KnowledgeTopic = {
   text_ai: boolean;
   /** "Không dùng cảnh có người": the group's scenes show no faces or bodies (hands at work are fine). */
   no_people: boolean;
+  /** "Cảnh kết Theo dõi & Chia sẻ": the group's new videos end on the shared follow-and-share scene. */
+  outro_cta: boolean;
   /** The AI's last suggested looks ("AI gợi ý"), kept for a member to pick one; null before the first. */
   text_suggestions: TextSuggestions | null;
   /** The "AI gợi ý" job while queued or running, or the last one if it failed; null otherwise. */

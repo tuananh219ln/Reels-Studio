@@ -205,6 +205,9 @@ class KnowledgeTopic(Base):
     # "Không dùng cảnh có người" (migration 0090, owner 2026-11-15): the group's scenes show no faces or bodies (hands
     # at work are fine). The assistants read it from the video and pick footage by it; on for "Ăn Lành Sống Khỏe".
     no_people: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # "Cảnh kết Theo dõi & Chia sẻ" (migration 0115, outro.py): its new videos end on the shared follow-and-share
+    # scene, which takes the place of a closing call to action of their script.
+    outro_cta: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     text_suggestions: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # The group's "Mẫu dựng" (part 2 of docs/specs/per-user-settings-ownership), picked from the saved ones, and the
     # one its new videos take ("app" or one of them; None for none), over their maker's own (autoedit).

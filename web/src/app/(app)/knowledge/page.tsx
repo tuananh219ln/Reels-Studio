@@ -45,6 +45,7 @@ import TopicSchedule from "@/components/knowledge/TopicSchedule";
 import StockOrderCard from "@/components/knowledge/StockOrderCard";
 import GroupVideoModeCard from "@/components/knowledge/GroupVideoModeCard";
 import GroupNoPeopleCard from "@/components/knowledge/GroupNoPeopleCard";
+import GroupOutroCard from "@/components/knowledge/GroupOutroCard";
 import GroupTextLookCard from "@/components/knowledge/GroupTextLookCard";
 import { usePlanTabs } from "@/components/plan/PlanTab";
 import { VoicePicker } from "@/components/video/VideoSettings";
@@ -355,6 +356,7 @@ const TOPIC_FIELDS: Record<string, string> = {
   video_mode: "Kiểu video",
   text_look: "Chữ & phụ đề",
   text_ai: "AI chọn kiểu chữ cho từng video",
+  outro_cta: "Cảnh kết Theo dõi & Chia sẻ",
   stock_order: "Thứ tự nguồn ảnh",
   media_folder: "Thư mục tư liệu",
   templates: "Mẫu dựng của nhóm",
@@ -586,6 +588,7 @@ function TopicBody({
                       <Flex vertical gap={16}>
                         <GroupVideoModeCard topic={topic} update={update} />
                         <GroupNoPeopleCard topic={topic} update={update} />
+                        <GroupOutroCard topic={topic} update={update} />
                         <GroupVoiceCard topicId={topic.id} initial={topic.voice_id} update={update} reload={reload} />
                         <GroupTemplatesCard topic={topic} update={update} />
                       </Flex>
