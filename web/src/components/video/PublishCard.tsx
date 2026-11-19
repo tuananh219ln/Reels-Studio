@@ -332,16 +332,22 @@ export function PostRows({ video }: { video: VideoDetail }) {
           label: post.platform_label,
           text:
             post.status === "pending"
-              ? "Đang tải lên YouTube"
-              : post.status === "private"
-                ? `Đã tải lên riêng tư${post.planned_at ? `, nhớ công khai lúc ${formatDateTime(post.planned_at)}` : ""}`
-                : post.status === "deleted"
-                  ? "Đã gỡ"
-                  : post.studio_url
-                    ? "Đã công khai"
-                    : "Đã đăng tay",
+              ? post.platform === "youtube"
+                ? "Đang tải lên YouTube"
+                : "Đang đăng Instagram"
+              : post.status === "scheduled"
+                ? `Hẹn đăng${post.scheduled_at ? ` lúc ${formatDateTime(post.scheduled_at)}` : ""}`
+                : post.status === "private"
+                  ? `Đã tải lên riêng tư${post.planned_at ? `, nhớ công khai lúc ${formatDateTime(post.planned_at)}` : ""}`
+                  : post.status === "deleted"
+                    ? "Đã gỡ"
+                    : post.studio_url
+                      ? "Đã công khai"
+                      : post.source === "app_api"
+                        ? "Đã đăng"
+                        : "Đã đăng tay",
           url: post.url,
-          who: [post.channel, post.created_by, formatDateTime(post.at)].filter(Boolean).join(", "),
+          who: [post.channel, post.fanpage, post.created_by, formatDateTime(post.at)].filter(Boolean).join(", "),
         })),
       ].map((row) => (
         <div

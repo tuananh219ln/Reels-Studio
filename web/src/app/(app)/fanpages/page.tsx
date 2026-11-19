@@ -172,6 +172,9 @@ function PageCard({
               ID {row.page_id}, token …{row.token_tail}
             </Typography.Text>
           </Flex>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis data-testid="fanpage-instagram">
+            {row.instagram ? `Instagram: @${row.instagram.username ?? row.instagram.id}` : "Chưa liên kết Instagram"}
+          </Typography.Text>
         </Flex>
         <FanpageMenu
           row={row}

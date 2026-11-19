@@ -8,7 +8,7 @@ import {
   LoadingOutlined,
   TikTokOutlined,
 } from "@ant-design/icons";
-import { App, Button, Card, Collapse, Flex, Input, Modal, Radio, Select, Tooltip, Typography } from "antd";
+import { App, Button, Card, Collapse, Flex, Input, Modal, Popconfirm, Radio, Select, Tooltip, Typography } from "antd";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import ApproveVideoButton from "@/components/actions/ApproveVideoButton";
@@ -27,6 +27,7 @@ import {
   type AffiliateAccount,
   type Post,
   type VideoDetail,
+  type YouTubeConnection,
 } from "@/lib/api";
 import { loadLastChoices, myPageOfGroup } from "@/lib/lastChoices";
 import { myPages, pageOptions } from "@/lib/myPages";
@@ -40,6 +41,7 @@ import {
 } from "@/lib/postResults";
 import { useEditor } from "./AutoSaveField";
 import PostActions from "./PostActions";
+import { YOUTUBE_TITLE_MAX } from "./ManualPostCard";
 import { PostRows, PublishButton } from "./PublishCard";
 import type { PostStep } from "./postRound";
 
@@ -56,8 +58,7 @@ type PanelState = "no-mp4" | "ready" | "publishing" | "published" | "partial" | 
 
 function panelState(video: VideoDetail, results: PlatformResult[], posting: boolean): PanelState {
   if (!video.mp4) return "no-mp4";
-  const scheduled = (result: PlatformResult) => result.state === "wait" && result.post?.status === "scheduled";
-  if (posting || results.some((result) => result.state === "wait" && !scheduled(result))) return "publishing";
+  if (posting || results.some((result) => result.state === "wait" && !result.scheduled)) return "publishing";
   if (results.length === 0) return "ready";
   const out = results.filter((result) => result.state === "ok").length;
   const failed = results.filter((result) => result.state === "err").length;
@@ -118,14 +119,13 @@ export default function StatusCard({
   const results = platformResults(video);
   const count = postCount(results);
   const state = panelState(video, results, posting);
-  // A YouTube Shorts or Instagram row opens the posting drawer on its tab, where a post made by hand is recorded. The
-  // drawer has no button on this card: "Tùy chọn đăng khác" sits under it. The newer request opens it.
-  const [rowRequest, setRequest] = useState<DrawerRequest | null>(null);
-  const request = (rowRequest?.at ?? 0) >= (drawerRequest?.at ?? 0) ? rowRequest : drawerRequest;
+  // The posting drawer (a post made by hand, a YouTube title) has no button on this card: "Tùy chọn đăng khác" sits
+  // under it.
+  const request = drawerRequest;
   const rendering = video.active_job?.kind === "render";
   // The newest Facebook post that is out or due carries the pinned comment's state.
   const open = video.publications.find((post) => post.status === "published" || post.status === "scheduled");
-  const scheduledAt = results.find((result) => result.post?.status === "scheduled")?.at ?? null;
+  const scheduledAt = results.find((result) => result.scheduled)?.at ?? null;
   const when = state === "scheduled" ? scheduledAt : count.last;
 
   const header =
@@ -198,14 +198,7 @@ export default function StatusCard({
               </Typography.Text>
             ) : (
               state !== "publishing" && (
-                <Platforms
-                  key={state}
-                  video={video}
-                  posting={posting}
-                  onPost={onPost}
-                  onManual={setRequest}
-                  compact={state !== "ready"}
-                />
+                <Platforms key={state} video={video} posting={posting} onPost={onPost} compact={state !== "ready"} />
               )
             )}
           </Flex>
@@ -314,7 +307,19 @@ function ResultRow({ video, result }: { video: VideoDetail; result: PlatformResu
     result.platform === "tiktok" &&
     result.state === "ok" &&
     video.tiktok_posts.find((post) => post.status === "published")?.mode === "draft";
-  const scheduled = result.state === "wait" && result.post?.status === "scheduled" && result.at;
+  const scheduled = result.state === "wait" && result.scheduled && result.at;
+  const [cancelling, setCancelling] = useState(false);
+
+  async function cancel() {
+    setCancelling(true);
+    try {
+      editor.onSaved(await api<VideoDetail>(`/instagram/posts/${result.cancelPostId}/cancel`, "POST"));
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   async function retry() {
     setRetrying(true);
@@ -385,6 +390,19 @@ function ResultRow({ video, result }: { video: VideoDetail; result: PlatformResu
         >
           Thử lại
         </Button>
+      )}
+      {result.cancelPostId !== null && (
+        <Popconfirm
+          title="Hủy bài Instagram đã hẹn?"
+          description="Bài chưa gửi lên Instagram."
+          okText="Hủy hẹn"
+          cancelText="Không"
+          onConfirm={() => void cancel()}
+        >
+          <Button type="link" size="small" loading={cancelling} disabled={video.locked} className="post-row__action">
+            Hủy hẹn
+          </Button>
+        </Popconfirm>
       )}
       {result.post && result.state !== "err" && (
         // "Kiểm tra" and "Hủy đăng"/"Xóa" of the Facebook post.
@@ -460,22 +478,21 @@ function storedPlatforms(key: string): PlatformKey[] | null {
 }
 
 /**
- * The platforms as rows, "Đăng ngay" or "Hẹn giờ", and "Đăng lên N nền tảng". Facebook and TikTok are posted by the
- * app (Facebook to the member's Page, TikTok as a draft to the member's connected account's inbox), one after the
- * other; YouTube Shorts and Instagram are posted by hand, so their rows open the posting drawer to record the link.
+ * The platforms as rows, "Đăng ngay" or "Hẹn giờ", and "Đăng lên N nền tảng", sent one after the other: Facebook to the
+ * member's Page, Instagram to that Page's linked account, TikTok as a draft to the member's connected account's inbox,
+ * YouTube Shorts uploaded private to their connected channel. With "Hẹn giờ" Facebook and Instagram go at that time;
+ * TikTok and YouTube still go at once (a draft, a private upload), the time kept as YouTube's reminder.
  * `compact`: a video already tried offers only "+ Đăng thêm", for another platform.
  */
 function Platforms({
   video,
   posting,
   onPost,
-  onManual,
   compact = false,
 }: {
   video: VideoDetail;
   posting: boolean;
   onPost: (steps: PostStep[]) => void;
-  onManual: (request: { platform: PlatformKey; at: number }) => void;
   compact?: boolean;
 }) {
   const { modal } = App.useApp();
@@ -512,6 +529,27 @@ function Platforms({
     (mine.some((page) => page.id === lastPage) ? lastPage : null) ??
     (mine.length === 1 ? mine[0].id : null);
   const samePage = fanpage !== null && video.posted_fanpage_ids.includes(fanpage);
+  // Instagram: the account linked to that same Page.
+  const instagramName = video.fanpages.find((page) => page.id === fanpage)?.instagram_username ?? null;
+
+  // YouTube: the member's connected channels; the Page's own channel first.
+  const [channels, setChannels] = useState<YouTubeConnection[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    api<YouTubeConnection[]>("/youtube/connections").then(
+      (found) => live && setChannels(found.filter((row) => row.owner_id === me.id && !row.needs_reconnect)),
+      () => live && setChannels([]),
+    );
+    return () => {
+      live = false;
+    };
+  }, [me.id]);
+  const [pickedChannel, setPickedChannel] = useState<number | null>(null);
+  const pageChannel = video.fanpages.find((page) => page.id === fanpage)?.youtube_channel_id ?? null;
+  const channel =
+    pickedChannel ??
+    (channels?.some((row) => row.channel_id === pageChannel) ? pageChannel : null) ??
+    (channels?.length === 1 ? channels[0].channel_id : null);
 
   // TikTok: the member's connected accounts; the Page's own TikTok account first.
   const [accounts, setAccounts] = useState<AffiliateAccount[] | null>(null);
@@ -542,13 +580,14 @@ function Platforms({
     (accounts?.some((item) => item.id === suggested) ? suggested : null) ??
     (accounts?.length === 1 ? accounts[0].id : null);
 
-  // TikTok's API posts now or never: with "Hẹn giờ" only Facebook goes.
-  const usable = (platform: PlatformKey) => !(platform === "tiktok" && mode === "later");
-  const picked = chosen.filter((platform) => usable(platform) && !tried.has(platform));
+  const picked = chosen.filter((platform) => !tried.has(platform));
+  const timed = picked.includes("facebook") || picked.includes("instagram");
   const missing =
     (picked.includes("facebook") && (fanpage === null || samePage)) ||
+    (picked.includes("instagram") && (fanpage === null || instagramName === null)) ||
     (picked.includes("tiktok") && account === null) ||
-    (mode === "later" && picked.includes("facebook") && !when);
+    (picked.includes("youtube") && channel === null) ||
+    (mode === "later" && timed && !when);
   const blocked = video.mp4_outdated || video.locked || posting || picked.length === 0 || missing;
 
   async function post() {
@@ -565,8 +604,25 @@ function Platforms({
         },
       });
     }
+    if (picked.includes("instagram") && fanpage !== null) {
+      steps.push({
+        platform: "instagram",
+        body: { fanpage_id: fanpage, scheduled_at: mode === "later" ? fromVietnamInput(when) : null },
+      });
+    }
+    // TikTok and YouTube go now whatever the mode: a draft and a private upload; YouTube keeps the time as a reminder.
     if (picked.includes("tiktok") && account !== null) {
       steps.push({ platform: "tiktok", body: { account_id: account, mode: "draft", privacy_level: null } });
+    }
+    if (picked.includes("youtube") && channel !== null) {
+      steps.push({
+        platform: "youtube",
+        body: {
+          channel_id: channel,
+          title: (video.title || video.topic).slice(0, YOUTUBE_TITLE_MAX),
+          planned_at: mode === "later" && when ? fromVietnamInput(when) : null,
+        },
+      });
     }
     onPost(steps);
   }
@@ -596,38 +652,15 @@ function Platforms({
 
   const option = (platform: PlatformKey) => {
     const label = PLATFORM_LABELS[platform];
-    if (!AUTO_PLATFORMS.includes(platform)) {
-      // Posted by hand: the row opens the posting drawer on its tab to record the post's link.
-      return (
-        <Tooltip key={platform} title={platform === "youtube" ? "Tải lên riêng tư hoặc đăng tay" : "Đăng tay"}>
-          <button
-            type="button"
-            className="platform-option platform-option--manual"
-            data-testid={`platform-option-${platform}`}
-            aria-label={`${label}, đăng tay, mở ô ghi link bài`}
-            aria-describedby={`${hintId}-${platform}`}
-            disabled={video.locked}
-            onClick={() => onManual({ platform, at: Date.now() })}
-          >
-            <PlatformBadge platform={platform} />
-            <span className="platform-option__name">{label}</span>
-            <span id={`${hintId}-${platform}`} hidden>
-              Đăng tay
-            </span>
-            <ExportOutlined className="platform-option__end" aria-hidden />
-          </button>
-        </Tooltip>
-      );
-    }
     const done = tried.has(platform);
-    const checked = chosen.includes(platform) && usable(platform) && !done;
-    const disabled = done || !usable(platform) || video.locked || posting;
+    const checked = chosen.includes(platform) && !done;
+    const disabled = done || video.locked || posting;
     const hint = done
       ? "Đã đăng"
-      : !usable(platform)
-        ? "Không hẹn giờ được"
-        : platform === "tiktok"
-          ? "Nháp vào hộp thư"
+      : platform === "tiktok"
+        ? "Nháp vào hộp thư"
+        : platform === "youtube"
+          ? "Tải lên riêng tư"
           : null;
     // Only the badge and the name show; the hint is the row's tooltip and the checkbox's description.
     return (
@@ -667,7 +700,7 @@ function Platforms({
         <legend className="sr-only">Chọn nền tảng</legend>
         {(["facebook", "tiktok", "youtube", "instagram"] as const).map(option)}
       </fieldset>
-      {picked.includes("facebook") && mine.length !== 1 && (
+      {(picked.includes("facebook") || picked.includes("instagram")) && mine.length !== 1 && (
         <Flex align="center" gap={8}>
           <Typography.Text type="secondary" style={{ fontSize: 13, flex: "none" }}>
             Fanpage
@@ -684,6 +717,36 @@ function Platforms({
               onChange={setPickedPage}
               style={{ flex: 1, minWidth: 0 }}
               options={pageOptions(video.fanpages, me.id)}
+            />
+          )}
+        </Flex>
+      )}
+      {picked.includes("instagram") && fanpage !== null && (
+        <Typography.Text
+          type={instagramName ? "secondary" : "warning"}
+          style={{ fontSize: 13 }}
+          data-testid="instagram-account"
+        >
+          {instagramName ? `Instagram: @${instagramName}` : "Page này chưa liên kết tài khoản Instagram Business"}
+        </Typography.Text>
+      )}
+      {picked.includes("youtube") && channels !== null && channels.length !== 1 && (
+        <Flex align="center" gap={8}>
+          <Typography.Text type="secondary" style={{ fontSize: 13, flex: "none" }}>
+            YouTube
+          </Typography.Text>
+          {channels.length === 0 ? (
+            <Link prefetch={false} href="/fanpages" style={{ fontSize: 13 }}>
+              Chưa kết nối kênh YouTube nào, mở Quản lý kênh
+            </Link>
+          ) : (
+            <Select
+              aria-label="Kênh YouTube để tải lên"
+              placeholder="Chọn kênh"
+              value={channel}
+              onChange={setPickedChannel}
+              style={{ flex: 1, minWidth: 0 }}
+              options={channels.map((row) => ({ value: row.channel_id, label: row.title }))}
             />
           )}
         </Flex>

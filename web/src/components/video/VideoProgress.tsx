@@ -82,9 +82,10 @@ function steps(video: VideoDetail, now: number): Step[] {
   // "X/Y nền tảng · hh:mm": the platforms it is out on, of those tried, and when the newest went out; in green.
   const results = platformResults(video);
   const count = postCount(results);
-  const scheduled = video.publications
-    .filter((post) => post.status === "scheduled" && post.scheduled_at)
-    .map((post) => post.scheduled_at!)
+  // Facebook and Instagram posts set for later.
+  const scheduled = results
+    .filter((result) => result.scheduled && result.at)
+    .map((result) => result.at!)
     .sort();
   const suggested = video.plan_idea?.suggested_post_at;
   const post: Step = count.out
