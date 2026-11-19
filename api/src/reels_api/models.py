@@ -672,6 +672,8 @@ class Fanpage(Base):
     # Instagram posts, with the Page's own token (ig_publish.py). None when the Page has none.
     instagram_user_id: Mapped[str | None] = mapped_column(String(32))
     instagram_username: Mapped[str | None] = mapped_column(String(100))
+    # Why the last check could not read the linked account (migration 0112), shown on "Quản lý kênh"; None when it read.
+    instagram_error: Mapped[str | None] = mapped_column(Text)
 
     updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
     owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])

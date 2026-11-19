@@ -165,15 +165,17 @@ def check(db: DbSession, row: Fanpage) -> None:
 
 def _instagram(row: Fanpage, page: Page) -> dict:
     """The Instagram account linked to the Page, as columns to write. A read that fails (a token without
-    `instagram_basic`, Facebook down) keeps what the last one found: the Page itself still works."""
+    `instagram_basic`, Facebook down) keeps what the last one found, the Page itself still working, and says why on
+    "Quản lý kênh" (`instagram_error`)."""
     try:
         account = instagram.account_of(page)
     except FacebookError as err:
         log.warning("Fanpage %s: Instagram account not read: %s %s", row.id, err.message, err.detail)
-        return {}
+        reason = instagram.meta_reason(err)
+        return {"instagram_error": f"Không đọc được Instagram: {err.message}" + (f" ({reason})" if reason else "")}
     if account is None:
-        return {"instagram_user_id": None, "instagram_username": None}
-    return {"instagram_user_id": account.id, "instagram_username": account.username or None}
+        return {"instagram_user_id": None, "instagram_username": None, "instagram_error": None}
+    return {"instagram_user_id": account.id, "instagram_username": account.username or None, "instagram_error": None}
 
 
 def read_insights(db: DbSession, row: Fanpage, page: Page, at) -> str | None:

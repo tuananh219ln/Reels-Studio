@@ -175,6 +175,12 @@ function PageCard({
           <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis data-testid="fanpage-instagram">
             {row.instagram ? `Instagram: @${row.instagram.username ?? row.instagram.id}` : "Chưa liên kết Instagram"}
           </Typography.Text>
+          {row.instagram_error && (
+            // Why the last check could not read the account: the whole text, never cut, so the cause is readable.
+            <Typography.Text type="warning" style={{ fontSize: 12 }} data-testid="fanpage-instagram-error">
+              {row.instagram_error}
+            </Typography.Text>
+          )}
         </Flex>
         <FanpageMenu
           row={row}

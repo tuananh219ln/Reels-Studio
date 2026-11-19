@@ -6,6 +6,7 @@ A Reel goes in three calls: a container (`POST /{ig-user-id}/media`, `upload_typ
 Instagram has no draft and no scheduled time through the API: what is published is public at once.
 """
 
+import json
 import logging
 import urllib.parse
 import urllib.request
@@ -80,13 +81,46 @@ def _id(reply: dict) -> str:
     return str(value)
 
 
+def meta_reason(err: FacebookError) -> str:
+    """Meta's own words in a refusal ("(#10) Requires instagram_basic"), cut short; "" when there are none."""
+    _, _, body = err.detail.partition(": ")
+    try:
+        message = json.loads(body)["error"]["message"]
+    except (ValueError, KeyError, TypeError):
+        return ""
+    return str(message)[:200]
+
+
+LINK_FIELDS = ("instagram_business_account", "connected_instagram_account")
+
+
 def account_of(page: Page) -> Account | None:
-    """The Instagram Business/Creator account linked to the Page, or None when there is none."""
-    reply = _get(page, urllib.parse.quote(page.id, safe=""), fields="instagram_business_account{id,username}")
-    linked = reply.get("instagram_business_account")
-    if not isinstance(linked, dict) or not linked.get("id"):
+    """The Instagram Business/Creator account linked to the Page, or None when there is none.
+
+    Its id alone is read from the Page first, one field at a time (`instagram_business_account`, else
+    `connected_instagram_account`, which Meta fills for some links): asking for the account's username in the same call
+    fails the whole read when the token lacks `instagram_basic`, and the id is all posting needs. The username is then
+    read on its own and left empty when refused."""
+    path = urllib.parse.quote(page.id, safe="")
+    account_id = None
+    for field in LINK_FIELDS:
+        try:
+            linked = _get(page, path, fields=field).get(field)
+        except FacebookError:
+            if field == LINK_FIELDS[0]:
+                raise
+            break
+        if isinstance(linked, dict) and linked.get("id"):
+            account_id = str(linked["id"])
+            break
+    if account_id is None:
         return None
-    return Account(str(linked["id"]), str(linked.get("username") or "")[:100])
+    try:
+        username = str(_get(page, urllib.parse.quote(account_id, safe=""), fields="username").get("username") or "")
+    except FacebookError as err:
+        log.warning("Instagram account %s: username not read: %s %s", account_id, err.message, err.detail)
+        username = ""
+    return Account(account_id, username[:100])
 
 
 def caption(text: str) -> str:
