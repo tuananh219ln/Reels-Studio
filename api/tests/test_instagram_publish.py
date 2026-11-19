@@ -402,6 +402,8 @@ def test_a_post_cut_off_by_a_worker_restart_is_queued_again_once_and_goes_out_on
             user.id,
         )
         again_id = again.id
+        again.status = "running"  # claimed, as the worker does with any queued job
+        db.commit()
     jobs.run_job(again_id, committed, storage)
     done = job_row(committed, again_id)
     assert done.status == "done", (done.error, done.error_detail)
