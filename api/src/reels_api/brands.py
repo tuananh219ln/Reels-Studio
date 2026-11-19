@@ -200,6 +200,24 @@ def badge_path(db: DbSession, storage: DirectoryStorage, video: Video) -> Path |
     return storage.path(brand.logo_badge_path)
 
 
+def default_for(db: DbSession, user_id: int, knowledge_topic_id: int | None) -> Brand | None:
+    """The channel a member's new video starts on, so they need not pick it on every video: among their own brands
+    with a logo, the one whose active Page is in the video's topic group, else their only one; None when neither
+    picks one (no brand with a logo, or several and none of the group). The logo switch is left unset, so the brand's
+    "Video của Page tự gắn logo" (`logo_default_on`) decides it."""
+    mine = list(
+        db.scalars(
+            select(Brand).where(Brand.owner_id == user_id, Brand.logo_badge_path.is_not(None)).order_by(Brand.id)
+        )
+    )
+    if knowledge_topic_id is not None:
+        for brand in mine:
+            page = brand.fanpage
+            if page is not None and page.active and page.knowledge_topic_id == knowledge_topic_id:
+                return brand
+    return mine[0] if len(mine) == 1 else None
+
+
 def has_posts(db: DbSession, video_id: int) -> bool:
     return (
         db.scalar(
