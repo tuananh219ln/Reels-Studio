@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, formatDayTime } from "@/lib/api";
 import { formatCompact, formatFull, thresholdLabel } from "@/lib/competitorFormat";
 import CloneVideoModal from "./CloneVideoModal";
-import type { Frequency, Report, ScanDetail, Stats, VideoPage, VideoRow } from "./types";
+import type { Report, ScanDetail, Stats, VideoPage, VideoRow } from "./types";
 
 const PAGE = 20;
 // What was read for a scan does not change, so closing and opening a row never asks again.
@@ -34,7 +34,6 @@ export default function ScanDetailView({ competitorId, scanId }: { competitorId:
     <Flex vertical gap={16}>
       <MetricCards stats={stats} />
       <Distribution stats={stats} />
-      <FrequencyView frequency={stats.frequency} />
       <VideoList competitorId={competitorId} scanId={scanId} />
       <Typography.Text type="secondary">
         {stats.limits.join(" ")}
@@ -143,33 +142,6 @@ function Distribution({ stats }: { stats: Stats }) {
           </Flex>
         ))}
       </Flex>
-    </Flex>
-  );
-}
-
-/** How often each grid was posted to over time: the stretches between dated videos, newest first. */
-function FrequencyView({ frequency }: { frequency: Stats["frequency"] }) {
-  const grids = (
-    [
-      ["Reels", frequency.reel],
-      ["Video", frequency.video],
-    ] as [string, Frequency | null][]
-  ).filter(([, grid]) => grid && grid.stretches.length);
-  if (!grids.length) return null;
-  const day = (iso: string) => formatDateTime(iso).slice(0, 10);
-  return (
-    <Flex vertical gap={4}>
-      {grids.map(([label, grid]) => (
-        <Typography.Text key={label} type="secondary">
-          {label}:{" "}
-          {grid!.stretches
-            .map(
-              (stretch) =>
-                `${day(stretch.from)} đến ${day(stretch.to)}: ${String(stretch.videos_per_week ?? "—").replace(".", ",")}/tuần`,
-            )
-            .join("; ")}
-        </Typography.Text>
-      ))}
     </Flex>
   );
 }

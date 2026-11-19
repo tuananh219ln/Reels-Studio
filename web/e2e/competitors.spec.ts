@@ -323,6 +323,8 @@ test("a pasted link is scanned with the second account and its top videos get th
 
   await row.getByRole("button", { name: "Mở rộng Linh Đoàn" }).click();
   await expect(page.getByTestId("competitor-metrics")).toContainText("Số video");
+  // The per-stretch posting line ("Reels: 19/11/2026 đến 19/11/2026: —/tuần; …") is gone; "Video/tuần" stays.
+  await expect(page.getByText(/ đến .*\/tuần/)).toHaveCount(0);
   const top = page.getByTestId("competitor-videos").getByRole("row", { name: /…000001/ });
   await expect(top.getByText("4,5 Tr", { exact: true })).toBeVisible();
   await expect(top.getByText("Caption của 1000001: 3 món giúp xương chắc")).toBeVisible();
