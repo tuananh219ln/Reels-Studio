@@ -257,7 +257,7 @@ export default function AddProductDrawer({
           ) : (
             <Form.Item
               label="File từ Shopee Affiliate"
-              extra="Trong Shopee Affiliate, mở Lấy link hàng loạt, tạo link rồi tải file CSV về và thả vào đây. Sản phẩm bạn đã thêm trước đó được cập nhật link và hoa hồng; sản phẩm của người khác giữ nguyên link của họ."
+              extra="Trong Shopee Affiliate, mở Lấy link hàng loạt, tạo link rồi tải file CSV về và thả vào đây. Sản phẩm bạn đã thêm trước đó được cập nhật link và hoa hồng; sản phẩm của người khác giữ nguyên link của họ. Có thể thêm cột “Tên ngắn”, “Nhóm”, “Tags” cho Bộ bình luận."
             >
               <Upload.Dragger
                 accept=".csv,text/csv"

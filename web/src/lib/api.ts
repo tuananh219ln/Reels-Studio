@@ -689,6 +689,8 @@ export type Fanpage = {
   instagram: { id: string; username: string | null } | null;
   /** Why the last check could not read the linked Instagram account; null when it read. */
   instagram_error: string | null;
+  /** Its "Bộ bình luận": on or off, how many sets, how many the worker may choose now, how many go under a reel. */
+  aff_sets: { enabled: boolean; sets: number; usable: number; per_post: number };
   /** The Page's brand ("Kênh") and its logo, laid on the videos made for it; null until a logo is added. */
   brand: { id: number; name: string; logo_badge_url: string | null; logo_default_on: boolean; owner_id: number } | null;
   /** The worker's last check of the token (api fanpages.check). */
@@ -1553,7 +1555,9 @@ export type AffVideoPlan = {
     delay: [number, number];
     sets: { id: number; name: string; enabled: boolean }[];
     planned: { set_id: number; set_name: string; products: number; text: string }[];
-    written: { post_id: number; count: number; texts: string[] }[];
+    /** Its live posts on the Page: set comments up of how many, when the next comment comes if the post waits (the
+     * Page's pause or a retry after an error), and the last error. */
+    posts: { post_id: number; count: number; total: number; next_at: string | null; error: string | null }[];
   }[];
 };
 

@@ -942,13 +942,20 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     video's id as seed, so a preview stays true). The first set comment waits a random `first_delay` (5–10 minutes)
     after the last food comment, the others `delay` (3–7 minutes) apart, as a request dated ahead while the Page
     writes other reels' comments (`post_comments._pause`); they follow the reel-age stages and the 100-a-day cap like
-    any comment. The first one written keeps the post's sets; an edited set or product asks the posts that used it
+    any comment. A set comment Facebook refuses is tried again by itself after 1, 3 and 10 minutes
+    (`post_comments.AFF_RETRIES`, counted in `publications.aff_retries`, migration 0114; reset by a success, "Bình
+    luận ngay" and "Đăng aff ngay"), then waits for a member. The first one written keeps the post's sets; an edited set or product asks the posts that used it
     to edit their comment (`aff_sets.ask_set_refresh`, also from `affiliate.ask_comment_refresh`). `GET
     /api/aff-sets?fanpage_id=` is the Affiliate tab (sets, settings, the group's products), `PUT
     /api/aff-sets/settings/{fanpage_id}`, `POST`/`PUT`/`DELETE /api/aff-sets[/{id}]`, `POST /api/aff-sets/{id}/duplicate`
     and `POST /api/aff-sets/generate` ("Tạo tự động từ kho": the group's usable products cut by group, at random or
     mixed, a different opening line each, `dry_run` to preview); `GET /api/aff-sets/videos/{id}` is the video's
-    plan per Page.
+    plan per Page with its live posts (`posts`: written of total, `next_at` while it waits, the error), and `POST
+    /api/aff-sets/posts/{id}/now` ("Đăng aff ngay, bỏ chờ") asks the post's next comment for the worker's next round
+    instead of after the Page's wait (the Page's minute between videos, the day's cap and the day's hours for an
+    older reel still hold). `GET /api/fanpages` gives each Page `aff_sets` (`aff_sets.summaries`: on or off, sets,
+    usable sets, sets a reel). "Nhập file" also reads optional columns "Tên ngắn", "Nhóm" and "Tags" (tags split by
+    `,`, `;` or `|`; an empty cell keeps what is saved), and the CSV export writes them.
   - **Shopee** ([affiliate_rounds.py](../api/src/reels_api/affiliate_rounds.py), [shopee.py](../api/src/reels_api/shopee.py))
     is the worker's too, between jobs: the suggestions of one asked video per round (a new script asks by itself
     when its writer has a Shopee account; "Tìm sản phẩm" is `POST /api/affiliate-products/videos/{id}/suggestions`,

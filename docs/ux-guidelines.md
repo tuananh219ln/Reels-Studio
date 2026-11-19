@@ -450,7 +450,10 @@ comment line adds ", thêm N bình luận". Under them, "Bình luận aff tự �
 này" on the right, then per Page the video is or may be posted on a grey box with the Page's name, its state ("Tự
 động: 2 bộ", "Chọn tay: 1 bộ", orange "Page đang tắt" / "Tắt cho video này") and a link "Bộ bình luận của Page"; a
 multiple select of the Page's sets (empty: "Tự động (app chọn theo chủ đề và xoay vòng)", at most 3); and each
-planned comment folded as "Aff 1 · <set> · N link · 5–10 phút sau bình luận món ăn cuối", opening on its full text.
+planned comment folded as "Aff 1 · <set> · N link · 5–10 phút sau bình luận món ăn cuối", opening on its full text;
+then a line per live post ("Bài #N: đã đăng 1/2 bình luận aff, bình luận tiếp lúc 14:05"), its last error in orange,
+and "Đăng aff ngay" on the right while not all are up. A Page's card on "Quản lý kênh" has a grey line linking to its
+sets: "Bộ bình luận aff: 4/6 bộ dùng được, 2 bộ mỗi reel", "… đang tắt (6 bộ)" or "Chưa có bộ bình luận aff".
 Affiliate's tab "Bộ bình luận" (after "Sản phẩm"): "Chọn Page" (the member's own Page first), the Page's state
 ("Bật · 10 bộ · 2 bộ/bài · 10 link/bình luận"), "Tạo tự động từ kho", "Thêm bộ" and "Thiết lập" on the right, a
 grey line on the timing and Facebook hiding many-link comments; then the sets as cards (name, a switch, "x/10 sản

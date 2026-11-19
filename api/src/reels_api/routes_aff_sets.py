@@ -22,14 +22,13 @@ from .models import (
     Session,
     Video,
 )
-from .sessions import current_member
+from .sessions import current_member, now
+from .videos import is_published
 
 router = APIRouter(prefix="/api/aff-sets")
 
 MAX_NAME_LENGTH = 120
 MAX_LINE_LENGTH = 1000
-MAX_SHORT_NAME_LENGTH = 60
-MAX_CATEGORY_LENGTH = 60
 MAX_GENERATED = 50
 
 
@@ -320,13 +319,9 @@ def label_product(
     product = db.get(AffiliateProduct, product_id)
     if product is None:
         raise ApiError(404, "product_not_found", "Không tìm thấy sản phẩm")
-    short = _line(body.short_name, MAX_SHORT_NAME_LENGTH, "Tên ngắn")
-    if "\n" in short:
-        raise invalid("Tên ngắn chỉ một dòng")
-    category = _line(body.category, MAX_CATEGORY_LENGTH, "Nhóm")
-    renamed = (short or None) != product.short_name
-    product.short_name, product.category = short or None, category or None
-    product.tags = aff_sets.clean_tags(body.tags)
+    short, category, tags = aff_sets.clean_labels(body.short_name, body.category, body.tags)
+    renamed = short != product.short_name
+    product.short_name, product.category, product.tags = short, category, tags
     if renamed:
         aff_sets.ask_set_refresh(db, aff_sets.sets_of_products(db, [product.id]))
     db.commit()
@@ -359,6 +354,20 @@ def _video_pages(db: DbSession, video: Video) -> list[Fanpage]:
     return list(db.scalars(select(Fanpage).where(Fanpage.id.in_(ids or {0})).order_by(Fanpage.name)))
 
 
+def _post_payload(post: Publication, planned: int) -> dict:
+    """A live post's set comments: how many are up of how many, when the worker writes its next comment if it is
+    waiting (the Page's pause, or a retry), and the last error."""
+    at = now()
+    waiting = post.comment_requested_at is not None and post.comment_requested_at > at
+    return {
+        "post_id": post.id,
+        "count": len(post.aff_comment_ids or []),
+        "total": len(post.aff_set_ids) if post.aff_set_ids is not None else planned,
+        "next_at": post.comment_requested_at.isoformat() if waiting else None,
+        "error": post.comment_error,
+    }
+
+
 def _video_payload(db: DbSession, video: Video) -> dict:
     pages = []
     for page in _video_pages(db, video):
@@ -371,6 +380,7 @@ def _video_payload(db: DbSession, video: Video) -> dict:
                 Publication.status.in_(("published", "scheduled")),
             )
         ).all()
+        planned = aff_sets.preview(db, video, page)
         pages.append(
             {
                 "fanpage_id": page.id,
@@ -382,12 +392,12 @@ def _video_payload(db: DbSession, video: Video) -> dict:
                 "sets": [
                     {"id": one.id, "name": one.name, "enabled": one.enabled} for one in aff_sets.page_sets(db, page.id)
                 ],
-                "planned": aff_sets.preview(db, video, page),
-                # What is already up under its posts on this Page.
-                "written": [
-                    {"post_id": post.id, "count": len(post.aff_comment_ids or []), "texts": post.aff_comment_texts}
+                "planned": planned,
+                # Its live posts on this Page: what is already up under each and what comes next.
+                "posts": [
+                    _post_payload(post, len(planned))
                     for post in posts
-                    if post.aff_comment_ids
+                    if is_published(post) and (post.aff_comment_ids or planned)
                 ],
             }
         )
@@ -425,5 +435,24 @@ def choose_for_video(
             raise invalid(f"Mỗi Page chọn tối đa {aff_sets.MAX_SETS_PER_POST} bộ")
     video.aff_comments_off = body.off
     video.aff_set_ids = ids or None
+    db.commit()
+    return _video_payload(db, video)
+
+
+@router.post("/posts/{post_id}/now")
+def write_now(post_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Đăng aff ngay, bỏ chờ": the post's next comment goes up in the worker's next round rather than after the
+    Page's wait or a retry's, and a failed one gets its automatic retries back. The Page's own minute between videos
+    and its day's limit still hold. The request itself never calls Facebook."""
+    post = db.get(Publication, post_id, with_for_update=True)
+    if post is None or post.video_id is None or post.platform != "facebook":
+        raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
+    if post.remote_id is None or not is_published(post):
+        raise ApiError(409, "post_not_live", "Chỉ đăng bình luận aff dưới bài đã lên Facebook")
+    video = _video(db, post.video_id)
+    if not aff_sets.wants_sets(video):
+        raise ApiError(409, "aff_comments_off", "Video này không đăng bình luận aff")
+    post.comment_requested_at = now()
+    post.aff_retries = 0
     db.commit()
     return _video_payload(db, video)

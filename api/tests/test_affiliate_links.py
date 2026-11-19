@@ -303,3 +303,17 @@ def test_editing_by_hand_clears_a_failed_lookup(an, db, fakes):
         "commission_rate": 2.5,
     }
     assert an.put(f"{PRODUCTS}/{product['id']}", json=body).json()["lookup"] is None
+
+
+def test_the_file_may_carry_short_names_groups_and_tags_for_the_comment_sets(an, db):
+    header = FILE_HEADER.rstrip("\n") + ",Tên ngắn,Nhóm,Tags\n"
+    row = FILE_ROW.rstrip("\n") + ',Hạt rau muống,Hạt giống,"rau, Hạt giống ; rau"\n'
+    assert import_file(an, db, header + row).json()["added"] == 1
+    product = db.scalar(select(AffiliateProduct))
+    assert (product.short_name, product.category, product.tags) == ("Hạt rau muống", "Hạt giống", ["rau", "hạt giống"])
+
+    blank = FILE_ROW.rstrip("\n") + ",,,\n"
+    assert import_file(an, db, header + blank).json()["updated"] == 1
+    db.expire_all()
+    product = db.scalar(select(AffiliateProduct))
+    assert (product.short_name, product.tags) == ("Hạt rau muống", ["rau", "hạt giống"]), "empty cells keep them"

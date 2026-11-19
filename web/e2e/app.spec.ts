@@ -445,6 +445,12 @@ test("a Page's card opens its dashboard, with a period and six tabs", async ({ p
     "Chưa gắn nhóm chủ đề, chưa có giờ đăng, 0 video trong hàng chờ",
   );
   await expect(card.getByTestId("page-queue")).toHaveCount(0);
+  // Its "Bộ bình luận" line links to the Page's sets.
+  await expect(card.getByTestId("fanpage-aff-sets")).toHaveText("Chưa có bộ bình luận aff");
+  await expect(card.getByRole("link", { name: "Chưa có bộ bình luận aff" })).toHaveAttribute(
+    "href",
+    /\/affiliate\?tab=sets&page=\d+/,
+  );
   // A click on the card itself, not on its controls, opens the Page.
   await card.getByText("Số liệu 7 ngày", { exact: false }).click();
   await expect(page).toHaveURL(/\/fanpages\/\d+$/);

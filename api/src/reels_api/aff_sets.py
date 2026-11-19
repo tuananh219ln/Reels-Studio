@@ -22,6 +22,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session as DbSession
+from sqlalchemy.orm import selectinload
 
 from . import affiliate, pinned
 from .errors import ApiError
@@ -33,6 +34,8 @@ MIN_VALID = 3  # a set with fewer usable products is left out of the choice
 MAX_SETS_PER_POST = 3
 MAX_TAGS = 20
 MAX_TAG_LENGTH = 40
+MAX_SHORT_NAME_LENGTH = 60
+MAX_CATEGORY_LENGTH = 60
 STRATEGIES = {
     "match_then_rotate": "Khớp chủ đề rồi xoay vòng",
     "rotate": "Xoay vòng",
@@ -134,6 +137,27 @@ def clean_tags(values: list[str]) -> list[str]:
     if len(tags) > MAX_TAGS:
         raise invalid(f"Tối đa {MAX_TAGS} tag")
     return tags
+
+
+def _label_line(value: str | None, limit: int, label: str) -> str:
+    value = unicodedata.normalize("NFC", value or "").strip()
+    if "\n" in value or "\r" in value:
+        raise invalid(f"{label} chỉ một dòng")
+    if len(value) > limit:
+        raise invalid(f"{label} dài quá {limit} ký tự")
+    return value
+
+
+def clean_labels(short_name: str | None, category: str | None, tags: list[str]) -> tuple[str | None, str | None, list]:
+    """A product's short name, group and tags as saved ("Bộ bình luận" tab or an imported file); empty is None."""
+    short = _label_line(short_name, MAX_SHORT_NAME_LENGTH, "Tên ngắn")
+    group = _label_line(category, MAX_CATEGORY_LENGTH, "Nhóm")
+    return short or None, group or None, clean_tags(tags)
+
+
+def split_tags(cell: str) -> list[str]:
+    """The tags of a file's cell: separated by commas, semicolons or "|"."""
+    return [part for part in re.split(r"[,;|]", cell or "") if part.strip()]
 
 
 # Choosing the sets
@@ -338,6 +362,25 @@ def preview(db: DbSession, video: Video, page: Fanpage) -> list[dict]:
                 "text": render(one.intro_text, one.outro_text, rows, settings["line_format"]),
             }
         )
+    return out
+
+
+def summaries(db: DbSession, pages: list[Fanpage]) -> dict[int, dict]:
+    """Each Page's line on "Quản lý kênh": its sets switched on or off, how many it has, how many the worker may
+    choose now (on, with at least MIN_VALID usable products), and how many go under a reel."""
+    out = {page.id: {"enabled": settings_of(page)["enabled"], "sets": 0, "usable": 0, "per_post": 0} for page in pages}
+    query = (
+        select(AffCommentSet)
+        .where(AffCommentSet.fanpage_id.in_(list(out) or [0]))
+        .options(selectinload(AffCommentSet.items).selectinload(AffCommentSetItem.product))
+    )
+    for one in db.scalars(query):
+        row = out[one.fanpage_id]
+        row["sets"] += 1
+        if one.enabled and candidate(one).valid >= MIN_VALID:
+            row["usable"] += 1
+    for page in pages:
+        out[page.id]["per_post"] = settings_of(page)["sets_per_post"]
     return out
 
 

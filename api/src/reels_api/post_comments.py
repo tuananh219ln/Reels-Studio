@@ -21,7 +21,8 @@ at a random time of DAY_HOURS (Vietnam time); after that no new one, though a ch
 The Page's "Bộ bình luận" comments (aff_sets.py) come last, each kept by its id the same way: the first a random
 `first_delay` after the last food comment, the others `delay` apart (the Page's settings, minutes rather than the
 food comments' seconds; decisions/2026-11-19-aff-comment-sets.md). The post waits for them with a request dated
-ahead, so a restart loses nothing, and the Page writes other reels' comments meanwhile.
+ahead, so a restart loses nothing, and the Page writes other reels' comments meanwhile. A set comment Facebook
+refuses is tried again by itself AFF_RETRIES later (1, 3, then 10 minutes); after that it waits for "Bình luận ngay".
 """
 
 import logging
@@ -55,6 +56,8 @@ NEW_FOR = timedelta(hours=24)
 KEEP_FOR = timedelta(days=3)
 DAY_HOURS = (9, 21)
 VIETNAM_TIME = timezone(timedelta(hours=7))
+# Seconds after a failed set comment before the worker tries it again by itself, one try each.
+AFF_RETRIES = (60, 180, 600)
 NOTHING_TO_SAY = "Video chưa có bình luận ghim hay sản phẩm affiliate nào để bình luận"
 
 
@@ -385,10 +388,17 @@ def _write_aff(
             aff_sets.mark_used(db, set_id)
     except FacebookError as err:
         post.comment_error = f"Bình luận aff {place + 1}: {err.message}"
+        if post.aff_retries < len(AFF_RETRIES):
+            # Asked again for later (a request dated ahead), so the worker's round after it tries once more.
+            again = now() + timedelta(seconds=AFF_RETRIES[post.aff_retries])
+            post.aff_retries += 1
+            post.comment_requested_at = again
+            post.comment_error += f" (tự thử lại lúc {again.astimezone(VIETNAM_TIME):%H:%M})"
         db.commit()
         log.warning("Could not write set comment %d on post %s: %s", place + 1, post.id, err.detail)
         return False
     post.aff_comment_ids, post.aff_comment_texts = list(ids), list(texts)
+    post.aff_retries = 0
     db.commit()
     return True
 

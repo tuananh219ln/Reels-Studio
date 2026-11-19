@@ -981,6 +981,8 @@ class Publication(Base):
     aff_set_ids: Mapped[list | None] = mapped_column(JSONB)
     aff_comment_ids: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     aff_comment_texts: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    # How many times in a row the worker retried a failed set comment by itself (post_comments.AFF_RETRIES; 0114).
+    aff_retries: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     comment_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # set before asking Facebook
     commented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Facebook took it
     comment_error: Mapped[str | None] = mapped_column(Text)
