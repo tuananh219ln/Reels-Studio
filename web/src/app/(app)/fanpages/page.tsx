@@ -104,6 +104,13 @@ function ScheduleLine({ page }: { page: QueuePage }) {
 // A click on these inside a card does its own thing, not open the Page's dashboard.
 const OWN_CLICK = "a, button, input, .ant-select, .ant-dropdown, .ant-popover, .ant-modal, .ant-drawer";
 
+/** The card's line on the Page's "Bộ bình luận" (api aff_sets.summaries). */
+function affSetsLine(aff: Fanpage["aff_sets"]): string {
+  if (aff.sets === 0) return "Chưa có bộ bình luận aff";
+  if (!aff.enabled) return `Bộ bình luận aff: đang tắt (${aff.sets} bộ)`;
+  return `Bộ bình luận aff: ${aff.usable}/${aff.sets} bộ dùng được, ${aff.per_post} bộ mỗi reel`;
+}
+
 /** A Page in use, compact: who it is, whether its token works, its numbers, a line on how it posts on a schedule, and
  * what a member can do with it. A click anywhere else opens its dashboard. */
 function PageCard({
@@ -181,6 +188,11 @@ function PageCard({
               {row.instagram_error}
             </Typography.Text>
           )}
+          <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis data-testid="fanpage-aff-sets">
+            <Link prefetch={false} href={`/affiliate?tab=sets&page=${row.id}`}>
+              {affSetsLine(row.aff_sets)}
+            </Link>
+          </Typography.Text>
         </Flex>
         <FanpageMenu
           row={row}

@@ -1,10 +1,10 @@
 "use client";
 
-import { App, Collapse, Flex, Select, Switch, Typography } from "antd";
+import { App, Button, Collapse, Flex, Select, Switch, Typography } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import StatusText from "@/components/StatusText";
-import { api, errorMessage, type AffVideoPlan, type VideoDetail } from "@/lib/api";
+import { api, errorMessage, formatTime, type AffVideoPlan, type VideoDetail } from "@/lib/api";
 
 const pre: React.CSSProperties = { whiteSpace: "pre-wrap", fontSize: 12, margin: 0 };
 
@@ -33,6 +33,19 @@ export default function AffComments({ video }: { video: VideoDetail }) {
     setBusy(true);
     try {
       setPlan(await api<AffVideoPlan>(`/aff-sets/videos/${video.id}`, "PUT", { off, set_ids: setIds }));
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // "Đăng aff ngay, bỏ chờ": the post's next comment goes up in the worker's next round, not after the Page's wait.
+  async function writeNow(postId: number) {
+    setBusy(true);
+    try {
+      setPlan(await api<AffVideoPlan>(`/aff-sets/posts/${postId}/now`, "POST"));
+      message.success("Bình luận tiếp theo sẽ lên trong khoảng một phút");
     } catch (err) {
       message.error(errorMessage(err));
     } finally {
@@ -126,10 +139,25 @@ export default function AffComments({ video }: { video: VideoDetail }) {
                       }))}
                     />
                   )}
-                  {page.written.map((row) => (
-                    <Typography.Text key={row.post_id} type="secondary" style={{ fontSize: 12 }}>
-                      Đã đăng {row.count} bình luận aff dưới bài #{row.post_id} (bộ đã dùng được giữ nguyên cho bài đó).
-                    </Typography.Text>
+                  {page.posts.map((row) => (
+                    <Flex key={row.post_id} align="center" gap={8} wrap data-testid="aff-post">
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        Bài #{row.post_id}: đã đăng {row.count}/{row.total} bình luận aff
+                        {row.next_at ? `, bình luận tiếp lúc ${formatTime(row.next_at)}` : ""}
+                        {row.count > 0 ? " (bộ đã dùng giữ nguyên cho bài này)" : ""}.
+                      </Typography.Text>
+                      {row.error && <StatusText tone="warning">{row.error}</StatusText>}
+                      {row.count < row.total && (
+                        <Button
+                          size="small"
+                          loading={busy}
+                          style={{ marginLeft: "auto" }}
+                          onClick={() => void writeNow(row.post_id)}
+                        >
+                          Đăng aff ngay
+                        </Button>
+                      )}
+                    </Flex>
                   ))}
                 </>
               )}

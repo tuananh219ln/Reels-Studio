@@ -277,3 +277,75 @@ def test_the_tab_lists_the_pages_sets_and_its_groups_products(an, db, me, storag
     assert listed["settings"]["sets_per_post"] == 2
     assert listed["sets"][0]["warnings"], "fewer than 3 usable products"
     assert [(row["name"], row["set_count"]) for row in listed["products"]] == [("Hạt chia Úc Organic 500g", 1)]
+
+
+def test_a_failed_set_comment_is_tried_again_after_one_three_and_ten_minutes(an, db, me, storage, fakes, shortest):
+    post = add_post(db, storage, me, fakes)
+    make_set(an, post.fanpage_id, "Bộ", [product(db, me, f"Hạt {n}") for n in range(3)])
+    db.commit()
+    post_comments.write(db, post)  # the pinned comment
+    fakes.facebook_comment_refused = True
+    waits = []
+    for _ in range(4):
+        db.get(Fanpage, post.fanpage_id).comments_next_at = None
+        post.comment_requested_at = datetime.now(UTC)
+        db.commit()
+        post_comments.write(db, post)
+        db.refresh(post)
+        asked = post.comment_requested_at > post.comment_sent_at
+        waits.append(round((post.comment_requested_at - datetime.now(UTC)).total_seconds() / 60) if asked else None)
+    assert waits == [1, 3, 10, None], "three tries by itself, then it waits for a member"
+    assert post.comment_error.startswith("Bình luận aff 1:") and due(db) == []
+
+    fakes.facebook_comment_refused = False
+    plan = an.post(f"/api/aff-sets/posts/{post.id}/now")
+    assert plan.status_code == 200, plan.text
+    (page,) = [one for one in plan.json()["pages"] if one["fanpage_id"] == post.fanpage_id]
+    assert [(row["post_id"], row["count"], row["total"]) for row in page["posts"]] == [(post.id, 0, 1)]
+    db.expire_all()
+    post = db.get(Publication, post.id)
+    assert post.aff_retries == 0 and due(db) == [post.id]
+    post_comments.write(db, post)
+    assert comments_on(fakes, post)[-1]["message"].startswith("Mở Bộ") and post.comment_error is None
+
+
+def test_writing_the_set_comments_now_skips_the_pages_wait(an, db, me, storage, fakes, shortest):
+    post = add_post(db, storage, me, fakes)
+    make_set(an, post.fanpage_id, "Bộ", [product(db, me, f"Hạt {n}") for n in range(3)])
+    db.commit()
+    post_comments.write(db, post)
+    db.refresh(post)
+    plan = an.get(f"/api/aff-sets/videos/{post.video_id}").json()
+    (row,) = [one for one in plan["pages"] if one["fanpage_id"] == post.fanpage_id][0]["posts"]
+    assert row["next_at"] is not None, "five minutes after the last food comment"
+    assert due(db) == []
+
+    assert an.post(f"/api/aff-sets/posts/{post.id}/now").status_code == 200
+    db.get(Fanpage, post.fanpage_id).comments_next_at = None  # the Page's own minute still holds
+    db.commit()
+    assert due(db) == [post.id]
+    assert an.post(f"/api/aff-sets/posts/{post.id}/now").status_code == 200
+    db.get(Video, post.video_id).aff_comments_off = True
+    db.commit()
+    assert an.post(f"/api/aff-sets/posts/{post.id}/now").status_code == 409
+
+
+def test_the_pages_card_counts_its_sets_and_the_usable_ones(an, db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    full = [product(db, me, f"Hạt {n}") for n in range(3)]
+    short = product(db, me, "Trà")
+    db.commit()
+    make_set(an, post.fanpage_id, "Đủ", full)
+    make_set(an, post.fanpage_id, "Thiếu", [short])
+    (row,) = [one for one in an.get("/api/fanpages").json() if one["id"] == post.fanpage_id]
+    assert row["aff_sets"] == {"enabled": True, "sets": 2, "usable": 1, "per_post": 2}
+    an.put(f"/api/aff-sets/settings/{post.fanpage_id}", json={"enabled": False})
+    (row,) = [one for one in an.get("/api/fanpages").json() if one["id"] == post.fanpage_id]
+    assert row["aff_sets"]["enabled"] is False
+
+
+def test_a_short_name_or_group_is_one_line():
+    with pytest.raises(Exception, match="một dòng"):
+        aff_sets.clean_labels("Hạt\nchia", None, [])
+    assert aff_sets.clean_labels("  Hạt chia ", "", ["Hạt", "hạt"]) == ("Hạt chia", None, ["hạt"])
+    assert aff_sets.split_tags("rau, Hạt giống ;rau|") == ["rau", " Hạt giống ", "rau"]
