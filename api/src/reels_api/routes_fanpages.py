@@ -158,6 +158,10 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
             "tiktok_account": _tiktok_account(db, row, me),
             "tiktok_auto_mode": row.tiktok_auto_mode,
             "youtube_channel": _youtube_channel(db, row, me),
+            # The Instagram account linked to the Page (read at its check), where "Đăng bài" › Instagram posts.
+            "instagram": {"id": row.instagram_user_id, "username": row.instagram_username}
+            if row.instagram_user_id
+            else None,
             # The Page's brand ("Kênh") and its logo, laid on the videos made for it (brands.py).
             "brand": _brand(brand_of_page.get(row.id)),
             "check": checks[row.id],

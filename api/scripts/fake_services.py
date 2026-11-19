@@ -22,7 +22,7 @@ import threading
 import time
 import urllib.parse
 import wave
-from datetime import datetime
+from datetime import UTC, datetime
 from email import policy as email_policy
 from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -59,6 +59,8 @@ GONE = (
     },
 )
 FACEBOOK_USER_TOKEN = "fake-facebook-user-token"  # manages the Page, gets the Page's token from /me/accounts
+INSTAGRAM_USER = "17841400000000001"  # the Instagram Business account linked to FACEBOOK_PAGE
+INSTAGRAM_USERNAME = "duongsinh.ig"
 SHOPEE_APP_ID = "1000001"
 SHOPEE_SECRET = "fake-shopee-secret"
 YOUTUBE_KEY = "fake-youtube-key"
@@ -336,6 +338,16 @@ class FakeServices:
         self.gemini_tts_mode = "ok"  # ok | daily_limit | minute_limit | error500
         self.gemini_tts_minute_failures = 0  # in "minute_limit" mode that many requests are refused, then it reads
         self.reels: dict[str, dict] = {}  # video_id -> {"uploaded", "bytes", "finishes", "state", "description", ...}
+        # Instagram, through the Page's token: the account linked to FACEBOOK_PAGE (None: not linked), Reel containers
+        # by id {caption, bytes, reads, state}, the account's media newest first {id, caption, permalink, timestamp}.
+        self.instagram_account: dict | None = {"id": INSTAGRAM_USER, "username": INSTAGRAM_USERNAME}
+        self.instagram_containers: dict[str, dict] = {}
+        self.instagram_media: list[dict] = []
+        self.instagram_busy_reads = 0  # that many status reads of a container say IN_PROGRESS before FINISHED
+        self.instagram_container_error = False  # a container ends ERROR instead of FINISHED
+        self.instagram_publish_replies_lost = 0  # that many publishes go through but answer 500
+        self.instagram_refusal: int | None = None  # every Instagram call answers with this Graph error code
+        self.instagram_calls: list[str] = []  # "container", "upload", "status", "publish", "permalink", "media"
         # Photo and text posts on the Page's feed ("Bài viết"), by post id: {"message", "published", "scheduled",
         # "photo": bytes or None, "photos": the attached photos of a post of several}; their numbers by post id (reach,
         # shares, comments, reactions).
@@ -497,6 +509,7 @@ class FakeServices:
             "IMAGE_GEN_CF_ACCOUNT_ID": "test-account",
             "IMAGE_GEN_CF_API_KEY": IMAGE_GEN_CF_KEY,
             "FACEBOOK_API_URL": f"{self.url}/facebook",
+            "INSTAGRAM_UPLOAD_URL": f"{self.url}/instagram-upload",
             "SHOPEE_AFFILIATE_API_URL": f"{self.url}/shopee/graphql",
             "SHOPEE_SHORT_LINK_URL": f"{self.url}/shopee-short",
             "TIKTOK_API_URL": f"{self.url}/tiktok",
@@ -1327,9 +1340,15 @@ class FakeServices:
         return 200, {"data": [page | {"access_token": FACEBOOK_TOKEN} for page in self.facebook_pages]}
 
     def _page_info(self, page_id: str, query: dict) -> tuple[int, dict]:
-        """GET /{page-id}?fields=name,followers_count,picture with the Page's own token."""
+        """GET /{page-id}?fields=name,followers_count,picture with the Page's own token, or
+        ?fields=instagram_business_account{id,username}."""
         if query.get("access_token") != FACEBOOK_TOKEN:
             return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        if "instagram_business_account" in query.get("fields", ""):
+            if self.instagram_refusal is not None:
+                return self._instagram_refused()
+            linked = self.instagram_account if page_id == FACEBOOK_PAGE else None
+            return 200, {"id": page_id, **({"instagram_business_account": dict(linked)} if linked else {})}
         if self.facebook_page_info_refused:
             return 403, {"error": {"message": "(#200) Requires pages_read_engagement permission", "code": 200}}
         page = next(page for page in self.facebook_pages if page["id"] == page_id)
@@ -1339,6 +1358,89 @@ class FakeServices:
         if self.facebook_picture is not None:
             reply["picture"] = {"data": {"url": self.facebook_picture, "is_silhouette": False}}
         return 200, reply
+
+    def _instagram_refused(self) -> tuple[int, dict]:
+        code = self.instagram_refusal
+        return 403, {"error": {"message": f"(#{code}) Instagram refused", "code": code}}
+
+    def is_instagram(self, object_id: str) -> bool:
+        return (
+            object_id == INSTAGRAM_USER
+            or object_id in self.instagram_containers
+            or any(item["id"] == object_id for item in self.instagram_media)
+        )
+
+    def _instagram_post(self, path: str, form: dict) -> tuple[int, dict]:
+        """POST /{ig-user-id}/media (a Reel container) or /{ig-user-id}/media_publish."""
+        if form.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        if self.instagram_refusal is not None:
+            return self._instagram_refused()
+        with self.lock:
+            if path.endswith("/media"):
+                self.instagram_calls.append("container")
+                if form.get("media_type") != "REELS" or form.get("upload_type") != "resumable":
+                    return 400, {"error": {"message": "Invalid parameter", "code": 100}}
+                container_id = str(17900000000000 + len(self.instagram_containers) + 1)
+                self.instagram_containers[container_id] = {
+                    "caption": form.get("caption", ""),
+                    "bytes": 0,
+                    "reads": 0,
+                    "state": "IN_PROGRESS",
+                }
+                return 200, {"id": container_id}
+            self.instagram_calls.append("publish")
+            container = self.instagram_containers.get(form.get("creation_id", ""))
+            if container is None or container["state"] != "FINISHED":
+                return 400, {"error": {"message": "Media ID is not available", "code": 9007}}
+            media_id = str(18000000000000 + len(self.instagram_media) + 1)
+            container["state"] = "PUBLISHED"
+            self.instagram_media.insert(
+                0,
+                {
+                    "id": media_id,
+                    "caption": container["caption"],
+                    "permalink": f"https://www.instagram.com/reel/Fake{media_id[-4:]}/",
+                    "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S+0000"),
+                },
+            )
+            if self.instagram_publish_replies_lost:
+                self.instagram_publish_replies_lost -= 1
+                return 500, {"error": {"message": "Service unavailable", "code": 2}}
+            return 200, {"id": media_id}
+
+    def _instagram_upload(self, container_id: str, authorization: str | None, raw: bytes) -> tuple[int, dict]:
+        if authorization != f"OAuth {FACEBOOK_TOKEN}":
+            return 401, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        with self.lock:
+            self.instagram_calls.append("upload")
+            container = self.instagram_containers.get(container_id)
+            if container is None:
+                return 400, {"error": {"message": "Unknown container", "code": 100}}
+            container["bytes"] = len(raw)
+        return 200, {"success": True}
+
+    def _instagram_read(self, target: str, query: dict) -> tuple[int, dict]:
+        """GET a container's status, a media's permalink, or /{ig-user-id}/media."""
+        if query.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        if self.instagram_refusal is not None:
+            return self._instagram_refused()
+        with self.lock:
+            if target == f"{INSTAGRAM_USER}/media":
+                self.instagram_calls.append("media")
+                return 200, {"data": [dict(item) for item in self.instagram_media]}
+            container = self.instagram_containers.get(target)
+            if container is not None:
+                self.instagram_calls.append("status")
+                if container["state"] == "IN_PROGRESS" and container["bytes"]:
+                    container["reads"] += 1
+                    if container["reads"] > self.instagram_busy_reads:
+                        container["state"] = "ERROR" if self.instagram_container_error else "FINISHED"
+                return 200, {"id": target, "status_code": container["state"], "status": container["state"]}
+            self.instagram_calls.append("permalink")
+            media = next(item for item in self.instagram_media if item["id"] == target)
+            return 200, {"id": target, "permalink": media["permalink"]}
 
     def add_visitor_comment(self, object_id: str, message: str, author: str = "Cô Lan", **fields) -> str:
         """A comment a visitor wrote under a reel (or under a comment, as a reply)."""
@@ -1940,6 +2042,14 @@ class FakeServices:
                 length = int(self.headers.get("Content-Length") or 0)
                 raw = self.rfile.read(length)
                 path = urllib.parse.urlsplit(self.path).path
+                if path.startswith("/instagram-upload/"):
+                    container_id = path.removeprefix("/instagram-upload/")
+                    self._send(*fake._instagram_upload(container_id, self.headers.get("Authorization"), raw))
+                    return
+                if path.startswith("/facebook/") and path.split("/")[2] == INSTAGRAM_USER:
+                    form = dict(urllib.parse.parse_qsl(raw.decode()))
+                    self._send(*fake._instagram_post(path.removeprefix("/facebook/"), form))
+                    return
                 if path.startswith("/facebook-upload/"):
                     reel = fake.reels[path.removeprefix("/facebook-upload/")]
                     if self.headers.get("Authorization") != f"OAuth {FACEBOOK_TOKEN}":
@@ -2105,7 +2215,9 @@ class FakeServices:
                     query = dict(urllib.parse.parse_qsl(parts.query))
                     target = parts.path.removeprefix("/facebook/")
                     page_ids = {page["id"] for page in fake.facebook_pages}
-                    if target.endswith(("/video_reels", "/videos")) and target.split("/")[0] in page_ids:
+                    if fake.is_instagram(target.split("/")[0]):
+                        self._send(*fake._instagram_read(target, query))
+                    elif target.endswith(("/video_reels", "/videos")) and target.split("/")[0] in page_ids:
                         self._send(*fake._page_reels(target.split("/")[0], query))
                     elif target in ("me", "me/accounts"):
                         self._send(*fake._me(target, query))

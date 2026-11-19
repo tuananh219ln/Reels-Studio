@@ -162,6 +162,7 @@ JOB_KINDS = {
     "motion": "Cảnh động",
     "tiktok_publish": "Đăng TikTok",
     "youtube_publish": "Tải lên YouTube",
+    "ig_publish": "Đăng Instagram",
 }
 # What a post can still be cancelled or deleted from; `cancelled` and `deleted` are final.
 LIVE_POST_STATUSES = ("scheduled", "published")
@@ -234,6 +235,8 @@ def ensure_unlocked(db: DbSession, video: Video) -> None:
         raise ApiError(409, "video_locked", "Video đang đăng lên TikTok, chưa lưu")
     if job.kind == "youtube_publish":
         raise ApiError(409, "video_locked", "Video đang tải lên YouTube, chưa lưu")
+    if job.kind == "ig_publish":
+        raise ApiError(409, "video_locked", "Video đang đăng lên Instagram, chưa lưu")
     if job.kind == "voice":
         raise ApiError(409, "video_locked", "Video đang tạo giọng đọc, chưa lưu")
     if job.kind == "revise":
@@ -742,7 +745,8 @@ def tiktok_posts_of(db: DbSession, video_id: int) -> list[Publication]:
     )
 
 
-# Platforms a video is posted to only by hand, its post recorded with its link (routes_manual_posts.py).
+# Platforms whose post may also be recorded by hand with its link (routes_manual_posts.py); the app also sends to them
+# through their API (YouTube private upload, Instagram through its Page).
 MANUAL_PLATFORMS = {"youtube": "YouTube Shorts", "instagram": "Instagram Reels"}
 
 
@@ -751,9 +755,9 @@ POST_PLATFORMS = ("facebook", "tiktok", "youtube", "instagram")
 
 
 def manual_posts_of(db: DbSession, video_id: int) -> list[Publication]:
-    """The video's posts on YouTube Shorts and Instagram Reels, newest first: recorded by hand, or (YouTube) uploaded
-    private through the member's own connection (routes_youtube.py). An upload that never reached YouTube and was
-    replaced (`cancelled`) is left out."""
+    """The video's posts on YouTube Shorts and Instagram Reels, newest first: recorded by hand, uploaded private to
+    YouTube through the member's own connection (routes_youtube.py), or posted to Instagram through its Page
+    (routes_instagram.py). A post that never reached the platform and was replaced or cancelled is left out."""
     return list(
         db.scalars(
             select(Publication)
@@ -780,6 +784,11 @@ def manual_post_payload(post: Publication) -> dict:
         # | deleted; one recorded by hand is published.
         "status": post.status,
         "channel": post.channel.name if post.channel else None,
+        # "app_api": sent by the app (YouTube upload, Instagram through its Page), "manual_link": recorded by hand.
+        "source": post.source,
+        # An Instagram post through the API: its Page, and its time while it waits for it ("Hủy hẹn").
+        "fanpage": post.fanpage.name if post.fanpage else None,
+        "scheduled_at": post.scheduled_at.isoformat() if post.status == "scheduled" and post.scheduled_at else None,
         # A private upload: when its member planned to make it public (a reminder), and where to do it.
         "planned_at": post.scheduled_at.isoformat() if post.status == "private" and post.scheduled_at else None,
         "studio_url": (
@@ -1277,6 +1286,10 @@ def video_payload(db: DbSession, video: Video) -> dict:
                 "tiktok_account_id": page.tiktok_account_id,
                 # The YouTube channel picked for the Page: its videos' "Tải lên YouTube" opens with it.
                 "youtube_channel_id": page.youtube_channel_id,
+                # The Instagram account linked to the Page, where "Đăng bài" › Instagram posts; None when none.
+                "instagram_username": (page.instagram_username or page.instagram_user_id)
+                if page.instagram_user_id
+                else None,
                 "error": page.check_error,
             }
             for page in fanpages.in_use(db)
@@ -1402,6 +1415,8 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
             Publication.video_id.in_(ids),
             Publication.platform != "facebook",
             Publication.status.in_(LIVE_POST_STATUSES),
+            # An Instagram post set for later is not out until the worker posts it at its time.
+            ~((Publication.platform == "instagram") & (Publication.status == "scheduled")),
         )
         .order_by(Publication.id)
     ):
