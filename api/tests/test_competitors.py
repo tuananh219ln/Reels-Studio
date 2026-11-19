@@ -604,6 +604,20 @@ def test_the_channel_name_is_the_members_own_else_the_one_read_else_its_handle(c
     assert refused.status_code == 403 and refused.json()["code"] == "not_scan_owner"
 
 
+def test_facebooks_own_headings_are_never_a_channels_name(client, db):
+    # Messenger's panel gave a profile the name "Đoạn chat": never kept again, and one kept before is not shown.
+    make_user(db)
+    login(client)
+    scan = _scan_done(client, "facebook.com/profile.php?id=61586599148909", name="Đoạn chat")
+    competitor = db.get(Competitor, scan["competitor"]["id"])
+    db.refresh(competitor)
+    assert competitor.name is None
+    competitor.name = "Đoạn chat"
+    db.commit()
+    row = client.get("/api/competitors").json()["competitors"][0]
+    assert row["display_name"] == "Kênh …148909" and row["name"] is None
+
+
 def test_a_header_scan_keeps_name_followers_badge_and_a_small_avatar_copy(client, db, storage):
     from conftest import photo_bytes
 

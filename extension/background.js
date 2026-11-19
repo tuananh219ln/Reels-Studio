@@ -118,7 +118,9 @@ function endScan(result) {
   // What the Page's header gave (name, followers, badge, avatar) goes with the end, whatever the end was.
   const meta = scanning.meta || {};
   // The header's name first: it is read with more care than the grid's (Messenger's heading is left out there).
-  toApp({ type: "scan-done", scanId, ...meta, ...ended, name: meta.name || ended.name || null });
+  // Why the grid stopped short (its note) stays with a scan that otherwise ended well.
+  const note = ended.error || scanning.gridNote || null;
+  toApp({ type: "scan-done", scanId, ...meta, ...ended, error: note, name: meta.name || ended.name || null });
   if (keepOpen) {
     chrome.windows.update(windowId, { focused: true }).catch(() => {});
   } else {
@@ -211,6 +213,7 @@ async function scanReels(message, appTabId, account) {
       endScan(grid || { status: "failed", error: "Không đọc được trang Facebook" });
       return;
     }
+    scanning.gridNote = grid.error || null;
     // The page saves the last batch, then sends the videos to open ("scan-details") or closes the scan.
     toApp({ type: "scan-grid-done", scanId: message.scanId, name: grid.name });
   } catch (error) {

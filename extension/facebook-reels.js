@@ -12,7 +12,7 @@
  * the scan's limit, after 30 minutes, or at once on a checkpoint or login page.
  */
 async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel") {
-  const IDLE_ROUNDS = 4;
+  const IDLE_ROUNDS = 6;
   const BATCH = 50;
   const TIME_LIMIT_MS = 30 * 60 * 1000;
   const started = Date.now();
@@ -22,6 +22,39 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel")
   const seen = new Map(); // fb_video_id -> {fb_video_id, views_raw, position}
   const pending = [];
 
+  /*
+   * Messenger's panel ("Đoạn chat", "Các đoạn chat của bạn chưa được sao lưu"), opened by Facebook after a new sign-in:
+   * its close button is pressed and the panel is hidden, and nothing inside it is ever read (it gave every reel the
+   * caption "Các đoạn chat…", the scan time as posting date, a channel the name "Đoạn chat", and blocked the grid's
+   * scroll). The panel is the highest block around one of its markers that does not hold the page's own content.
+   * Defined in each injected function: Chrome runs each alone.
+   */
+  const hideMessenger = () => {
+    const content = document.querySelector('[role="main"]') || document.querySelector("video");
+    if (!content) return 0;
+    let found = 0;
+    for (const element of document.querySelectorAll("h1, h2, h3, span")) {
+      if (content.contains(element) || element.closest("[data-reels-hidden]")) continue;
+      if (!selectors.messengerMarkers.includes((element.textContent || "").trim())) continue;
+      let panel = element;
+      while (panel.parentElement && panel.parentElement !== document.body && !panel.parentElement.contains(content)) {
+        panel = panel.parentElement;
+      }
+      if (panel.contains(content)) continue;
+      for (const button of panel.querySelectorAll('[role="button"], button')) {
+        const label = (button.getAttribute("aria-label") || button.textContent || "").trim();
+        if (selectors.messengerClose.includes(label)) {
+          button.click();
+          break;
+        }
+      }
+      panel.setAttribute("data-reels-hidden", "messenger");
+      panel.style.display = "none";
+      found += 1;
+    }
+    return found;
+  };
+  const facebookOwn = '[data-reels-hidden], [role="banner"], [role="navigation"], [role="complementary"]';
   const pause = (low, high) => new Promise((wait) => setTimeout(wait, low + Math.random() * (high - low)));
   // A closed background answers nothing: the scan carries on and the page notices the silence.
   const send = (message) => chrome.runtime.sendMessage({ ...message, scanId }).catch(() => {});
@@ -80,10 +113,10 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel")
   const pageName = () => {
     // The Page's real name: the main area's heading when it is one (never Messenger's "Đoạn chat" panel or Facebook's
     // bars), else the tab title ("(2) Linh Đoàn - Reels | Facebook").
-    const facebookParts = '[role="banner"], [role="navigation"], [role="complementary"], [role="dialog"]';
-    const headings = (root) => [...root.querySelectorAll(selectors.pageName)].filter((h) => !h.closest(facebookParts));
+    const headings = (root) =>
+      [...root.querySelectorAll(selectors.pageName)].filter((h) => !h.closest(facebookOwn) && !h.closest('[role="dialog"]'));
     const main = document.querySelector('[role="main"]');
-    const heading = (main && headings(main)[0]) || headings(document)[0] || null;
+    const heading = (main && headings(main)[0]) || null;
     const generic = /^(facebook|reels|video|videos|thông báo|notifications|đoạn chat|chats|tin nhắn|messages)$/i;
     const headingText = heading ? heading.innerText.trim() : "";
     if (headingText && !generic.test(headingText)) return headingText.slice(0, 200);
@@ -101,7 +134,11 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel")
   const first = stopped();
   if (first) return first;
   let idle = 0;
+  let rounds = 0;
+  let messenger = 0;
   while (idle < IDLE_ROUNDS && seen.size < maxVideos) {
+    messenger += hideMessenger();
+    rounds += 1;
     idle = read() ? 0 : idle + 1;
     if (pending.length >= BATCH) await flush();
     send({ type: "scan-tick", found: seen.size });
@@ -112,7 +149,15 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel")
     // The last card is brought into view, so whichever box holds the grid scrolls: on a profile (profile.php?id=…)
     // the grid is not in the window's own scroll, and scrolling the window alone stopped every profile at 10 reels.
     const cards = document.querySelectorAll(linkSelector);
-    if (cards.length) cards[cards.length - 1].scrollIntoView({ block: "end" });
+    if (cards.length) {
+      // A round with nothing new moves the last card to the top edge and back to the bottom one, so a loader that
+      // watches for it to come into view sees it come in again.
+      cards[cards.length - 1].scrollIntoView({ block: idle ? "start" : "end" });
+      if (idle) {
+        await pause(400, 800);
+        cards[cards.length - 1].scrollIntoView({ block: "end" });
+      }
+    }
     window.scrollBy(0, window.innerHeight * 0.9);
     await pause(1500, 3000);
     const halt = stopped();
@@ -131,7 +176,14 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel")
       error: `Không thấy ${what}: trang không có ${kind === "video" ? "video" : "Reels"} công khai, hoặc tài khoản phụ không xem được`,
     };
   }
-  return { status: "done", name: pageName() };
+  // Stopped before the limit: why, kept with the scan (the tooltip on its status), so a short grid can be told apart
+  // from one that would not load more.
+  const why = messenger ? `đã ẩn khung Messenger ${messenger} lần` : "không thấy khung Messenger";
+  const note =
+    seen.size < maxVideos
+      ? `Dừng ở ${seen.size} video: lưới không tải thêm sau ${IDLE_ROUNDS} lần cuộn (${rounds} vòng, ${why}, trang cao ${document.documentElement.scrollHeight}px)`
+      : null;
+  return note ? { status: "done", name: pageName(), error: note } : { status: "done", name: pageName() };
 }
 
 /**
@@ -140,6 +192,39 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel")
  * checkpoint or login page instead.
  */
 async function reelsStudioReadReel(selectors, withComments) {
+  /*
+   * Messenger's panel ("Đoạn chat", "Các đoạn chat của bạn chưa được sao lưu"), opened by Facebook after a new sign-in:
+   * its close button is pressed and the panel is hidden, and nothing inside it is ever read (it gave every reel the
+   * caption "Các đoạn chat…", the scan time as posting date, a channel the name "Đoạn chat", and blocked the grid's
+   * scroll). The panel is the highest block around one of its markers that does not hold the page's own content.
+   * Defined in each injected function: Chrome runs each alone.
+   */
+  const hideMessenger = () => {
+    const content = document.querySelector('[role="main"]') || document.querySelector("video");
+    if (!content) return 0;
+    let found = 0;
+    for (const element of document.querySelectorAll("h1, h2, h3, span")) {
+      if (content.contains(element) || element.closest("[data-reels-hidden]")) continue;
+      if (!selectors.messengerMarkers.includes((element.textContent || "").trim())) continue;
+      let panel = element;
+      while (panel.parentElement && panel.parentElement !== document.body && !panel.parentElement.contains(content)) {
+        panel = panel.parentElement;
+      }
+      if (panel.contains(content)) continue;
+      for (const button of panel.querySelectorAll('[role="button"], button')) {
+        const label = (button.getAttribute("aria-label") || button.textContent || "").trim();
+        if (selectors.messengerClose.includes(label)) {
+          button.click();
+          break;
+        }
+      }
+      panel.setAttribute("data-reels-hidden", "messenger");
+      panel.style.display = "none";
+      found += 1;
+    }
+    return found;
+  };
+  const facebookOwn = '[data-reels-hidden], [role="banner"], [role="navigation"], [role="complementary"]';
   const pause = (low, high) => new Promise((wait) => setTimeout(wait, low + Math.random() * (high - low)));
   const text = (element) => (element ? (element.innerText || element.textContent || "").trim() : "");
   await pause(2000, 3500);
@@ -153,8 +238,9 @@ async function reelsStudioReadReel(selectors, withComments) {
   ) {
     return { stopped: "checkpoint" };
   }
-  // Comments are articles; the caption is the reel's own text, outside them.
-  const outsideComments = (element) => !element.closest(selectors.comment);
+  hideMessenger();
+  // Comments are articles; the caption is the reel's own text, outside them and outside Facebook's own parts.
+  const outsideComments = (element) => !element.closest(selectors.comment) && !element.closest(facebookOwn);
   for (const button of document.querySelectorAll(selectors.button)) {
     if (selectors.seeMore.includes(text(button)) && outsideComments(button)) {
       button.click();
@@ -165,7 +251,12 @@ async function reelsStudioReadReel(selectors, withComments) {
   let caption = "";
   for (const candidate of document.querySelectorAll(selectors.captionCandidates)) {
     const value = text(candidate);
-    if (value.length >= selectors.captionMinLength && outsideComments(candidate) && !candidate.querySelector(selectors.captionCandidates)) {
+    if (
+      value.length >= selectors.captionMinLength &&
+      outsideComments(candidate) &&
+      !selectors.messengerMarkers.includes(value) &&
+      !candidate.querySelector(selectors.captionCandidates)
+    ) {
       caption = value;
       break;
     }
@@ -271,10 +362,42 @@ async function reelsStudioReadReel(selectors, withComments) {
  * never beside it in this file.
  */
 async function reelsStudioReadMeta(selectors) {
-  // Facebook's own parts around the Page: the top bar (the scan account's picture), the side columns, and Messenger's
-  // panel, whose "Đoạn chat" heading is an h1 too.
-  const facebookParts = '[role="banner"], [role="navigation"], [role="complementary"], [role="dialog"]';
-  const ours = (element) => !element.closest(facebookParts);
+  /*
+   * Messenger's panel ("Đoạn chat", "Các đoạn chat của bạn chưa được sao lưu"), opened by Facebook after a new sign-in:
+   * its close button is pressed and the panel is hidden, and nothing inside it is ever read (it gave every reel the
+   * caption "Các đoạn chat…", the scan time as posting date, a channel the name "Đoạn chat", and blocked the grid's
+   * scroll). The panel is the highest block around one of its markers that does not hold the page's own content.
+   * Defined in each injected function: Chrome runs each alone.
+   */
+  const hideMessenger = () => {
+    const content = document.querySelector('[role="main"]') || document.querySelector("video");
+    if (!content) return 0;
+    let found = 0;
+    for (const element of document.querySelectorAll("h1, h2, h3, span")) {
+      if (content.contains(element) || element.closest("[data-reels-hidden]")) continue;
+      if (!selectors.messengerMarkers.includes((element.textContent || "").trim())) continue;
+      let panel = element;
+      while (panel.parentElement && panel.parentElement !== document.body && !panel.parentElement.contains(content)) {
+        panel = panel.parentElement;
+      }
+      if (panel.contains(content)) continue;
+      for (const button of panel.querySelectorAll('[role="button"], button')) {
+        const label = (button.getAttribute("aria-label") || button.textContent || "").trim();
+        if (selectors.messengerClose.includes(label)) {
+          button.click();
+          break;
+        }
+      }
+      panel.setAttribute("data-reels-hidden", "messenger");
+      panel.style.display = "none";
+      found += 1;
+    }
+    return found;
+  };
+  const facebookOwn = '[data-reels-hidden], [role="banner"], [role="navigation"], [role="complementary"]';
+  hideMessenger();
+  // Facebook's own parts around the Page: the top bar (the scan account's picture), the side columns, Messenger.
+  const ours = (element) => !element.closest(facebookOwn) && !element.closest('[role="dialog"]');
   /**
    * The Page's own avatar, never the signed-in account's: the first square picture of at least 40 px in the smallest
    * block around the name that holds one, then in the main area (a commenter's or a reaction's tiny picture, or the
@@ -310,7 +433,8 @@ async function reelsStudioReadMeta(selectors) {
   // The name is the first heading of the Page itself: inside the main area when there is one, never Facebook's own.
   const headings = (root) => [...root.querySelectorAll(selectors.pageName)].filter(ours);
   const main = document.querySelector('[role="main"]');
-  const heading = (main && headings(main)[0]) || headings(document)[0] || null;
+  // Only the main area's heading: outside it the first h1 may be Messenger's (the tab title is used instead).
+  const heading = (main && headings(main)[0]) || null;
   let name = heading ? heading.innerText.trim() : "";
   if (!name || generic.test(name)) {
     const meta = document.querySelector('meta[property="og:title"]');

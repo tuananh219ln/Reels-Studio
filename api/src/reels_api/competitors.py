@@ -712,7 +712,7 @@ def finish(
     scan.heartbeat_at = now()
     competitor = scan.competitor
     read = False
-    if name and name.strip():
+    if name and name.strip() and name.strip().casefold() not in NOT_A_NAME:
         competitor.name = name.strip()[:200]
         read = True
     if followers:
@@ -1141,13 +1141,23 @@ def handle_of(competitor: Competitor) -> str | None:
     return urlsplit(competitor.fb_url).path.strip("/").split("/")[-1] or None
 
 
+# Headings of Facebook's own parts that a scan once took for a channel's name (Messenger's panel): never a name.
+NOT_A_NAME = frozenset({"đoạn chat", "chats", "tin nhắn", "messages", "messenger", "facebook", "reels", "video"})
+
+
+def read_name(competitor: Competitor) -> str | None:
+    """The name the scan read, unless it is one of Facebook's own headings."""
+    name = (competitor.name or "").strip()
+    return name if name and name.casefold() not in NOT_A_NAME else None
+
+
 def display_name(competitor: Competitor) -> str:
     """The name shown everywhere: the member's own, else the one the scan read, else the handle, else "Kênh …" and
     the last six digits of the id."""
     if competitor.custom_name:
         return competitor.custom_name
-    if competitor.name:
-        return competitor.name
+    if read_name(competitor):
+        return read_name(competitor)
     handle = handle_of(competitor)
     if handle:
         return handle
@@ -1166,7 +1176,7 @@ def competitor_payload(competitor: Competitor) -> dict:
         "id": competitor.id,
         "fb_url": competitor.fb_url,
         "kind": competitor.kind,
-        "name": competitor.name,
+        "name": read_name(competitor),
         "custom_name": competitor.custom_name,
         "display_name": display_name(competitor),
         "handle": handle_of(competitor),
