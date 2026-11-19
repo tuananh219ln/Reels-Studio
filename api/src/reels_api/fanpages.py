@@ -19,7 +19,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import joinedload, sessionmaker
 
-from . import analytics, crypto, facebook
+from . import analytics, crypto, facebook, instagram
 from .facebook import FacebookError, Page
 from .models import Fanpage, FanpageFollowers, FanpageInsights, Publication
 from .sessions import now
@@ -70,6 +70,7 @@ def load_page(db: DbSession, fanpage_id: int | None) -> Page:
         select(Publication.remote_id)
         .where(
             Publication.fanpage_id == row.id,
+            Publication.platform == "facebook",
             Publication.article_id.is_(None),
             Publication.status == "published",
             Publication.remote_id.is_not(None),
@@ -156,9 +157,23 @@ def check(db: DbSession, row: Fanpage) -> None:
                 .on_conflict_do_update(index_elements=["fanpage_id", "day"], set_={"followers": info["followers"]})
             )
         values["insights_error"] = read_insights(db, row, page, at)
+        values |= _instagram(row, page)
     db.execute(update(Fanpage).where(Fanpage.id == row.id).values(**values))
     db.commit()
     db.refresh(row)
+
+
+def _instagram(row: Fanpage, page: Page) -> dict:
+    """The Instagram account linked to the Page, as columns to write. A read that fails (a token without
+    `instagram_basic`, Facebook down) keeps what the last one found: the Page itself still works."""
+    try:
+        account = instagram.account_of(page)
+    except FacebookError as err:
+        log.warning("Fanpage %s: Instagram account not read: %s %s", row.id, err.message, err.detail)
+        return {}
+    if account is None:
+        return {"instagram_user_id": None, "instagram_username": None}
+    return {"instagram_user_id": account.id, "instagram_username": account.username or None}
 
 
 def read_insights(db: DbSession, row: Fanpage, page: Page, at) -> str | None:

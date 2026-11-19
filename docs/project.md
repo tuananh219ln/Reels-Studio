@@ -154,9 +154,9 @@ app replaces CapCut, so the output is a finished MP4.
    built; making it public stays in YouTube Studio), English content, the disclaimer and functional-food sentence, and
    AI image generation. Concrete items are [GitHub Issues](https://github.com/tuananh219ln/Reels-Studio/issues).
 
-Posting to connected Facebook Pages is built. The rest of API auto-posting is deferred for these reasons:
+Posting to connected Facebook Pages is built. Beyond Facebook, platform by platform:
 
-- Instagram publishing needs a Business/Creator account linked to a Facebook Page.
+- Instagram: posting a Reel to the Business/Creator account linked to a connected Page is built (now or at a set time); Instagram's numbers and comments are not read into the app.
 - TikTok: sending a draft to a member's TikTok inbox, or a direct post, is built (issue #46); until
   the TikTok app passes audit a direct post can only be private, and the cart is still attached in
   TikTok's app. TikTok's numbers are not read into the app.

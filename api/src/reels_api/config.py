@@ -156,9 +156,20 @@ def claude_model() -> str:
 DEFAULT_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
 
 
+# The Graph API version for Facebook and Instagram; change it here when Meta retires it.
+GRAPH_VERSION = "v26.0"
+
+
 def facebook_api_url() -> str:
     # Overridable only so tests and E2E can point at a local fake; production uses the default.
-    return (read_env("FACEBOOK_API_URL") or "https://graph.facebook.com/v26.0").rstrip("/")
+    return (read_env("FACEBOOK_API_URL") or f"https://graph.facebook.com/{GRAPH_VERSION}").rstrip("/")
+
+
+def instagram_upload_url() -> str:
+    # Where an Instagram Reel's file is sent (resumable upload, by container id). Overridable only so tests and E2E can
+    # point at a local fake; production uses the default.
+    url = read_env("INSTAGRAM_UPLOAD_URL") or f"https://rupload.facebook.com/ig-api-upload/{GRAPH_VERSION}"
+    return url.rstrip("/")
 
 
 def shopee_affiliate_api_url() -> str:

@@ -1602,9 +1602,9 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   await expect(card.getByTestId("render-time")).toContainText(/^MP4 · [\d,]+ giây · 1080×1920/);
   await expect(card.getByRole("checkbox", { name: "Facebook" })).toBeChecked();
   await expect(card.getByRole("checkbox", { name: "TikTok" })).not.toBeChecked();
-  // YouTube Shorts and Instagram are posted by hand: their rows have no checkbox.
-  await expect(card.getByRole("button", { name: "YouTube Shorts, đăng tay" })).toHaveClass(/platform-option--manual/);
-  await expect(card.getByRole("checkbox", { name: "YouTube Shorts" })).toHaveCount(0);
+  // Every platform is a checkbox (YouTube Shorts uploaded private, Instagram through the Page).
+  await expect(card.getByRole("checkbox", { name: "YouTube Shorts" })).not.toBeChecked();
+  await expect(card.getByRole("checkbox", { name: "Instagram" })).not.toBeChecked();
   // Only the badge and the name show: TikTok's "Nháp vào hộp thư" is its tooltip and its checkbox's description.
   await expect(card.getByRole("checkbox", { name: "TikTok" })).toHaveAccessibleDescription("Nháp vào hộp thư");
   await expect(card.getByText("Nháp vào hộp thư")).toBeHidden();
@@ -1615,12 +1615,12 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   const body = await card.locator(".publish-card__body").boundingBox();
   expect(thumb!.width / (body!.width - 16)).toBeCloseTo(0.4, 1);
   expect(thumb!.height / thumb!.width).toBeCloseTo(16 / 9, 1);
-  // TikTok's API cannot schedule: with "Hẹn giờ" its tile is off and only Facebook is counted.
+  // With "Hẹn giờ" TikTok stays picked: its draft goes at once, Facebook at the time.
   await card.getByTestId("platform-option-tiktok").click();
   await expect(card.getByTestId("post-to-platforms")).toHaveText("Đăng lên 2 nền tảng");
   await card.getByRole("radio", { name: "Hẹn giờ" }).check();
-  await expect(card.getByRole("checkbox", { name: "TikTok" })).toBeDisabled();
-  await expect(card.getByTestId("post-to-platforms")).toHaveText("Hẹn đăng lên 1 nền tảng");
+  await expect(card.getByRole("checkbox", { name: "TikTok" })).toBeEnabled();
+  await expect(card.getByTestId("post-to-platforms")).toHaveText("Hẹn đăng lên 2 nền tảng");
   await card.getByRole("radio", { name: "Đăng ngay" }).check();
   await card.getByTestId("platform-option-tiktok").click();
   await expect(card.getByTestId("post-to-platforms")).toHaveText("Đăng lên 1 nền tảng");
@@ -1662,6 +1662,49 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   // The progress line's "Đăng" step counts the platforms, in green.
   await expect(page.getByTestId("progress-post")).toHaveAttribute("data-state", "posted");
   await expect(page.getByTestId("progress-post")).toContainText(/1\/1 nền tảng · \d{2}:\d{2}/);
+});
+
+test("Đăng bài: Instagram goes through the Page's linked account, at a time or now", async ({ page }) => {
+  test.setTimeout(240_000);
+  await renderedVideo(page);
+  const card = () => page.getByTestId("ready-card");
+  await card().getByTestId("platform-option-facebook").click();
+  await card().getByTestId("platform-option-instagram").click();
+  // The Page's account is read by the worker's check of the Page; the pick stays across a reload.
+  await expect(async () => {
+    await page.reload();
+    await expect(card().getByTestId("instagram-account")).toHaveText("Instagram: @duongsinh.ig", { timeout: 3_000 });
+  }).toPass({ timeout: 60_000 });
+  const confirmQc = async () => {
+    const ask = page.locator(".ant-modal-confirm").filter({ hasText: "MP4 chưa đạt kiểm tra chất lượng" });
+    await ask.getByRole("button", { name: "Vẫn đăng" }).click();
+  };
+
+  // At a time, like Facebook: the row says when, and "Hủy hẹn" takes it back before anything reaches Instagram.
+  await card().getByRole("radio", { name: "Hẹn giờ" }).check();
+  const inTwoHours = new Date(Date.now() + (2 + 7) * 3_600_000).toISOString().slice(0, 16);
+  await card().getByLabel("Giờ hẹn đăng").fill(inTwoHours);
+  await expect(card().getByTestId("post-to-platforms")).toHaveText("Hẹn đăng lên 1 nền tảng");
+  await card().getByTestId("post-to-platforms").click();
+  await confirmQc();
+  await expect(page.getByTestId("post-toast")).toContainText("Đã hẹn giờ trên Instagram", { timeout: 30_000 });
+  const row = page.getByTestId("platform-row-instagram");
+  await expect(row).toContainText("Hẹn đăng lúc");
+  await expect(card()).toHaveAttribute("data-state", "scheduled");
+  await row.getByRole("button", { name: "Hủy hẹn" }).click();
+  await page.locator(".ant-popconfirm").getByRole("button", { name: "Hủy hẹn" }).click();
+  await expect(row).toHaveCount(0);
+
+  // Now: the worker posts it and the row links to the Reel.
+  await card().getByRole("radio", { name: "Đăng ngay" }).check();
+  await card().getByTestId("post-to-platforms").click();
+  await confirmQc();
+  await expect(page.getByTestId("post-toast")).toContainText("Đã đăng lên Instagram", { timeout: 60_000 });
+  await expect(row).toHaveClass(/post-row--ok/);
+  await expect(row.getByRole("link", { name: "Xem bài trên Instagram (mở tab mới)" })).toHaveAttribute(
+    "href",
+    /^https:\/\/www\.instagram\.com\/reel\//,
+  );
 });
 
 test("the side panel: three tabs at its top, the blocks in order on each, the Logo block in two rows", async ({

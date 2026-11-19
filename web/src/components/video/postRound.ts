@@ -7,7 +7,14 @@ import type { PlatformKey } from "@/lib/postResults";
 /** One platform of "Đăng lên N nền tảng": the request that starts its job. */
 export type PostStep =
   | { platform: "facebook"; body: { fanpage_id: number; scheduled_at: string | null; auto_comment: boolean } }
-  | { platform: "tiktok"; body: { account_id: number; mode: "draft"; privacy_level: null } };
+  | { platform: "tiktok"; body: { account_id: number; mode: "draft"; privacy_level: null } }
+  | { platform: "youtube"; body: { channel_id: number; title: string; planned_at: string | null } }
+  | { platform: "instagram"; body: { fanpage_id: number; scheduled_at: string | null } };
+
+/** Posted at a set time rather than now: a Facebook or Instagram post with "Hẹn giờ". */
+function isScheduled(step: PostStep): boolean {
+  return (step.platform === "facebook" || step.platform === "instagram") && step.body.scheduled_at !== null;
+}
 
 /** How one platform's try ended: out (or scheduled), or why not and the job "Thử lại" sends again. */
 export type PostOutcome = {
@@ -30,6 +37,8 @@ type Round = {
 const PATHS: Record<PostStep["platform"], (videoId: number) => string> = {
   facebook: (videoId) => `/videos/${videoId}/publish`,
   tiktok: (videoId) => `/tiktok/videos/${videoId}/publish`,
+  youtube: (videoId) => `/youtube/videos/${videoId}/upload`,
+  instagram: (videoId) => `/instagram/videos/${videoId}/publish`,
 };
 
 /**
@@ -61,7 +70,7 @@ export function usePostRound(
         now.outcomes.push({
           platform: step.platform,
           ok: failed === null,
-          scheduled: step.platform === "facebook" && step.body.scheduled_at !== null,
+          scheduled: isScheduled(step),
           error: failed?.error ?? null,
           retryJobId: failed?.id ?? null,
         });
@@ -80,7 +89,13 @@ export function usePostRound(
           current = next;
           now.jobId = next.active_job?.id ?? null;
           if (now.jobId !== null) return;
-          now.outcomes.push({ platform: step.platform, ok: true, scheduled: false, error: null, retryJobId: null });
+          now.outcomes.push({
+            platform: step.platform,
+            ok: true,
+            scheduled: isScheduled(step),
+            error: null,
+            retryJobId: null,
+          });
         } catch (err) {
           now.outcomes.push({
             platform: step.platform,

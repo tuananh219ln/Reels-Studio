@@ -9,8 +9,9 @@ export const PLATFORM_LABELS: Record<PlatformKey, string> = {
   instagram: "Instagram",
 };
 
-/** The platforms the app posts to by itself; YouTube Shorts and Instagram are posted by hand and recorded. */
-export const AUTO_PLATFORMS: PlatformKey[] = ["facebook", "tiktok"];
+/** The platforms "Đăng lên N nền tảng" sends to: Facebook to a Page, TikTok as a draft, YouTube Shorts uploaded private,
+ * Instagram to the Page's linked account. A post made by hand is still recorded in "Tùy chọn khác". */
+export const AUTO_PLATFORMS: PlatformKey[] = ["facebook", "tiktok", "youtube", "instagram"];
 
 /**
  * Where a video stands on one platform, as the "Đăng bài" tab's rows, the progress line and the toast read it:
@@ -28,6 +29,10 @@ export type PlatformResult = {
   retryJobId: number | null;
   /** The Facebook post the row is about, for its actions. */
   post: Post | null;
+  /** Waiting for its time (a Facebook or Instagram post set for later), not on its way. */
+  scheduled: boolean;
+  /** An Instagram post set for later: "Hủy hẹn" cancels it. */
+  cancelPostId: number | null;
 };
 
 /** Every platform the video has been tried on, in the grid's order; a platform never tried is left out. */
@@ -43,7 +48,10 @@ export function platformResults(video: VideoDetail): PlatformResult[] {
   if (live) {
     results.push(row("facebook", "ok", live.at, live.url, live));
   } else if (scheduled) {
-    results.push(row("facebook", "wait", scheduled.scheduled_at ?? scheduled.at, scheduled.url, scheduled));
+    results.push({
+      ...row("facebook", "wait", scheduled.scheduled_at ?? scheduled.at, scheduled.url, scheduled),
+      scheduled: true,
+    });
   } else if (pending && failed?.kind === "publish") {
     results.push({ ...row("facebook", "err", null, null, pending), error: failed.error, retryJobId: failed.id });
   } else if (pending) {
@@ -67,24 +75,37 @@ export function platformResults(video: VideoDetail): PlatformResult[] {
     });
   }
 
-  // YouTube: recorded by hand, or uploaded private through the member's connection, which waits ("wait") until its
-  // member makes it public in YouTube Studio.
+  // YouTube: recorded by hand, or uploaded private through the member's connection. A private upload counts as done:
+  // the member makes it public in YouTube Studio themselves.
   const youtube = video.manual_posts.filter((post) => post.platform === "youtube");
-  const youtubeLive = youtube.find((post) => post.status === "published");
-  const youtubePrivate = youtube.find((post) => post.status === "private");
+  const youtubeDone = youtube.find((post) => post.status === "published" || post.status === "private");
   const youtubePending = youtube.find((post) => post.status === "pending");
-  if (youtubeLive) {
-    results.push(row("youtube", "ok", youtubeLive.at, youtubeLive.url, null));
-  } else if (youtubePrivate) {
-    results.push(row("youtube", "wait", youtubePrivate.planned_at, youtubePrivate.url, null));
+  if (youtubeDone) {
+    results.push(row("youtube", "ok", youtubeDone.at, youtubeDone.url, null));
   } else if (youtubePending && failed?.kind === "youtube_publish") {
     results.push({ ...row("youtube", "err", null, null, null), error: failed.error, retryJobId: failed.id });
   } else if (youtubePending) {
     results.push(row("youtube", "wait", null, null, null));
   }
 
-  const instagram = video.manual_posts.find((post) => post.platform === "instagram");
-  if (instagram) results.push(row("instagram", "ok", instagram.at, instagram.url, null));
+  // Instagram: recorded by hand, or posted through the Page's linked account, now or at its time.
+  const instagram = video.manual_posts.filter((post) => post.platform === "instagram");
+  const instagramLive = instagram.find((post) => post.status === "published");
+  const instagramLater = instagram.find((post) => post.status === "scheduled");
+  const instagramPending = instagram.find((post) => post.status === "pending");
+  if (instagramLive) {
+    results.push(row("instagram", "ok", instagramLive.at, instagramLive.url, null));
+  } else if (instagramLater) {
+    results.push({
+      ...row("instagram", "wait", instagramLater.scheduled_at, null, null),
+      scheduled: true,
+      cancelPostId: instagramLater.id,
+    });
+  } else if (instagramPending && failed?.kind === "ig_publish") {
+    results.push({ ...row("instagram", "err", null, null, null), error: failed.error, retryJobId: failed.id });
+  } else if (instagramPending) {
+    results.push(row("instagram", "wait", null, null, null));
+  }
   return results;
 }
 
@@ -95,7 +116,7 @@ function row(
   url: string | null,
   post: Post | null,
 ): PlatformResult {
-  return { platform, state, at, url, error: null, retryJobId: null, post };
+  return { platform, state, at, url, error: null, retryJobId: null, post, scheduled: false, cancelPostId: null };
 }
 
 /** "Đã đăng lên X/Y nền tảng": X out, of the Y tried, and when the newest went out. */

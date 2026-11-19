@@ -405,14 +405,17 @@ saying posting waits for the new MP4); in a card narrower than 400 px the MP4 (a
 as rows 6 px apart (34 px, radius 10, a 20 px square badge, the name and a ring at the end, nothing else; the row's hint
 is its tooltip and its control's description; the whole row toggles its checkbox, kept in the DOM under the ring; a
 picked row has a 2 px orange border on #fff2eb and a filled orange ring with a white ✓; Tab shows a 2 px orange
-outline): Facebook and TikTok ("Nháp vào hộp thư") are posted by the app, one
-after the other (one job per video at a time): Facebook to the member's Page (a "Fanpage" select when they have several)
-with the comment written when the reel is live, TikTok as a draft to the inbox of the member's connected account (a
-select when several); TikTok cannot be scheduled, so with "Hẹn giờ" its row is off ("Không hẹn giờ được"). The YouTube
-Shorts and Instagram rows are dashed on #fafaf9, with a grey export mark instead of a ring ("Đăng tay" as tooltip;
-YouTube's says "Tải lên riêng tư hoặc đăng tay"): they
-open the posting drawer on their tab, where a post made by hand is recorded with its link. That drawer, with every
-platform's own options (a Page's queue, TikTok posted directly, "Đã đăng tay"), has no button on the card: it is
+outline): all four are posted by the app, one after the other (one job per video at a time): Facebook to the
+member's Page (a "Fanpage" select when they have several, also shown when only Instagram is picked) with the comment
+written when the reel is live; Instagram to the Instagram account linked to that same Page (a line "Instagram:
+@<username>", or "Page này chưa liên kết tài khoản Instagram Business" in amber, which blocks the button); TikTok
+("Nháp vào hộp thư") as a draft to the inbox of the member's connected account (a select when several); YouTube Shorts
+("Tải lên riêng tư") uploaded private to the member's connected channel, the Page's channel first (a select when
+several), titled with the video's title. With "Hẹn giờ" Facebook and Instagram go at that time (Instagram's row then
+says "Hẹn đăng lúc …" with "Hủy hẹn"); TikTok and YouTube still go at once, the time kept as YouTube's reminder, and
+each counts as done ("✓") once its draft or private upload is through (2026-11-19, Instagram through the Page). The
+posting drawer, with every platform's own options (a Page's queue, TikTok posted directly, a YouTube title, "Đã đăng
+tay"), has no button on the card: it is
 "Tùy chọn đăng khác" just under the card on "Đăng bài" (2026-11-15, MCP clip flow), which opens it there. The member's last pick is kept in the browser. "Đăng ngay" / "Hẹn giờ",
 then a 40 px button "Đăng lên N nền tảng" ("Hẹn đăng lên N nền tảng", "Chọn nền tảng để đăng" and off with none) and
 a grey note: the newest MP4 goes with the saved caption and hashtags, Facebook comments when the post is up (when

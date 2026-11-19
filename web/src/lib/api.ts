@@ -181,6 +181,7 @@ export type JobInfo = {
     | "motion"
     | "tiktok_publish"
     | "youtube_publish"
+    | "ig_publish"
     | "image_edit"
     | "image_marks";
   /** The one scene an image job makes a photo for; null for every other job. */
@@ -419,6 +420,8 @@ export type VideoDetail = VideoRow & {
     tiktok_account_id: number | null;
     /** The YouTube channel picked for the Page on /fanpages: "Tải lên YouTube" opens with it. */
     youtube_channel_id: number | null;
+    /** The Instagram account linked to the Page, where "Đăng bài" › Instagram posts; null when none. */
+    instagram_username: string | null;
     error: string | null;
   }[];
   /** The newest post still on its way or on Facebook; `pending` until the publish job has finished. */
@@ -535,11 +538,17 @@ export type ManualPost = {
   at: string;
   created_by: string;
   created_by_id: number;
-  /** `pending` uploading to YouTube, `private` uploaded and waiting to be made public in YouTube Studio; one recorded
-   * by hand is `published`. */
-  status: "pending" | "private" | "published" | "deleted";
+  /** `pending` being sent (YouTube upload, Instagram post), `private` uploaded and waiting to be made public in YouTube
+   * Studio, `scheduled` an Instagram post waiting for its time; one recorded by hand is `published`. */
+  status: "pending" | "private" | "scheduled" | "published" | "deleted";
   /** The YouTube channel it went to, when known. */
   channel: string | null;
+  /** "app_api" sent by the app, "manual_link" recorded by hand. */
+  source: string;
+  /** An Instagram post through the API: the Page whose linked account it went to. */
+  fanpage: string | null;
+  /** An Instagram post set for later: its time. */
+  scheduled_at: string | null;
   /** A private upload: when its member planned to make it public (a reminder only). */
   planned_at: string | null;
   /** A private upload's page in YouTube Studio, where it is made public or scheduled. */
@@ -676,6 +685,8 @@ export type Fanpage = {
   tiktok_auto_mode: "draft" | "direct";
   /** The YouTube channel its videos open with on "Tải lên YouTube", shown only to its owner. */
   youtube_channel: { id: number; name: string; connected: boolean } | null;
+  /** The Instagram account linked to the Page (read at its check), where "Đăng bài" › Instagram posts. */
+  instagram: { id: string; username: string | null } | null;
   /** The Page's brand ("Kênh") and its logo, laid on the videos made for it; null until a logo is added. */
   brand: { id: number; name: string; logo_badge_url: string | null; logo_default_on: boolean; owner_id: number } | null;
   /** The worker's last check of the token (api fanpages.check). */

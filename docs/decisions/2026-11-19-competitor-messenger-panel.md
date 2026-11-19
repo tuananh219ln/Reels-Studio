@@ -27,3 +27,13 @@ that once gave 500).
 Headless Chromium, the reel reader alone on a page with the panel first: 1.7.0 read the caption "Các đoạn chat…" and
 "5 phút", 1.7.1 the reel's own caption and "3 ngày"; the same page is an E2E test. api test for the name. Whether the
 grid now loads past 10 on real Facebook is not known: the note on the next scan will say.
+
+## A hidden scan window (extension 1.7.2)
+
+The member confirmed that the scan window was covered or minimised while profiles stopped at 10 reels: Chrome then
+reports the page hidden and Facebook loads no more of the grid. Each grid round now checks `visibilityState`; a hidden
+round asks the background (`scan-show`) to bring the scan window back (normal, focused) and is not counted as a round
+without new reels. After 40 hidden rounds in a row the scan stops as partial, saying to keep the window visible and
+press "Tiếp tục". A reel's page is brought back the same way before it is read. The grid's note counts the hidden
+rounds. Headless Chromium on a grid that loads only while visible, hidden at first: 1.7.1 read 10 of 40, 1.7.2 all 40
+after one `scan-show`; the same page is an E2E test.

@@ -13,6 +13,10 @@
  */
 async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel") {
   const IDLE_ROUNDS = 6;
+  // Covered or minimised, the scan window is hidden to Chrome: Facebook then stops loading the grid (a profile stopped
+  // at 10 reels whenever the member worked in another window). A hidden round asks the background to bring the window
+  // back and does not count as one without new reels; this many hidden rounds in a row stop the scan, to resume.
+  const HIDDEN_ROUNDS = 40;
   const BATCH = 50;
   const TIME_LIMIT_MS = 30 * 60 * 1000;
   const started = Date.now();
@@ -136,7 +140,26 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel")
   let idle = 0;
   let rounds = 0;
   let messenger = 0;
+  let hidden = 0;
+  let hiddenInRow = 0;
   while (idle < IDLE_ROUNDS && seen.size < maxVideos) {
+    if (document.visibilityState === "hidden") {
+      hidden += 1;
+      hiddenInRow += 1;
+      if (hiddenInRow > HIDDEN_ROUNDS) {
+        read();
+        await flush();
+        return {
+          status: "partial",
+          error: "Cửa sổ quét bị che hoặc thu nhỏ quá lâu nên Facebook ngừng tải video: để cửa sổ đó hiện trên màn hình rồi bấm Tiếp tục",
+          name: pageName(),
+        };
+      }
+      await send({ type: "scan-show" });
+      await pause(1500, 2500);
+      continue;
+    }
+    hiddenInRow = 0;
     messenger += hideMessenger();
     rounds += 1;
     idle = read() ? 0 : idle + 1;
@@ -178,7 +201,9 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel")
   }
   // Stopped before the limit: why, kept with the scan (the tooltip on its status), so a short grid can be told apart
   // from one that would not load more.
-  const why = messenger ? `đã ẩn khung Messenger ${messenger} lần` : "không thấy khung Messenger";
+  const why =
+    (messenger ? `đã ẩn khung Messenger ${messenger} lần` : "không thấy khung Messenger") +
+    (hidden ? `, cửa sổ bị che ${hidden} lần` : "");
   const note =
     seen.size < maxVideos
       ? `Dừng ở ${seen.size} video: lưới không tải thêm sau ${IDLE_ROUNDS} lần cuộn (${rounds} vòng, ${why}, trang cao ${document.documentElement.scrollHeight}px)`
@@ -192,6 +217,11 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors, kind = "reel")
  * checkpoint or login page instead.
  */
 async function reelsStudioReadReel(selectors, withComments) {
+  if (document.visibilityState === "hidden") {
+    // As for the grid: a covered window is brought back, so the reel's page finishes loading.
+    await chrome.runtime.sendMessage({ type: "scan-show" }).catch(() => {});
+    await new Promise((wait) => setTimeout(wait, 1500));
+  }
   /*
    * Messenger's panel ("Đoạn chat", "Các đoạn chat của bạn chưa được sao lưu"), opened by Facebook after a new sign-in:
    * its close button is pressed and the panel is hidden, and nothing inside it is ever read (it gave every reel the
