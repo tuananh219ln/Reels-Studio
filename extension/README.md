@@ -12,7 +12,7 @@ Google (see `docs/decisions.md`, 2026-11-08).
 
 - On "Phân tích đối thủ" (`/competitors`), while the page is open, the extension reads a competitor's Facebook Reels
   grid for each scan the page claims, always as the second Facebook account saved on the extension's options page:
-  it opens an incognito window, signs it in with that account's cookies (your own Facebook in normal windows is
+  it opens an incognito window (brought back to the front whenever it is covered, since Facebook loads nothing in a hidden window), signs it in with that account's cookies (your own Facebook in normal windows is
   untouched), first reads the Page's header (name, followers, verified badge, and a 128 px copy of the avatar, and a small picture of each video it opens,
   which is why the extension may read `*.fbcdn.net`; "Cập nhật thông tin kênh" does only this), scrolls to the last reel card every 1.5–3 s (whichever box holds the grid: on a profile it is not the window), reads each reel's id and view count with `selectors.json` and sends
   them to the page in batches, then opens the most viewed reels one by one, 4–8 s apart, for caption, sound and

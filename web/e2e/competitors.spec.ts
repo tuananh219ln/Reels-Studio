@@ -80,6 +80,54 @@ test("the channel's name and avatar are the Page's own, never Messenger's headin
   expect(await readMeta(page)).toMatchObject({ name: "Kênh đối thủ", avatar_src: null });
 });
 
+test("a hidden scan window is brought back before the grid is scrolled, so it is read past 10 reels", async ({
+  page,
+}) => {
+  // Covered by another window, the scan window is hidden to Chrome and Facebook stops loading the grid: profiles
+  // stopped at 10 reels whenever the member worked elsewhere during a scan.
+  await page.setContent(`<body style="margin:0">
+    <div role="main"><h1>Kênh đối thủ</h1><div id="grid"></div></div>
+    <script>
+      let visibility = "hidden";
+      Object.defineProperty(document, "visibilityState", { get: () => visibility });
+      window.__show = () => { visibility = "visible"; };
+      let next = 1;
+      const add = () => {
+        for (let i = 0; i < 10 && next <= 40; i++, next++) {
+          const a = document.createElement("a");
+          a.href = "/reel/" + (100000 + next) + "/";
+          a.style.cssText = "display:block;height:300px";
+          a.innerText = next + "K";
+          document.getElementById("grid").appendChild(a);
+        }
+      };
+      add();
+      window.addEventListener("scroll", () => {
+        if (visibility === "hidden") return;
+        if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 50) add();
+      });
+    </script></body>`);
+  await page.evaluate(() => {
+    const shown: string[] = [];
+    const runtime = {
+      sendMessage: async (message: { type: string }) => {
+        if (message.type === "scan-show") {
+          shown.push(message.type);
+          (window as unknown as { __show: () => void }).__show();
+        }
+      },
+    };
+    Object.assign(window, { __shown: shown, chrome: { runtime } });
+  });
+  const context: { reelsStudioScanReels?: (...args: unknown[]) => Promise<unknown> } = {};
+  vm.runInNewContext(readFileSync(path.resolve(__dirname, "../../extension/facebook-reels.js"), "utf-8"), context);
+  const selectors = readFileSync(path.resolve(__dirname, "../../extension/selectors.json"), "utf-8");
+  const ended = await page.evaluate(`(${context.reelsStudioScanReels!.toString()})(1, 40, ${selectors}, "reel")`);
+  expect(ended).toEqual({ status: "done", name: "Kênh đối thủ" });
+  expect(await page.evaluate(() => document.querySelectorAll('a[href*="/reel/"]').length)).toBe(40);
+  expect(await page.evaluate(() => (window as unknown as { __shown: string[] }).__shown.length)).toBe(1);
+});
+
 test("a reel's caption and posting time are its own, never Messenger's panel opened after a new sign-in", async ({
   page,
 }) => {
