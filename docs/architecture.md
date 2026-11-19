@@ -1112,8 +1112,10 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
 - **One origin:** the web app calls the API through the Next.js rewrite `/api/*` → `API_URL`, so
   the session cookie is first-party and the API needs no CORS. `web/src/proxy.ts` redirects app
   pages to `/login` before rendering when there is no session cookie; the API validates the session
-  on every request. Three pages need no session: `/login`, `/privacy`, the public privacy policy a
-  Meta app needs to go Live, and `/terms`, the public terms of service (exactly those paths; they call no API).
+  on every request. Four pages need no session: `/login`, `/privacy`, the public privacy policy a
+  Meta app needs to go Live, `/terms`, the public terms of service, and `/`, the public homepage a TikTok app review
+  needs (exactly those paths; they call no API). A visitor with no session cookie sees the English landing page at
+  `/`; one with the cookie goes on to `/videos` (the cookie only picks the page, the API still checks the session).
 - **Who deletes what** ([ownership.py](../api/src/reels_api/ownership.py), part 4 of
   [docs/specs/per-user-settings-ownership](specs/per-user-settings-ownership/brief.md)): only the member who made a
   thing deletes it; anyone else gets 403 `not_owner` ("Chỉ người tạo … mới xoá được"), with no exception. Seeing,
