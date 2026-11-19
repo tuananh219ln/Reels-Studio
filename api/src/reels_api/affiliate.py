@@ -210,4 +210,7 @@ def ask_comment_refresh(db: DbSession, product_ids: list[int], forget_links: boo
         if live:
             post.comment_requested_at = at
             asked += 1
-    return asked
+    # The "Bộ bình luận" comments carrying it are edited the same way (aff_sets imports this module, hence here).
+    from . import aff_sets
+
+    return asked + aff_sets.ask_set_refresh(db, aff_sets.sets_of_products(db, product_ids))

@@ -11,6 +11,7 @@ import StatusText from "@/components/StatusText";
 import { api, errorMessage, type AffiliateProduct, type VideoDetail } from "@/lib/api";
 import { buildPinComment } from "@/lib/pinned";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
+import AffComments from "./AffComments";
 import ExtraComments from "./ExtraComments";
 
 type PostFields = Pick<VideoDetail, "caption" | "hashtags" | "affiliates" | "pinned_survey">;
@@ -128,6 +129,7 @@ export function EngageContent({ video, productsFirst = false }: { video: VideoDe
         <PinnedComment video={video} save={(pinned_survey) => patch({ pinned_survey })} />
         <Warnings messages={warningsFor("pinned_comment")} />
         <ExtraComments video={video} />
+        <AffComments video={video} />
         {video.platform === "facebook" && !productsFirst && <CommentPosting video={video} />}
       </Flex>
     </Card>
