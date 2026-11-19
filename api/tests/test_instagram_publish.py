@@ -70,10 +70,34 @@ def test_the_page_check_reads_its_instagram_account(db, me, fakes):
     fanpages.check(db, row)
     assert row.instagram_user_id == INSTAGRAM_USER, "a token without Instagram's permission keeps what was read"
     assert row.check_error is None, "the Page itself still works"
+    assert "Không đọc được Instagram" in row.instagram_error
 
     fakes.instagram_refusal, fakes.instagram_account = None, None
     fanpages.check(db, row)
     assert (row.instagram_user_id, row.instagram_username) == (None, None)
+
+
+def test_the_account_is_found_when_only_its_username_cannot_be_read(db, me, fakes):
+    fakes.instagram_username_refused = True
+    row = linked_page(db, me, linked=False)
+    fanpages.check(db, row)
+    assert (row.instagram_user_id, row.instagram_username, row.instagram_error) == (INSTAGRAM_USER, None, None)
+
+
+def test_an_account_linked_as_connected_instagram_account_counts(db, me, fakes):
+    fakes.instagram_link_field = "connected_instagram_account"
+    row = linked_page(db, me, linked=False)
+    fanpages.check(db, row)
+    assert (row.instagram_user_id, row.instagram_username) == (INSTAGRAM_USER, INSTAGRAM_USERNAME)
+
+
+def test_why_the_account_was_not_read_shows_on_the_pages_list(an, db, me, fakes):
+    fakes.instagram_refusal = 10
+    row = linked_page(db, me, linked=False)
+    fanpages.check(db, row)
+    (listed,) = an.get("/api/fanpages").json()
+    assert listed["instagram"] is None
+    assert listed["instagram_error"].startswith("Không đọc được Instagram")
 
 
 def test_the_pages_list_and_the_video_show_the_linked_account(an, db, me, storage):

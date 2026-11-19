@@ -162,6 +162,8 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
             "instagram": {"id": row.instagram_user_id, "username": row.instagram_username}
             if row.instagram_user_id
             else None,
+            # Why the last check could not read it (a token without instagram_basic...); None when it read.
+            "instagram_error": row.instagram_error,
             # The Page's brand ("Kênh") and its logo, laid on the videos made for it (brands.py).
             "brand": _brand(brand_of_page.get(row.id)),
             "check": checks[row.id],
