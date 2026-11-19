@@ -60,8 +60,8 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
   runs api pytest with FFmpeg on four machines at once, each taking every 4th test (`PYTEST_SHARD`,
   see `api/tests/conftest.py`; a skipped test fails the job), both Docker
   image builds and the render parity test inside the worker image, worker pytest with FFmpeg, web
-  typecheck + lint + Cloudflare build, and E2E (with a real worker and fake Claude/Pixabay) on four
-  machines at once, each taking every 4th test of `playwright test --list`. A draft PR runs only the
+  typecheck + lint + Cloudflare build, and E2E (with a real worker and fake Claude/Pixabay) on eight
+  machines at once, each taking every 8th test of `playwright test --list`. A draft PR runs only the
   quick jobs (api, worker, web); E2E and the image job run once it is ready for review, and the quick
   jobs run again then only if they did not pass on that commit. When they are skipped, the
   `api-passed` job reports `api (1)`…`api (4)` as passed, since `main`'s ruleset requires those
