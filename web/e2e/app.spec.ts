@@ -25,7 +25,7 @@ const appPages = readdirSync(path.resolve(__dirname, "../src/app/(app)"), { with
   .filter((entry) => entry.isDirectory())
   .map((entry) => `/${entry.name}`);
 
-for (const url of ["/", ...appPages, "/change-password"]) {
+for (const url of [...appPages, "/change-password"]) {
   test(`${url} redirects to login on the server when there is no session`, async ({ page }) => {
     const response = await page.goto(url);
     // A server redirect means the first request answered 307; the app page never rendered.
@@ -33,6 +33,36 @@ for (const url of ["/", ...appPages, "/change-password"]) {
     await expect(page).toHaveURL(/\/login$/);
   });
 }
+
+test("the homepage opens without a session, for TikTok's app review, and only it", async ({ page }) => {
+  const response = await page.goto("/");
+  expect(response?.status()).toBe(200);
+  await expect(page).toHaveURL(/localhost:3100\/$/);
+  await expect(page.getByRole("heading", { name: "Reels Studio", level: 1 })).toBeVisible();
+  await expect(
+    page.getByText(
+      "Reels Studio is a web app that helps creators make short vertical videos (9:16) and publish them to TikTok.",
+    ),
+  ).toBeVisible();
+  await expect(page).toHaveTitle("Reels Studio");
+  await page.getByRole("link", { name: "Privacy Policy" }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await page.goto("/");
+  await page.getByRole("link", { name: "Terms of Service" }).click();
+  await expect(page).toHaveURL(/\/terms$/);
+  await page.goto("/");
+  await page.getByRole("link", { name: "Đăng nhập" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  // The homepage is public, the tool is not.
+  await page.goto("/videos");
+  await expect(page).toHaveURL(/\/login$/);
+});
+
+test("a signed-in member opening the homepage goes to the videos", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/videos$/);
+});
 
 test("the privacy policy opens without a session, for Meta's app review, and only it", async ({ page }) => {
   const response = await page.goto("/privacy");
