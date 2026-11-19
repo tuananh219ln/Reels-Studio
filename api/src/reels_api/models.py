@@ -312,6 +312,10 @@ class Video(Base):
     # "Đã dán link tay" (migration 0071): a member pasted its affiliate links on Facebook, so the worker never writes or
     # edits a comment under its posts; products attached to it are only a record.
     manual_comment: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    # "Bình luận aff tự động" for this video alone (aff_sets.py, migration 0111): none at all, or these sets (ids of any
+    # Page's sets, in order; a Page none of them belongs to plans its own) instead of the app's choice.
+    aff_comments_off: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    aff_set_ids: Mapped[list | None] = mapped_column(JSONB)
     mp4_key: Mapped[str | None] = mapped_column(String(200))
     mp4_seconds: Mapped[float | None] = mapped_column(Float)
     # The MP4's automatic QC (qc.py), measured by the render job that made it: {"status", "checks": [...]}.
@@ -668,6 +672,8 @@ class Fanpage(Base):
     sync_tried_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sync_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sync_error: Mapped[str | None] = mapped_column(Text)
+    # "Bộ bình luận" settings (aff_sets.DEFAULTS names them and fills what is missing; migration 0111).
+    aff_settings: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
 
     updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
     owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])
@@ -964,6 +970,11 @@ class Publication(Base):
     # The video's "Bình luận thêm" written under it: Facebook's ids and the texts sent, by place, so each is edited.
     extra_comment_ids: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     extra_comment_texts: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    # The affiliate set comments written after them (aff_sets.py): the sets chosen, kept from the first one written so
+    # the choice never changes under a live reel, and Facebook's ids and the texts sent, by place.
+    aff_set_ids: Mapped[list | None] = mapped_column(JSONB)
+    aff_comment_ids: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    aff_comment_texts: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     comment_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # set before asking Facebook
     commented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Facebook took it
     comment_error: Mapped[str | None] = mapped_column(Text)
@@ -1485,6 +1496,11 @@ class AffiliateProduct(Base):
     sold: Mapped[int] = mapped_column(Integer)
     price: Mapped[int] = mapped_column(Integer)  # VND
     commission_rate: Mapped[float] = mapped_column(Float)  # percent
+    # What a "Bộ bình luận" comment calls it, its group and the words matching it to a video (aff_sets.py); editing
+    # them keeps the approval.
+    short_name: Mapped[str | None] = mapped_column(String(60))
+    category: Mapped[str | None] = mapped_column(String(60))
+    tags: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     status: Mapped[str] = mapped_column(String(16), default="draft")  # draft | approved
     checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     checked_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
@@ -1563,6 +1579,46 @@ class AffiliateSuggestion(Base):
     keyword: Mapped[str] = mapped_column(String(200))
     product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"))
     rank: Mapped[int] = mapped_column(Integer)
+
+    product: Mapped[AffiliateProduct] = relationship()
+
+
+class AffCommentSet(Base):
+    """A Page's "Bộ bình luận": an opening line, up to aff_sets.MAX_ITEMS products and a closing line, written as one
+    comment under the Page's reels after the food comments (aff_sets.py)."""
+
+    __tablename__ = "aff_comment_sets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fanpage_id: Mapped[int] = mapped_column(ForeignKey("fanpages.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    intro_text: Mapped[str] = mapped_column(Text, default="", server_default="")
+    outro_text: Mapped[str] = mapped_column(Text, default="", server_default="")
+    tags: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    priority: Mapped[int] = mapped_column(Integer, default=3, server_default="3")  # 1-5, higher first
+    # When one of its comments was last written under a reel, and how many were: the rotation reads them.
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    use_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    items: Mapped[list["AffCommentSetItem"]] = relationship(
+        order_by="AffCommentSetItem.position", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class AffCommentSetItem(Base):
+    """A product of a set, at its place in the comment (1 first)."""
+
+    __tablename__ = "aff_comment_set_items"
+
+    set_id: Mapped[int] = mapped_column(ForeignKey("aff_comment_sets.id", ondelete="CASCADE"), primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"), primary_key=True)
+    position: Mapped[int] = mapped_column(Integer)
 
     product: Mapped[AffiliateProduct] = relationship()
 

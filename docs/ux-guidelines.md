@@ -443,7 +443,16 @@ when all went out and stays while something failed. Under "Bình luận ghim", "
 line saying the Page writes them under the reel after the pinned one, in order, and that Facebook does not let an app
 tag @ people, then each saved one as its own field "Bình luận 2", "Bình luận 3"… with a red bin "Bỏ bình luận N", and
 "Thêm bình luận", which opens a box with "Lưu bình luận" and "Huỷ", "Tối đa 5 bình luận thêm" at five; a post's
-comment line adds ", thêm N bình luận". From 1100 px wide the panel is beside the scenes, stuck under the header
+comment line adds ", thêm N bình luận". Under them, "Bình luận aff tự động": a switch "Không đăng cho video
+này" on the right, then per Page the video is or may be posted on a grey box with the Page's name, its state ("Tự
+động: 2 bộ", "Chọn tay: 1 bộ", orange "Page đang tắt" / "Tắt cho video này") and a link "Bộ bình luận của Page"; a
+multiple select of the Page's sets (empty: "Tự động (app chọn theo chủ đề và xoay vòng)", at most 3); and each
+planned comment folded as "Aff 1 · <set> · N link · 5–10 phút sau bình luận món ăn cuối", opening on its full text.
+Affiliate's tab "Bộ bình luận" (after "Sản phẩm"): "Chọn Page" (the member's own Page first), the Page's state
+("Bật · 10 bộ · 2 bộ/bài · 10 link/bình luận"), "Tạo tự động từ kho", "Thêm bộ" and "Thiết lập" on the right, a
+grey line on the timing and Facebook hiding many-link comments; then the sets as cards (name, a switch, "x/10 sản
+phẩm" or orange "9/10 hợp lệ", priority, tags, "Dùng N lần · gần nhất …", warnings; Sửa, Nhân bản, Xem trước,
+Xoá) and a folded table of the group's products with "Tên ngắn", "Nhóm" and "Tags" edited in place. From 1100 px wide the panel is beside the scenes, stuck under the header
 (its height measured, since it wraps) and scrolling on its own, while the scenes scroll with the page. Narrower than
 1100 px the panel is a drawer from the right, opened by "Đăng bài / Thiết lập" in the header (the progress line's
 steps open the status card or the products block on its tab, the QC chip its popover).

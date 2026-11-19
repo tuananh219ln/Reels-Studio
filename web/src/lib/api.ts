@@ -1469,6 +1469,81 @@ export type AffiliatePage = {
   knowledge_topic_id: number | null;
 };
 
+/** A Page's "Bộ bình luận" settings (api aff_sets.DEFAULTS); delays are seconds, [least, most]. */
+export type AffSettings = {
+  enabled: boolean;
+  sets_per_post: number;
+  products_per_comment: number;
+  strategy: string;
+  no_repeat_days: number;
+  first_delay: [number, number];
+  delay: [number, number];
+  line_format: string;
+};
+
+/** A comment set: an opening line, up to 10 products in order, a closing line. */
+export type AffSet = {
+  id: number;
+  fanpage_id: number;
+  name: string;
+  intro_text: string;
+  outro_text: string;
+  tags: string[];
+  enabled: boolean;
+  priority: number;
+  last_used_at: string | null;
+  use_count: number;
+  products: { id: number; name: string; usable: boolean }[];
+  valid_count: number;
+  warnings: string[];
+  preview: string;
+};
+
+/** A product of the Page's group as the sets see it: its short name, group and tags. */
+export type AffSetProduct = {
+  id: number;
+  name: string;
+  short_name: string | null;
+  category: string | null;
+  tags: string[];
+  status: string;
+  usable: boolean;
+  link: string | null;
+  set_count: number;
+};
+
+export type AffSetsTab = {
+  page: { id: number; name: string; topic: string | null };
+  settings: AffSettings;
+  strategies: { value: string; label: string }[];
+  splits: { value: string; label: string }[];
+  sets: AffSet[];
+  products: AffSetProduct[];
+};
+
+export type AffGenerated = {
+  created: number;
+  sets: { name: string; intro_text: string; outro_text: string; tags: string[]; products: string[] }[];
+};
+
+/** A video's set comments on each Page it is or may be posted on (GET /api/aff-sets/videos/{id}). */
+export type AffVideoPlan = {
+  off: boolean;
+  manual_comment: boolean;
+  set_ids: number[] | null;
+  pages: {
+    fanpage_id: number;
+    name: string;
+    enabled: boolean;
+    sets_per_post: number;
+    first_delay: [number, number];
+    delay: [number, number];
+    sets: { id: number; name: string; enabled: boolean }[];
+    planned: { set_id: number; set_name: string; products: number; text: string }[];
+    written: { post_id: number; count: number; texts: string[] }[];
+  }[];
+};
+
 /** A teammate's product the file also holds: left as it is, so their link stays theirs. */
 export type AffiliateImportOther = { row: number; name: string; by: string | null; topic: string | null };
 

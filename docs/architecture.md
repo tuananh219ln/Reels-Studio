@@ -679,6 +679,7 @@ numbers then (`summary`). Deleted with the member. `users.competitor_scanner_at`
 | `affiliate_suggestions` | Shopee's products for one of a video's product ideas, best first; replaced by each search, except the rows a member pasted on the video (keyword "Link đã dán", `affiliate_rounds.PASTED`). An article's suggestions have `article_id` instead of `video_id` (exactly one is set). |
 | `affiliate_conversions` | One item of an order Shopee credited to an account: Shopee's order and item, the video and Page its sub ids named, when, the item, the commission (VND) and Shopee's status; rewritten by each reading. |
 | `video_presence` | Who has a video open: one row per open video page (`tab`, a random id the page picks), the member, whether that page is in "Chỉnh sửa", and when it last reported. Rows silent for 30 s are deleted at the next report ([routes_presence.py](../api/src/reels_api/routes_presence.py)); deleted with the video or the user. |
+| `aff_comment_sets` | A Page's "Bộ bình luận" (migration 0111, [aff_sets.py](../api/src/reels_api/aff_sets.py)): name, opening and closing lines, tags, enabled, priority 1–5, `last_used_at` / `use_count` (bumped when one of its comments is written, for the rotation), creator. Deleted with the Page. Its products are `aff_comment_set_items` (`set_id`, `product_id`, `position` 1–10; a product once per set, in any number of sets). The Page's settings are `fanpages.aff_settings` (JSONB; `aff_sets.DEFAULTS` fills what is missing). Products get `short_name`, `category` and `tags` for them, edited with `PATCH /api/aff-sets/products/{id}` without touching the approval. A video's own choice is `videos.aff_comments_off` / `videos.aff_set_ids`; a post keeps the sets it used (`publications.aff_set_ids`, from its first set comment) and the comments by place (`aff_comment_ids` / `aff_comment_texts`). |
 | `article_affiliate_products` | At most two approved Shopee products attached to an article; their links go in the comment the worker writes under its post, never in its caption. |
 | `video_affiliate_products` | The products attached to a video, of its platform's kind; deleted with either side. Only an approved product that meets the rules can be added; one that later stops qualifying stays, flagged, and is left out of the copied comment. |
 
@@ -930,6 +931,24 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     hold one, `updating` while the app is asked to write or edit, `missing` when the Page commented without one,
     `none` before any comment, `unknown` when nothing was read and the app does not comment (a video pasted by hand
     on an old reel), `off` off Facebook.
+    After the "Bình luận thêm" come the Page's "Bộ bình luận" comments ([aff_sets.py](../api/src/reels_api/aff_sets.py),
+    decisions 2026-11-19-aff-comment-sets): 1–3 sets a post (`sets_per_post`), each an opening line, one numbered
+    line per usable product (`line_format`, at most `products_per_comment`, a product already in an earlier set of
+    the post left out, cut under 8000 characters) and a closing line, with the same links as the pinned comment
+    (`affiliate.link_for`). The sets are the video's own choice (`PUT /api/aff-sets/videos/{id}`) or the app's
+    (`aff_sets.choose`): enabled sets with at least 3 usable products, the one whose tags (and its products') appear
+    most in the video's title, scenes and topic first, the rest the longest unused, a set used on the Page within
+    `no_repeat_days` only when nothing else is left (`rotate`: rotation only; `random`: weighted by priority with the
+    video's id as seed, so a preview stays true). The first set comment waits a random `first_delay` (5–10 minutes)
+    after the last food comment, the others `delay` (3–7 minutes) apart, as a request dated ahead while the Page
+    writes other reels' comments (`post_comments._pause`); they follow the reel-age stages and the 100-a-day cap like
+    any comment. The first one written keeps the post's sets; an edited set or product asks the posts that used it
+    to edit their comment (`aff_sets.ask_set_refresh`, also from `affiliate.ask_comment_refresh`). `GET
+    /api/aff-sets?fanpage_id=` is the Affiliate tab (sets, settings, the group's products), `PUT
+    /api/aff-sets/settings/{fanpage_id}`, `POST`/`PUT`/`DELETE /api/aff-sets[/{id}]`, `POST /api/aff-sets/{id}/duplicate`
+    and `POST /api/aff-sets/generate` ("Tạo tự động từ kho": the group's usable products cut by group, at random or
+    mixed, a different opening line each, `dry_run` to preview); `GET /api/aff-sets/videos/{id}` is the video's
+    plan per Page.
   - **Shopee** ([affiliate_rounds.py](../api/src/reels_api/affiliate_rounds.py), [shopee.py](../api/src/reels_api/shopee.py))
     is the worker's too, between jobs: the suggestions of one asked video per round (a new script asks by itself
     when its writer has a Shopee account; "Tìm sản phẩm" is `POST /api/affiliate-products/videos/{id}/suggestions`,
