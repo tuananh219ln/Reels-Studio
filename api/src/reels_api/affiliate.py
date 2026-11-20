@@ -55,9 +55,11 @@ def problems(product: AffiliateProduct) -> list[str]:
     trusted = TRUSTED_SHOP_TYPES.get(product.platform)
     if trusted is not None and product.shop_type not in trusted:
         found.append(TRUSTED_SHOPS_TEXT[product.platform])
-    if product.rating < MIN_RATING:
+    # 0 means "not filled in" (an import or a pasted link has no figures): that does not block; a figure that is
+    # filled in and under the bar still does.
+    if 0 < product.rating < MIN_RATING:
         found.append(f"Đánh giá dưới {MIN_RATING} sao")
-    if product.sold < MIN_SOLD:
+    if 0 < product.sold < MIN_SOLD:
         found.append(f"Lượt bán dưới {MIN_SOLD}")
     if product.platform == "tiktok_shop" and product.commission_rate <= 0:
         found.append("Hoa hồng phải lớn hơn 0")

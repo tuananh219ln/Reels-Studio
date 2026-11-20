@@ -180,6 +180,15 @@ def test_a_product_below_the_bar_cannot_be_approved(an, db, fields, reason):
     assert an.get(URL).json()[0]["status"] == "draft"
 
 
+def test_a_product_whose_stars_and_sales_are_not_filled_in_can_be_approved(an, db):
+    product = add(an, db, rating=0, sold=0)
+    assert product["problems"] == []
+    assert an.post(f"{URL}/{product['id']}/approve").json()["status"] == "approved"
+    assert (
+        an.post(f"{URL}/approve", json={"product_ids": [add(an, db, rating=0, sold=0)["id"]]}).json()["approved"] == 1
+    )
+
+
 def test_a_shopee_product_from_an_ordinary_shop_can_be_approved(an, db):
     product = add(an, db, shop_type="other")
     assert product["problems"] == []
