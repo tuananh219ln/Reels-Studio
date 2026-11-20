@@ -362,6 +362,7 @@ class FakeServices:
         self.page_post_replies_lost = 0  # that many posts are made, then answer 500
         self.page_post_refusals = 0  # that many posts are refused: 400 and nothing is posted
         self.page_post_errors = 0  # that many posts fail on Facebook's side: 500 and nothing is posted
+        self.page_scheduled_photo_without_post_id = False  # a scheduled photo answers with the photo's id only
         self.page_post_numbers: dict[str, dict] = {}
         self.page_post_reach_retired = False  # post_total_media_view_unique is refused, (#100) like a retired metric
         self.facebook_finish_fails = 0  # that many finish calls fail: 500 without publishing
@@ -1237,6 +1238,8 @@ class FakeServices:
                 self.page_post_replies_lost -= 1
                 return 500, {"error": {"message": "Service unavailable", "code": 2}}
         if edge == "photos":
+            if scheduled and self.page_scheduled_photo_without_post_id:
+                return 200, {"id": f"photo_{post_id}"}
             return 200, {"id": f"photo_{post_id}", "post_id": post_id}
         return 200, {"id": post_id}
 
@@ -2086,7 +2089,11 @@ class FakeServices:
                     parts = {
                         part.get_param("name", header="content-disposition"): part for part in message.iter_parts()
                     }
-                    form = {name: part.get_content() for name, part in parts.items() if name != "source"}
+                    form = {
+                        name: part.get_payload(decode=True).decode()  # UTF-8, as Facebook reads a field
+                        for name, part in parts.items()
+                        if name != "source"
+                    }
                     photo = parts["source"].get_payload(decode=True) if "source" in parts else None
                     self._send(*fake._page_post(path.split("/")[2], "photos", form, photo))
                     return

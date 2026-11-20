@@ -738,6 +738,20 @@ def post_status(page: Page, post_id: str) -> dict | None:
     }
 
 
+def settle_post(page: Page, post_id: str, message: str) -> tuple[str, dict] | None:
+    """`(post id, post_status)` of a feed post Facebook was told to make, or None when it has no such post. A scheduled
+    photo can be answered with the photo's id, which `post_status` cannot read; the post is then found on the Page by
+    its text and that id is the one to keep."""
+    status = post_status(page, post_id)
+    if status is not None:
+        return post_id, status
+    found = find_post(page, message) if message.strip() else None
+    if found is None or found == post_id:
+        return None
+    status = post_status(page, found)
+    return (found, status) if status is not None else None
+
+
 def find_post(page: Page, message: str) -> str | None:
     """The id of a post on the Page, live or scheduled, whose text is `message`: an attempt whose answer was lost may
     have reached Facebook. Reads the newest 50 of each."""

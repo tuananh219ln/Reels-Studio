@@ -986,7 +986,7 @@ def run_article_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) 
         return
     try:
         page = fanpages.load_page(db, post.fanpage_id)
-        status = facebook.post_status(page, post.remote_id) if post.remote_id else None
+        status = _settled_status(db, page, post) if post.remote_id else None
         if post.remote_id is None and post.finish_sent_at is not None:
             found = facebook.find_post(page, post.post_text or "")
             if found is not None:
@@ -1018,7 +1018,7 @@ def run_article_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) 
                     raise
             post.remote_id = remote
             db.commit()
-            status = facebook.post_status(page, remote)
+            status = _settled_status(db, page, post)
             if status is None:
                 raise JobFailure("Facebook không còn giữ bài vừa đăng, hãy xem Page rồi Thử lại")
     except FacebookError as err:
@@ -1029,6 +1029,17 @@ def run_article_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) 
     post.published_at = now()
     db.commit()
     log.info("Job %s posted article %s to Facebook as %s", job.id, article.id, post.remote_id)
+
+
+def _settled_status(db: DbSession, page: facebook.Page, post: Publication) -> dict | None:
+    """The status of the article's post, keeping the id of the post itself when Facebook first gave another."""
+    settled = facebook.settle_post(page, post.remote_id, post.post_text or "")
+    if settled is None:
+        return None
+    if settled[0] != post.remote_id:
+        post.remote_id = settled[0]
+        db.commit()
+    return settled[1]
 
 
 def _check_article_publishable(article: Article, post: Publication) -> None:
