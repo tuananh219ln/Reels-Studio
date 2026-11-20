@@ -214,9 +214,9 @@ def test_without_an_app_id_a_link_pasted_on_a_video_is_a_draft_holding_only_the_
     (row,) = pasted["products"]
     assert (row["url"], row["status"], row["lookup"]) == (SHORT, "draft", None)
     assert row["knowledge_topic_id"] == first_topic(db).id
-    assert row["problems"], "the rest is filled in by hand before it can be chosen"
+    assert row["problems"] == [], "stars and sales not being filled in does not block choosing it"
     chosen = an.post(f"{PRODUCTS}/videos/{video.id}/choose", json={"product_id": row["id"]})
-    assert chosen.status_code == 409
+    assert chosen.status_code == 200, chosen.text
 
 
 def test_with_an_app_id_a_link_pasted_on_a_video_is_read_by_the_worker_and_can_be_chosen(an, db, me, storage, fakes):
@@ -272,8 +272,8 @@ def test_the_file_from_shopee_affiliate_is_imported_as_drafts(an, db):
     assert (product["price"], product["commission_rate"], product["shop_name"]) == (45000, 2.5, "HỒNG HÀ F1 SEEDS")
     assert product["url"] == SHORT and product["page_url"] == "https://shopee.vn/product/1346703635/45113237093"
     assert product["status"] == "draft" and product["lookup"] is None
-    # Stars, sales and the shop's type are not in the file: a member fills them in before approving.
-    assert product["problems"]
+    # Stars, sales and the shop's type are not in the file: they stay unfilled and do not block approving.
+    assert (product["rating"], product["sold"]) == (0, 0) and product["problems"] == []
 
 
 def test_an_imported_product_is_completed_by_the_worker_when_the_team_has_a_shopee_account(an, db, fakes):
