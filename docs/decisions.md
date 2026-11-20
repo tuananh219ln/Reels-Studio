@@ -412,7 +412,7 @@ this is the first:
    footage (the sample's link or upload and its limits: 100 MB, 3 minutes) and makes the scenes with no LLM call
    ([footage.py](../api/src/reels_api/footage.py)): ElevenLabs Speech-to-Text's words, each with its seconds (now
    kept as `video_references.words`, migration 0055), split at pauses of 0.45 s and at fillers, each stretch one
-   scene of at most 10 s, the first 90 s kept, as a jump cut. The words are required here, unlike for a sample
+   scene of at most 10 s, the first 90 s kept (150 s since 2026-11-20), as a jump cut. The words are required here, unlike for a sample
    (2026-11-05, 2026-11-07): without them the job fails with the reason (no key, or the key's missing
    `speech_to_text` permission), since there is nothing to cut by.
 2. Next: the AI chooses the hook, the on-screen text, effects and b-roll from "Kho tư liệu".

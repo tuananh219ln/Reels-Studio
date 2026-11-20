@@ -13,7 +13,7 @@ from reels_render.timeline import FPS, HALF_XFADE, fit_seconds
 
 MIN_SECONDS = 1
 MAX_SECONDS = 10
-MAX_TOTAL_SECONDS = 90
+MAX_TOTAL_SECONDS = 150
 SCENE_COUNT_RANGE = (5, 7)
 # A narrated script at its 150-word limit runs about 52 seconds; a longer one has outgrown the format.
 TOTAL_SECONDS_RANGE = (20, 55)
@@ -137,7 +137,7 @@ def check_script(
             warn(Issue(f"Lời đọc có từ cấm: “{word}”", scene.id, "voice"))
 
     # Scenes count as lengthened to fit narration made earlier; narration not made yet is measured by the render job.
-    # Rounded so float sums such as 0.1 + 0.2 never push an exact 90 over the limit.
+    # Rounded so float sums such as 0.1 + 0.2 never push an exact 150 over the limit.
     total = round(
         sum(fit_seconds(scene.seconds, scene.voice_seconds) for scene in ([title] if title else []) + scenes), 3
     )

@@ -772,7 +772,7 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
   different fields never overwrite each other; on the same field the last save wins.
 - **Pre-render checks** ([script_rules.py](../api/src/reels_api/script_rules.py)) block
   only real errors (missing photo, text the renderer would refuse or that overflows its box, scene
-  length outside 1–10 s, total over 90 s, no content scene) and only warn about departures from the
+  length outside 1–10 s, total over 150 s, no content scene) and only warn about departures from the
   channel formula and banned words. Text checks and previews use the renderer's own text-box code,
   so what passes here renders there.
 - **Previews and thumbnail:** a scene preview is the photo cover-cropped to 1080×1920 with the
@@ -791,7 +791,7 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
   too. The render job calls ElevenLabs only for a scene whose stored MP3 was made from a
   different spoken text, voice, or model, and commits each MP3 at once, so a retry or re-render
   pays only for what changed; editing the on-screen text remakes the narration only of a scene that reads it. Once made, the scene card plays it and shows the lengthened scene. Narration not made
-  yet cannot be measured, so a total over 90 s is caught by the render job after it is made.
+  yet cannot be measured, so a total over 150 s is caught by the render job after it is made.
 - **Narration keys** ([source_keys.py](../api/src/reels_api/source_keys.py) `chain`, [jobs.py](../api/src/reels_api/jobs.py)
   `narrate`): each of ElevenLabs, Gemini and VieNeu may have more than one key, all the team's (Cài đặt › AI và nguồn
   tư liệu › Giọng đọc). A scene tries, in order, the main key (the `.env` key when none is saved), the backup keys
@@ -1098,7 +1098,7 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
   reason, or "no key", when there are none), splits them at every pause of 0.45 s or more and every filler
   ("ờ", "à", "ừm"…), splits a stretch over 10 s after the sentence end nearest its middle (else its widest gap),
   pads each stretch (0.12 s before, 0.25 s after, never into a neighbouring word, fillers included; one under
-  1 s takes some silence to last 1 s), keeps the first 90 s and cuts each stretch with its sound (AAC) as a
+  1 s takes some silence to last 1 s), keeps the first 150 s and cuts each stretch with its sound (AAC) as a
   scene clip with `video_sound` on and its words in the clip's seconds. The first stretch is the title scene,
   its text the topic cut to fit the box; the others have no text box and the words as voice text. The video
   is marked hand-written, narration off, with hard cuts, word captions and ducking; two stretches at least, or

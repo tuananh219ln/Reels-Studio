@@ -60,10 +60,11 @@ def test_a_very_short_stretch_takes_some_silence_to_last_a_second():
     assert segments[1].text == "Đúng rồi."
 
 
-def test_only_the_first_90_seconds_are_kept():
+def test_only_the_first_150_seconds_are_kept():
     said = [{"text": f"câu{n}.", "start": n * 5.0, "end": n * 5.0 + 4.0} for n in range(40)]
     segments = footage.plan(said, 200.0)
-    assert sum(segment.seconds for segment in segments) <= 90
+    total = sum(segment.seconds for segment in segments)
+    assert 90 < total <= 150
     assert segments[-1].words[-1]["text"] == f"câu{len(segments) - 1}."
 
 
