@@ -151,6 +151,32 @@ def test_a_short_link_to_a_product_already_listed_says_so(an, db, fakes):
     assert "đã có trong danh sách" in failed["lookup_error"]
 
 
+def test_a_teammates_product_of_the_same_item_does_not_block_my_lookup(an, db, me, fakes):
+    with_shopee_account(an)
+    fakes.shopee_items[45113237093] = shopee_offer(45113237093, "Hạt giống rau muống")
+    fakes.shopee_short_links["4LKghKN3cR"] = REDIRECT
+    binh = make_user(db, email="binh@doi.vn", name="Trần Bình")
+    db.add(
+        AffiliateProduct(
+            knowledge_topic_id=first_topic(db).id,
+            name="Hạt giống",
+            shopee_item_id=45113237093,
+            shop_name="Shop",
+            shop_type="mall",
+            rating=4.9,
+            sold=1000,
+            price=1,
+            commission_rate=8,
+            created_by_id=binh.id,
+        )
+    )
+    db.commit()
+    paste(an, db, SHORT)
+    run_lookups(db)
+    mine = db.scalar(select(AffiliateProduct).where(AffiliateProduct.created_by_id == me.id))
+    assert mine.lookup_error is None and mine.shopee_item_id == 45113237093
+
+
 def test_a_failed_lookup_is_shown_kept_and_can_be_asked_again(an, db, fakes):
     with_shopee_account(an)
     paste(an, db, SHORT)  # the fake has no redirect for it yet
@@ -240,7 +266,7 @@ def test_only_shopee_links_are_pasted_on_a_video(an, db, me, storage, link):
 def test_the_file_from_shopee_affiliate_is_imported_as_drafts(an, db):
     response = import_file(an, db, f"﻿{FILE_HEADER}{FILE_ROW}\n")
     assert response.status_code == 201, response.text
-    assert response.json() == {"added": 1, "updated": 0, "kept": 0, "others": [], "errors": [], "lookup": False}
+    assert response.json() == {"added": 1, "updated": 0, "shared": 0, "errors": [], "lookup": False}
     product = only_product(an)
     assert product["name"] == "Combo 3 Gói Hạt Giống Rau Ăn Lá (Rau Muống, Mồng Tơi)"
     assert (product["price"], product["commission_rate"], product["shop_name"]) == (45000, 2.5, "HỒNG HÀ F1 SEEDS")

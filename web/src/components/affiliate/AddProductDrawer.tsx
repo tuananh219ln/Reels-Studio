@@ -87,7 +87,7 @@ export default function AddProductDrawer({
       message.error(errorMessage(err));
     }
   }
-  const taking = preview ? preview.rows.filter((row) => row.state !== "others").length : 0;
+  const taking = preview ? preview.rows.length : 0;
   const pasted = links
     .split(/\s+/)
     .map((link) => link.trim())
@@ -120,7 +120,7 @@ export default function AddProductDrawer({
       const counts = [`thêm ${done.added}`, done.updated > 0 ? `cập nhật ${done.updated}` : ""].filter(Boolean);
       message.success(`Đã nhập vào “${topicName}”: ${counts.join(", ")} sản phẩm`);
       setPreview(null);
-      if (done.errors.length > 0 || done.kept > 0 || !done.lookup) {
+      if (done.errors.length > 0 || done.shared > 0 || !done.lookup) {
         // Stay open so the member reads which rows were left out and what is still to fill in.
         setResult(done);
         setFile(null);
@@ -289,25 +289,28 @@ export default function AddProductDrawer({
         </Form>
         {tab === "file" && preview && (
           <Alert
-            type={preview.rows.some((row) => row.state === "others") || preview.errors.length > 0 ? "warning" : "info"}
+            type={preview.errors.length > 0 ? "warning" : "info"}
             showIcon
             title="Xem trước"
             description={
               <Flex vertical gap={6} data-testid="import-preview">
                 <Flex wrap gap={6}>
                   <Tag color="green">Mới {preview.rows.filter((row) => row.state === "new").length}</Tag>
-                  <Tag>Đã có của bạn {preview.rows.filter((row) => row.state === "mine").length}</Tag>
-                  <Tag color="gold">Của người khác {preview.rows.filter((row) => row.state === "others").length}</Tag>
+                  <Tag>Của bạn, cập nhật {preview.rows.filter((row) => row.state === "mine").length}</Tag>
+                  <Tag color="blue">
+                    Trùng người khác, tạo riêng {preview.rows.filter((row) => row.state === "copy").length}
+                  </Tag>
                   <Tag color="red">Lỗi {preview.errors.length}</Tag>
                 </Flex>
                 {preview.rows.some((row) => row.state === "mine") && (
                   <span>Sản phẩm đã có của bạn được cập nhật giá, hoa hồng và link.</span>
                 )}
                 {preview.rows
-                  .filter((row) => row.state === "others")
+                  .filter((row) => row.state === "copy")
                   .map((row) => (
                     <span key={row.row}>
-                      Dòng {row.row}: “{row.name}” của {row.by} (nhóm {row.topic}) được giữ nguyên link của họ.
+                      Dòng {row.row}: “{row.name}” {row.by} đã thêm (nhóm {row.topic}); bạn vẫn được thêm bản riêng với
+                      link của bạn.
                     </span>
                   ))}
                 {preview.errors.map((error) => (
@@ -328,11 +331,11 @@ export default function AddProductDrawer({
             }`}
             description={
               <Flex vertical gap={4}>
-                {result.others.map((other) => (
-                  <span key={`other-${other.row}`}>
-                    Dòng {other.row}: “{other.name}” của {other.by} được giữ nguyên link của họ.
+                {result.shared > 0 && (
+                  <span>
+                    {result.shared} sản phẩm trùng với người khác được thêm riêng cho bạn, link của họ giữ nguyên.
                   </span>
-                ))}
+                )}
                 {result.errors.map((error) => (
                   <span key={error.row}>
                     Dòng {error.row}: {error.message}

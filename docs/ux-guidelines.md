@@ -1019,8 +1019,8 @@ steps open the status card or the products block on its tab, the QC chip its pop
     picked) or by group (the open group to start with), then two tabs, "Dán link Shopee" (one link per line, up to
     50; the rest is read from Shopee, so it needs a Shopee account with App ID somewhere in the team and says so when
     there is none) and "Nhập file" (Shopee Affiliate's "Lấy link hàng loạt" CSV dropped in, previewed before anything
-    is written: new, already mine, a teammate's and rows in error; a teammate's product keeps their link and is
-    listed by row, a product of mine is updated; without an App ID the drawer says stars, sales and shop type are
+    is written: new, mine (updated), the same as a teammate's (still added, as my own row with my link; theirs is
+    untouched and named by row) and rows in error; without an App ID the drawer says stars, sales and shop type are
     still to fill in); "Nhập file" on the toolbar opens that tab. "Nhập tay" at the bottom opens the full form ("Nhập tay sản phẩm",
     platform first; the link is optional for TikTok Shop). A row being read shows "Đang lấy thông tin từ
     Shopee…" and the list follows it every 3 seconds; one that could not be read shows why in red, with
