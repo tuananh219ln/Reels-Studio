@@ -72,7 +72,7 @@ counts where the whole list is loaded), and Quản lý kênh has "Trang của t�
 member made; for a post or a comment, what is under a post they made or on a Page they own; for a job, what they
 started. The loaded lists start on "Của tôi" once the member has a row there and on "Cả đội" before, so a newcomer
 never opens an empty list; Jobs, read from the api a page at a time, starts on "Của tôi". "Cả đội"
-always shows everyone's work. Shared libraries (Kho tư liệu, Thư viện nhạc, Kho kiến thức) are not filtered. The logo in the menu and on the sign-in page is that icon beside "Reels Studio". Every page behind
+always shows everyone's work. Shared libraries (Kho tư liệu, Thư viện nhạc, Kho kiến thức) are not filtered. The logo in the menu and on the sign-in page is that icon beside "Reels Studio". The app is installable (manifest and icons, no offline mode; the account menu's "Cài app lên điện thoại" explains how, [decision](decisions/2026-11-20-installable-pwa.md)). Every page behind
 the login starts with the same header ([PageHeader](../web/src/components/PageHeader.tsx)): the
 title with the page's main action on its right ("Tạo video", "Tải nhạc lên", "Thêm Fanpage"…), a
 line saying what the page is for when it needs one, then its search and filters on one row;
