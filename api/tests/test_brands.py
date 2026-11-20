@@ -289,9 +289,11 @@ def test_an_inactive_page_does_not_pick_its_channel_for_a_new_video(an, db, me, 
     group = make_group(db, me)
     page = own_page(db, me)
     page.knowledge_topic_id = group.id
-    page.active = False
     db.commit()
     with_logo(an, make_brand(an, "Kênh một", fanpage_id=page.id)["id"])
+    assert new_video(an, group.id)["brand"] is not None
+    page.active = False  # the API only lets a brand own an active Page, so the Page is turned off afterwards
+    db.commit()
     assert new_video(an, group.id)["brand"] is None
 
 
