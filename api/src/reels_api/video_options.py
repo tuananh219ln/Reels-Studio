@@ -384,8 +384,9 @@ def forget_member_defaults(db: DbSession, user_id: int) -> None:
 
 def apply_defaults(db: DbSession, video: Video, user_id: int) -> None:
     """A new video takes its maker's defaults (member_defaults), and the voice and "Chữ & phụ đề" of its topic group
-    when the group has them: video's own › group's › maker's own › built-in. It also starts on the maker's channel
-    (`brands.default_for`), so the logo is on without picking it each time. Set `video.knowledge_topic_id` first."""
+    when the group has them: video's own › group's › maker's own › built-in. It also starts on the channel whose
+    Page is in the video's topic group (`brands.default_for`), so the logo is on without picking it each time —
+    and on no channel at all when the group has none of the maker's Pages. Set `video.knowledge_topic_id` first."""
     from . import brands  # imported here, like text_looks: kept out of this module's import-time graph
     from .text_looks import group_look  # imported here: text_looks reads this module
 

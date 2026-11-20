@@ -256,10 +256,19 @@ def make_group(db, me, name="Ăn ngon"):
     return group
 
 
-def test_a_new_video_starts_on_the_members_only_channel_with_the_logo_on(an, db, me, storage):
+def test_a_new_video_gets_no_brand_when_its_group_has_none_of_the_members_pages(an, db, me, storage):
     group = make_group(db, me)
     assert new_video(an, group.id)["brand"] is None  # no brand with a logo yet: nothing picked
-    brand_id, _ = with_logo(an)
+    with_logo(an)  # the member's only channel, but its Page is in no group
+    assert new_video(an, group.id)["brand"] is None  # a lone brand is never the default for another group
+
+
+def test_a_new_video_starts_on_the_members_only_channel_when_its_page_is_in_the_group(an, db, me, storage):
+    group = make_group(db, me)
+    page = own_page(db, me)
+    page.knowledge_topic_id = group.id
+    db.commit()
+    brand_id, _ = with_logo(an, make_brand(an, "Kênh một", fanpage_id=page.id)["id"])
     video = new_video(an, group.id)
     assert video["brand"]["id"] == brand_id and video["logo_enabled"] is True
 
@@ -274,6 +283,28 @@ def test_with_several_channels_a_new_video_takes_the_one_whose_page_is_in_its_gr
     assert new_video(an, group.id)["brand"]["id"] == second
     assert new_video(an, other.id)["brand"] is None  # two channels, none of this group: the member picks
     assert first != second
+
+
+def test_an_inactive_page_does_not_pick_its_channel_for_a_new_video(an, db, me, storage):
+    group = make_group(db, me)
+    page = own_page(db, me)
+    page.knowledge_topic_id = group.id
+    page.active = False
+    db.commit()
+    with_logo(an, make_brand(an, "Kênh một", fanpage_id=page.id)["id"])
+    assert new_video(an, group.id)["brand"] is None
+
+
+def test_a_video_with_no_group_gets_no_default_channel(an, db, me, storage):
+    from reels_api import brands
+
+    group = make_group(db, me)
+    page = own_page(db, me)
+    page.knowledge_topic_id = group.id
+    db.commit()
+    with_logo(an, make_brand(an, "Kênh một", fanpage_id=page.id)["id"])
+    assert brands.default_for(db, me.id, None) is None
+    assert brands.default_for(db, me.id, group.id) is not None
 
 
 def test_a_new_video_never_starts_on_a_teammates_channel(an, db, me, client, storage):
