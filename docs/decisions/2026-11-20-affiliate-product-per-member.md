@@ -13,7 +13,7 @@ file is made by Nam's Shopee account, so it earns Nam's commission; skipping it 
 
 ## Decision
 
-- The unique key is `(shopee_item_id, created_by_id, knowledge_topic_id)` (migration 0113; no data changes, the
+- The unique key is `(shopee_item_id, created_by_id, knowledge_topic_id)` (migration 0116; no data changes, the
   old key is stricter). A member has at most one row per item in a group, and may have the same item in several groups.
 - Import and pasted links match only the member's own row in the chosen group: it is updated (mine), otherwise a
   new row is made, even when a teammate has the item (copy). A teammate's row is never read, changed or reused.

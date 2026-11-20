@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import joinedload
 
-from . import affiliate, brands, facebook, fanpages, page_dashboard, tiktok_connections, youtube_connections
+from . import aff_sets, affiliate, brands, facebook, fanpages, page_dashboard, tiktok_connections, youtube_connections
 from .db import get_db
 from .errors import ApiError
 from .models import AffiliateAccount, Brand, Channel, Fanpage, FanpageFollowers, Session, TikTokConnection
@@ -138,6 +138,7 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
     insights = fanpages.insights_summary(db, rows)
     scheduled = fanpages.scheduled_counts(db)
     posts = fanpages.post_counts(db)
+    aff = aff_sets.summaries(db, rows)
     brand_of_page = {
         brand.fanpage_id: brand for brand in db.scalars(select(Brand).where(Brand.fanpage_id.is_not(None)))
     }
@@ -171,6 +172,8 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
             "scheduled_posts": scheduled.get(row.id, 0),
             # Every post ever made to the Page, cancelled and deleted ones too: a Page with any is kept for history.
             "posts": posts.get(row.id, 0),
+            # Its "Bộ bình luận" (aff_sets.summaries): on or off, how many sets, how many usable, how many a reel.
+            "aff_sets": aff[row.id],
         }
         for row in rows
     ]

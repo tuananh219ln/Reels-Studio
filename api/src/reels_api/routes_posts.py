@@ -118,6 +118,7 @@ def request_comment(post_id: int, me: Session = Depends(current_member), db: DbS
             "Video đã đánh dấu dán link tay nên app không bình luận; bỏ đánh dấu ở Affiliate trước",
         )
     post.comment_requested_at = now()
+    post.aff_retries = 0  # a set comment that failed gets its automatic retries back
     db.commit()
     return _payload(db, db.get(Video, post.video_id), post, analytics.medians(db))
 

@@ -627,6 +627,8 @@ export type KnowledgeTopic = {
   text_ai: boolean;
   /** "Không dùng cảnh có người": the group's scenes show no faces or bodies (hands at work are fine). */
   no_people: boolean;
+  /** "Cảnh kết Theo dõi & Chia sẻ": the group's new videos end on the shared follow-and-share scene. */
+  outro_cta: boolean;
   /** The AI's last suggested looks ("AI gợi ý"), kept for a member to pick one; null before the first. */
   text_suggestions: TextSuggestions | null;
   /** The "AI gợi ý" job while queued or running, or the last one if it failed; null otherwise. */
@@ -689,6 +691,8 @@ export type Fanpage = {
   instagram: { id: string; username: string | null } | null;
   /** Why the last check could not read the linked Instagram account; null when it read. */
   instagram_error: string | null;
+  /** Its "Bộ bình luận": on or off, how many sets, how many the worker may choose now, how many go under a reel. */
+  aff_sets: { enabled: boolean; sets: number; usable: number; per_post: number };
   /** The Page's brand ("Kênh") and its logo, laid on the videos made for it; null until a logo is added. */
   brand: { id: number; name: string; logo_badge_url: string | null; logo_default_on: boolean; owner_id: number } | null;
   /** The worker's last check of the token (api fanpages.check). */
@@ -1480,6 +1484,83 @@ export type AffiliatePage = {
   mine: boolean;
   owner_name: string | null;
   knowledge_topic_id: number | null;
+};
+
+/** A Page's "Bộ bình luận" settings (api aff_sets.DEFAULTS); delays are seconds, [least, most]. */
+export type AffSettings = {
+  enabled: boolean;
+  sets_per_post: number;
+  products_per_comment: number;
+  strategy: string;
+  no_repeat_days: number;
+  first_delay: [number, number];
+  delay: [number, number];
+  line_format: string;
+};
+
+/** A comment set: an opening line, up to 10 products in order, a closing line. */
+export type AffSet = {
+  id: number;
+  fanpage_id: number;
+  name: string;
+  intro_text: string;
+  outro_text: string;
+  tags: string[];
+  enabled: boolean;
+  priority: number;
+  last_used_at: string | null;
+  use_count: number;
+  products: { id: number; name: string; usable: boolean }[];
+  valid_count: number;
+  warnings: string[];
+  preview: string;
+};
+
+/** A product of the Page's group as the sets see it: its short name, group and tags. */
+export type AffSetProduct = {
+  id: number;
+  name: string;
+  short_name: string | null;
+  category: string | null;
+  tags: string[];
+  status: string;
+  usable: boolean;
+  link: string | null;
+  set_count: number;
+};
+
+export type AffSetsTab = {
+  page: { id: number; name: string; topic: string | null };
+  settings: AffSettings;
+  strategies: { value: string; label: string }[];
+  splits: { value: string; label: string }[];
+  sets: AffSet[];
+  products: AffSetProduct[];
+};
+
+export type AffGenerated = {
+  created: number;
+  sets: { name: string; intro_text: string; outro_text: string; tags: string[]; products: string[] }[];
+};
+
+/** A video's set comments on each Page it is or may be posted on (GET /api/aff-sets/videos/{id}). */
+export type AffVideoPlan = {
+  off: boolean;
+  manual_comment: boolean;
+  set_ids: number[] | null;
+  pages: {
+    fanpage_id: number;
+    name: string;
+    enabled: boolean;
+    sets_per_post: number;
+    first_delay: [number, number];
+    delay: [number, number];
+    sets: { id: number; name: string; enabled: boolean }[];
+    planned: { set_id: number; set_name: string; products: number; text: string }[];
+    /** Its live posts on the Page: set comments up of how many, when the next comment comes if the post waits (the
+     * Page's pause or a retry after an error), and the last error. */
+    posts: { post_id: number; count: number; total: number; next_at: string | null; error: string | null }[];
+  }[];
 };
 
 /** What "Nhập" would do with each row of the file, before anything is written: "new" (nobody has it), "mine" (my own

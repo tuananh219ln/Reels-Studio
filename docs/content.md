@@ -194,6 +194,11 @@ How the prompt is built (built, compact version):
   writes it, so it costs no extra call; it goes over the group's look, values outside the presets left out. A named
   box style (yellow, white, dark, red) becomes a box of its colours, as the studio now picks a box by its colours. A
   clone and a hand-written video take the group's look.
+- **"Cảnh kết Theo dõi & Chia sẻ" (a switch on the group's "Cài đặt nhóm", `knowledge_topics.outro_cta`):** the
+  script and clone prompts get one more part (code, `outro.SCRIPT_FORMAT`) telling the AI to write no closing call to
+  action, and the app ends each new video on the shared outro scene, with its fixed narration "Theo dõi và chia sẻ để
+  cả nhà cùng biết thêm điều bổ ích nhé!" ([architecture](architecture.md#motion-scenes-hyperframes)). A last scene
+  that still asks to follow, share, like, save or comment (a hand-written script, a prompt that insists) is dropped.
 - **"AI gợi ý" of a group's "Chữ & phụ đề" (`text_look` job, `text_looks.suggest_prompt`):** the group's name, the
   first 1,500 characters of its script prompt, its photo hint and its current look go to the team's LLM, which
   answers three looks, each a name, a reason and the look, read like the per-video one. Nothing is saved on the

@@ -1,14 +1,14 @@
 """A Shopee product may be listed once per member and group, each with that member's own link.
 
-Revision ID: 0113
-Revises: 0112
+Revision ID: 0116
+Revises: 0115
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0113"
-down_revision = "0112"
+revision = "0116"
+down_revision = "0115"
 branch_labels = None
 depends_on = None
 

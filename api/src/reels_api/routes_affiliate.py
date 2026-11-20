@@ -15,7 +15,7 @@ from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import object_session
 
-from . import affiliate, affiliate_rounds, article_posts, facebook, knowledge, pinned, post_comments, shopee
+from . import aff_sets, affiliate, affiliate_rounds, article_posts, facebook, knowledge, pinned, post_comments, shopee
 from .db import get_db
 from .errors import ApiError
 from .models import (
@@ -61,7 +61,13 @@ IMPORT_COLUMNS = {
     "commission_rate": ("tỉ lệ hoa hồng", "tỷ lệ hoa hồng", "commission rate"),
     "page_url": ("link sản phẩm", "product link"),
     "url": ("link ưu đãi", "offer link"),
+    # Columns a member may add for "Bộ bình luận" (aff_sets.py); empty cells change nothing.
+    "short_name": ("tên ngắn", "short name"),
+    "category": ("nhóm", "nhóm sản phẩm"),
+    "tags": ("tags", "tag"),
 }
+# The columns a file may leave out.
+OPTIONAL_COLUMNS = {"url", "short_name", "category", "tags"}
 BOM = "\ufeff"
 
 
@@ -229,7 +235,7 @@ def _imported(row: dict[str, str]) -> dict:
     page_url = _url(row["page_url"])
     if not (url or page_url):
         raise invalid("Thiếu link sản phẩm")
-    return {
+    fields = {
         "shopee_item_id": item_id,
         "name": _text(row["name"], "Tên sản phẩm", MAX_NAME_LENGTH),
         "shop_name": _text(row["shop_name"], "Tên shop", MAX_SHOP_NAME_LENGTH),
@@ -238,6 +244,13 @@ def _imported(row: dict[str, str]) -> dict:
         "url": url,
         "page_url": page_url,
     }
+    short, category, tags = aff_sets.clean_labels(
+        row.get("short_name"), row.get("category"), aff_sets.split_tags(row.get("tags", ""))
+    )
+    # Only what the row gives: an empty cell keeps the label a member set on the "Bộ bình luận" tab.
+    labels = {"short_name": short, "category": category, "tags": tags or None}
+    fields.update({name: value for name, value in labels.items() if value is not None})
+    return fields
 
 
 def _expected_commission(product: AffiliateProduct) -> int:
@@ -831,6 +844,10 @@ def export_products(
             "Ngày kiểm tra",
             "Người duyệt",
             "Nền tảng",
+            # As "Nhập file" reads them back.
+            "Tên ngắn",
+            "Nhóm",
+            "Tags",
         ]
     )
     for product in _ranked(db, topic_id, status, q, platform):
@@ -851,6 +868,9 @@ def export_products(
                 checked,
                 _csv_cell(product.checked_by.name) if product.checked_by else "",
                 affiliate.PLATFORMS[product.platform],
+                _csv_cell(product.short_name or ""),
+                _csv_cell(product.category or ""),
+                _csv_cell(", ".join(product.tags or [])),
             ]
         )
     # The byte order mark tells Excel the file is UTF-8, otherwise Vietnamese comes out garbled.
@@ -968,7 +988,9 @@ def _parsed_file(text_in: str) -> tuple[list[tuple[int, dict]], list[dict]]:
         field: next((index for index, header in enumerate(headers) if header in names), None)
         for field, names in IMPORT_COLUMNS.items()
     }
-    missing = [IMPORT_COLUMNS[field][0] for field, index in columns.items() if index is None and field != "url"]
+    missing = [
+        IMPORT_COLUMNS[field][0] for field, index in columns.items() if index is None and field not in OPTIONAL_COLUMNS
+    ]
     if missing:
         raise invalid(
             f"File thiếu cột: {', '.join(missing)}. Hãy dùng file tải từ Shopee Affiliate › Lấy link hàng loạt"
@@ -1038,6 +1060,7 @@ def import_products(body: ImportBody, me: Session = Depends(current_member), db:
     known, rows = _sorted_rows(db, parsed, me.user_id, topic.id)
     ask = affiliate_rounds.team_account(db, me.user_id) is not None
     added = updated = shared = 0
+    renamed: list[int] = []
     for (_, fields), row in zip(parsed, rows, strict=True):
         product = known.get(fields["shopee_item_id"])
         if product is None:
@@ -1056,12 +1079,16 @@ def import_products(body: ImportBody, me: Session = Depends(current_member), db:
             added += 1
             shared += row["state"] == "copy"
             continue
+        if fields.get("short_name", product.short_name) != product.short_name:
+            renamed.append(product.id)
         for name, value in fields.items():
             if value is not None:
                 setattr(product, name, value)
         if product.status == "approved" and affiliate.problems(product):
             _clear_approval(product)
         updated += 1
+    # Set comments already written under live reels follow a new short name.
+    aff_sets.ask_set_refresh(db, aff_sets.sets_of_products(db, renamed))
     db.commit()
     return {"added": added, "updated": updated, "shared": shared, "errors": errors, "lookup": ask}
 

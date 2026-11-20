@@ -17,6 +17,12 @@ the Page already wrote with the same text. A failed attempt is recorded on the p
 How fast the "Bình luận thêm" go up depends on the reel's age (decisions/2026-11-18-comment-pacing.md): in its first
 NEW_FOR the Page writes them all in one run, a comment every minute or so; then, until KEEP_FOR, one new comment a day
 at a random time of DAY_HOURS (Vietnam time); after that no new one, though a changed text is still edited.
+
+The Page's "Bộ bình luận" comments (aff_sets.py) come last, each kept by its id the same way: the first a random
+`first_delay` after the last food comment, the others `delay` apart (the Page's settings, minutes rather than the
+food comments' seconds; decisions/2026-11-19-aff-comment-sets.md). The post waits for them with a request dated
+ahead, so a restart loses nothing, and the Page writes other reels' comments meanwhile. A set comment Facebook
+refuses is tried again by itself AFF_RETRIES later (1, 3, then 10 minutes); after that it waits for "Bình luận ngay".
 """
 
 import logging
@@ -27,7 +33,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
 
-from . import affiliate, facebook, fanpages
+from . import aff_sets, affiliate, facebook, fanpages
 from .facebook import FacebookError
 from .models import Fanpage, Publication, Video
 from .sessions import now
@@ -50,6 +56,8 @@ NEW_FOR = timedelta(hours=24)
 KEEP_FOR = timedelta(days=3)
 DAY_HOURS = (9, 21)
 VIETNAM_TIME = timezone(timedelta(hours=7))
+# Seconds after a failed set comment before the worker tries it again by itself, one try each.
+AFF_RETRIES = (60, 180, 600)
 NOTHING_TO_SAY = "Video chưa có bình luận ghim hay sản phẩm affiliate nào để bình luận"
 
 
@@ -159,7 +167,7 @@ def ask_after_edit(db: DbSession, video: Video) -> int:
         live = post.status == "published" or (
             post.status == "scheduled" and post.scheduled_at is not None and post.scheduled_at <= at
         )
-        written = post.comment_id is not None or bool(post.extra_comment_ids)
+        written = post.comment_id is not None or bool(post.extra_comment_ids) or bool(post.aff_comment_ids)
         resting = post.comment_requested_at is not None and post.comment_requested_at > at
         if live and written and not resting:
             post.comment_requested_at = at
@@ -169,11 +177,13 @@ def ask_after_edit(db: DbSession, video: Video) -> int:
 
 def write(db: DbSession, post: Publication) -> None:
     """Write or edit the post's comment, or, when that is already as it should be, the next of its video's "Bình luận
-    thêm" (one Facebook write per call: the Page rests between them, see `_rest`), and record what happened. Commits."""
+    thêm", then of its set comments (one Facebook write per call: the Page rests between them, see `_pause`), and
+    record what happened. Commits."""
     may_exist = post.comment_sent_at is not None and post.comment_id is None
     tried_before = post.comment_sent_at is not None
     try:
         text = affiliate.comment_text(db, post)
+        sets = aff_sets.comments_for(db, post)
     except ShopeeError as err:
         # Stamped like any attempt, so a Shopee that keeps failing is not asked again every round.
         post.comment_sent_at, post.comment_error = now(), f"Không tạo được link Shopee: {err.message}"
@@ -181,17 +191,18 @@ def write(db: DbSession, post: Publication) -> None:
         log.warning("Could not make Shopee links for post %s: %s %s", post.id, err.message, err.detail)
         return
     extras = _extras(db, post)
+    affs = [comment for _, comment in sets]
     period = stage(post)
     adds = period != "stopped"
     first_done = not text or (post.comment_id is not None and text == post.comment_text)
-    place = _next_place(post, extras, adds)
-    if period == "daily" and first_done and _is_new(post, place) and not in_day_hours(now()):
+    step = _next_step(post, extras, affs, adds)
+    if period == "daily" and first_done and _is_new_step(post, step) and not in_day_hours(now()):
         # An older reel's daily comment waits for the day's hours; nothing is stamped, so it is not an attempt.
         post.comment_requested_at = day_slot(now(), next_day=False)
         db.commit()
         return
     post.comment_sent_at = now()
-    if not text and not extras:
+    if not text and not extras and not affs:
         post.comment_error = NOTHING_TO_SAY
         db.commit()
         return
@@ -218,26 +229,45 @@ def write(db: DbSession, post: Publication) -> None:
     row = db.get(Fanpage, post.fanpage_id)
     if spent:
         _count(row)
-        if _next_place(post, extras, adds) is not None:
-            _rest(db, post, row, FIRST_GAP)
+        after = _next_step(post, extras, affs, adds)
+        if after is not None:
+            _pause(db, post, row, "first", after)
             return
-    elif place is not None:
-        added = _is_new(post, place)
-        if not _write_extra(db, post, page, extras, place, tried_before):
+    elif step is not None:
+        kind, place = step
+        added = _is_new_step(post, step)
+        if kind == "extra":
+            done = _write_extra(db, post, page, extras, place, tried_before)
+        else:
+            done = _write_aff(db, post, page, sets, place, tried_before)
+        if not done:
             return
         _count(row)
-        if _next_place(post, extras, adds) is not None:
+        after = _next_step(post, extras, affs, adds)
+        if after is not None:
             if period == "daily" and added:
                 _rest_until(db, post, row, day_slot(now(), next_day=True))
             else:
-                _rest(db, post, row, EXTRA_GAP)
+                _pause(db, post, row, kind, after)
             return
         # The run is over: the Page does not start another video's comments straight away.
         if row is not None:
             row.comments_next_at = now() + timedelta(seconds=VIDEO_GAP)
     post.commented_at, post.comment_error = now(), None
     db.commit()
-    log.info("Commented on post %s as %s, %d more", post.id, post.comment_id, len(extras))
+    log.info("Commented on post %s as %s, %d more, %d set comments", post.id, post.comment_id, len(extras), len(affs))
+
+
+def _pause(db: DbSession, post: Publication, row: Fanpage | None, wrote: str, after: tuple[str, int]) -> None:
+    """The rest before the run's next comment: a new set comment waits the Page's `first_delay` after a food comment
+    (or the first) and its `delay` after another set comment, the Page writing other reels' comments meanwhile; any
+    other comment waits the food comments' seconds."""
+    if after[0] == "aff" and _is_new_step(post, after):
+        settings = aff_sets.settings_of(row)
+        gap = settings["delay"] if wrote == "aff" else settings["first_delay"]
+        _rest_until(db, post, row, now() + timedelta(seconds=random.uniform(*gap)))
+    else:
+        _rest(db, post, row, FIRST_GAP if wrote == "first" else EXTRA_GAP)
 
 
 def _extras(db: DbSession, post: Publication) -> list[str]:
@@ -257,9 +287,32 @@ def _next_place(post: Publication, extras: list[str], adds: bool = True) -> int 
     return None
 
 
-def _is_new(post: Publication, place: int | None) -> bool:
-    """The place is a comment not on Facebook yet (not an edit)."""
-    return place is not None and place >= len(post.extra_comment_ids or [])
+def _next_aff(post: Publication, affs: list[str], adds: bool = True) -> int | None:
+    """As `_next_place`, for the set comments."""
+    ids, texts = list(post.aff_comment_ids or []), list(post.aff_comment_texts or [])
+    for place, text in enumerate(affs):
+        if place >= len(ids):
+            return place if adds else None
+        if texts[place] != text:
+            return place
+    return None
+
+
+def _next_step(post: Publication, extras: list[str], affs: list[str], adds: bool = True) -> tuple[str, int] | None:
+    """The next comment after the first: ("extra", place) while a "Bình luận thêm" is left, then ("aff", place)."""
+    place = _next_place(post, extras, adds)
+    if place is not None:
+        return ("extra", place)
+    place = _next_aff(post, affs, adds)
+    return ("aff", place) if place is not None else None
+
+
+def _is_new_step(post: Publication, step: tuple[str, int] | None) -> bool:
+    """The step is a comment not on Facebook yet (not an edit)."""
+    if step is None:
+        return False
+    kind, place = step
+    return place >= len((post.extra_comment_ids if kind == "extra" else post.aff_comment_ids) or [])
 
 
 def _count(row: Fanpage | None) -> None:
@@ -315,6 +368,41 @@ def _write_extra(db: DbSession, post: Publication, page, extras: list[str], plac
     return True
 
 
+def _write_aff(
+    db: DbSession, post: Publication, page, sets: list[tuple[int, str]], place: int, tried_before: bool
+) -> bool:
+    """One set comment, as `_write_extra` writes a "Bình luận thêm". The first one written keeps the post's sets, and
+    each new one counts as a use of its set for the rotation. False when it failed."""
+    ids, texts = list(post.aff_comment_ids or []), list(post.aff_comment_texts or [])
+    set_id, text = sets[place]
+    try:
+        if place < len(ids):
+            facebook.edit_comment(page, ids[place], text)
+            texts[place] = text
+        else:
+            found = facebook.page_comment(page, post.remote_id, text) if tried_before else None
+            ids.append(found or facebook.post_comment(page, post.remote_id, text))
+            texts.append(text)
+            if post.aff_set_ids is None:
+                post.aff_set_ids = [one for one, _ in sets]
+            aff_sets.mark_used(db, set_id)
+    except FacebookError as err:
+        post.comment_error = f"Bình luận aff {place + 1}: {err.message}"
+        if post.aff_retries < len(AFF_RETRIES):
+            # Asked again for later (a request dated ahead), so the worker's round after it tries once more.
+            again = now() + timedelta(seconds=AFF_RETRIES[post.aff_retries])
+            post.aff_retries += 1
+            post.comment_requested_at = again
+            post.comment_error += f" (tự thử lại lúc {again.astimezone(VIETNAM_TIME):%H:%M})"
+        db.commit()
+        log.warning("Could not write set comment %d on post %s: %s", place + 1, post.id, err.detail)
+        return False
+    post.aff_comment_ids, post.aff_comment_texts = list(ids), list(texts)
+    post.aff_retries = 0
+    db.commit()
+    return True
+
+
 def write_due(factory: sessionmaker) -> None:
     """One round of the worker. Nothing here may stop the queue: a failure is logged and the next round goes on."""
     try:
@@ -356,6 +444,8 @@ def payload(post: Publication) -> dict:
         "text": post.comment_text,
         # How many of the video's "Bình luận thêm" are written under the post.
         "extra_count": len(post.extra_comment_ids or []),
+        # How many set comments ("Bộ bình luận") are written under it.
+        "aff_count": len(post.aff_comment_ids or []),
         "at": post.commented_at.isoformat() if post.commented_at else None,
         "links": link_state(post, state),
     }
@@ -372,6 +462,7 @@ def link_state(post: Publication, state: str | None = None) -> str:
     if state == "pending":
         return "updating"
     written = [post.comment_text, *(post.extra_comment_texts or [])] if post.comment_id else []
+    written += list(post.aff_comment_texts or [])
     if any(has_link(text) for text in written) or post.own_comment == "link":
         return "yes"
     if post.comment_id or post.own_comment == "no_link":

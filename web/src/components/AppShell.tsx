@@ -9,6 +9,7 @@ import {
   KeyOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
+  MobileOutlined,
   MenuOutlined,
   MenuUnfoldOutlined,
   EditOutlined,
@@ -28,6 +29,7 @@ import { ApiError, api, type Me } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 import { useStoredChoice } from "@/lib/storedChoice";
 import { ChangePasswordModal, RenameModal } from "./AccountModals";
+import InstallAppModal, { useCanInstall } from "./InstallAppModal";
 import Logo from "./Logo";
 import { MeContext } from "./MeContext";
 import UserAvatar from "./UserAvatar";
@@ -95,7 +97,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const onVideo = /^\/videos\/\d+/.test(pathname);
   const [railOpen, setRailOpen] = useState(false);
 
-  const [modal, setModal] = useState<"password" | "name" | null>(null);
+  const [modal, setModal] = useState<"password" | "name" | "install" | null>(null);
+  const canInstall = useCanInstall();
   // "Báo cho người tạo" (decisions 2026-11-15, "article posting retries"): a red count on "Bài viết".
   const [failedArticles, setFailedArticles] = useState(0);
   const pollAttention = useCallback(async () => {
@@ -201,7 +204,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             onClick: () => setModal("password"),
           },
           { key: "name", icon: <EditOutlined />, label: "Sửa tên", onClick: () => setModal("name") },
-          { type: "divider" },
+          ...(canInstall
+            ? [
+                {
+                  key: "install",
+                  icon: <MobileOutlined />,
+                  label: "Cài app lên điện thoại",
+                  onClick: () => setModal("install"),
+                },
+              ]
+            : []),
+          { type: "divider" as const },
           { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", onClick: logout },
         ],
       }}
@@ -342,6 +355,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </Layout>
       </Layout>
       <ChangePasswordModal open={modal === "password"} onClose={() => setModal(null)} />
+      <InstallAppModal open={modal === "install"} onClose={() => setModal(null)} />
       <RenameModal open={modal === "name"} onClose={() => setModal(null)} />
     </MeContext.Provider>
   );

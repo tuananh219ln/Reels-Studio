@@ -278,6 +278,9 @@ def test_csv_opens_in_excel_with_every_column(an, db, me):
         "Ngày kiểm tra": (checked + timedelta(hours=7)).strftime("%d/%m/%Y %H:%M"),
         "Người duyệt": me.name,
         "Nền tảng": "Shopee",
+        "Tên ngắn": "",
+        "Nhóm": "",
+        "Tags": "",
     }
 
 
