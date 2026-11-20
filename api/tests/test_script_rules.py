@@ -50,9 +50,9 @@ def test_title_scene_seconds_bounds(seconds, blocked):
     assert ("Số giây phải từ 1 đến 10" in messages(run(title(seconds)).blocking, 0)) is blocked
 
 
-@pytest.mark.parametrize(("total", "blocked"), [(90, False), (91, True)])
+@pytest.mark.parametrize(("total", "blocked"), [(150, False), (151, True)])
 def test_total_length_counts_the_title_scene(total, blocked):
-    # 3-second title + 9 scenes: the title's seconds decide whether the total passes 90.
+    # 3-second title + 9 scenes: the title's seconds decide whether the total passes 150.
     per_scene = (total - 3) / 9
     checks = run(content=scenes(9, per_scene))
     assert any(issue.field == "total" for issue in checks.blocking) is blocked
@@ -155,11 +155,12 @@ def test_banned_word_warnings_do_not_block_and_point_at_the_field():
 
 
 def test_narration_already_made_lengthens_the_total():
-    # 3 s title + 9 scenes of 9 s = 84 s; narration of 9.5 s makes one scene 10.1 s and the total 85.1 s.
+    # 3 s title + 9 scenes of 9 s = 84 s; narration of 9.5 s makes one scene 10.1 s and the total 85.1 s,
+    # and narration of 75 s makes one scene 75.6 s and the total 150.6 s.
     content = scenes(8, 9.0) + [SceneInput(9, False, SCENE_TEXT, 9.0, True, "Lời đọc", 9.5)]
     assert run(content=content).blocking == []
-    content = scenes(8, 9.0) + [SceneInput(9, False, SCENE_TEXT, 9.0, True, "Lời đọc", 15.5)]
-    assert [issue.message for issue in run(content=content).blocking] == ["Tổng độ dài 91.1 giây, tối đa 90 giây"]
+    content = scenes(8, 9.0) + [SceneInput(9, False, SCENE_TEXT, 9.0, True, "Lời đọc", 75.0)]
+    assert [issue.message for issue in run(content=content).blocking] == ["Tổng độ dài 150.6 giây, tối đa 150 giây"]
 
 
 def test_a_lengthened_scene_is_not_blocked_by_the_10_second_limit():

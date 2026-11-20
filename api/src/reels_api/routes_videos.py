@@ -147,7 +147,7 @@ MAX_EXTRA_COMMENTS = 12
 NEW_SCENE_SECONDS = 4
 MAX_MUSIC_START = 600  # seconds into a song; past its end the song loops from its start
 TITLE_SECONDS = 3  # as the script job gives the title scene
-# "Tự viết": a pasted script's limits, well past what a 90-second video can hold.
+# "Tự viết": a pasted script's limits, well past what a 150-second video can hold.
 MAX_SCRIPT_LENGTH = 5000
 MAX_HAND_SCENES = 20
 VOICE_LINE = re.compile(r"^đọc\s*:\s*(.*)$", re.IGNORECASE)

@@ -150,7 +150,7 @@ Cách đếm:
 - chữ tràn hộp (theo đúng quy tắc vừa hộp của `reels_render`);
 - có cảnh thiếu ảnh;
 - số giây của một cảnh < 1 hoặc > 10;
-- tổng độ dài > 90 giây.
+- tổng độ dài > 150 giây.
 
 **Chỉ cảnh báo vàng, vẫn render được khi:**
 - số cảnh nội dung < 5 hoặc > 7;
@@ -273,7 +273,7 @@ Cách đếm:
       được lại.
 - [ ] Biên của các quy tắc chặn Render:
   - giây mỗi cảnh: 0,9 bị chặn; 1 và 10 qua; 10,1 bị chặn (áp cả cho cảnh tiêu đề);
-  - tổng độ dài (tính cả cảnh tiêu đề): 90 giây qua, 91 giây bị chặn.
+  - tổng độ dài (tính cả cảnh tiêu đề): 150 giây qua, 151 giây bị chặn.
 - [ ] Biên của các cảnh báo vàng (không chặn Render):
   - số cảnh: 4 và 8 có cảnh báo; 5 và 7 không;
   - tổng độ dài: 19 và 49 giây có cảnh báo; 20 và 48 không;
