@@ -118,11 +118,19 @@ def suggest(db: DbSession, video: Video | Article) -> None:
     try:
         for keyword in keywords:
             offers = shopee.search(credentials, keyword, SEARCH_RESULTS)
+            # The searcher's own row in this group first, else the item's oldest one (a suggestion carries no link: each
+            # Page makes its own), so a search never adds a copy of what the team already lists.
             known = {
                 product.shopee_item_id: product
                 for product in db.scalars(
-                    select(AffiliateProduct).where(
-                        AffiliateProduct.shopee_item_id.in_([offer.item_id for offer in offers])
+                    select(AffiliateProduct)
+                    .where(AffiliateProduct.shopee_item_id.in_([offer.item_id for offer in offers]))
+                    .order_by(
+                        (
+                            (AffiliateProduct.created_by_id == video.suggest_by_id)
+                            & (AffiliateProduct.knowledge_topic_id == topic.id)
+                        ).asc(),
+                        AffiliateProduct.id.desc(),
                     )
                 )
             }
@@ -216,7 +224,10 @@ def lookup(db: DbSession, product: AffiliateProduct) -> None:
             raise shopee.ShopeeError("Link không dẫn tới một sản phẩm Shopee, hãy kiểm tra lại link")
         twin = db.scalar(
             select(AffiliateProduct).where(
-                AffiliateProduct.shopee_item_id == item_id, AffiliateProduct.id != product.id
+                AffiliateProduct.shopee_item_id == item_id,
+                AffiliateProduct.created_by_id == product.created_by_id,
+                AffiliateProduct.knowledge_topic_id == product.knowledge_topic_id,
+                AffiliateProduct.id != product.id,
             )
         )
         if twin is not None:

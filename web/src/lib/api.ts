@@ -1482,12 +1482,10 @@ export type AffiliatePage = {
   knowledge_topic_id: number | null;
 };
 
-/** A teammate's product the file also holds: left as it is, so their link stays theirs. */
-export type AffiliateImportOther = { row: number; name: string; by: string | null; topic: string | null };
-
-/** What "Nhập" would do with each row of the file, before anything is written. */
+/** What "Nhập" would do with each row of the file, before anything is written: "new" (nobody has it), "mine" (my own
+ * product in this group, updated) or "copy" (a teammate has it; I get my own row beside theirs, with my link). */
 export type AffiliateImportPreview = {
-  rows: { row: number; name: string; state: "new" | "mine" | "others"; by: string | null; topic: string | null }[];
+  rows: { row: number; name: string; state: "new" | "mine" | "copy"; by: string | null; topic: string | null }[];
   errors: { row: number; message: string }[];
 };
 
@@ -1495,8 +1493,8 @@ export type AffiliateImportPreview = {
 export type AffiliateImport = {
   added: number;
   updated: number;
-  kept: number;
-  others: AffiliateImportOther[];
+  /** Of `added`, the products a teammate also has (each keeps their own link). */
+  shared: number;
   errors: { row: number; message: string }[];
   /** The worker will read stars, sales and the shop's type from Shopee. */
   lookup: boolean;

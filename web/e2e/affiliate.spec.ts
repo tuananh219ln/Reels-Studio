@@ -477,7 +477,10 @@ test("Sản phẩm: my groups first, who added each product, and stars or sales 
   await expect(product).toContainText("Đã duyệt");
 });
 
-test("Nhập file: a preview first, and a teammate's product keeps their link", async ({ page, browser }) => {
+test("Nhập file: a preview first, and a teammate's product is added again with my link, theirs untouched", async ({
+  page,
+  browser,
+}) => {
   await loginAsSeed(page);
   await addUser(page, "binh@doi.vn", "Trần Bình", "mat-khau-tam-1");
   const binh = await (await browser.newContext({ baseURL: "http://localhost:3100", locale: "vi-VN" })).newPage();
@@ -517,16 +520,19 @@ test("Nhập file: a preview first, and a teammate's product keeps their link", 
   });
   const preview = dialog.getByTestId("import-preview");
   await expect(preview).toContainText("Mới 1");
-  await expect(preview).toContainText("Của người khác 1");
-  await expect(preview).toContainText("“Gối của Bình” của Trần Bình (nhóm Sức khỏe) được giữ nguyên link của họ");
-  await dialog.getByRole("button", { name: "Nhập 1 sản phẩm" }).click();
-  await expect(dialog.getByText("“Gối của Bình” của Trần Bình được giữ nguyên link của họ")).toBeVisible();
+  await expect(preview).toContainText("Trùng người khác, tạo riêng 1");
+  await expect(preview).toContainText("“Gối của Bình” Trần Bình đã thêm (nhóm Sức khỏe)");
+  await dialog.getByRole("button", { name: "Nhập 2 sản phẩm" }).click();
+  await expect(dialog.getByText("1 sản phẩm trùng với người khác được thêm riêng cho bạn")).toBeVisible();
   await dialog.getByRole("button", { name: "Huỷ" }).click();
   await expect(dialog).toBeHidden();
   await page
     .getByLabel("Của ai")
     .getByText(/Cả đội/)
     .click();
-  await expect(page.getByRole("row", { name: /Gối của Bình/ })).toContainText("Người thêm: Trần Bình");
+  const rows = page.getByRole("row", { name: /Gối của Bình/ });
+  await expect(rows).toHaveCount(2);
+  await expect(rows.filter({ hasText: "Người thêm: Trần Bình" })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "Người thêm: bạn" })).toHaveCount(1);
   await expect(page.getByRole("row", { name: /Nồi của An/ })).toContainText("Người thêm: bạn");
 });

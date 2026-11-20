@@ -170,20 +170,27 @@ def _waiting(product: AffiliateProduct, user_id: int, ask: bool) -> None:
     product.lookup_requested_at, product.lookup_by_id, product.lookup_error = (now() if ask else None), user_id, None
 
 
-def _known(db: DbSession, item_ids: set[int], urls: set[str]) -> tuple[dict[int, AffiliateProduct], set[str]]:
-    rows = list(
-        db.scalars(
-            select(AffiliateProduct).where(
-                or_(
-                    AffiliateProduct.shopee_item_id.in_(item_ids),
-                    AffiliateProduct.url.in_(urls),
-                    AffiliateProduct.page_url.in_(urls),
-                )
-            )
+def _known(db: DbSession, item_ids: set[int], user_id: int, topic_id: int) -> dict[int, AffiliateProduct]:
+    """The member's own rows for these Shopee items in this group. A teammate's row of the same item is a different
+    product: it holds their affiliate link and commission, so it is never matched, updated or reused for me."""
+    rows = db.scalars(
+        select(AffiliateProduct).where(
+            AffiliateProduct.shopee_item_id.in_(item_ids),
+            AffiliateProduct.created_by_id == user_id,
+            AffiliateProduct.knowledge_topic_id == topic_id,
         )
     )
-    links = {row.url for row in rows if row.url} | {row.page_url for row in rows if row.page_url}
-    return {row.shopee_item_id: row for row in rows if row.shopee_item_id}, links
+    return {row.shopee_item_id: row for row in rows}
+
+
+def _teammates_of(db: DbSession, item_ids: set[int], user_id: int) -> dict[int, AffiliateProduct]:
+    """A teammate's row for each of these items (the first added), to name who has it already."""
+    rows = db.scalars(
+        select(AffiliateProduct)
+        .where(AffiliateProduct.shopee_item_id.in_(item_ids), AffiliateProduct.created_by_id != user_id)
+        .order_by(AffiliateProduct.id.desc())
+    )
+    return {row.shopee_item_id: row for row in rows}
 
 
 def _header(cell: str) -> str:
@@ -895,14 +902,19 @@ def _shopee_links(raw: list[str]) -> list[str]:
 def _from_links(
     db: DbSession, topic: KnowledgeTopic, links: list[str], user_id: int, ask: bool
 ) -> dict[str, tuple[AffiliateProduct, bool]]:
-    """The product of each link: the one already listed (False), else a new draft named by its link (True), which the
-    worker reads when `ask`; without, a member fills it in by hand."""
+    """The product of each link: the member's own one already listed in this group (False), else a new draft named by
+    its link (True), which the worker reads when `ask`; without, a member fills it in by hand. A teammate's product of
+    the same item does not count: each member has their own, with their own link."""
     items = {link: shopee.item_id_of(link) for link in links}
-    known_items, _ = _known(db, {item for item in items.values() if item}, set())
+    known_items = _known(db, {item for item in items.values() if item}, user_id, topic.id)
     by_link = {
         link: row
         for row in db.scalars(
-            select(AffiliateProduct).where(or_(AffiliateProduct.url.in_(links), AffiliateProduct.page_url.in_(links)))
+            select(AffiliateProduct).where(
+                or_(AffiliateProduct.url.in_(links), AffiliateProduct.page_url.in_(links)),
+                AffiliateProduct.created_by_id == user_id,
+                AffiliateProduct.knowledge_topic_id == topic.id,
+            )
         )
         for link in (row.url, row.page_url)
         if link
@@ -980,22 +992,25 @@ def _parsed_file(text_in: str) -> tuple[list[tuple[int, dict]], list[dict]]:
 
 
 def _sorted_rows(
-    db: DbSession, parsed: list[tuple[int, dict]], user_id: int
+    db: DbSession, parsed: list[tuple[int, dict]], user_id: int, topic_id: int
 ) -> tuple[dict[int, AffiliateProduct], list[dict]]:
-    """Each row as new, mine (a product of mine already listed: its figures and link are updated) or others (a
-    teammate's: kept as it is, so their link and commission never change hands)."""
-    known, _ = _known(db, {fields["shopee_item_id"] for _, fields in parsed}, set())
+    """Each row as new (nobody has it), mine (my own product in this group: its figures and link are updated) or copy
+    (a teammate has it, and I get my own beside theirs, with my link)."""
+    items = {fields["shopee_item_id"] for _, fields in parsed}
+    known = _known(db, items, user_id, topic_id)
+    teammates = _teammates_of(db, items, user_id)
     rows = []
     for number, fields in parsed:
-        product = known.get(fields["shopee_item_id"])
-        state = "new" if product is None else "mine" if product.created_by_id == user_id else "others"
+        item_id = fields["shopee_item_id"]
+        theirs = teammates.get(item_id)
+        state = "mine" if item_id in known else "copy" if theirs is not None else "new"
         rows.append(
             {
                 "row": number,
                 "name": fields["name"],
                 "state": state,
-                "by": product.created_by.name if product is not None else None,
-                "topic": product.topic.name if product is not None else None,
+                "by": theirs.created_by.name if state == "copy" else None,
+                "topic": theirs.topic.name if state == "copy" else None,
             }
         )
     return known, rows
@@ -1006,7 +1021,7 @@ def preview_import(body: ImportBody, me: Session = Depends(current_member), db: 
     """What "Nhập" would do with the file, row by row; writes nothing."""
     _topic(db, body.knowledge_topic_id)
     parsed, errors = _parsed_file(body.text)
-    _, rows = _sorted_rows(db, parsed, me.user_id)
+    _, rows = _sorted_rows(db, parsed, me.user_id, body.knowledge_topic_id)
     return {"rows": rows, "errors": errors}
 
 
@@ -1015,16 +1030,15 @@ def import_products(body: ImportBody, me: Session = Depends(current_member), db:
     """ "Nhập file": the CSV of Shopee Affiliate's "Lấy link hàng loạt" (item id, name, price, shop, commission,
     product link, affiliate link). Stars, sales and the shop's type are not in it: the worker reads them when a member
     has a Shopee account with App ID, otherwise a member fills them in before approving. A product of mine already in
-    the list takes the file's link and figures (an approved one keeps its approval unless it no longer meets the
-    rules); a teammate's is left as it is and listed in `others`, so their link is never replaced by mine."""
+    this group takes the file's link and figures (an approved one keeps its approval unless it no longer meets the
+    rules). A teammate's product of the same item is never touched: I get my own row beside it, with my link, and
+    `shared` counts those."""
     topic = _topic(db, body.knowledge_topic_id)
     parsed, errors = _parsed_file(body.text)
-    known, rows = _sorted_rows(db, parsed, me.user_id)
+    known, rows = _sorted_rows(db, parsed, me.user_id, topic.id)
     ask = affiliate_rounds.team_account(db, me.user_id) is not None
-    added = updated = 0
+    added = updated = shared = 0
     for (_, fields), row in zip(parsed, rows, strict=True):
-        if row["state"] == "others":
-            continue
         product = known.get(fields["shopee_item_id"])
         if product is None:
             product = AffiliateProduct(
@@ -1040,6 +1054,7 @@ def import_products(body: ImportBody, me: Session = Depends(current_member), db:
             db.add(product)
             known[fields["shopee_item_id"]] = product
             added += 1
+            shared += row["state"] == "copy"
             continue
         for name, value in fields.items():
             if value is not None:
@@ -1048,12 +1063,7 @@ def import_products(body: ImportBody, me: Session = Depends(current_member), db:
             _clear_approval(product)
         updated += 1
     db.commit()
-    others = [
-        {"row": row["row"], "name": row["name"], "by": row["by"], "topic": row["topic"]}
-        for row in rows
-        if row["state"] == "others"
-    ]
-    return {"added": added, "updated": updated, "kept": len(others), "others": others, "errors": errors, "lookup": ask}
+    return {"added": added, "updated": updated, "shared": shared, "errors": errors, "lookup": ask}
 
 
 @router.post("/{product_id}/lookup")
