@@ -82,7 +82,9 @@ test("a new script finds Shopee products with the writer's account, and one is c
   await expect(row).toContainText("Tìm qua API");
 });
 
-test("without an App ID, an affiliate link pasted on the video is filled in by hand and chosen", async ({ page }) => {
+test("without an App ID, an affiliate link pasted on the video can be chosen, and filled in by hand first", async ({
+  page,
+}) => {
   test.setTimeout(120_000);
   await loginAsSeed(page);
   await page.goto("/videos");
@@ -98,7 +100,8 @@ test("without an App ID, an affiliate link pasted on the video is filled in by h
   await suggestions.getByRole("button", { name: "Thêm link" }).click();
   const pasted = suggestions.getByTestId("suggested-product");
   await expect(pasted).toContainText("Chưa có thông tin sản phẩm");
-  await expect(pasted.getByRole("button", { name: "Chọn" })).toHaveCount(0);
+  // Stars and sales not being filled in does not block choosing it; they can still be filled in by hand.
+  await expect(pasted.getByRole("button", { name: "Chọn" })).toHaveCount(1);
 
   await pasted.getByRole("button", { name: "Sửa thông tin" }).click();
   const form = page.getByRole("dialog", { name: "Sửa sản phẩm" });

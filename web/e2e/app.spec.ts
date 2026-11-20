@@ -649,11 +649,11 @@ test("Affiliate Shopee: import the file of Shopee Affiliate's Lấy link hàng l
   await expect(product).toContainText("45.000đ");
   await expect(product).toContainText("1.125đ/đơn");
 
-  // The three figures the file lacks are filled in on the row, and then it can be approved.
+  // The three figures the file lacks do not block approving; they can still be filled in on the row first.
   await dialog.getByRole("button", { name: "Huỷ" }).click();
   // Once closed the drawer gives the focus back to "Nhập file", which would close a dropdown opened before that.
   await expect(dialog).toBeHidden();
-  await expect(product.getByRole("button", { name: "Duyệt" })).toBeDisabled();
+  await expect(product.getByRole("button", { name: "Duyệt" })).toBeEnabled();
   const quick = product.getByTestId("quick-fill");
   await chooseOption(page, quick.getByLabel("Loại shop của Combo hạt giống rau mùa hè"), "Shop Yêu Thích");
   await quick.getByLabel("Số sao của Combo hạt giống rau mùa hè").fill("4.8");
@@ -705,8 +705,16 @@ test("Affiliate: several products are ticked, then deleted or approved at once",
   await expect(row(page, "Hạt mồng tơi")).toBeVisible();
   await expect(selection).toHaveCount(0);
 
-  // Approving several at once: an ordinary shop passes, a row still missing its figures stays a draft.
+  // Approving several at once: an ordinary shop passes, a row whose filled-in stars are under the bar stays a draft.
   await importRows(page, line(14, "Hạt cải bẹ"));
+  const low = row(page, "Hạt cải bẹ").getByTestId("quick-fill");
+  await chooseOption(page, low.getByLabel("Loại shop của Hạt cải bẹ"), "Shop thường");
+  await low.getByLabel("Số sao của Hạt cải bẹ").fill("4.5");
+  await low.getByLabel("Lượt bán của Hạt cải bẹ").fill("250");
+  await low.getByRole("button", { name: "Lưu" }).click();
+  await expect(row(page, "Hạt cải bẹ")).toContainText("4.5 / 250");
+  // The next dropdown is opened only once this one has left, or two of them match the same option.
+  await expect(page.locator(".ant-select-dropdown:visible")).toHaveCount(0);
   const filled = row(page, "Hạt mồng tơi");
   const quick = filled.getByTestId("quick-fill");
   await chooseOption(page, quick.getByLabel("Loại shop của Hạt mồng tơi"), "Shop thường");
