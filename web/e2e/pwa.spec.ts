@@ -27,6 +27,6 @@ test("the account menu explains how to install on a phone", async ({ page }) => 
   await page.getByTestId("account").click();
   await page.getByRole("menuitem", { name: "Cài app lên điện thoại" }).click();
   const dialog = page.getByRole("dialog", { name: "Cài app lên điện thoại" });
-  await expect(dialog.getByText("Thêm vào Màn hình chính")).toBeVisible();
+  await expect(dialog.getByText("Thêm vào Màn hình chính").first()).toBeVisible();
   await expect(dialog.getByText("Cài đặt ứng dụng")).toBeVisible();
 });
