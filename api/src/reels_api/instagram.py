@@ -13,7 +13,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import config
+from . import config, crypto
 from .facebook import (
     PERMISSION_ERRORS,
     RATE_LIMIT_ERRORS,
@@ -142,14 +142,31 @@ def caption(text: str) -> str:
     return "\n".join(words).strip()[:MAX_CAPTION]
 
 
-def create_container(page: Page, ig_user_id: str, text: str) -> tuple[str, str]:
-    """A Reel container waiting for its file: its id (what the publish is sent to) and the `uri` Meta gave to send the
-    file to ("" when it gave none)."""
+LINK_SECONDS = 6 * 3600  # how long the link Instagram fetches the MP4 from stays valid
+
+
+def video_link(post_id: int) -> str:
+    """The public link Instagram fetches a post's MP4 from ("" when no public address is set): it carries its own
+    permission, a sealed post id good for LINK_SECONDS, and serves that post's file only (routes_instagram)."""
+    base = config.instagram_video_base_url()
+    return f"{base}/api/instagram/media/{crypto.seal(str(post_id))}/video.mp4" if base else ""
+
+
+def link_post_id(token: str) -> int | None:
+    value = crypto.unseal(token, LINK_SECONDS)
+    return int(value) if value is not None and value.isdigit() else None
+
+
+def create_container(page: Page, ig_user_id: str, text: str, video_url: str = "") -> tuple[str, str]:
+    """A Reel container: its id (what the publish is sent to) and the `uri` Meta gave to send the file to ("" when it
+    gave none). With a `video_url` Instagram fetches the MP4 itself; without, it waits for the file by resumable
+    upload."""
+    how = {"video_url": video_url} if video_url else {"upload_type": "resumable"}
     reply = _post(
         page,
         f"{urllib.parse.quote(ig_user_id, safe='')}/media",
         media_type="REELS",
-        upload_type="resumable",
+        **how,
         caption=text,
         share_to_feed="true",
     )

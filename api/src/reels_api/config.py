@@ -165,6 +165,16 @@ def facebook_api_url() -> str:
     return (read_env("FACEBOOK_API_URL") or f"https://graph.facebook.com/{GRAPH_VERSION}").rstrip("/")
 
 
+def instagram_video_base_url() -> str:
+    # The public https address Instagram fetches a Reel's MP4 from (`video_url`). `INSTAGRAM_VIDEO_BASE_URL` wins;
+    # else the first https origin of ALLOWED_ORIGINS (the web domain); "" when there is none (local dev: the file is
+    # then sent by resumable upload instead).
+    url = read_env("INSTAGRAM_VIDEO_BASE_URL").rstrip("/")
+    if url:
+        return url
+    return next((origin for origin in sorted(allowed_origins()) if origin.startswith("https://")), "")
+
+
 def instagram_upload_url() -> str:
     # Where an Instagram Reel's file is sent (resumable upload, by container id). Overridable only so tests and E2E can
     # point at a local fake; production uses the default.

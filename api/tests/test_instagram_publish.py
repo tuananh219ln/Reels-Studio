@@ -368,6 +368,51 @@ def test_the_job_log_carries_the_raw_error_detail(an, db, me, storage):
     assert row["error_detail"] == job.error_detail
 
 
+def test_with_a_public_address_instagram_fetches_the_mp4_itself(committed, ready, fakes, monkeypatch):
+    monkeypatch.setenv("INSTAGRAM_VIDEO_BASE_URL", "https://studio.example.com")
+    job, post = send(committed, ready)
+    assert job.status == "done", (job.error, job.error_detail)
+    ((_, container),) = fakes.instagram_containers.items()
+    link = container["video_url"]
+    assert link.startswith("https://studio.example.com/api/instagram/media/") and link.endswith("/video.mp4")
+    assert "upload" not in fakes.instagram_calls and fakes.instagram_upload_paths == []
+    assert post.status == "published"
+
+
+def test_without_a_public_address_the_file_is_uploaded(committed, ready, fakes, monkeypatch):
+    monkeypatch.setenv("INSTAGRAM_VIDEO_BASE_URL", "")
+    monkeypatch.setenv("ALLOWED_ORIGINS", "http://localhost:3000")
+    job, _ = send(committed, ready)
+    assert job.status == "done", (job.error, job.error_detail)
+    assert "upload" in fakes.instagram_calls
+    ((_, container),) = fakes.instagram_containers.items()
+    assert container["video_url"] == ""
+
+
+def test_the_link_serves_one_pending_posts_mp4_to_anyone(client, db, me, storage, monkeypatch):
+    monkeypatch.setenv("INSTAGRAM_VIDEO_BASE_URL", "https://studio.example.com")
+    video = mp4_video(db, storage, me)
+    page = linked_page(db, me)
+    post = Publication(
+        video_id=video.id,
+        platform="instagram",
+        status="pending",
+        created_by_id=me.id,
+        fanpage_id=page.id,
+        remote_mp4_key=video.mp4_key,
+    )
+    db.add(post)
+    db.commit()
+    path = instagram.video_link(post.id).removeprefix("https://studio.example.com")
+    got = client.get(path)  # not signed in
+    assert (got.status_code, got.content, got.headers["content-type"]) == (200, MP4, "video/mp4")
+    assert client.get("/api/instagram/media/not-a-token/video.mp4").status_code == 404
+    assert instagram.link_post_id("not-a-token") is None
+    post.status = "published"
+    db.commit()
+    assert client.get(path).status_code == 404, "once posted, the link no longer serves the file"
+
+
 def test_a_token_without_instagrams_permission_says_so(committed, ready, fakes):
     fakes.instagram_refusal = 10
     job, post = send(committed, ready)
