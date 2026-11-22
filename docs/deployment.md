@@ -127,6 +127,7 @@ when set to an empty string. Containers use real environment variables only.
 | `DATABASE_URL` | api and worker: dev database; in production the Coolify Postgres internal URL |
 | `TEST_DATABASE_URL` | api: pytest database `reels_test` |
 | `ALLOWED_ORIGINS` | api: comma-separated origins allowed to change data; the default is `http://localhost:3000`; in production the web domain |
+| `INSTAGRAM_VIDEO_BASE_URL` | api, optional: public https address Instagram fetches a Reel's MP4 from (`video_url`); empty uses the first https origin of `ALLOWED_ORIGINS` (the web domain). With neither, the MP4 is sent by resumable upload |
 | `MCP_PUBLIC_URL` | api, optional: public web URL ending in `/api/mcp`; enables private ChatGPT and Claude MCP/OAuth. Empty disables it. HTTPS required except localhost; the origin must be in `ALLOWED_ORIGINS`. See [chatgpt.md](chatgpt.md) |
 | `REELS_SERVER`, `REELS_NODE_TOKEN` | render machine only (`python -m reels_api node` on a member's computer), never the api or the worker: the web address and the machine's token from Cài đặt › Máy render. `api/scripts/render-node.ps1` sets both for its run. See [Render machine](#render-machine) |
 | `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set on the Coolify application, empty on localhost |
