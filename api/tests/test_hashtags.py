@@ -35,3 +35,25 @@ def test_a_group_without_a_tiktok_set_gets_the_bare_text():
         "Đứng lên ngồi xuống mà gối kêu lục cục."
     )
     assert hashtags.tiktok_caption(caption, None) == "Đứng lên ngồi xuống mà gối kêu lục cục."
+
+
+def test_youtube_tags_are_the_hashtag_words_deduped_in_order():
+    assert hashtags.youtube_tags(["#Threads", "#doccomment", "#threads", "xuhuong", "#", "", "#a<b>c"]) == [
+        "Threads",
+        "doccomment",
+        "xuhuong",
+        "abc",
+    ]
+    assert hashtags.youtube_tags([]) == []
+
+
+def test_youtube_tags_fit_the_500_character_limit_commas_included():
+    tags = [f"#t{i:03d}{'x' * 20}" for i in range(40)]  # 24 characters each, 1 more for each comma
+    kept = hashtags.youtube_tags(tags)
+    assert kept == [tag[1:] for tag in tags[: len(kept)]], "tags are dropped from the end"
+    assert sum(map(len, kept)) + len(kept) - 1 <= 500 < sum(map(len, kept)) + len(kept) + 24
+    # One tag alone over the limit goes; the others stay.
+    assert hashtags.youtube_tags(["#ok", "#" + "y" * 501, "#fine"]) == ["ok", "fine"]
+    # A tag with a space counts as if quoted: two more characters (498 + 2 = 500 fits, 499 + 2 does not).
+    assert hashtags.youtube_tags(["a b" * 166]) == ["a b" * 166]
+    assert hashtags.youtube_tags(["a b" * 166 + "c"]) == []

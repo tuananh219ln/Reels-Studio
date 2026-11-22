@@ -67,3 +67,25 @@ def tiktok_caption(caption: str, topic_name: str | None) -> str:
     """The caption to copy or send to TikTok: the caption text without its trailing Facebook hashtags, then the
     topic group's TikTok set. The video's own hashtag field is never used here: it holds the Facebook set."""
     return post_text(strip_trailing_tags(caption), TIKTOK_HASHTAGS.get(topic_name or "", []))
+
+
+# YouTube's limit for the whole tags field (`videos.insert`): the tags, a comma between each, and two more characters
+# for a tag with a space (it counts as if quoted).
+YOUTUBE_TAGS_MAX = 500
+
+
+def youtube_tags(hashtags: list[str]) -> list[str]:
+    """The tags to send YouTube with an upload: the video's hashtags without their `#`, `<` and `>` (YouTube refuses
+    them), case-insensitively deduped in order, as many as fit the 500 characters (the rest are dropped from the end).
+    A tag that alone does not fit is dropped; none left means the caller sends no tags field at all."""
+    cleaned = [tag.lstrip("#").replace("<", "").replace(">", "").strip() for tag in hashtags]
+    words = merge([], [word for word in cleaned if word])
+    kept: list[str] = []
+    used = 0
+    for word in words:
+        cost = len(word) + (2 if " " in word else 0) + (1 if kept else 0)
+        if used + cost > YOUTUBE_TAGS_MAX:
+            continue
+        kept.append(word)
+        used += cost
+    return kept
