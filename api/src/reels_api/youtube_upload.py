@@ -214,11 +214,13 @@ def clean_title(title: str) -> str:
     return " ".join(title.replace("<", "").replace(">", "").split())[:MAX_TITLE]
 
 
-def metadata(title: str, description: str) -> dict:
+def metadata(title: str, description: str, tags: list[str] | None = None) -> dict:
+    """The upload's body. `tags` are already cleaned (`hashtags.youtube_tags`); none means no `tags` field."""
     return {
         "snippet": {
             "title": clean_title(title),
             "description": description.replace("<", "").replace(">", "")[:MAX_DESCRIPTION],
+            **({"tags": tags} if tags else {}),
         },
         "status": {
             "privacyStatus": "private",

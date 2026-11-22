@@ -315,8 +315,46 @@ def test_an_upload_goes_up_private_with_its_title_and_ai_label(committed, ready,
         "selfDeclaredMadeForKids": False,
         "containsSyntheticMedia": True,
     }
-    assert sent["body"]["snippet"] == {"title": "Vừng đen buổi sáng", "description": "Ăn vừng đen mỗi sáng #vungden"}
+    assert sent["body"]["snippet"] == {
+        "title": "Vừng đen buổi sáng",
+        "description": "Ăn vừng đen mỗi sáng #vungden",
+        "tags": ["vungden"],
+    }
     assert fakes.youtube_upload_calls == ["init", "send"]
+
+
+def test_the_upload_carries_the_videos_hashtags_as_tags_cleaned_and_deduped(committed, ready, fakes):
+    _, _, video_id, _, _ = ready
+    with committed() as db:
+        db.get(Video, video_id).hashtags = ["#threads", "#DocComment", "#threads", "#", "#xu<h>uong"]
+        db.commit()
+    job, _ = send(committed, ready)
+    assert job.status == "done", (job.error, job.error_detail)
+    (sent,) = fakes.youtube_uploads.values()
+    assert sent["body"]["snippet"]["tags"] == ["threads", "DocComment", "xuhuong"]
+
+
+def test_a_video_without_hashtags_is_uploaded_without_a_tags_field(committed, ready, fakes):
+    _, _, video_id, _, _ = ready
+    with committed() as db:
+        db.get(Video, video_id).hashtags = []
+        db.commit()
+    job, _ = send(committed, ready)
+    assert job.status == "done", (job.error, job.error_detail)
+    (sent,) = fakes.youtube_uploads.values()
+    assert "tags" not in sent["body"]["snippet"]
+
+
+def test_the_tags_sent_stay_within_youtubes_500_characters(committed, ready, fakes):
+    _, _, video_id, _, _ = ready
+    with committed() as db:
+        db.get(Video, video_id).hashtags = [f"#t{i:03d}{'x' * 20}" for i in range(40)]
+        db.commit()
+    job, _ = send(committed, ready)
+    assert job.status == "done", (job.error, job.error_detail)
+    (sent,) = fakes.youtube_uploads.values()
+    tags = sent["body"]["snippet"]["tags"]
+    assert 0 < len(tags) < 40 and sum(map(len, tags)) + len(tags) - 1 <= 500
 
 
 def test_a_cut_upload_is_resumed_on_retry_and_never_doubled(committed, ready, fakes):

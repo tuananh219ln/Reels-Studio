@@ -13,7 +13,7 @@ import logging
 
 from sqlalchemy.orm import Session as DbSession
 
-from . import youtube_connections, youtube_upload
+from . import hashtags, youtube_connections, youtube_upload
 from .models import Job, Publication, Video
 from .storage import DirectoryStorage
 
@@ -56,7 +56,8 @@ def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
             else:
                 log.info("YouTube upload session of publication %s is gone: starting over", post.id)
         if uploaded is None:
-            body = youtube_upload.metadata(post.caption or video.topic, post.post_text or "")
+            tags = hashtags.youtube_tags(video.hashtags or [])
+            body = youtube_upload.metadata(post.caption or video.topic, post.post_text or "", tags)
             # Saved before the file is sent, so a retry asks YouTube about this very upload.
             post.upload_url, post.remote_mp4_key = youtube_upload.start_upload(token, body, size), key
             db.commit()
