@@ -668,6 +668,9 @@ class Fanpage(Base):
     # On: a video of the Page that goes live on Facebook at its slot is also posted to the linked Instagram account
     # (migration 0117, jobs.queue_instagram_auto_posts).
     instagram_auto: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # On: a video of the Page that goes live on Facebook at its slot is also uploaded (private) to the Page's
+    # YouTube channel (migration 0118, jobs.queue_youtube_auto_posts).
+    youtube_auto: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # The YouTube channel the Page's videos open with on their "Tải lên YouTube" (migration 0097): one its owner
     # connected (youtube_connections).
     youtube_channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id", ondelete="SET NULL"))

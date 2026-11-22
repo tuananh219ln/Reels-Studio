@@ -56,6 +56,7 @@ from . import (
     source_keys,
     text_looks,
     tiktok_publish,
+    youtube_connections,
     youtube_publish,
 )
 from .claude import (
@@ -116,6 +117,7 @@ from .videos import (
     split_scenes,
     spoken,
     text_position,
+    title_of,
 )
 from .videos import content_types as team_content_types
 
@@ -1269,6 +1271,78 @@ def queue_instagram_auto_posts(db: DbSession) -> None:
         except IntegrityError:
             continue
         log.info("Queued an Instagram post of video %s for Page %s", video.id, page.name)
+
+
+def queue_youtube_auto_posts(db: DbSession) -> None:
+    """Upload each video whose Facebook post has reached its slot, private, to the YouTube channel of its Page, when the
+    Page's owner turned `youtube_auto` on: the same upload as the "Tải lên YouTube" card, started by this round (about
+    once a minute) instead of a click. Like Instagram's round, only a scheduled slot of the last day counts, and a
+    video with any YouTube post but a cancelled one on that channel is left alone, a failed one too, so an error that
+    repeats is not retried every minute: its member presses "Thử lại". A channel whose connection ran out is skipped
+    without a word here (its Page shows the warning); a slot missed that way is not made up after a day."""
+    due = db.scalars(
+        select(Publication).where(
+            Publication.video_id.is_not(None),
+            Publication.platform == "facebook",
+            Publication.status.in_(("scheduled", "published")),
+            Publication.scheduled_at <= now(),
+            Publication.scheduled_at >= now() - TIKTOK_SWEEP_WINDOW,
+        )
+    ).all()
+    for post in due:
+        video = db.get(Video, post.video_id)
+        page = db.get(Fanpage, post.fanpage_id) if post.fanpage_id else None
+        if video is None or not video.mp4_key or page is None or page.owner_id is None:
+            continue
+        if not page.youtube_auto or page.youtube_channel_id is None:
+            continue
+        connection = youtube_connections.of_channel(db, page.youtube_channel_id)
+        if (
+            connection is None
+            or connection.owner_id != page.owner_id
+            or youtube_connections.needs_reconnect(connection)
+        ):
+            continue
+        if active_job(db, video.id) is not None:
+            continue  # the next round tries again
+        already = db.scalar(
+            select(Publication.id).where(
+                Publication.video_id == video.id,
+                Publication.platform == "youtube",
+                Publication.channel_id == page.youtube_channel_id,
+                Publication.status != "cancelled",
+            )
+        )
+        if already is not None:
+            continue
+        title_scene, _ = split_scenes(db, video)
+        try:
+            with db.begin_nested():
+                made = Publication(
+                    video_id=video.id,
+                    platform="youtube",
+                    status="pending",
+                    fanpage_id=page.id,
+                    created_by_id=page.owner_id,
+                    channel_id=page.youtube_channel_id,
+                    remote_mp4_key=video.mp4_key,
+                    caption=title_of(video, title_scene),
+                    post_text=hashtags.post_text(video.caption, video.hashtags),
+                )
+                db.add(made)
+                db.flush()
+                db.add(
+                    Job(
+                        video_id=video.id,
+                        kind="youtube_publish",
+                        status="queued",
+                        created_by_id=page.owner_id,
+                        publication_id=made.id,
+                    )
+                )
+        except IntegrityError:
+            continue
+        log.info("Queued a YouTube upload of video %s for Page %s", video.id, page.name)
 
 
 # An Instagram post this late (the worker was down) is not posted any more: its member decides again.

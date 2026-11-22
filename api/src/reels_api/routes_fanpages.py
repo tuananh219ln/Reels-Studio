@@ -54,6 +54,10 @@ class InstagramAutoBody(BaseModel):
     auto: bool
 
 
+class YouTubeAutoBody(BaseModel):
+    auto: bool
+
+
 def _clean_token(token: str) -> str:
     token = token.strip()
     if not token:
@@ -163,6 +167,7 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
             "tiktok_account": _tiktok_account(db, row, me),
             "tiktok_auto_mode": row.tiktok_auto_mode,
             "instagram_auto": row.instagram_auto,
+            "youtube_auto": row.youtube_auto,
             "youtube_channel": _youtube_channel(db, row, me),
             # The Instagram account linked to the Page (read at its check), where "Đăng bài" › Instagram posts.
             "instagram": {"id": row.instagram_user_id, "username": row.instagram_username}
@@ -333,6 +338,27 @@ def set_instagram_auto(
     if body.auto and not row.instagram_user_id:
         raise invalid("Page chưa liên kết tài khoản Instagram, hãy liên kết rồi bật lại")
     row.instagram_auto = body.auto
+    db.commit()
+    return _rows(db, me)
+
+
+@router.put("/{fanpage_id}/youtube-auto")
+def set_youtube_auto(
+    fanpage_id: int, body: YouTubeAutoBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
+    """Whether a video of the Page that goes live on Facebook at its slot is also uploaded, private, to its channel."""
+    row = _fanpage(db, fanpage_id)
+    if row.owner_id != me.user_id:
+        raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới đổi được cách tự đăng YouTube")
+    if body.auto:
+        if row.youtube_channel_id is None:
+            raise invalid("Page chưa chọn kênh YouTube, hãy chọn kênh rồi bật lại")
+        connection = youtube_connections.of_channel(db, row.youtube_channel_id)
+        if connection is None or connection.owner_id != me.user_id:
+            raise invalid("Page chưa chọn kênh YouTube, hãy chọn kênh rồi bật lại")
+        if youtube_connections.needs_reconnect(connection):
+            raise invalid(youtube_connections.RECONNECT)
+    row.youtube_auto = body.auto
     db.commit()
     return _rows(db, me)
 

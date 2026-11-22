@@ -1228,6 +1228,19 @@ Instagram account can be switched on): a video whose scheduled Facebook post is 
 failed one too, so a repeating error is not retried every minute ("Thử lại" is the member's). No length filter. See
 [the decision](decisions/2026-11-22-instagram-auto-post.md).
 
+### YouTube at the Facebook slot
+
+`jobs.queue_youtube_auto_posts` (worker round, once a minute, after the Instagram one) uploads a video to the Page's
+YouTube channel (`fanpages.youtube_channel_id`) when its owner turned `fanpages.youtube_auto` on (migration 0118, off
+for every Page; only a Page with a channel of its owner that is still connected can be switched on): a video whose
+scheduled Facebook post is scheduled or out and whose slot passed (within 24 hours) gets a `youtube` post and a
+`youtube_publish` job, the same private upload as the "Tải lên YouTube" card; the member makes it public in YouTube
+Studio. An "Đăng ngay" post has no slot and never triggers it. A video with any YouTube post but a cancelled one on that
+channel is skipped, a failed one too ("Thử lại" is the member's). A channel whose connection ran out is skipped without
+a job (the Page shows "Kênh YouTube mất kết nối"); a slot missed that way is not made up after 24 hours. One job at a
+time per video, so YouTube can follow TikTok and Instagram by a few minutes. See
+[the decision](decisions/2026-11-22-youtube-auto-post.md).
+
 ### ChatGPT and Claude MCP connection
 
 The optional private MCP endpoint uses member-authorized OAuth delegation, stateless Streamable
