@@ -50,6 +50,10 @@ class TikTokAutoModeBody(BaseModel):
     mode: Literal["draft", "direct"]
 
 
+class InstagramAutoBody(BaseModel):
+    auto: bool
+
+
 def _clean_token(token: str) -> str:
     token = token.strip()
     if not token:
@@ -158,6 +162,7 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
             "shopee_account": _shopee_account(db, row, me),
             "tiktok_account": _tiktok_account(db, row, me),
             "tiktok_auto_mode": row.tiktok_auto_mode,
+            "instagram_auto": row.instagram_auto,
             "youtube_channel": _youtube_channel(db, row, me),
             # The Instagram account linked to the Page (read at its check), where "Đăng bài" › Instagram posts.
             "instagram": {"id": row.instagram_user_id, "username": row.instagram_username}
@@ -313,6 +318,21 @@ def set_tiktok_auto_mode(
     if row.owner_id != me.user_id:
         raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới đổi được cách tự đăng TikTok")
     row.tiktok_auto_mode = body.mode
+    db.commit()
+    return _rows(db, me)
+
+
+@router.put("/{fanpage_id}/instagram-auto")
+def set_instagram_auto(
+    fanpage_id: int, body: InstagramAutoBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
+    """Whether a video of the Page that goes live on Facebook at its slot is also posted to its linked Instagram."""
+    row = _fanpage(db, fanpage_id)
+    if row.owner_id != me.user_id:
+        raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới đổi được cách tự đăng Instagram")
+    if body.auto and not row.instagram_user_id:
+        raise invalid("Page chưa liên kết tài khoản Instagram, hãy liên kết rồi bật lại")
+    row.instagram_auto = body.auto
     db.commit()
     return _rows(db, me)
 

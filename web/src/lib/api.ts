@@ -685,6 +685,8 @@ export type Fanpage = {
   tiktok_account: { id: number; name: string; connected: boolean } | null;
   /** What the worker sends to TikTok when a video of the Page goes live on Facebook: a draft, or a public post. */
   tiktok_auto_mode: "draft" | "direct";
+  /** Whether a video of the Page that goes live on Facebook at its slot is also posted to its linked Instagram. */
+  instagram_auto: boolean;
   /** The YouTube channel its videos open with on "Tải lên YouTube", shown only to its owner. */
   youtube_channel: { id: number; name: string; connected: boolean } | null;
   /** The Instagram account linked to the Page (read at its check), where "Đăng bài" › Instagram posts. */

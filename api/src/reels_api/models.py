@@ -665,6 +665,9 @@ class Fanpage(Base):
     # What the worker sends to TikTok when a video of the Page goes live on Facebook (migration 0084, jobs.queue_tiktok_posts):
     # "draft" into the owner's TikTok inbox, or "direct" (public).
     tiktok_auto_mode: Mapped[str] = mapped_column(String(16), default="draft", server_default="draft")
+    # On: a video of the Page that goes live on Facebook at its slot is also posted to the linked Instagram account
+    # (migration 0117, jobs.queue_instagram_auto_posts).
+    instagram_auto: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # The YouTube channel the Page's videos open with on their "Tải lên YouTube" (migration 0097): one its owner
     # connected (youtube_connections).
     youtube_channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id", ondelete="SET NULL"))
