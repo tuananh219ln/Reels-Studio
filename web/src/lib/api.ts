@@ -1854,6 +1854,8 @@ export type JobRow = {
   /** "DeepSeek · deepseek-chat" for a script or clone job; null for other jobs and older ones. */
   llm: string | null;
   error: string | null;
+  /** The platform's own words behind `error` (a raw reply), for diagnosis; null when there are none. */
+  error_detail: string | null;
   /** The job this one retries, if it is a retry. */
   retry_of_id: number | null;
   /** Seconds it waited in the queue before a worker took it; null while it still waits. */

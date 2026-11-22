@@ -312,6 +312,62 @@ def test_a_lost_publish_answer_is_found_and_never_posted_twice(committed, ready,
     assert (post.status, post.external_id) == ("published", media["id"])
 
 
+def test_the_file_goes_to_the_uri_the_container_returned(committed, ready, fakes):
+    job, _ = send(committed, ready)
+    assert job.status == "done", (job.error, job.error_detail)
+    (path,) = fakes.instagram_upload_paths
+    assert path.startswith("/instagram-upload/ig-api-upload/v99.0/"), "the returned uri, not the built address"
+
+
+def test_a_uri_on_another_host_is_not_trusted_with_the_token(monkeypatch):
+    monkeypatch.setattr(
+        instagram.config, "instagram_upload_url", lambda: "https://rupload.facebook.com/ig-api-upload/v26.0"
+    )
+    own = "https://rupload.facebook.com/ig-api-upload/v27.0/1"
+    assert instagram.upload_target("1", own) == own
+    assert (
+        instagram.upload_target("1", "https://evil.example/x/1") == "https://rupload.facebook.com/ig-api-upload/v26.0/1"
+    )
+    assert instagram.upload_target("1") == "https://rupload.facebook.com/ig-api-upload/v26.0/1"
+
+
+def test_a_multi_megabyte_file_is_uploaded_whole(committed, ready, fakes):
+    _, storage, video_id, _ = ready
+    with committed() as db:
+        key = db.get(Video, video_id).mp4_key
+    big = b"\x00" * (6 * 1024 * 1024)
+    storage.save_bytes(key, big)
+    job, _ = send(committed, ready)
+    assert job.status == "done", (job.error, job.error_detail)
+    ((_, container),) = fakes.instagram_containers.items()
+    assert container["bytes"] == len(big)
+
+
+def test_the_upload_servers_own_refusal_shows_in_the_job(committed, ready, fakes):
+    fakes.instagram_upload_refused = True
+    job, post = send(committed, ready)
+    assert job.status == "failed"
+    assert job.error == "Instagram không nhận file video (ProcessingFailedError: Request processing failed)"
+    assert "debug_info" in job.error_detail
+    assert post.status == "pending"
+
+
+def test_the_job_log_carries_the_raw_error_detail(an, db, me, storage):
+    video = mp4_video(db, storage, me)
+    job = Job(
+        video_id=video.id,
+        kind="ig_publish",
+        status="failed",
+        created_by_id=me.id,
+        error="Instagram không nhận file video (ProcessingFailedError: Request processing failed)",
+        error_detail='HTTP 400: {"debug_info": {"type": "ProcessingFailedError"}}',
+    )
+    db.add(job)
+    db.commit()
+    row = next(row for row in an.get("/api/jobs").json() if row["id"] == job.id)
+    assert row["error_detail"] == job.error_detail
+
+
 def test_a_token_without_instagrams_permission_says_so(committed, ready, fakes):
     fakes.instagram_refusal = 10
     job, post = send(committed, ready)

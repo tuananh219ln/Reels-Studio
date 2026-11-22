@@ -245,7 +245,18 @@ function Jobs() {
         row.error ? (
           <Typography.Paragraph
             type="danger"
-            ellipsis={{ rows: 2, tooltip: row.error }}
+            ellipsis={{
+              rows: 2,
+              tooltip: row.error_detail ? (
+                <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  {row.error}
+                  {"\n"}
+                  {row.error_detail}
+                </div>
+              ) : (
+                row.error
+              ),
+            }}
             style={{ margin: 0, minWidth: 220 }}
           >
             {row.error}

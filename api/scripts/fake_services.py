@@ -352,6 +352,8 @@ class FakeServices:
         self.instagram_username_refused = False
         # The Page field that holds the linked account: Meta fills `connected_instagram_account` for some links.
         self.instagram_link_field = "instagram_business_account"
+        self.instagram_upload_refused = False  # the upload server answers its `debug_info` 400 (rupload's shape)
+        self.instagram_upload_paths: list[str] = []  # the path each file was sent to
         self.instagram_calls: list[str] = []  # "container", "upload", "status", "publish", "permalink", "media"
         # Photo and text posts on the Page's feed ("Bài viết"), by post id: {"message", "published", "scheduled",
         # "photo": bytes or None, "photos": the attached photos of a post of several}; their numbers by post id (reach,
@@ -1404,7 +1406,8 @@ class FakeServices:
                     "reads": 0,
                     "state": "IN_PROGRESS",
                 }
-                return 200, {"id": container_id}
+                uri = f"{self.url}/instagram-upload/ig-api-upload/v99.0/{container_id}"
+                return 200, {"id": container_id, "uri": uri}
             self.instagram_calls.append("publish")
             container = self.instagram_containers.get(form.get("creation_id", ""))
             if container is None or container["state"] != "FINISHED":
@@ -1425,11 +1428,17 @@ class FakeServices:
                 return 500, {"error": {"message": "Service unavailable", "code": 2}}
             return 200, {"id": media_id}
 
-    def _instagram_upload(self, container_id: str, authorization: str | None, raw: bytes) -> tuple[int, dict]:
+    def _instagram_upload(
+        self, container_id: str, authorization: str | None, raw: bytes, path: str = ""
+    ) -> tuple[int, dict]:
         if authorization != f"OAuth {FACEBOOK_TOKEN}":
             return 401, {"error": {"message": "Invalid OAuth access token", "code": 190}}
         with self.lock:
             self.instagram_calls.append("upload")
+            self.instagram_upload_paths.append(path)
+            if self.instagram_upload_refused:
+                debug = {"retriable": False, "type": "ProcessingFailedError", "message": "Request processing failed"}
+                return 400, {"debug_info": debug}
             container = self.instagram_containers.get(container_id)
             if container is None:
                 return 400, {"error": {"message": "Unknown container", "code": 100}}
@@ -2063,8 +2072,8 @@ class FakeServices:
                 raw = self.rfile.read(length)
                 path = urllib.parse.urlsplit(self.path).path
                 if path.startswith("/instagram-upload/"):
-                    container_id = path.removeprefix("/instagram-upload/")
-                    self._send(*fake._instagram_upload(container_id, self.headers.get("Authorization"), raw))
+                    container_id = path.rsplit("/", 1)[1]
+                    self._send(*fake._instagram_upload(container_id, self.headers.get("Authorization"), raw, path))
                     return
                 if path.startswith("/facebook/") and path.split("/")[2] == INSTAGRAM_USER:
                     form = dict(urllib.parse.parse_qsl(raw.decode()))

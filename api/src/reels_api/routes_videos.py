@@ -2087,6 +2087,7 @@ def list_jobs(
                     job.image_provider or "", job.image_provider
                 ),
                 "error": job.error,
+                "error_detail": job.error_detail,
                 "retry_of_id": job.retry_of_id,
                 "waited_seconds": round((job.started_at - job.created_at).total_seconds(), 1)
                 if job.started_at
