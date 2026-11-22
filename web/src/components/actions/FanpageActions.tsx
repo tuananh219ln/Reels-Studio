@@ -139,6 +139,20 @@ export function OwnerLine({
             : "Tự đăng Instagram: Chưa liên kết Instagram"}
         </Typography.Text>
       </Flex>
+      <Flex gap={8} align="center">
+        <Switch
+          size="small"
+          checked={row.youtube_auto}
+          disabled={!row.youtube_channel}
+          aria-label={`Tự đăng YouTube của ${row.name}`}
+          onChange={(auto) => call(`/fanpages/${row.id}/youtube-auto`, "PUT", { auto })}
+        />
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {row.youtube_channel
+            ? "Tự đăng YouTube: video hẹn giờ lên Facebook lúc nào, YouTube tải lên (riêng tư) ngay sau đó, thường trong vài phút."
+            : "Tự đăng YouTube: Chưa chọn kênh YouTube"}
+        </Typography.Text>
+      </Flex>
       <Select
         size="small"
         aria-label={`Kênh YouTube của ${row.name}`}
