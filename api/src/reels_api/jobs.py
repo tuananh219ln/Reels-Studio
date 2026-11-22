@@ -39,6 +39,7 @@ from . import (
     image_edit,
     image_providers,
     image_style,
+    instagram,
     knowledge,
     llm,
     motion,
@@ -1208,6 +1209,66 @@ def queue_tiktok_posts(db: DbSession) -> None:
         except IntegrityError:
             continue
         log.info("Queued a TikTok %s post of video %s for Page %s", mode, video.id, page.name)
+
+
+def queue_instagram_auto_posts(db: DbSession) -> None:
+    """Post each video whose Facebook post has reached its slot to the Instagram account linked to its Page, when the
+    Page's owner turned `instagram_auto` on. Like `queue_tiktok_posts`, this round (about once a minute) is the clock,
+    so Instagram follows Facebook by about a minute. Only a scheduled slot of the last day counts: an "Đăng ngay" post
+    has no slot. A video with any Instagram post but a cancelled one is left alone, a failed one too, so an error that
+    repeats (a token without permission) is not retried every minute: its member presses "Thử lại"."""
+    due = db.scalars(
+        select(Publication).where(
+            Publication.video_id.is_not(None),
+            Publication.platform == "facebook",
+            Publication.status.in_(("scheduled", "published")),
+            Publication.scheduled_at <= now(),
+            Publication.scheduled_at >= now() - TIKTOK_SWEEP_WINDOW,
+        )
+    ).all()
+    for post in due:
+        video = db.get(Video, post.video_id)
+        page = db.get(Fanpage, post.fanpage_id) if post.fanpage_id else None
+        if video is None or not video.mp4_key or page is None or page.owner_id is None:
+            continue
+        if not page.instagram_auto or not page.instagram_user_id:
+            continue
+        if active_job(db, video.id) is not None:
+            continue  # the next round tries again
+        already = db.scalar(
+            select(Publication.id).where(
+                Publication.video_id == video.id,
+                Publication.platform == "instagram",
+                Publication.status != "cancelled",
+            )
+        )
+        if already is not None:
+            continue
+        try:
+            with db.begin_nested():
+                made = Publication(
+                    video_id=video.id,
+                    platform="instagram",
+                    status="pending",
+                    fanpage_id=page.id,
+                    created_by_id=page.owner_id,
+                    remote_mp4_key=video.mp4_key,
+                    post_text=instagram.caption(hashtags.post_text(video.caption, video.hashtags)),
+                )
+                db.add(made)
+                db.flush()
+                db.add(
+                    Job(
+                        video_id=video.id,
+                        kind="ig_publish",
+                        status="queued",
+                        created_by_id=page.owner_id,
+                        publication_id=made.id,
+                    )
+                )
+        except IntegrityError:
+            continue
+        log.info("Queued an Instagram post of video %s for Page %s", video.id, page.name)
 
 
 # An Instagram post this late (the worker was down) is not posted any more: its member decides again.

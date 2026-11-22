@@ -144,6 +144,8 @@ bài Instagram không bị đọc số, bình luận, kiểm tra hay xóa như r
 
 ## 5. Không làm
 
+> §5 đã đảo ngày 2026-11-22, xem brief auto-post (`docs/specs/instagram-auto-post/brief.md`).
+
 - Không OAuth/kết nối riêng cho Instagram; không đăng Instagram không gắn Page.
 - Không đưa Instagram vào hàng chờ Page (`page_queue`) hay tự đăng theo khung giờ Facebook như TikTok auto-post.
 - Không đọc số liệu, không bình luận Instagram, không Trial Reels/collab/ảnh.

@@ -125,6 +125,20 @@ export function OwnerLine({
           </Typography.Text>
         </>
       )}
+      <Flex gap={8} align="center">
+        <Switch
+          size="small"
+          checked={row.instagram_auto}
+          disabled={!row.instagram}
+          aria-label={`Tự đăng Instagram của ${row.name}`}
+          onChange={(auto) => call(`/fanpages/${row.id}/instagram-auto`, "PUT", { auto })}
+        />
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {row.instagram
+            ? "Tự đăng Instagram: video hẹn giờ lên Facebook lúc nào, Instagram lên trong khoảng 1 phút sau đó."
+            : "Tự đăng Instagram: Chưa liên kết Instagram"}
+        </Typography.Text>
+      </Flex>
       <Select
         size="small"
         aria-label={`Kênh YouTube của ${row.name}`}

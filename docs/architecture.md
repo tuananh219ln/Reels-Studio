@@ -1218,6 +1218,16 @@ slot has passed (within 24 hours) to TikTok, through the same `tiktok_publish` j
 has an active TikTok account of its owner. `fanpages.tiktok_auto_mode` (migration 0084) says draft (default) or direct.
 See [the decision](decisions/2026-11-13-tiktok-auto-post.md).
 
+### Instagram at the Facebook slot
+
+`jobs.queue_instagram_auto_posts` (worker round, once a minute, next to the TikTok one) does the same for Instagram when
+the Page's owner turned `fanpages.instagram_auto` on (migration 0117, off for every Page; only a Page with a linked
+Instagram account can be switched on): a video whose scheduled Facebook post is scheduled or out and whose slot passed
+(within 24 hours) gets an `instagram` post and an `ig_publish` job, so Instagram follows Facebook by about a minute. An
+"Đăng ngay" post has no slot and never triggers it. A video with any Instagram post but a cancelled one is skipped, a
+failed one too, so a repeating error is not retried every minute ("Thử lại" is the member's). No length filter. See
+[the decision](decisions/2026-11-22-instagram-auto-post.md).
+
 ### ChatGPT and Claude MCP connection
 
 The optional private MCP endpoint uses member-authorized OAuth delegation, stateless Streamable
