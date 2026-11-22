@@ -37,6 +37,19 @@ def _fernet() -> Fernet:
     return Fernet(path.read_bytes().strip())
 
 
+def seal(text: str) -> str:
+    """`text` as an opaque, URL-safe token only this key can open (a link that carries its own permission)."""
+    return _fernet().encrypt(text.encode()).decode()
+
+
+def unseal(token: str, max_age_seconds: int) -> str | None:
+    """What `seal` hid in `token`, or None when it is not ours or older than `max_age_seconds`."""
+    try:
+        return _fernet().decrypt(token.encode(), ttl=max_age_seconds).decode()
+    except (InvalidToken, UnicodeError):
+        return None
+
+
 def encrypt(secret: str) -> str:
     return _fernet().encrypt(secret.encode()).decode()
 

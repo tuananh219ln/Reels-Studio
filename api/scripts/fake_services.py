@@ -1397,12 +1397,16 @@ class FakeServices:
         with self.lock:
             if path.endswith("/media"):
                 self.instagram_calls.append("container")
-                if form.get("media_type") != "REELS" or form.get("upload_type") != "resumable":
+                if form.get("media_type") != "REELS" or not (
+                    form.get("upload_type") == "resumable" or form.get("video_url")
+                ):
                     return 400, {"error": {"message": "Invalid parameter", "code": 100}}
                 container_id = str(17900000000000 + len(self.instagram_containers) + 1)
                 self.instagram_containers[container_id] = {
                     "caption": form.get("caption", ""),
-                    "bytes": 0,
+                    "video_url": form.get("video_url", ""),
+                    # Instagram fetches a `video_url` itself, so such a container needs no upload to start processing.
+                    "bytes": 1 if form.get("video_url") else 0,
                     "reads": 0,
                     "state": "IN_PROGRESS",
                 }

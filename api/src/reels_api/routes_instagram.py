@@ -6,6 +6,7 @@ Facebook. Only the Page's owner posts. The worker does the posting (ig_publish.p
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -18,6 +19,7 @@ from .models import Fanpage, Job, Publication, Session
 from .ownership import ensure_can_take_down, ensure_page_owner
 from .routes_videos import MAX_SCHEDULE_DELAY, MIN_SCHEDULE_DELAY, invalid
 from .sessions import current_member, now
+from .storage import DirectoryStorage, get_storage
 from .videos import active_job, ensure_unlocked, lock_video, render_signature, split_scenes, video_payload
 
 router = APIRouter(prefix="/api/instagram")
@@ -131,3 +133,17 @@ def cancel(post_id: int, me: Session = Depends(current_member), db: DbSession = 
     post.status, post.closed_at, post.closed_by_id = "cancelled", now(), me.user_id
     db.commit()
     return video_payload(db, video)
+
+
+@router.get("/media/{token}/video.mp4")
+def media_file(
+    token: str, db: DbSession = Depends(get_db), storage: DirectoryStorage = Depends(get_storage)
+) -> FileResponse:
+    """The MP4 of a pending Instagram post, for Instagram's servers to fetch (`video_url`): no sign-in, the sealed token
+    in the link is the permission, and it names one post and expires (instagram.LINK_SECONDS)."""
+    post_id = instagram.link_post_id(token)
+    post = db.get(Publication, post_id) if post_id is not None else None
+    key = post.remote_mp4_key if post is not None and post.platform == "instagram" else None
+    if post is None or post.status != "pending" or not key or not storage.exists(key):
+        raise ApiError(404, "file_not_found", "Không tìm thấy file")
+    return FileResponse(storage.path(key), media_type="video/mp4", headers={"Cache-Control": "private, no-store"})
