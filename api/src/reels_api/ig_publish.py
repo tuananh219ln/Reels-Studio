@@ -69,10 +69,10 @@ def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
 def _post(db: DbSession, page: Page, ig_user_id: str, post: Publication, storage: DirectoryStorage, key: str) -> str:
     """A new container, its file, and the publish."""
     post.finish_sent_at = None
-    post.remote_id = instagram.create_container(page, ig_user_id, post.post_text or "")
+    post.remote_id, upload_uri = instagram.create_container(page, ig_user_id, post.post_text or "")
     post.remote_mp4_key = key
     db.commit()
-    instagram.upload(page, post.remote_id, storage.path(key))
+    instagram.upload(page, post.remote_id, storage.path(key), upload_uri)
     _wait(page, post.remote_id)
     return _publish(db, page, ig_user_id, post)
 

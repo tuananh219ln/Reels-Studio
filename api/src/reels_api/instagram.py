@@ -19,6 +19,7 @@ from .facebook import (
     RATE_LIMIT_ERRORS,
     REFUSED,
     REQUEST_TIMEOUT,
+    UPLOAD_REFUSED,
     UPLOAD_TIMEOUT,
     FacebookError,
     Page,
@@ -53,6 +54,9 @@ def _error(err: FacebookError) -> FacebookError:
         return FacebookError(message, err.detail, err.status, err.code, err.subcode)
     if err.message == REFUSED:
         return FacebookError("Instagram từ chối đăng video này", err.detail, err.status, err.code, err.subcode)
+    if err.message.startswith(UPLOAD_REFUSED):
+        message = err.message.replace("Facebook", "Instagram", 1)
+        return FacebookError(message, err.detail, err.status, err.code, err.subcode)
     return err
 
 
@@ -138,8 +142,9 @@ def caption(text: str) -> str:
     return "\n".join(words).strip()[:MAX_CAPTION]
 
 
-def create_container(page: Page, ig_user_id: str, text: str) -> str:
-    """A Reel container waiting for its file; its id is what the file and the publish are sent to."""
+def create_container(page: Page, ig_user_id: str, text: str) -> tuple[str, str]:
+    """A Reel container waiting for its file: its id (what the publish is sent to) and the `uri` Meta gave to send the
+    file to ("" when it gave none)."""
     reply = _post(
         page,
         f"{urllib.parse.quote(ig_user_id, safe='')}/media",
@@ -148,14 +153,31 @@ def create_container(page: Page, ig_user_id: str, text: str) -> str:
         caption=text,
         share_to_feed="true",
     )
-    return _id(reply)
+    uri = reply.get("uri") if isinstance(reply, dict) else None
+    return _id(reply), uri if isinstance(uri, str) else ""
 
 
-def upload(page: Page, container_id: str, path: Path) -> None:
+def upload_target(container_id: str, uri: str = "") -> str:
+    """Where the file goes: the `uri` Meta returned with the container, when it is on the upload server's own host (the
+    token goes with it, so no other host is trusted); else the address built from the container id."""
+    base = config.instagram_upload_url()
+    parsed = urllib.parse.urlparse(uri)
+    if (
+        uri
+        and parsed.scheme == urllib.parse.urlparse(base).scheme
+        and parsed.netloc == urllib.parse.urlparse(base).netloc
+    ):
+        return uri
+    return f"{base}/{urllib.parse.quote(container_id, safe='')}"
+
+
+def upload(page: Page, container_id: str, path: Path, uri: str = "") -> None:
     size = str(path.stat().st_size)
+    target = upload_target(container_id, uri)
+    log.info("Instagram upload: container %s, %s bytes, to %s", container_id, size, target)
     with path.open("rb") as file:
         request = urllib.request.Request(
-            f"{config.instagram_upload_url()}/{urllib.parse.quote(container_id, safe='')}",
+            target,
             data=file,
             method="POST",
             headers={
@@ -169,6 +191,7 @@ def upload(page: Page, container_id: str, path: Path) -> None:
         try:
             _send(request, UPLOAD_TIMEOUT)
         except FacebookError as err:
+            log.error("Instagram upload of container %s failed: %s | %s", container_id, err.message, err.detail)
             raise _error(err) from None
 
 

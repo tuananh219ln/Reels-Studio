@@ -29,6 +29,8 @@ PERMISSION_ERRORS = {10, 200}
 RATE_LIMIT_ERRORS = {4, 17, 32, 613}
 # _http_error's message for a refusal it cannot name; it speaks of posting, so a read replaces it.
 REFUSED = "Facebook từ chối đăng video này"
+# What the upload server (rupload.facebook.com) answers when it will not take the file, in its own `debug_info` shape.
+UPLOAD_REFUSED = "Facebook không nhận file video"
 
 
 class FacebookError(Exception):
@@ -91,6 +93,16 @@ def _send(request: urllib.request.Request, timeout: float) -> dict:
         raise FacebookError("Facebook trả dữ liệu không đọc được, thử lại sau", str(err)) from None
 
 
+def _upload_refusal(body: str) -> str:
+    """ "Type: message" of an upload server refusal (`{"debug_info": {"type", "message"}}`), "" for any other body."""
+    try:
+        info = json.loads(body)["debug_info"]
+        kind, message = str(info.get("type") or ""), str(info.get("message") or "")
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return ""
+    return ": ".join(part for part in (kind, message) if part)[:200]
+
+
 def _http_error(status: int, body: str) -> FacebookError:
     detail = f"HTTP {status}: {body}"
     try:
@@ -98,6 +110,8 @@ def _http_error(status: int, body: str) -> FacebookError:
         code, subcode = error["code"], error.get("error_subcode")
     except (ValueError, KeyError, TypeError, AttributeError):
         code, subcode = None, None
+    if code is None and (upload := _upload_refusal(body)):
+        return FacebookError(f"{UPLOAD_REFUSED} ({upload})", detail, status)
     if code == 100 and subcode == 33:
         message = "Facebook không cho token này truy cập Page, hãy dán token mới trong Kết nối Fanpage"
     elif code in TOKEN_ERRORS:
