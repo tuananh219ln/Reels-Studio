@@ -1500,7 +1500,14 @@ function IdeaAction({ item, onChanged }: { item: PlanItem; onChanged?: () => Pro
       type="primary"
       ghost
       icon={<VideoCameraAddOutlined />}
-      onClick={() => router.push(`/videos?plan_item=${item.id}`)}
+      href={`/videos?plan_item=${item.id}`}
+      onClick={(event) => {
+        // A real link (new tab, right-click); a plain click stays in the app.
+        if (!event.metaKey && !event.ctrlKey && !event.shiftKey) {
+          event.preventDefault();
+          router.push(`/videos?plan_item=${item.id}`);
+        }
+      }}
     >
       Tạo video
     </Button>

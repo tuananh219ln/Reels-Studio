@@ -3,7 +3,7 @@
 import { api, errorMessage, type JobRow } from "@/lib/api";
 import { MoreOutlined } from "@ant-design/icons";
 import { App, Button, Dropdown } from "antd";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 
 /** The "⋮" menu at the end of a job's row: open what the job belongs to, retry a failed job, cancel a waiting one.
@@ -20,7 +20,6 @@ export default function JobMenu({
   onDone: () => void | Promise<void>;
 }) {
   const { message, modal } = App.useApp();
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
 
   async function run(action: "retry" | "cancel") {
@@ -37,7 +36,14 @@ export default function JobMenu({
   }
 
   const items = [
-    { key: "open", label: openLabel, onClick: () => router.push(href) },
+    {
+      key: "open",
+      label: (
+        <Link href={href} prefetch={false}>
+          {openLabel}
+        </Link>
+      ),
+    },
     ...(job.status === "failed"
       ? [
           {
