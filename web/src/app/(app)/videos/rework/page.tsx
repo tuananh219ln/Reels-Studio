@@ -1,5 +1,6 @@
 "use client";
 
+import Hint from "@/components/Hint";
 import StatusText from "@/components/StatusText";
 import { App, Alert, Button, Card, Checkbox, Flex, Space, Table, Typography } from "antd";
 import Link from "next/link";
@@ -108,12 +109,10 @@ export default function ReworkVideos() {
         </Typography.Paragraph>
       </div>
       {error && <Alert type="error" title={error} showIcon />}
-      <Alert
-        type="info"
-        showIcon
-        title="Không cần tìm link thủ công"
-        description="App tự tìm clip rồi dùng ảnh khi không có đoạn phù hợp. Nếu không tìm được tư liệu mới, giữ tư liệu cũ và báo trong kết quả. Video đã lên lịch cần hủy lịch cũ trước khi nâng cấp."
-      />
+      <Hint>
+        Không cần tìm link thủ công: app tự tìm clip rồi dùng ảnh khi không có đoạn phù hợp. Nếu không tìm được tư liệu
+        mới, giữ tư liệu cũ và báo trong kết quả. Video đã lên lịch cần hủy lịch cũ trước khi nâng cấp.
+      </Hint>
       <Card>
         <Flex vertical gap={16}>
           <Checkbox

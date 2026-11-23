@@ -1,5 +1,6 @@
 "use client";
 
+import Hint from "@/components/Hint";
 import StatusText, { toneOf } from "@/components/StatusText";
 import FormDrawer from "@/components/FormDrawer";
 import {
@@ -1303,7 +1304,7 @@ function CommentsModal({
             {!overwrite && count.edited > 0 ? ` (bỏ qua ${count.edited} kịch bản đã sửa tay)` : ""}.
           </Typography.Text>
         )}
-        {pending > 0 && <Alert type="info" showIcon title={`Đang tạo bình luận cho ${pending} kịch bản…`} />}
+        {pending > 0 && <Hint>Đang tạo bình luận cho {pending} kịch bản…</Hint>}
       </Flex>
     </Modal>
   );

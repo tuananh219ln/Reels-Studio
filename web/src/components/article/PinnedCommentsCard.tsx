@@ -1,5 +1,6 @@
 "use client";
 
+import Hint from "@/components/Hint";
 import { api, errorMessage, type Article, type PinnedComment } from "@/lib/api";
 import { HolderOutlined, ReloadOutlined, RobotOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Card, Flex, Input, Radio, Switch, Tag, Typography } from "antd";
@@ -144,7 +145,7 @@ export default function PinnedCommentsCard({
       }
     >
       <Flex vertical gap={10}>
-        {pending && <Alert type="info" showIcon title="AI đang viết bình luận…" />}
+        {pending && <Hint>AI đang viết bình luận…</Hint>}
         {slot.comments_error && !pending && <Alert type="error" showIcon title={slot.comments_error} />}
         {slot.comments_count === 0 && !pending && !dirty && (
           <Alert

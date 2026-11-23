@@ -6,6 +6,7 @@ import { COLORS } from "@/app/theme";
 import EmptyState from "@/components/EmptyState";
 import FormDrawer from "@/components/FormDrawer";
 import { useMe } from "@/components/MeContext";
+import { FollowerGain, MiniFigure } from "@/components/page/Figures";
 import PageChannels from "@/components/page/PageChannels";
 import PageHeader from "@/components/PageHeader";
 import StatusText from "@/components/StatusText";
@@ -47,34 +48,6 @@ function StatusTag({ row }: { row: Fanpage }) {
   return <StatusText tone="idle">Chưa kiểm tra</StatusText>;
 }
 
-/** One number of a Page, small: the value over its label. */
-function Figure({ label, value, note }: { label: string; value: string; note?: React.ReactNode }) {
-  return (
-    <Flex vertical gap={0} style={{ minWidth: 0 }}>
-      <Typography.Text strong style={{ fontSize: 15, lineHeight: "22px" }}>
-        {value}
-        {note}
-      </Typography.Text>
-      <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-        {label}
-      </Typography.Text>
-    </Flex>
-  );
-}
-
-/** "+12" after the followers, this week's gain; nothing until there is a number from last week. */
-function Gain({ gain }: { gain: number | null }) {
-  if (!gain) return null;
-  return (
-    <Typography.Text type={gain > 0 ? "success" : "secondary"} style={{ fontSize: 12, fontWeight: 400, marginLeft: 4 }}>
-      {gain > 0 ? "+" : ""}
-      {number(gain)}
-    </Typography.Text>
-  );
-}
-
-/** Whose Page it is and, for its owner, the Shopee account whose links its comments carry and the TikTok account
- * its videos open with (each one of their own). A Page that belongs to nobody is taken with "Nhận Page này". */
 /** One line on how the Page posts on a schedule; the whole of it is on the Page's "Lịch đăng" tab. */
 function ScheduleLine({ page }: { page: QueuePage }) {
   const parts = [
@@ -180,10 +153,14 @@ function PageCard({
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
-        <Figure label="Theo dõi" value={count(check.followers)} note={<Gain gain={check.followers_this_week} />} />
-        <Figure label="Lượt xem" value={count(week.views)} />
-        <Figure label="Tiếp cận" value={count(week.reach)} />
-        <Figure label="Tương tác" value={count(week.engagements)} />
+        <MiniFigure
+          label="Theo dõi"
+          value={count(check.followers)}
+          note={<FollowerGain gain={check.followers_this_week} />}
+        />
+        <MiniFigure label="Lượt xem" value={count(week.views)} />
+        <MiniFigure label="Tiếp cận" value={count(week.reach)} />
+        <MiniFigure label="Tương tác" value={count(week.engagements)} />
       </div>
       {insights.error && (
         <Typography.Text type="warning" style={{ fontSize: 12 }}>
