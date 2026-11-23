@@ -3,6 +3,7 @@
 import { FacebookFilled, InstagramFilled, TikTokFilled, YoutubeFilled } from "@ant-design/icons";
 import { AutoComplete, Flex, Tag, Tooltip, Typography } from "antd";
 import { useEffect, useRef, useState } from "react";
+import { COLORS } from "@/app/theme";
 import { api, type VideoMadeVia, type VideoRow } from "@/lib/api";
 
 const MADE_VIA: Record<VideoMadeVia, { label: string; hint: string }> = {
@@ -75,9 +76,12 @@ const PLATFORMS = [
 export function PostedPlatforms({
   postedOn,
   links,
+  states,
   size = 16,
 }: {
   postedOn: VideoRow["posted_on"];
+  /** A platform the video is on only as a draft (TikTok's inbox): its icon is outlined with a dashed line and a dot. */
+  states?: VideoRow["posted_states"];
   /** Each platform's post link: the icon then opens that post in a new tab (its tooltip says so). */
   links?: VideoRow["posted_links"];
   size?: number;
@@ -97,13 +101,54 @@ export function PostedPlatforms({
       gap={6}
       align="center"
       data-testid="posted-platforms"
-      aria-label={`Đã đăng: ${shown.map((platform) => platform.name).join(", ")}`}
+      aria-label={`Đã đăng: ${shown.map((platform) => platform.name + (states?.[platform.key] === "draft" ? " (nháp)" : "")).join(", ")}`}
     >
       {shown.map(({ key, name, Icon, color }) => {
         const url = links?.[key];
-        const icon = <Icon data-platform={key} data-posted="true" style={{ fontSize: size, color }} />;
+        const draft = states?.[key] === "draft";
+        const glyph = <Icon data-platform={key} data-posted="true" style={{ fontSize: size, color }} />;
+        // A draft is not public yet: a dashed outline and a dot (not colour alone), and the tooltip says so.
+        const icon = draft ? (
+          <span
+            data-draft="true"
+            style={{
+              position: "relative",
+              display: "inline-flex",
+              padding: 2,
+              lineHeight: 1,
+              borderRadius: 5,
+              border: `1.5px dashed ${color}`,
+            }}
+          >
+            {glyph}
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                right: -4,
+                bottom: -4,
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: COLORS.warning,
+                border: `1.5px solid ${COLORS.surface}`,
+              }}
+            />
+          </span>
+        ) : (
+          glyph
+        );
         return (
-          <Tooltip key={key} title={url ? `Mở bài trên ${name}` : `Đã đăng ${name}`}>
+          <Tooltip
+            key={key}
+            title={
+              draft
+                ? `${name}: bản nháp trong hộp thư, mở ${name} để đăng`
+                : url
+                  ? `Mở bài trên ${name}`
+                  : `Đã đăng ${name}`
+            }
+          >
             {url ? (
               <a
                 href={url}

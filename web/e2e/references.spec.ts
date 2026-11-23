@@ -76,7 +76,7 @@ test("Từ video mẫu: an uploaded sample writes a script with its clips, then 
   await expect(card).toContainText("Ba món ăn sáng tốt cho tim.");
 
   // Way "Dùng mẫu đã học": the same sample, nothing uploaded again.
-  await card.getByRole("button", { name: "Tạo thêm video từ mẫu này" }).click();
+  await card.getByRole("link", { name: "Tạo thêm video từ mẫu này" }).click();
   await expect(page).toHaveURL(/\/videos$/);
   const again = page.getByRole("dialog", { name: "Tạo video" });
   await expect(again.getByTestId("sample-mode-help")).toContainText("Không tải lại, không phân tích lại");

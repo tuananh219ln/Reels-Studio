@@ -434,6 +434,43 @@ test("the worker checks a connected Page's token and shows its followers", async
   await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
 });
 
+test("a Page's dashboard has an Instagram side with its own figures and chart", async ({ page }) => {
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
+  const card = page.getByTestId("fanpage-card").filter({ hasText: "Trang Dưỡng Sinh" });
+  await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await card.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
+  await expect(page.getByRole("heading", { name: "Trang Dưỡng Sinh" })).toBeVisible();
+  // The switch shows because the Page has a linked Instagram account; Facebook is the side it opens on.
+  const platform = page.getByRole("radiogroup", { name: "Nền tảng" });
+  await expect(platform.getByRole("radio", { name: "Facebook" })).toBeChecked();
+  await platform.getByText("Instagram", { exact: true }).click();
+  await expect(page).toHaveURL(/platform=instagram/);
+  const overview = page.getByTestId("instagram-overview");
+  await expect(overview.getByTestId("figure-tile")).toHaveCount(4, { timeout: 20_000 });
+  await expect(overview.getByTestId("figure-tile").filter({ hasText: "Người theo dõi mới" })).toContainText(
+    "Hiện có 1.204",
+  );
+  await expect(overview.getByTestId("instagram-chart")).toBeVisible();
+  await expect(page.getByTestId("instagram-insights-error")).toHaveCount(0);
+  // Instagram has its own tabs; the Facebook-only ones (Lượt xem, Tương tác) are gone.
+  await expect(page.getByRole("tab", { name: "Lượt xem" })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Nội dung" }).click();
+  await expect(page.getByTestId("instagram-content")).toContainText("Chưa có Reel nào app đăng lên Instagram");
+  await page.getByRole("tab", { name: "Đối tượng" }).click();
+  // The audience is read with the Page's check: gender, age and city, the biggest first.
+  await expect(page.getByTestId("instagram-audience")).toContainText("Nữ", { timeout: 20_000 });
+  await expect(page.getByTestId("instagram-audience")).toContainText("25-34");
+  await page.getByRole("tab", { name: "So sánh" }).click();
+  await expect(page.getByTestId("page-compare")).toContainText("Chưa có video nào app đăng lên Page");
+  await page.getByRole("tab", { name: "Lịch đăng" }).click();
+  await expect(page.getByTestId("best-times")).toContainText("Mới có 0 bài đã đo, cần từ 6 bài");
+  await platform.getByText("Facebook", { exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Lượt xem" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "So sánh" })).toBeVisible();
+});
+
 test("a Page's card opens its dashboard, with a period and six tabs", async ({ page }) => {
   await loginAsSeed(page);
   await connectFacebook(page);
@@ -452,7 +489,7 @@ test("a Page's card opens its dashboard, with a period and six tabs", async ({ p
     /\/affiliate\?tab=sets&page=\d+/,
   );
   // A click on the card itself, not on its controls, opens the Page.
-  await card.getByText("Số liệu 7 ngày", { exact: false }).click();
+  await card.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
   await expect(page).toHaveURL(/\/fanpages\/\d+$/);
   await expect(page.getByRole("heading", { name: "Trang Dưỡng Sinh" })).toBeVisible();
   // The menu still shows where the member is.
@@ -533,7 +570,7 @@ test("Cài đặt holds the defaults, AI model and sources as tabs, each with it
   expect(names.map((name) => name.split("\n")[0])).toEqual([
     "Của tôi",
     "Thiết lập mặc định",
-    "Tài khoản affiliate",
+    "Tài khoản và kênh",
     "Kết nối MCP",
     "Chung cả nhóm",
     "AI và nguồn tư liệu",
@@ -1088,7 +1125,7 @@ test("Kho kiến thức and a Page's dashboard keep the group, tab, period and f
   await connectFacebook(page);
   await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const card = page.getByTestId("fanpage-card").filter({ hasText: "Trang Dưỡng Sinh" });
-  await card.getByText("Số liệu 7 ngày", { exact: false }).click();
+  await card.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
   await expect(page.getByRole("heading", { name: "Trang Dưỡng Sinh" })).toBeVisible();
   await page.getByText("7 ngày", { exact: true }).click();
   await page.getByRole("tab", { name: "Nội dung" }).click();

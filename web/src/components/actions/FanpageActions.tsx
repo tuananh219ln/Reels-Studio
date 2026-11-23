@@ -1,6 +1,7 @@
 "use client";
 import FormDrawer from "@/components/FormDrawer";
 import PhotoLogoDrawer from "@/components/actions/PhotoLogoDrawer";
+import PageSync from "@/components/page/PageSync";
 import { useMe } from "@/components/MeContext";
 import {
   api,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/api";
 import { DeleteOutlined, FacebookOutlined, MoreOutlined, StopOutlined } from "@ant-design/icons";
 import { App, Button, Dropdown, Flex, Input, Popconfirm, Select, Spin, Switch, Typography } from "antd";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export function OwnerLine({
@@ -74,7 +76,9 @@ export function OwnerLine({
           call(`/fanpages/${row.id}/shopee-account`, "PUT", { account_id: accountId ?? null })
         }
         notFoundContent={
-          <Typography.Text type="secondary">Thêm tài khoản ở Cài đặt › Tài khoản affiliate</Typography.Text>
+          <Typography.Text type="secondary">
+            Thêm tài khoản ở <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản và kênh</Link>
+          </Typography.Text>
         }
       />
       {row.shopee_account && !row.shopee_account.usable && (
@@ -98,12 +102,14 @@ export function OwnerLine({
           call(`/fanpages/${row.id}/tiktok-account`, "PUT", { account_id: accountId ?? null })
         }
         notFoundContent={
-          <Typography.Text type="secondary">Kết nối TikTok ở Cài đặt › Tài khoản affiliate</Typography.Text>
+          <Typography.Text type="secondary">
+            Kết nối TikTok ở <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản và kênh</Link>
+          </Typography.Text>
         }
       />
       {row.tiktok_account && !row.tiktok_account.connected && (
         <Typography.Text type="warning" style={{ fontSize: 12 }}>
-          Tài khoản TikTok chưa kết nối, hãy kết nối lại trong Cài đặt › Tài khoản affiliate
+          Tài khoản TikTok chưa kết nối, hãy kết nối lại ở Cài đặt › Tài khoản và kênh
         </Typography.Text>
       )}
       {row.tiktok_account && (
@@ -169,11 +175,15 @@ export function OwnerLine({
         onChange={(channelId: number | undefined) =>
           call(`/fanpages/${row.id}/youtube-channel`, "PUT", { channel_id: channelId ?? null })
         }
-        notFoundContent={<Typography.Text type="secondary">Bấm Kết nối YouTube ở thẻ kênh bên dưới</Typography.Text>}
+        notFoundContent={
+          <Typography.Text type="secondary">
+            Kết nối YouTube ở <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản và kênh</Link>
+          </Typography.Text>
+        }
       />
       {row.youtube_channel && !row.youtube_channel.connected && (
         <Typography.Text type="warning" style={{ fontSize: 12 }}>
-          Kênh YouTube mất kết nối, hãy bấm Kết nối YouTube lại ở thẻ kênh bên dưới
+          Kênh YouTube mất kết nối, hãy kết nối lại ở Cài đặt › Tài khoản và kênh
         </Typography.Text>
       )}
       <LogoLine row={row} onRows={onRows} />
@@ -401,6 +411,36 @@ export function FanpageMenu({
   );
 }
 
+/** "Tài khoản và chủ Page": every account, auto-post switch and logo of a Page, the same drawer on its card and on its
+ * dashboard. */
+export function PageSettingsDrawer({
+  row,
+  accounts,
+  youtube,
+  open,
+  onClose,
+  onRows,
+}: {
+  row: Fanpage;
+  accounts: AffiliateAccount[];
+  youtube?: YouTubeConnection[];
+  open: boolean;
+  onClose: () => void;
+  onRows: (rows: Fanpage[]) => void;
+}) {
+  return (
+    <FormDrawer title={`Tài khoản và chủ Page ${row.name}`} open={open} onClose={onClose} destroyOnHidden footer={null}>
+      <OwnerLine row={row} accounts={accounts} youtube={youtube} onRows={onRows} />
+      {row.mine && (
+        <Typography.Paragraph style={{ margin: "12px 0" }}>
+          Chưa có tài khoản hay kênh phù hợp? <Link href="/settings/affiliate-accounts">Quản lý kết nối →</Link>
+        </Typography.Paragraph>
+      )}
+      {open && <PageSync row={row} />}
+    </FormDrawer>
+  );
+}
+
 export default function FanpageActions({
   pageId,
   onChanged,
@@ -442,14 +482,13 @@ export default function FanpageActions({
     <>
       <FanpageMenu row={row} onToken={() => setToken(true)} onSettings={() => setSettings(true)} onChanged={refresh} />
       <TokenModal row={token ? row : null} onClose={() => setToken(false)} onSaved={(rows) => void receive(rows)} />
-      <FormDrawer
-        title={`Tài khoản và chủ Page ${row.name}`}
+      <PageSettingsDrawer
+        row={row}
+        accounts={accounts}
         open={settings}
         onClose={() => setSettings(false)}
-        footer={null}
-      >
-        <OwnerLine row={row} accounts={accounts} onRows={(rows) => void receive(rows)} />
-      </FormDrawer>
+        onRows={(rows) => void receive(rows)}
+      />
     </>
   );
 }

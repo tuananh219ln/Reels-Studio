@@ -1,12 +1,13 @@
 "use client";
 
+import { countFormat, decimalFormat } from "@/lib/format";
 import { EyeOutlined, ReloadOutlined, WarningOutlined } from "@ant-design/icons";
 import { App, Button, Flex, Tooltip, Typography } from "antd";
 import { useState } from "react";
 import PostInsights from "@/components/PostInsights";
 import { api, errorMessage, formatDateTime, type Post, type PostNumbers } from "@/lib/api";
 
-const count = new Intl.NumberFormat("vi-VN");
+const count = countFormat;
 
 /** "12.345", or "—" when Facebook did not give the number. */
 export function formatCount(value: number | null | undefined): string {
@@ -52,7 +53,7 @@ function details(numbers: PostNumbers): string {
   ].join(", ");
 }
 
-const seconds = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });
+const seconds = decimalFormat;
 
 /** "Xem TB 8,4 giây (42%), tiếp cận 900", or "" when Facebook gave neither. */
 function watching(numbers: PostNumbers): string {

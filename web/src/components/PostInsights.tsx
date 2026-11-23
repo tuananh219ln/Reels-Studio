@@ -1,5 +1,6 @@
 "use client";
 
+import { decimalFormat } from "@/lib/format";
 import EmptyState from "@/components/EmptyState";
 import { LineChartOutlined } from "@ant-design/icons";
 import { Button, Col, Modal, Row, Statistic, Table, Tooltip, Typography } from "antd";
@@ -8,7 +9,7 @@ import { COLORS } from "@/app/theme";
 import { formatCount, formatRate } from "@/components/PostMetrics";
 import { formatDateTime, type Post, type PostNumbers, type SceneMark } from "@/lib/api";
 
-const decimal = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });
+const decimal = decimalFormat;
 
 /** "8,4 giây", or "—". */
 function formatSeconds(value: number | null): string {

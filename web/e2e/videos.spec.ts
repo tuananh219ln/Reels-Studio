@@ -1565,7 +1565,8 @@ test("a video opens with its Page's TikTok account already chosen", async ({ pag
     return route.fulfill({ status: 302, headers: { location: `http://localhost:3100${back}` } });
   });
   await page.goto("/settings/affiliate-accounts");
-  await page.getByRole("button", { name: "Kết nối TikTok" }).first().click();
+  await page.getByRole("button", { name: "Thêm kết nối" }).click();
+  await page.getByRole("menuitem", { name: "Kết nối TikTok" }).click();
   await expect(page.getByText("Đã kết nối tài khoản TikTok")).toBeVisible();
 
   await connectFacebook(page);
@@ -1579,7 +1580,16 @@ test("a video opens with its Page's TikTok account already chosen", async ({ pag
   // The Page's TikTok account, picked once on its card.
   await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
-  await chooseOption(page, owner.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"), "TikTok: An Lành SK (@anlanhsk)");
+  await expect(owner).toContainText("Thuộc: bạn");
+  await page.getByRole("button", { name: "Cài đặt Trang Dưỡng Sinh" }).click();
+  const settings = page.getByRole("dialog", { name: /Tài khoản và chủ Page/ });
+  await chooseOption(
+    page,
+    settings.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"),
+    "TikTok: An Lành SK (@anlanhsk)",
+  );
+  await expect(owner).toContainText("TikTok: An Lành SK");
+  await page.keyboard.press("Escape");
 
   await renderedVideo(page);
   await openPublish(page);
@@ -1956,11 +1966,14 @@ test("a rendered video waits in Chưa đăng until its Facebook cell posts it", 
 test("Tải MP4 for TikTok waits for its link, and pasting it records the post", async ({ page }) => {
   test.setTimeout(240_000);
   await renderedVideo(page);
-  // A TikTok channel added from its link on Quản lý kênh.
-  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
-  await page.getByLabel("Link kênh TikTok hoặc YouTube").fill("https://www.tiktok.com/@kenhthu");
-  await page.getByRole("button", { name: "Thêm kênh" }).click();
-  await expect(page.getByTestId("channel-tiktok")).toContainText("@kenhthu");
+  // A TikTok channel added from its link on Cài đặt › Tài khoản và kênh.
+  await page.goto("/settings/affiliate-accounts");
+  await page.getByRole("button", { name: "Thêm kết nối" }).click();
+  await page.getByRole("menuitem", { name: "Thêm kênh bằng link" }).click();
+  const linkDrawer = page.getByRole("dialog", { name: "Thêm kênh bằng link" });
+  await linkDrawer.getByLabel("Link kênh TikTok hoặc YouTube").fill("https://www.tiktok.com/@kenhthu");
+  await linkDrawer.getByRole("button", { name: "Thêm kênh" }).click();
+  await expect(page.getByTestId("connection-tiktok")).toContainText("@kenhthu");
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   const groups = page.getByTestId("post-group");
@@ -3600,7 +3613,7 @@ test("30-day plan: an idea added for today becomes a video, linked both ways", a
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
   await plan.getByRole("button", { name: "Chọn ngày 1", exact: true }).click();
-  await idea.getByRole("button", { name: "Tạo video" }).click();
+  await idea.getByRole("link", { name: "Tạo video" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
   await expect(dialog.getByTestId("picked-idea")).toContainText("Theo kế hoạch, ngày 1");
@@ -3818,7 +3831,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await addToday.getByRole("button", { name: "Thêm" }).click();
   const todayIdea = strip.getByTestId("plan-today-idea").filter({ hasText: "Uống trà gừng sau bữa sáng" });
   await expect(todayIdea).toContainText("Ý tưởng");
-  await expect(todayIdea.getByRole("button", { name: "Tạo video" })).toBeVisible();
+  await expect(todayIdea.getByRole("link", { name: "Tạo video" })).toBeVisible();
   await expect(todayIdea.getByRole("button", { name: "Sửa" })).toBeVisible();
   await expect(plan.getByTestId("plan-summary")).toHaveText(/^Đã làm \d+\/\d+, đã lên lịch \d+, ngày còn trống \d+$/);
 
@@ -3874,7 +3887,7 @@ test("knowledge topics: a group's maker turns off Cho cả đội sửa, and a t
   await expect(theirs.getByRole("switch", { name: "Cho cả đội sửa" })).toHaveCount(0);
   await expect(theirs.getByRole("button", { name: "Đổi tên" })).toHaveCount(0);
   // Its videos are still made by anyone; its prompts are read, not edited.
-  await expect(theirs.getByRole("button", { name: "Tạo video" })).toBeEnabled();
+  await expect(theirs.getByRole("link", { name: "Tạo video" })).toBeEnabled();
   await theirs.getByRole("tab", { name: "Prompt", exact: true }).click();
   await expect(theirs.getByLabel("Prompt viết kịch bản", { exact: true })).toBeDisabled();
   await theirs.getByRole("tab", { name: "Cài đặt nhóm" }).click();

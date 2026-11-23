@@ -94,7 +94,7 @@ export default function PostContent({ video }: { video: VideoDetail }) {
       </Card>
       <div
         data-testid="hashtag-block"
-        style={{ border: "1px solid #e7e5e2", borderRadius: 10, padding: 12, background: "#fff" }}
+        style={{ border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 12, background: COLORS.surface }}
       >
         <AutoSaveField
           label="Hashtag"

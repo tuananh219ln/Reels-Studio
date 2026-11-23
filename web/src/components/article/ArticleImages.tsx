@@ -323,7 +323,7 @@ export default function ArticleImages({
   return (
     <Card
       size="small"
-      title={`Ảnh bài viết (${images.length}/${max}) · logo tự chèn`}
+      title={`Ảnh bài viết (${images.length}/${max}), logo tự chèn`}
       extra={
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Kéo để đổi thứ tự

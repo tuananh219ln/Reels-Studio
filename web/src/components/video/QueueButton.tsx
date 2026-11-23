@@ -1,7 +1,8 @@
 "use client";
 
+import Hint from "@/components/Hint";
 import { UnorderedListOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Checkbox, Flex, Popconfirm, Select, Typography } from "antd";
+import { App, Button, Checkbox, Flex, Popconfirm, Select, Typography } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type QueueItem, type VideoDetail } from "@/lib/api";
@@ -112,11 +113,7 @@ export default function QueueButton({
         confirmLoading={busy}
       >
         <Flex vertical gap={8}>
-          <Alert
-            type="info"
-            showIcon
-            title="Hãy xem hết MP4 trước khi thêm. Video sẽ tự lên lịch vào khung giờ trống gần nhất của Page."
-          />
+          <Hint>Hãy xem hết MP4 trước khi thêm. Video sẽ tự lên lịch vào khung giờ trống gần nhất của Page.</Hint>
           <Select
             aria-label="Fanpage"
             value={page}

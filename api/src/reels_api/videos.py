@@ -1273,6 +1273,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         # Where it is out, as on the list: the page's row of platform icons.
         "posted_on": extras["posted_on"],
         "posted_links": extras["posted_links"],
+        "posted_states": extras["posted_states"],
         "fanpages": [
             {
                 "id": page.id,
@@ -1409,8 +1410,10 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
     elsewhere: dict[int, set[str]] = {}
     # The link of each platform's newest post, for the icon to open it.
     links: dict[int, dict[str, str]] = {}
-    for video_id, platform, url in db.execute(
-        select(Publication.video_id, Publication.platform, Publication.post_url)
+    # A TikTok post the video is on only as a draft in its owner's inbox: out for the worker, not yet public.
+    tiktok_modes: dict[int, set[str | None]] = {}
+    for video_id, platform, url, mode in db.execute(
+        select(Publication.video_id, Publication.platform, Publication.post_url, Publication.publish_mode)
         .where(
             Publication.video_id.in_(ids),
             Publication.platform != "facebook",
@@ -1421,6 +1424,8 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
         .order_by(Publication.id)
     ):
         elsewhere.setdefault(video_id, set()).add(platform)
+        if platform == "tiktok":
+            tiktok_modes.setdefault(video_id, set()).add(mode)
         if url:
             links.setdefault(video_id, {})[platform] = url
     by_video: dict[int, list[tuple[Publication, str]]] = {}
@@ -1450,6 +1455,8 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
                 if (platform == "facebook" and live) or platform in elsewhere.get(video.id, set())
             ],
             "posted_links": _posted_links(live, links.get(video.id, {})),
+            # What a platform's icon must not hide: "draft" while the only TikTok posts are inbox drafts.
+            "posted_states": {"tiktok": "draft"} if tiktok_modes.get(video.id) == {"draft"} else {},
         }
     return extras
 
@@ -1528,6 +1535,7 @@ def list_payload(
         "tiktok_posted": False,
         "posted_on": [],
         "posted_links": {},
+        "posted_states": {},
         "product_count": 0,
     }
     title, scenes = split_scenes(db, video)

@@ -219,7 +219,10 @@ is in App Look.
 
 - Actions are `<Button>` and navigation is a `<Link>` (so Ctrl/Cmd+click opens a new tab); no
   clickable `<div>` or `<span>`. A row that opens something on click also has a real link or
-  button in it.
+  button in it. A card that opens something is one link: its title is a `<Link className="stretched-link">`
+  inside a `.stretch-host` card (globals.css), so click, Ctrl/Cmd/middle click and right-click "Mở trong tab
+  mới" work anywhere on it; chips and buttons inside it are their own links. A table row cannot be a link: it uses
+  `rowLink` (lib/rowLink.ts, Ctrl/Cmd/Shift and middle click open a new tab) and its title cell is a real `<Link>`.
 - Every interactive element shows a visible focus ring when reached by keyboard
   (`:focus-visible`). `outline: none` is allowed only with a replacement ring on the same element.
 - An icon-only button has an `aria-label` and a `Tooltip` with the same words.
@@ -811,7 +814,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
     recorded each). YouTube Shorts starts with "Tải lên YouTube (riêng tư)": a select of the member's connected
     channels (the Page's first), "Tiêu đề YouTube" (100 characters, counted), "Dự định công khai lúc" (a
     `datetime-local` in Vietnam time, the Facebook time ahead or the next 07:00/11:00/18:00) and the primary button
-    "Tải lên YouTube"; with no channel connected, one warning line says to press "Kết nối YouTube" on Quản lý kênh. An
+    "Tải lên YouTube"; with no channel connected, one warning line says to press "Kết nối YouTube" on Cài đặt › Tài khoản và kênh. An
     upload's line says "Đang tải lên YouTube…", then "Đã tải lên riêng tư · nhớ công khai lúc dd/mm/yyyy hh:mm" with
     "Mở YouTube Studio ↗", then its "Xem bài" once YouTube shows it public. Quản lý kênh's YouTube list has "Kết nối
     YouTube" beside its heading, each channel's state ("Đã kết nối (tên)", "Cần kết nối lại", "Chưa kết nối") and
@@ -1037,13 +1040,19 @@ steps open the status card or the products block on its tab, the QC chip its pop
     videos it is attached to;
   - "Doanh thu": the signed-in member's own Shopee orders over 7, 30 or 90 days, with totals and one
     row per video and Page; nobody else's.
-- **Cài đặt › Tài khoản affiliate** (`/settings/affiliate-accounts`): the member's own Shopee
-  accounts (App ID, the Secret's last characters, "Kiểm tra kết nối") and TikTok accounts (profile
-  link, and the TikTok connection: "Đã kết nối @username, còn hạn tới …" with an avatar and "Ngắt
-  kết nối", "Chưa kết nối TikTok" with "Kết nối TikTok", or a warning with "Kết nối lại" when TikTok
-  refused a refresh), with "Đang dùng", "Sửa" (an empty Secret keeps the saved one) and "Xoá";
-  "Kết nối TikTok" (TikTok's consent page, then back here with a message; the account is found by
-  the TikTok username or made from it) and "Thêm tài khoản" are in the tab's header.
+- **Cài đặt › Tài khoản và kênh** (`/settings/affiliate-accounts`, "Tài khoản affiliate" before 2026-11-23; [decision](decisions/2026-11-23-connections-one-place.md)):
+  every account and channel the member connects, as rows of one kind (`ConnectionRow`: platform tag, name with
+  "Mở kênh ↗", grey lines, a status dot and the actions), in three cards: Shopee (App ID, the Secret's last
+  characters, "Kiểm tra kết nối"), TikTok (profile link and the connection: "Đã kết nối @username, còn hạn tới …" with
+  "Ngắt kết nối", "Chưa kết nối TikTok" with "Kết nối TikTok", or a warning with "Kết nối lại" when TikTok refused a
+  refresh) and YouTube (posts, "Ngắt kết nối", "Kết nối lại", "Xóa" for a channel added from a link). Each row also
+  says which of the member's Pages use it ("Dùng cho Page: …" or "Chưa gắn cho Page nào"), and has "Đang dùng", "Sửa"
+  (an empty Secret keeps the saved one) and "Xoá" where the account is the member's. "Của tôi / Cả đội" (in the
+  address) switches between them and a read-only list of every TikTok and YouTube channel of the team, with who owns
+  it and its posts; Shopee is never shown to others. The header has one button, "Thêm kết nối ▾": "Kết nối TikTok" and
+  "Kết nối YouTube" (the consent page, then back here with a message), "Thêm tài khoản" (Shopee or TikTok by hand) and
+  "Thêm kênh bằng link" (a drawer; a TikTok channel becomes the member's TikTok account). Nothing here is added
+  anywhere else; a Page only picks among them.
 - **Quản lý kênh**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
   and the Page's Shopee account, picked from their own; a Page that belongs to nobody has "Nhận Page
   này". A Page is not handed to another member from the app. Only the owner sets the Page's topic
@@ -1094,10 +1103,10 @@ steps open the status card or the products block on its tab, the QC chip its pop
       cả gợi ý (N)". An imported reel once matched shows "Meta Suite" on its cell; its opened line has "Đổi video
       khớp" and "Bỏ khớp" (back to "Chưa khớp") instead of the app's buttons.
     - **"Dán link bài đã đăng"**: 1–50 links, one per line, read 400 ms after typing stops. A row per link: the link,
-      "Nền tảng · Kênh" (a Page picker for Facebook: the member's own Pages), the video ("✓ Khớp N%" picked by itself
+      "Nền tảng và kênh" (a Page picker for Facebook: the member's own Pages), the video ("✓ Khớp N%" picked by itself
       at 85 % and 10 points ahead, else "? Cần chọn tay" with suggestions and every video to search), the posting time
-      (now by default, editable, Vietnam time) and the result ("✕ Kênh chưa khai báo" with "Thêm kênh", "✕ Link không
-      hợp lệ", "✕ Không truy cập được", "✕ Đã có trong hệ thống" with the video it is on). From a cell the video is
+      (now by default, editable, Vietnam time) and the result, a dot and a word (green, amber or red: "Kênh chưa khai báo" with "Thêm kênh", "Link không
+      hợp lệ", "Không truy cập được", "Đã có trong hệ thống" with the video it is on). From a cell the video is
       fixed. The video picker also offers "Video ngoài (không gắn video)". "Lưu N link" saves the lines ready;
       "Đã lưu N link".
   - **Lịch** (`/posts?view=calendar`; `/calendar` redirects there), after the content calendar of
@@ -1132,7 +1141,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
   last column with only a vertical "⋮" button. Its small menu holds "Mở video" (or "Mở bài viết", "Mở Kho kiến thức"),
   "Thử lại" on a failed job and "Hủy job" on a waiting one; retry and cancel ask first. A row opens its video.
 - **Cài đặt** (`/settings`, opening its first tab), last in the sidebar, is one page titled "Cài đặt" whose tabs come in two groups, each
-  headed by its name as a tag that cannot be chosen: **Của tôi** (blue: Thiết lập mặc định, Tài khoản affiliate,
+  headed by its name as a tag that cannot be chosen: **Của tôi** (blue: Thiết lập mặc định, Tài khoản và kênh,
   Kết nối MCP) and **Chung cả nhóm** (cyan: AI và nguồn tư liệu, Phân tích đối thủ, Mẫu dựng, Máy render). One tab
   per job; no tab is split between the groups. Each tab has its own address so a link or a reload keeps the tab; the
   menu keeps "Cài đặt" selected on all of them. No tab carries a tag beside its title or a banner saying whose it
@@ -1186,10 +1195,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
       ảnh" for the whole team, and its API key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang
       dùng key trong file .env của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link).
   - **Quản lý kênh** (`/fanpages`, under "Đăng và kiếm tiền" in the menu; "Quản lý Page" before 2026-11-14). Under the
-    Pages, "Kênh TikTok, YouTube và đồng bộ Facebook": first each Page with the switch "Đồng bộ bài ngoài app" (on by
-    default, its owner's), "Lần đồng bộ cuối …" or "Chưa đồng bộ", the last error in red and "Đồng bộ ngay"; then "Link kênh TikTok hoặc YouTube" and "Thêm kênh" (a TikTok channel becomes the
-    member's TikTok account; a YouTube one a channel, removed by whoever added it), each listed with its link, who
-    added it, its posts and, for TikTok, "Đã kết nối"/"Chưa kết nối". "Trang nào" chooses
+    Pages: "Trang nào" chooses
     "Trang của tôi (N)" (the member's own Pages; the default once they own one in use) or "Tất cả (N)"; on
     "Trang của tôi" without one, the empty card has "Xem tất cả Page", to take one. With no Page at all, it says
     "Chưa kết nối Fanpage nào" with "Kết nối Page đầu tiên", named apart from the header's "Thêm Fanpage". Then a line of counts (đang
@@ -1200,8 +1206,14 @@ steps open the status card or the products block on its tab, the QC chip its pop
     "Hoạt động", "Lỗi kết nối", "Đang kiểm tra…" or "Chưa kiểm tra". A broken Page has a one-line
     pale band with the reason, the scheduled posts it puts at risk and "Dán token mới". Four numbers
     in one row: followers (with this week's gain), views, reach and engagements of the last 7 days;
-    under the owner line one grey line on posting: its topic group, its posting times and "N video
-    trong hàng chờ" (all of it is on the dashboard's "Lịch đăng" tab);
+    under them a read-only block ([decision](decisions/2026-11-23-fanpage-card-read-only.md)): "Thuộc: bạn" (or the
+    owner's name, or "Chưa thuộc ai" with "Nhận Page này") and, for its owner, "Cài đặt"; then one line per
+    platform, each a dot and a few words (green linked, amber needs a look, grey not set): Shopee, TikTok (with
+    "đẩy nháp đúng giờ" or "đăng thẳng công khai"), Instagram, YouTube, Logo, and the "Bộ bình luận aff" link. Others
+    see only the owner, Instagram and "Bộ bình luận aff", as the api returns nothing else for them. Nothing on the
+    card is edited in place: "Cài đặt" opens the drawer "Tài khoản và chủ Page <tên>" (also on the dashboard's menu) with
+    the Shopee, TikTok, auto-post, YouTube and logo controls, the Facebook "Đồng bộ bài đăng ngoài app" switch with "Đồng bộ ngay" (moved from the old block under the cards) and a "Quản lý kết nối →" link; then one grey line on posting: its topic group, its
+    posting times and "N video trong hàng chờ" (all of it is on the dashboard's "Lịch đăng" tab);
     then a footer line with when it was last checked and the icon button "Kiểm tra ngay". A click
     anywhere on the card but its controls opens the Page's dashboard. Opening the page checks by itself the
     Pages not checked in 15 minutes. The "⋯" menu has "Mở trên Facebook",
@@ -1211,6 +1223,25 @@ steps open the status card or the products block on its tab, the QC chip its pop
     posts "Xóa" is greyed out with why. "Thêm Fanpage" says which permissions the token needs (only there, not on the page) and takes it, "Kiểm tra token" lists the
     Pages it manages (a sole Page is ticked, one it cannot post to is greyed out), and "Lưu" keeps
     the chosen ones. A stopped Page cannot be posted to.
+  - **A Page's dashboard, Instagram side** ([decision](decisions/2026-11-23-instagram-dashboard.md)): a Page with a
+    linked Instagram account has "Facebook | Instagram" (in the address, `?platform=instagram`) beside the period.
+    On Instagram the tabs are "Tổng quan" (four figures against the period before: Lượt xem, Tiếp cận, Tương tác,
+    Người theo dõi mới with "Hiện có N"; "Lượt xem theo ngày"; a grey note that Instagram's numbers lag up to 48 hours),
+    "Nội dung" (a table of the Reels the app posted: views, reach, likes, comments, shares, saves, watch time, "Mở bài ↗"),
+    "Đối tượng" (followers now; bars for gender, age and the top cities, or the reason there are none: Instagram gives it
+    only from 100 followers), "So sánh" and "Lịch đăng". A token without `instagram_manage_insights` is one warning alert
+    above the figures with the way to fix it ("Dán token mới"), never a broken connection.
+  - **Instagram in "Đã lên lịch"** (both sides, on a Page with a linked account): each scheduled post has a grey line "Instagram:
+    tự đăng sau Facebook" (the Page's switch will send it a minute after), "đang đăng", "đã hẹn giờ" or "đã đăng" (green)
+    when the video has its own Instagram post; nothing when the switch is off and there is none. Instagram has no time of its
+    own to show.
+  - **"So sánh"** (both sides of a Page with Instagram): one row per video the app posted to the Page in the period,
+    Facebook's and Instagram's views, reach and interactions side by side, "Chưa đăng" where it is not on one; a grey note
+    that the two count differently.
+  - **"Giờ đăng hiệu quả"** (on "Lịch đăng", both sides): per platform, the best three Vietnam hours of the last 90 days by
+    average views (two posts an hour at least), or "Mới có N bài đã đo, cần từ 6 bài".
+  - **Falling views** on a Page card, one amber line per platform: "Lượt xem Facebook giảm 62% so với tuần trước (140 so
+    với 700)" ([decision](decisions/2026-11-23-instagram-dashboard.md)).
   - **A Page's dashboard** (`/fanpages/[id]`, modelled on Facebook's Professional Dashboard, built from what the
     app already reads): "← Quản lý kênh" above the Page's name; at the title's right "7 ngày / 28 ngày / 90 ngày"
     (28 at first, hidden on "Lịch đăng", which looks ahead) and "Kiểm tra ngay"; on "Lịch đăng" the grey line says
@@ -1699,4 +1730,4 @@ The same cell and merged columns as the Video list: a thumbnail and a title on u
 
 The bar over a group is flat on the page, no card: a round switch "Của tôi / Cả đội" (an icon and a grey count each, and "N nhóm" beside it), the add-group box as a filled pill with a round tick button and the history button on the right, and the groups as pills under them: a quiet grey fill, the chosen one white with a brand outline and a soft shadow, each ending in its video count (amber when the group has no prompt).
 
-On every list of videos and on a video's page, the platform icons beside "Đã đăng" open that platform's post in a new tab when the post has a link (the newest live Facebook reel, or the link recorded for TikTok, YouTube Shorts or Instagram); their tooltip then reads "Mở bài trên <nền tảng>", else "Đã đăng <nền tảng>". The api sends the links as `posted_links` next to `posted_on`. A click on an icon does not open the row.
+On every list of videos and on a video's page, the platform icons beside "Đã đăng" open that platform's post in a new tab when the post has a link (the newest live Facebook reel, or the link recorded for TikTok, YouTube Shorts or Instagram); their tooltip then reads "Mở bài trên <nền tảng>", else "Đã đăng <nền tảng>". The api sends the links as `posted_links` next to `posted_on`. A TikTok post that is only a draft in its owner's inbox (the worker's auto-post in "draft" mode) is still listed in `posted_on`, but `posted_states` says `{"tiktok": "draft"}` and its icon has a dashed outline and an amber dot, with the tooltip "TikTok: bản nháp trong hộp thư, mở TikTok để đăng" (2026-11-23); before, it looked like a public post. A YouTube upload that is still private is not in `posted_on` at all, as before. A click on an icon does not open the row.

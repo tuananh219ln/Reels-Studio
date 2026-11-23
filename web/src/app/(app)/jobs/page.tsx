@@ -13,6 +13,8 @@ import { useUrlChoice, useUrlPage } from "@/lib/urlState";
 import { SearchOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Segmented, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import { rowLink } from "@/lib/rowLink";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -178,9 +180,11 @@ function Jobs() {
         <Flex align="center" gap={12} style={{ minWidth: 0 }}>
           <VideoThumbnail name={row.video_title} url={row.thumbnail_url} width={36} />
           <Flex vertical style={{ minWidth: 0 }}>
-            <Typography.Paragraph strong ellipsis={{ rows: 2, tooltip: row.video_title }} style={{ margin: 0 }}>
-              {row.video_title}
-            </Typography.Paragraph>
+            <Link prefetch={false} href={jobHref(row)} onClick={(event) => event.stopPropagation()}>
+              <Typography.Paragraph strong ellipsis={{ rows: 2, tooltip: row.video_title }} style={{ margin: 0 }}>
+                {row.video_title}
+              </Typography.Paragraph>
+            </Link>
             <Typography.Text type="secondary" ellipsis style={{ fontSize: 12 }}>
               {row.kind_label}, #{row.id}, {row.created_by}
               {row.retry_of_id !== null && `, thử lại job #${row.retry_of_id}`}
@@ -331,7 +335,7 @@ function Jobs() {
           scroll={{ x: 1000 }}
           locale={{ emptyText: <EmptyState description={filtering ? "Không có job nào khớp" : "Chưa có job nào"} /> }}
           onRow={(row) => ({
-            onClick: () => router.push(jobHref(row)),
+            ...rowLink((href) => router.push(href), jobHref(row)),
             style: { cursor: "pointer" },
           })}
         />

@@ -1,4 +1,5 @@
 "use client";
+import StatusText from "@/components/StatusText";
 import VideoActions from "@/components/actions/VideoActions";
 import ApproveVideoButton from "@/components/actions/ApproveVideoButton";
 
@@ -341,10 +342,16 @@ export function usePlanTabs(
               move(item, null);
             }
           }}
-          style={{ outline: overTab ? "2px dashed #fa8c16" : undefined, padding: "2px 4px", borderRadius: 4 }}
+          style={{ outline: overTab ? `2px dashed ${COLORS.primary}` : undefined, padding: "2px 4px", borderRadius: 4 }}
         >
           Backlog{" "}
-          <Badge count={backlog.length} showZero color="#bfbfbf" size="small" style={{ marginInlineStart: 4 }} />
+          <Badge
+            count={backlog.length}
+            showZero
+            color={COLORS.textSecondary}
+            size="small"
+            style={{ marginInlineStart: 4 }}
+          />
         </span>
       ),
       children: body((plan) => (
@@ -807,7 +814,7 @@ function DayCell({
         borderRadius: 8,
         background: token.colorBgContainer,
         border: `${selected ? 2 : 1}px solid ${selected ? token.colorPrimary : token.colorBorderSecondary}`,
-        outline: over ? "2px dashed #fa8c16" : undefined,
+        outline: over ? `2px dashed ${COLORS.primary}` : undefined,
         cursor: "pointer",
       }}
       {...handlers}
@@ -1198,7 +1205,7 @@ function DayCard({
           />
         )
       }
-      style={{ outline: over ? "2px dashed #fa8c16" : undefined }}
+      style={{ outline: over ? `2px dashed ${COLORS.primary}` : undefined }}
       {...handlers}
     >
       <Flex vertical gap={8}>
@@ -1378,7 +1385,7 @@ function IdeaCard({
       data-status={item.status}
       style={
         {
-          border: "1px solid #f0f0f0",
+          border: `1px solid ${COLORS.border}`,
           borderLeft: `3px solid ${statusColor(item.status, token)}`,
           borderRadius: 8,
           padding: 8,
@@ -1500,7 +1507,14 @@ function IdeaAction({ item, onChanged }: { item: PlanItem; onChanged?: () => Pro
       type="primary"
       ghost
       icon={<VideoCameraAddOutlined />}
-      onClick={() => router.push(`/videos?plan_item=${item.id}`)}
+      href={`/videos?plan_item=${item.id}`}
+      onClick={(event) => {
+        // A real link (new tab, right-click); a plain click stays in the app.
+        if (!event.metaKey && !event.ctrlKey && !event.shiftKey) {
+          event.preventDefault();
+          router.push(`/videos?plan_item=${item.id}`);
+        }
+      }}
     >
       Tạo video
     </Button>
@@ -1618,7 +1632,7 @@ function BacklogPanel({
       size="small"
       title={`Backlog (${backlog.length})`}
       data-testid="backlog-panel"
-      style={{ position: "sticky", top: 16, outline: over ? "2px dashed #fa8c16" : undefined }}
+      style={{ position: "sticky", top: 16, outline: over ? `2px dashed ${COLORS.primary}` : undefined }}
       styles={{ body: { maxHeight: "calc(100vh - 140px)", overflowY: "auto" } }}
       {...handlers}
     >
@@ -1904,9 +1918,9 @@ function PreviewModal({
                   <li key={day}>
                     Ngày {day}: {now.length ? `${now.length} ý tưởng hiện có sẽ bị thay` : "đang trống"}
                     {made > 0 && (
-                      <Tag color="warning" style={{ marginInlineStart: 8 }}>
+                      <StatusText tone="warning" style={{ marginInlineStart: 8 }}>
                         Ngày {day} đã có video ({made}), video vẫn giữ trong thư viện
-                      </Tag>
+                      </StatusText>
                     )}
                   </li>
                 );

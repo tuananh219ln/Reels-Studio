@@ -1,7 +1,8 @@
 "use client";
 
+import Hint from "@/components/Hint";
 import { InboxOutlined } from "@ant-design/icons";
-import { Alert, Form, Input, Segmented, Select, Typography, Upload, type UploadFile } from "antd";
+import { Form, Input, Segmented, Select, Typography, Upload, type UploadFile } from "antd";
 import type { SampleMode, SampleSummary } from "@/lib/api";
 
 /** The ways of "Từ video mẫu" (api reference.MODES), each with what it does, shown under the choice. */
@@ -87,11 +88,9 @@ export default function SampleFields({ samples }: { samples: SampleSummary[] | n
       </Form.Item>
       {mode === "reuse" ? (
         samples !== null && samples.length === 0 ? (
-          <Alert
-            type="info"
-            style={{ marginBottom: 16 }}
-            title="Chưa có video mẫu nào. Hãy chọn cách làm khác để dán link hoặc tải video mẫu lên."
-          />
+          <Hint style={{ display: "block", marginBottom: 16 }}>
+            Chưa có video mẫu nào. Hãy chọn cách làm khác để dán link hoặc tải video mẫu lên.
+          </Hint>
         ) : (
           <>
             <Form.Item

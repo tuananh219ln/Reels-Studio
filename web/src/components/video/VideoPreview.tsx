@@ -1,5 +1,6 @@
 "use client";
 
+import { formatTrimmed } from "@/lib/format";
 import {
   AppstoreOutlined,
   CaretRightOutlined,
@@ -221,7 +222,7 @@ const clockNow = () =>
   );
 
 const percent = (value: number, of: number) => `${(value / of) * 100}%`;
-const seconds = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+const seconds = formatTrimmed;
 
 // Edge's neural voices (HoaiMy, NamMinh) sound far more natural than Chrome's Google voice.
 const NATURAL = /natural|online/i;

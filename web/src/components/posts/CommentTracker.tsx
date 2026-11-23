@@ -1,11 +1,12 @@
 "use client";
 
+import StatusText, { toneOf } from "@/components/StatusText";
 import EmptyState from "@/components/EmptyState";
 import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 import { api, errorMessage, formatDayTime, type CommentTrackerData, type TrackedPost } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 import { useUrlChoice } from "@/lib/urlState";
-import { App, Card, Flex, Progress, Segmented, Spin, Table, Tag, Typography } from "antd";
+import { App, Card, Flex, Progress, Segmented, Spin, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -112,7 +113,7 @@ export default function CommentTracker() {
       width: 230,
       render: (_, post) => (
         <Flex vertical gap={2} align="start">
-          <Tag color={STATE[post.state].color}>{STATE[post.state].label}</Tag>
+          <StatusText tone={toneOf(STATE[post.state].color)}>{STATE[post.state].label}</StatusText>
           {post.state === "not_asked" && (
             <Typography.Text type="secondary">Bấm “Bình luận ngay” trên trang video</Typography.Text>
           )}

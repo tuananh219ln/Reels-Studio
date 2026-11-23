@@ -1,5 +1,6 @@
 "use client";
 
+import { COLORS } from "@/app/theme";
 import { QuestionCircleOutlined } from "@ant-design/icons";
 import { Button, Flex, Input, Tooltip, Typography } from "antd";
 import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
@@ -177,7 +178,7 @@ export default function AutoSaveField({
           {label}
           {help && (
             <Tooltip title={help}>
-              <QuestionCircleOutlined aria-label="Cách viết" style={{ marginLeft: 6, color: "#8c8c8c" }} />
+              <QuestionCircleOutlined aria-label="Cách viết" style={{ marginLeft: 6, color: COLORS.textSecondary }} />
             </Tooltip>
           )}
         </Typography.Text>

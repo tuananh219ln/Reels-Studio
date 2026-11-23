@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCount } from "@/lib/format";
 import { ReloadOutlined } from "@ant-design/icons";
 import { Button, Flex, Progress, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
@@ -31,7 +32,7 @@ export type ServiceUsage = {
 /** FLUX.1 schnell's 10,000 free neurons make about 57 photos: about 175 neurons each. */
 const NEURONS_PER_PHOTO = 10_000 / 57;
 
-const number = (value: number) => value.toLocaleString("vi-VN");
+const number = formatCount;
 
 /** The usage lines, read apart from the page so the page shows at once while the services answer. */
 export function useServiceUsage() {

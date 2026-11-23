@@ -1,7 +1,8 @@
 "use client";
 
+import StatusText from "@/components/StatusText";
 import { InboxOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Flex, Form, Input, Segmented, Select, Tag, Typography, Upload } from "antd";
+import { Alert, App, Button, Flex, Form, Input, Segmented, Select, Typography, Upload } from "antd";
 import Link from "next/link";
 import { useState } from "react";
 import { api, errorMessage, type AffiliateImport, type AffiliateImportPreview, type AffiliateOptions } from "@/lib/api";
@@ -234,7 +235,7 @@ export default function AddProductDrawer({
                   description={
                     <>
                       Thêm App ID và Secret ở{" "}
-                      <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản affiliate</Link>. Chưa có thì dùng{" "}
+                      <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản và kênh</Link>. Chưa có thì dùng{" "}
                       <Typography.Link onClick={() => setTab("file")}>Nhập file</Typography.Link> từ Shopee Affiliate.
                     </>
                   }
@@ -295,12 +296,14 @@ export default function AddProductDrawer({
             description={
               <Flex vertical gap={6} data-testid="import-preview">
                 <Flex wrap gap={6}>
-                  <Tag color="green">Mới {preview.rows.filter((row) => row.state === "new").length}</Tag>
-                  <Tag>Của bạn, cập nhật {preview.rows.filter((row) => row.state === "mine").length}</Tag>
-                  <Tag color="blue">
+                  <StatusText tone="success">Mới {preview.rows.filter((row) => row.state === "new").length}</StatusText>
+                  <StatusText tone="idle">
+                    Của bạn, cập nhật {preview.rows.filter((row) => row.state === "mine").length}
+                  </StatusText>
+                  <StatusText tone="active">
                     Trùng người khác, tạo riêng {preview.rows.filter((row) => row.state === "copy").length}
-                  </Tag>
-                  <Tag color="red">Lỗi {preview.errors.length}</Tag>
+                  </StatusText>
+                  <StatusText tone="danger">Lỗi {preview.errors.length}</StatusText>
                 </Flex>
                 {preview.rows.some((row) => row.state === "mine") && (
                   <span>Sản phẩm đã có của bạn được cập nhật giá, hoa hồng và link.</span>

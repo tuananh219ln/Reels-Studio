@@ -1,7 +1,8 @@
+import { countFormat, decimalFormat } from "@/lib/format";
 import { formatDateTime } from "@/lib/api";
 
-const ONE_DECIMAL = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });
-const FULL = new Intl.NumberFormat("vi-VN");
+const ONE_DECIMAL = decimalFormat;
+const FULL = countFormat;
 
 /** The full number the Vietnamese way ("24.529.887"), for a tooltip. */
 export function formatFull(value: number): string {

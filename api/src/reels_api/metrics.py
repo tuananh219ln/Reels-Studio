@@ -20,7 +20,7 @@ from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
 
-from . import analytics, facebook, fanpages, tiktok, tiktok_connections, youtube
+from . import analytics, facebook, fanpages, instagram, tiktok, tiktok_connections, youtube
 from .facebook import FacebookError
 from .models import PostMetrics, PostMetricSnapshot, Publication, TikTokConnection, Video
 from .sessions import now
@@ -128,7 +128,15 @@ def readable(at: datetime, youtube_on: bool | None = None):
             TikTokConnection.scopes.contains(tiktok.VIDEO_LIST),
         ),
     )
-    facebook_post = or_(facebook_post, tiktok_post)
+    # An Instagram Reel posted by the app, read through its Page's token (`instagram_manage_insights`).
+    instagram_post = and_(
+        Publication.platform == "instagram",
+        Publication.external_id.is_not(None),
+        Publication.fanpage_id.is_not(None),
+        Publication.match_status != "ignored",
+        Publication.status == "published",
+    )
+    facebook_post = or_(facebook_post, tiktok_post, instagram_post)
     if not youtube_on:
         return facebook_post
     youtube_post = and_(
@@ -267,8 +275,11 @@ def record_manual(db: DbSession, post: Publication, numbers: dict, captured_at: 
     db.commit()
 
 
-def _record(db: DbSession, post: Publication, numbers: dict, at: datetime, source: str) -> None:
-    """A reading that worked: a snapshot, the marks, and when to read next."""
+def _record(
+    db: DbSession, post: Publication, numbers: dict, at: datetime, source: str, extra: dict | None = None
+) -> None:
+    """A reading that worked: a snapshot, the marks, and when to read next. `extra` is what only that platform gives
+    (an Instagram Reel's reach, saves and watch time), kept in the snapshot's `raw`."""
     live = _live(post)
     before = db.scalar(
         select(PostMetricSnapshot.views)
@@ -285,7 +296,7 @@ def _record(db: DbSession, post: Publication, numbers: dict, at: datetime, sourc
             likes=numbers.get("likes", numbers.get("reactions")),
             comments=numbers.get("comments"),
             shares=numbers.get("shares"),
-            raw={"source": source},
+            raw={"source": source, **({"numbers": extra} if extra else {})},
         )
     )
     db.flush()
@@ -319,6 +330,25 @@ def measure(db: DbSession, post: Publication) -> None:
     _record(db, post, numbers, at, "facebook")
     db.commit()
     log.info("Read the numbers of post %s: %s", post.id, numbers)
+
+
+def measure_instagram(db: DbSession, post: Publication) -> None:
+    """Read an Instagram Reel's numbers once through its Page's token and keep them as a reading, or what went wrong,
+    to try again in an hour. Commits."""
+    at = now()
+    post.metrics_tried_at = at
+    try:
+        page = fanpages.load_page(db, post.fanpage_id)
+        numbers = instagram.media_insights(page, post.external_id)
+    except FacebookError as err:
+        post.metrics_error, post.next_snapshot_at = err.message, at + RETRY_LATER
+        db.commit()
+        log.warning("Could not read the numbers of Instagram post %s: %s %s", post.id, err.message, err.detail)
+        return
+    post.metrics_error = None
+    _record(db, post, {**numbers, "reactions": numbers.get("likes")}, at, "instagram", extra=numbers)
+    db.commit()
+    log.info("Read the numbers of Instagram post %s: %s", post.id, numbers)
 
 
 def measure_youtube(db: DbSession, posts: list[Publication]) -> None:
@@ -447,6 +477,7 @@ def measure_due(factory: sessionmaker) -> None:
             ids = [post.id for post in due_posts(db)]
             shorts = [post.id for post in due_posts(db, youtube.BATCH, "youtube")] if youtube.enabled() else []
             clips = [post.id for post in due_posts(db, TIKTOK_PER_ROUND, "tiktok")]
+            reels = [post.id for post in due_posts(db, BATCH, "instagram")]
     except Exception:
         log.exception("Could not look for posts to read the numbers of")
         return
@@ -458,6 +489,14 @@ def measure_due(factory: sessionmaker) -> None:
                     measure(db, post)
         except Exception:
             log.exception("Could not read the numbers of post %s", post_id)
+    for post_id in reels:
+        try:
+            with factory() as db:
+                post = db.get(Publication, post_id)
+                if post is not None:
+                    measure_instagram(db, post)
+        except Exception:
+            log.exception("Could not read the numbers of Instagram post %s", post_id)
     if shorts:
         try:
             with factory() as db:

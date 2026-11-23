@@ -1,5 +1,6 @@
 "use client";
 
+import { COLORS } from "@/app/theme";
 import { DragOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Flex, Slider, Switch, Typography } from "antd";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -261,7 +262,7 @@ export default function HalfPhotoPanel({
       vertical
       gap={8}
       data-testid="inset-block"
-      style={{ border: "1px solid #f0f0f0", borderRadius: 8, padding: 10 }}
+      style={{ border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 10 }}
     >
       <Flex align="center" justify="space-between" gap={8}>
         <Typography.Text strong>Ảnh chèn</Typography.Text>

@@ -46,8 +46,8 @@ import { PostRows, PublishButton } from "./PublishCard";
 import type { PostStep } from "./postRound";
 
 /** The result colours of the publish panel spec; the brand's orange comes from the theme (COLORS). */
-const SUCCESS = "#16A34A";
-const DANGER = "#E5484D";
+const SUCCESS = COLORS.success;
+const DANGER = COLORS.danger;
 
 /**
  * Where the card stands: no MP4 yet; rendered and never tried ("ready"); a platform on its way ("publishing"); then,
@@ -736,8 +736,8 @@ function Platforms({
             YouTube
           </Typography.Text>
           {channels.length === 0 ? (
-            <Link prefetch={false} href="/fanpages" style={{ fontSize: 13 }}>
-              Chưa kết nối kênh YouTube nào, mở Quản lý kênh
+            <Link prefetch={false} href="/settings/affiliate-accounts" style={{ fontSize: 13 }}>
+              Chưa kết nối kênh YouTube nào, mở Tài khoản và kênh
             </Link>
           ) : (
             <Select

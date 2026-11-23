@@ -10,6 +10,7 @@ import {
   ThunderboltOutlined,
 } from "@ant-design/icons";
 import { Flex, Grid, Tabs, Typography } from "antd";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 
@@ -30,8 +31,8 @@ const GROUPS: { key: string; label: string; tabs: Tab[] }[] = [
       },
       {
         key: "/settings/affiliate-accounts",
-        label: "Tài khoản affiliate",
-        hint: "Shopee, TikTok của tôi",
+        label: "Tài khoản và kênh",
+        hint: "Shopee, TikTok, YouTube",
         icon: <ShoppingOutlined />,
       },
       { key: "/settings/mcp", label: "Kết nối MCP", hint: "ChatGPT, Claude của tôi", icon: <ApiOutlined /> },
@@ -67,6 +68,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   const router = useRouter();
   const wide = Grid.useBreakpoint().xl ?? false;
   const active = TABS.find((tab) => pathname.startsWith(tab.key))?.key ?? TABS[0].key;
+  // A plain click on a tab goes there; Ctrl/Cmd/Shift-click is the link's own (a new tab).
+  const goTo = (key: string, event: React.MouseEvent | React.KeyboardEvent) => {
+    if (!event.metaKey && !event.ctrlKey && !event.shiftKey) router.push(key);
+  };
   const items = GROUPS.flatMap((group) => [
     {
       key: group.key,
@@ -80,23 +85,35 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     },
     ...group.tabs.map((tab) => ({
       key: tab.key,
-      label: wide ? (
-        // Wraps inside the column: a long hint on one line pushed the list over the page beside it.
-        <Flex
-          gap={10}
-          align="flex-start"
-          style={{ textAlign: "left", padding: "2px 0", whiteSpace: "normal", maxWidth: 196 }}
+      label: (
+        // A real link, so a right click or middle click opens the tab in a new tab; a plain click is the Tabs' own.
+        <Link
+          href={tab.key}
+          prefetch={false}
+          onClick={(event) => {
+            if (!event.metaKey && !event.ctrlKey && !event.shiftKey) event.preventDefault();
+          }}
+          style={{ color: "inherit" }}
         >
-          <span style={{ fontSize: 16, lineHeight: "22px" }}>{tab.icon}</span>
-          <Flex vertical gap={0}>
-            <span>{tab.label}</span>
-            <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
-              {tab.hint}
-            </Typography.Text>
-          </Flex>
-        </Flex>
-      ) : (
-        tab.label
+          {wide ? (
+            // Wraps inside the column: a long hint on one line pushed the list over the page beside it.
+            <Flex
+              gap={10}
+              align="flex-start"
+              style={{ textAlign: "left", padding: "2px 0", whiteSpace: "normal", maxWidth: 196 }}
+            >
+              <span style={{ fontSize: 16, lineHeight: "22px" }}>{tab.icon}</span>
+              <Flex vertical gap={0}>
+                <span>{tab.label}</span>
+                <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
+                  {tab.hint}
+                </Typography.Text>
+              </Flex>
+            </Flex>
+          ) : (
+            tab.label
+          )}
+        </Link>
       ),
     })),
   ]);
@@ -107,19 +124,13 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
       {wide ? (
         <Flex gap={28} align="flex-start">
           <div style={{ position: "sticky", top: 16, width: 240, flex: "none", minWidth: 0 }}>
-            <Tabs
-              tabPlacement="start"
-              activeKey={active}
-              items={items}
-              onChange={(key) => router.push(key)}
-              style={{ width: "100%" }}
-            />
+            <Tabs tabPlacement="start" activeKey={active} items={items} onTabClick={goTo} style={{ width: "100%" }} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
         </Flex>
       ) : (
         <>
-          <Tabs activeKey={active} items={items} onChange={(key) => router.push(key)} style={{ marginTop: -8 }} />
+          <Tabs activeKey={active} items={items} onTabClick={goTo} style={{ marginTop: -8 }} />
           {children}
         </>
       )}

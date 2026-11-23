@@ -1,4 +1,5 @@
 "use client";
+import Hint from "@/components/Hint";
 import FormDrawer from "@/components/FormDrawer";
 import { api, errorMessage } from "@/lib/api";
 import { PushpinFilled, ReloadOutlined } from "@ant-design/icons";
@@ -132,7 +133,7 @@ export default function ShuffleModal({
           đứng đầu. Không gọi AI. Bản sao chưa có MP4, cần render trước khi đăng.
         </Typography.Paragraph>
         {tooFew ? (
-          <Alert type="info" showIcon title="Cần ít nhất 2 cảnh xáo được" />
+          <Hint>Cần ít nhất 2 cảnh xáo được</Hint>
         ) : (
           <>
             <Flex align="center" gap={8} wrap>

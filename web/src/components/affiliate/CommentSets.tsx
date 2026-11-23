@@ -241,7 +241,7 @@ export default function CommentSets() {
                 )}
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   {one.last_used_at
-                    ? `Dùng ${one.use_count} lần · gần nhất ${formatDateTime(one.last_used_at)}`
+                    ? `Dùng ${one.use_count} lần, gần nhất ${formatDateTime(one.last_used_at)}`
                     : "Chưa dùng"}
                 </Typography.Text>
                 {one.warnings.map((warning) => (

@@ -36,6 +36,19 @@ export const COLORS = {
   info: "#3B6A9A",
   infoBg: "#F1F5F9",
   infoBorder: "#CBD8E6",
+  /** Needs the member to do something more: a draft to post, a channel to make public. */
+  warning: "#E0A100",
+  /** Done, out, passed: the green of a result line and of a post's toast edge. */
+  success: "#16A34A",
+  /** Failed: the red of a result line and of a toast edge. */
+  danger: "#E5484D",
+  /** The light fills and borders of a check result, a step apart so red, yellow and green read at a glance. */
+  dangerBg: "#FFF1F0",
+  dangerBorder: "#FFA39E",
+  warningBg: "#FFFBE6",
+  warningBorder: "#FFE58F",
+  successBg: "#F6FFED",
+  successBorder: "#B7EB8F",
 } as const;
 
 export const FONT_FAMILY = "var(--font-app), -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";

@@ -69,6 +69,7 @@ import {
   theme,
   Typography,
 } from "antd";
+import { rowLink } from "@/lib/rowLink";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, Suspense, useCallback, useEffect, useState } from "react";
@@ -520,21 +521,13 @@ function CardChip({
   testId: string;
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const { token } = theme.useToken();
-  const open = (event: React.SyntheticEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    router.push(href);
-  };
   return (
-    <span
-      role="link"
-      tabIndex={0}
+    <Link
+      href={href}
+      prefetch={false}
       aria-label={label}
       data-testid={testId}
-      onClick={open}
-      onKeyDown={(event) => event.key === "Enter" && open(event)}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -544,12 +537,12 @@ function CardChip({
         borderRadius: 11,
         border: `1px solid ${token.colorBorderSecondary}`,
         fontSize: 12,
-        cursor: "pointer",
+        color: "inherit",
         whiteSpace: "nowrap",
       }}
     >
       {children}
-    </span>
+    </Link>
   );
 }
 
@@ -637,7 +630,6 @@ function VideoCard({
   versions: VideoRow[];
   onChanged: () => Promise<void>;
 }) {
-  const router = useRouter();
   const { token } = theme.useToken();
   const name = row.name || row.title || row.topic;
   const post = row.post;
@@ -648,11 +640,7 @@ function VideoCard({
   return (
     <div
       role="group"
-      tabIndex={0}
-      onClick={() => router.push(`/videos/${row.id}`)}
-      onKeyDown={(event) => {
-        if (event.target === event.currentTarget && event.key === "Enter") router.push(`/videos/${row.id}`);
-      }}
+      className="stretch-host"
       aria-label={name}
       data-testid="video-card"
       style={{ display: "flex", flex: 1, minWidth: 0 }}
@@ -699,7 +687,7 @@ function VideoCard({
         </div>
         <Flex vertical style={{ minWidth: 0, flex: 1 }}>
           <Flex justify="space-between" gap={4}>
-            <Link href={`/videos/${row.id}`} prefetch={false}>
+            <Link href={`/videos/${row.id}`} prefetch={false} className="stretched-link">
               <Typography.Paragraph
                 strong
                 ellipsis={{ rows: 2, tooltip: name }}
@@ -714,7 +702,7 @@ function VideoCard({
           <Flex justify="space-between" align="flex-start" gap={8} style={{ marginTop: 6 }}>
             <VideoKindTags video={row} />
             <div style={{ flex: "none", paddingTop: 2 }}>
-              <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} size={13} />
+              <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} size={13} />
             </div>
           </Flex>
           {post ? (
@@ -820,7 +808,7 @@ function VideoTable({
         pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
         scroll={{ x: 1100 }}
         onRow={(row) => ({
-          onClick: () => router.push(`/videos/${row.id}`),
+          ...rowLink((href) => router.push(href), `/videos/${row.id}`),
           style: { cursor: "pointer" },
           "data-testid": "video-row",
         })}
@@ -867,7 +855,7 @@ function VideoTable({
                       {row.post.state === "posted" ? "Đã đăng" : "Đã lên lịch"}
                     </StatusText>
                   )}
-                  <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} />
+                  <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} />
                 </Flex>
                 <VideoKindTags video={row} />
                 <VersionLinks versions={versions.get(row.id) ?? []} />

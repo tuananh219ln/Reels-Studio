@@ -9,7 +9,8 @@ test.beforeEach(() => resetDatabase());
 
 async function addShopeeAccount(page: Page) {
   await page.goto("/settings/affiliate-accounts");
-  await page.getByRole("button", { name: "Thêm tài khoản" }).click();
+  await page.getByRole("button", { name: "Thêm kết nối" }).click();
+  await page.getByRole("menuitem", { name: "Thêm tài khoản" }).click();
   const dialog = page.getByRole("dialog", { name: "Thêm tài khoản affiliate" });
   await dialog.getByLabel("Tên tài khoản").fill("Shopee của An");
   await dialog.getByLabel("App ID").fill(APP_ID);
@@ -31,8 +32,12 @@ test("a member's Shopee account: added, checked, set on their Page, and hidden f
   await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
   await expect(owner).toContainText("Thuộc: bạn");
-  await chooseOption(page, owner.getByLabel("Tài khoản Shopee của Trang Dưỡng Sinh"), "Shopee: Shopee của An");
-  await expect(owner.getByLabel("Tài khoản Shopee của Trang Dưỡng Sinh")).toBeVisible();
+  await expect(owner).toContainText("Shopee: dùng link dán tay");
+  await page.getByRole("button", { name: "Cài đặt Trang Dưỡng Sinh" }).click();
+  const settings = page.getByRole("dialog", { name: /Tài khoản và chủ Page/ });
+  await chooseOption(page, settings.getByLabel("Tài khoản Shopee của Trang Dưỡng Sinh"), "Shopee: Shopee của An");
+  await expect(settings.getByLabel("Tài khoản Shopee của Trang Dưỡng Sinh")).toBeVisible();
+  await expect(owner).toContainText("Shopee: Shopee của An");
   await page.reload();
   await expect(page.getByTestId("fanpage-owner")).toContainText("Shopee: Shopee của An");
 
@@ -44,9 +49,14 @@ test("a member's Shopee account: added, checked, set on their Page, and hidden f
   await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
   await expect(binh).toHaveURL(/\/videos$/);
   await binh.goto("/settings/affiliate-accounts");
-  await expect(binh.getByText("Chưa có tài khoản nào")).toBeVisible();
+  await expect(binh.getByText("Chưa có tài khoản Shopee nào")).toBeVisible();
   await binh.goto("/fanpages");
-  await expect(binh.getByTestId("fanpage-owner")).toHaveText("Thuộc: Nguyễn Văn An");
+  // A teammate sees whose Page it is and what is public about it, never the owner's Shopee or TikTok account.
+  const theirs = binh.getByTestId("fanpage-owner");
+  await expect(theirs).toContainText("Thuộc: Nguyễn Văn An");
+  await expect(theirs).not.toContainText("Shopee");
+  await expect(theirs).not.toContainText("TikTok");
+  await expect(theirs.getByRole("button", { name: /^Cài đặt/ })).toHaveCount(0);
   await binh.goto("/affiliate");
   await binh.getByRole("tab", { name: "Doanh thu" }).click();
   await expect(binh.getByText("Chưa có tài khoản Shopee nào của bạn")).toBeVisible();
@@ -206,7 +216,8 @@ test("a member connects their TikTok account through TikTok's consent page, then
     return route.fulfill({ status: 302, headers: { location: `http://localhost:3100${back}` } });
   });
   await page.goto("/settings/affiliate-accounts");
-  await page.getByRole("button", { name: "Kết nối TikTok" }).first().click();
+  await page.getByRole("button", { name: "Thêm kết nối" }).click();
+  await page.getByRole("menuitem", { name: "Kết nối TikTok" }).click();
   await expect(page.getByText("Đã kết nối tài khoản TikTok")).toBeVisible();
   await expect(page).toHaveURL(/\/settings\/affiliate-accounts$/);
   // The account is made from the TikTok profile and shows the connection, never a token.
@@ -231,20 +242,29 @@ test("a member's TikTok account: set on their Page, and shown there after a relo
     return route.fulfill({ status: 302, headers: { location: `http://localhost:3100${back}` } });
   });
   await page.goto("/settings/affiliate-accounts");
-  await page.getByRole("button", { name: "Kết nối TikTok" }).first().click();
+  await page.getByRole("button", { name: "Thêm kết nối" }).click();
+  await page.getByRole("menuitem", { name: "Kết nối TikTok" }).click();
   await expect(page.getByText("Đã kết nối tài khoản TikTok")).toBeVisible();
 
   await connectFacebook(page);
   await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
   await expect(owner).toContainText("Thuộc: bạn");
-  await chooseOption(page, owner.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"), "TikTok: An Lành SK (@anlanhsk)");
+  await page.getByRole("button", { name: "Cài đặt Trang Dưỡng Sinh" }).click();
+  const settings = page.getByRole("dialog", { name: /Tài khoản và chủ Page/ });
+  await chooseOption(
+    page,
+    settings.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"),
+    "TikTok: An Lành SK (@anlanhsk)",
+  );
   await page.reload();
-  await expect(page.getByTestId("fanpage-owner")).toContainText("TikTok: An Lành SK (@anlanhsk)");
+  await expect(page.getByTestId("fanpage-owner")).toContainText("TikTok: An Lành SK");
 
   // The auto-post mode shows once an account is linked, starts on the draft, and "Đăng thẳng" stays after a reload.
-  const mode = page.getByTestId("fanpage-owner").getByLabel("Tự đăng TikTok của Trang Dưỡng Sinh");
   await expect(page.getByTestId("fanpage-owner")).toContainText("đẩy nháp đúng giờ");
+  await page.getByRole("button", { name: "Cài đặt Trang Dưỡng Sinh" }).click();
+  const modeDrawer = page.getByRole("dialog", { name: /Tài khoản và chủ Page/ });
+  const mode = modeDrawer.getByLabel("Tự đăng TikTok của Trang Dưỡng Sinh");
   await chooseOption(page, mode, "Tự đăng TikTok: đăng thẳng công khai");
   await page.reload();
   await expect(page.getByTestId("fanpage-owner")).toContainText("đăng thẳng công khai");

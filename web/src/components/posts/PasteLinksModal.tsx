@@ -1,5 +1,6 @@
 "use client";
 
+import StatusText, { toneOf } from "@/components/StatusText";
 import VideoThumbnail from "@/components/VideoThumbnail";
 import {
   api,
@@ -11,7 +12,7 @@ import {
   type LinkVideo,
   type VideoRow,
 } from "@/lib/api";
-import { App, Flex, Input, Modal, Select, Table, Tag, Typography } from "antd";
+import { App, Flex, Input, Modal, Select, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useRef, useState } from "react";
 import { PLATFORM_LABEL } from "./boardText";
@@ -156,7 +157,7 @@ export default function PasteLinksModal({
       ),
     },
     {
-      title: "Nền tảng · Kênh",
+      title: "Nền tảng và kênh",
       key: "channel",
       width: 200,
       render: (_, row, index) => {
@@ -242,12 +243,9 @@ export default function PasteLinksModal({
       width: 170,
       render: (_, row) => (
         <Flex vertical gap={2} align="flex-start">
-          <Tag color={RESULT_COLOR[row.result]} style={{ marginInlineEnd: 0 }}>
-            {row.result === "matched" ? "✓ " : row.result === "choose" ? "? " : "✕ "}
-            {row.message}
-          </Tag>
+          <StatusText tone={toneOf(RESULT_COLOR[row.result])}>{row.message}</StatusText>
           {row.result === "unknown_channel" && row.platform !== "facebook" && (
-            <a href="/fanpages" target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+            <a href="/settings/affiliate-accounts" target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
               Thêm kênh
             </a>
           )}

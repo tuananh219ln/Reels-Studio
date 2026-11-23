@@ -53,7 +53,9 @@ test("shared actions: Page logo controls are shared by cards and the dashboard",
   await loginAsSeed(page);
   await connectFacebook(page);
   await page.goto("/fanpages");
-  await expect(page.getByTestId("fanpage-card").getByTestId("fanpage-logo")).toBeVisible();
+  await page.getByRole("button", { name: "Cài đặt Trang Dưỡng Sinh" }).click();
+  await expect(page.getByRole("dialog", { name: /Tài khoản và chủ Page/ }).getByTestId("fanpage-logo")).toBeVisible();
+  await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
   await page.getByRole("button", { name: "Thao tác với Trang Dưỡng Sinh" }).click();
   await page.getByText("Tài khoản và chủ Page", { exact: true }).click();

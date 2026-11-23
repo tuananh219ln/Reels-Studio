@@ -1,13 +1,16 @@
 "use client";
-import { FanpageMenu, OwnerLine, TokenInput, TokenModal } from "@/components/actions/FanpageActions";
+import { formatCount } from "@/lib/format";
+import { FanpageMenu, TokenInput, TokenModal } from "@/components/actions/FanpageActions";
 
 import { COLORS } from "@/app/theme";
-import ChannelsCard from "@/components/ChannelsCard";
 import EmptyState from "@/components/EmptyState";
 import FormDrawer from "@/components/FormDrawer";
 import { useMe } from "@/components/MeContext";
+import { FollowerGain, MiniFigure } from "@/components/page/Figures";
+import PageChannels from "@/components/page/PageChannels";
 import PageHeader from "@/components/PageHeader";
 import StatusText from "@/components/StatusText";
+import WhoseFilter from "@/components/WhoseFilter";
 import {
   api,
   errorMessage,
@@ -23,26 +26,12 @@ import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
 import { useUrlChoice } from "@/lib/urlState";
 import { DeleteOutlined, FacebookOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
-import {
-  App,
-  Avatar,
-  Button,
-  Card,
-  Checkbox,
-  Collapse,
-  Flex,
-  Popconfirm,
-  Segmented,
-  Space,
-  Tooltip,
-  Typography,
-} from "antd";
+import { App, Avatar, Button, Card, Checkbox, Collapse, Flex, Popconfirm, Space, Tooltip, Typography } from "antd";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
 const QUEUE_REFRESH_MS = 30_000;
-const number = (value: number) => value.toLocaleString("vi-VN");
+const number = formatCount;
 const count = (value: number | null) => (value === null ? "—" : number(value));
 
 /** Broken Pages first, so the one that needs a member is at the top. */
@@ -59,34 +48,6 @@ function StatusTag({ row }: { row: Fanpage }) {
   return <StatusText tone="idle">Chưa kiểm tra</StatusText>;
 }
 
-/** One number of a Page, small: the value over its label. */
-function Figure({ label, value, note }: { label: string; value: string; note?: React.ReactNode }) {
-  return (
-    <Flex vertical gap={0} style={{ minWidth: 0 }}>
-      <Typography.Text strong style={{ fontSize: 15, lineHeight: "22px" }}>
-        {value}
-        {note}
-      </Typography.Text>
-      <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-        {label}
-      </Typography.Text>
-    </Flex>
-  );
-}
-
-/** "+12" after the followers, this week's gain; nothing until there is a number from last week. */
-function Gain({ gain }: { gain: number | null }) {
-  if (!gain) return null;
-  return (
-    <Typography.Text type={gain > 0 ? "success" : "secondary"} style={{ fontSize: 12, fontWeight: 400, marginLeft: 4 }}>
-      {gain > 0 ? "+" : ""}
-      {number(gain)}
-    </Typography.Text>
-  );
-}
-
-/** Whose Page it is and, for its owner, the Shopee account whose links its comments carry and the TikTok account
- * its videos open with (each one of their own). A Page that belongs to nobody is taken with "Nhận Page này". */
 /** One line on how the Page posts on a schedule; the whole of it is on the Page's "Lịch đăng" tab. */
 function ScheduleLine({ page }: { page: QueuePage }) {
   const parts = [
@@ -99,16 +60,6 @@ function ScheduleLine({ page }: { page: QueuePage }) {
       {parts.join(", ")}
     </Typography.Text>
   );
-}
-
-// A click on these inside a card does its own thing, not open the Page's dashboard.
-const OWN_CLICK = "a, button, input, .ant-select, .ant-dropdown, .ant-popover, .ant-modal, .ant-drawer";
-
-/** The card's line on the Page's "Bộ bình luận" (api aff_sets.summaries). */
-function affSetsLine(aff: Fanpage["aff_sets"]): string {
-  if (aff.sets === 0) return "Chưa có bộ bình luận aff";
-  if (!aff.enabled) return `Bộ bình luận aff: đang tắt (${aff.sets} bộ)`;
-  return `Bộ bình luận aff: ${aff.usable}/${aff.sets} bộ dùng được, ${aff.per_post} bộ mỗi reel`;
 }
 
 /** A Page in use, compact: who it is, whether its token works, its numbers, a line on how it posts on a schedule, and
@@ -129,7 +80,6 @@ function PageCard({
   onToken: (row: Fanpage) => void;
 }) {
   const scheduled = queue?.pages.find((page) => page.id === row.id);
-  const router = useRouter();
   const dashboard = `/fanpages/${row.id}`;
   const { message } = App.useApp();
   const { check, insights } = row;
@@ -147,12 +97,10 @@ function PageCard({
     <Card
       size="small"
       hoverable
+      className="stretch-host"
       data-testid="fanpage-card"
-      style={{ height: "100%", borderColor: check.error ? COLORS.primaryBorder : undefined, cursor: "pointer" }}
+      style={{ height: "100%", borderColor: check.error ? COLORS.primaryBorder : undefined }}
       styles={{ body: { display: "flex", flexDirection: "column", gap: 10, height: "100%" } }}
-      onClick={(event) => {
-        if (!(event.target as HTMLElement).closest(OWN_CLICK)) router.push(dashboard);
-      }}
     >
       <Flex gap={10} align="center">
         {/* The Page's Facebook picture; its initial while there is none or the link has expired (antd falls back). */}
@@ -166,7 +114,7 @@ function PageCard({
         </Avatar>
         <Flex vertical style={{ minWidth: 0, flex: 1 }}>
           <Typography.Text strong ellipsis>
-            <Link prefetch={false} href={dashboard}>
+            <Link prefetch={false} href={dashboard} className="stretched-link">
               {row.name}
             </Link>
           </Typography.Text>
@@ -179,20 +127,6 @@ function PageCard({
               ID {row.page_id}, token …{row.token_tail}
             </Typography.Text>
           </Flex>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis data-testid="fanpage-instagram">
-            {row.instagram ? `Instagram: @${row.instagram.username ?? row.instagram.id}` : "Chưa liên kết Instagram"}
-          </Typography.Text>
-          {row.instagram_error && (
-            // Why the last check could not read the account: the whole text, never cut, so the cause is readable.
-            <Typography.Text type="warning" style={{ fontSize: 12 }} data-testid="fanpage-instagram-error">
-              {row.instagram_error}
-            </Typography.Text>
-          )}
-          <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis data-testid="fanpage-aff-sets">
-            <Link prefetch={false} href={`/affiliate?tab=sets&page=${row.id}`}>
-              {affSetsLine(row.aff_sets)}
-            </Link>
-          </Typography.Text>
         </Flex>
         <FanpageMenu
           row={row}
@@ -219,17 +153,29 @@ function PageCard({
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
-        <Figure label="Theo dõi" value={count(check.followers)} note={<Gain gain={check.followers_this_week} />} />
-        <Figure label="Lượt xem" value={count(week.views)} />
-        <Figure label="Tiếp cận" value={count(week.reach)} />
-        <Figure label="Tương tác" value={count(week.engagements)} />
+        <MiniFigure
+          label="Theo dõi"
+          value={count(check.followers)}
+          note={<FollowerGain gain={check.followers_this_week} />}
+        />
+        <MiniFigure label="Lượt xem" value={count(week.views)} />
+        <MiniFigure label="Tiếp cận" value={count(week.reach)} />
+        <MiniFigure label="Tương tác" value={count(week.engagements)} />
       </div>
       {insights.error && (
         <Typography.Text type="warning" style={{ fontSize: 12 }}>
           {insights.error}
         </Typography.Text>
       )}
-      <OwnerLine row={row} accounts={accounts} youtube={youtube} onRows={onRows} />
+      {row.alerts.map((alert) => (
+        // Views fell by half or more against the week before: said in words, with both numbers, on the platform's side.
+        <StatusText key={alert.platform} tone="warning" data-testid="fanpage-trend-alert">
+          Lượt xem {alert.platform === "facebook" ? "Facebook" : "Instagram"} giảm{" "}
+          {Math.round(Math.abs(alert.change) * 100)}% so với tuần trước ({count(alert.current)} so với{" "}
+          {count(alert.previous)})
+        </StatusText>
+      ))}
+      <PageChannels row={row} accounts={accounts} youtube={youtube} onRows={onRows} />
       {scheduled && <ScheduleLine page={scheduled} />}
 
       <Flex justify="space-between" align="center" gap={8} style={{ marginTop: "auto" }}>
@@ -395,8 +341,8 @@ function AddModal({
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
           Dán token của một System User trong Business Manager đã được gán Page, có quyền <code>pages_show_list</code>,{" "}
           <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>pages_manage_engagement</code>,{" "}
-          <code>pages_read_user_content</code> và <code>read_insights</code>. Token được lưu mã hoá, không bao giờ hiện
-          lại.
+          <code>pages_read_user_content</code> và <code>read_insights</code>; muốn xem số liệu Instagram của Page, thêm{" "}
+          <code>instagram_manage_insights</code>. Token được lưu mã hoá, không bao giờ hiện lại.
         </Typography.Paragraph>
         <TokenInput
           value={token}
@@ -495,19 +441,19 @@ function Fanpages() {
             Thêm Fanpage
           </Button>
         }
-        description="Các kênh đội đăng bài: Fanpage (số liệu 7 ngày, chủ Page, tài khoản Shopee và TikTok, lịch đăng; tool tự kiểm tra token mỗi 12 giờ), kênh TikTok và YouTube."
+        description="Các kênh đội đăng bài: số liệu 7 ngày, nơi mỗi Page đăng và lịch đăng. Tool tự kiểm tra token mỗi 12 giờ."
       />
       <Flex vertical gap={16}>
         {rows !== null && rows.length > 0 && (
           <Flex gap={8} wrap align="center">
-            <Segmented
-              aria-label="Trang nào"
+            <WhoseFilter
+              label="Trang nào"
               value={showing}
-              onChange={(next) => setWhose(next as "mine" | "all")}
-              options={[
-                { value: "mine", label: `Trang của tôi (${rows.filter((row) => row.mine).length})` },
-                { value: "all", label: `Tất cả (${rows.length})` },
-              ]}
+              onChange={setWhose}
+              mineLabel="Trang của tôi"
+              allLabel="Tất cả"
+              mine={rows.filter((row) => row.mine).length}
+              all={rows.length}
             />
             <StatusText tone="success">{inUse.length} đang dùng</StatusText>
             {broken > 0 && <StatusText tone="danger">{broken} lỗi kết nối</StatusText>}
@@ -557,7 +503,6 @@ function Fanpages() {
           </div>
         )}
         <StoppedPages rows={stopped} onRows={setRows} />
-        <ChannelsCard />
       </Flex>
       <AddModal open={adding} onClose={() => setAdding(false)} onSaved={setRows} />
       <TokenModal row={replacing} onClose={() => setReplacing(null)} onSaved={setRows} />

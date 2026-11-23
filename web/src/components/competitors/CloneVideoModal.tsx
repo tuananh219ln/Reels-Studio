@@ -1,18 +1,7 @@
 "use client";
 
-import {
-  Alert,
-  App,
-  Button,
-  Flex,
-  Input,
-  Modal,
-  Segmented,
-  Select,
-  Skeleton,
-  Typography,
-  type SelectProps,
-} from "antd";
+import Hint from "@/components/Hint";
+import { App, Button, Flex, Input, Modal, Segmented, Select, Skeleton, Typography, type SelectProps } from "antd";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import EmptyState from "@/components/EmptyState";
@@ -229,11 +218,9 @@ export default function CloneVideoModal({
             />
           </Flex>
           {info.thin && (
-            <Alert
-              type="info"
-              showIcon
-              title="Caption ngắn: video chỉ có khung hook. Bạn thêm ý ở trang video, hoặc nhờ Claude viết tiếp qua MCP."
-            />
+            <Hint>
+              Caption ngắn: video chỉ có khung hook. Bạn thêm ý ở trang video, hoặc nhờ Claude viết tiếp qua MCP.
+            </Hint>
           )}
           <Flex gap={8} align="center" wrap>
             <Typography.Text type="secondary" data-testid="clone-comments">

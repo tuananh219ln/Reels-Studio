@@ -687,3 +687,20 @@ body {
 .segmented-wrap .ant-segmented-group {
   flex-wrap: wrap;
 }
+
+/* A card that is one link: its title's <a class="stretched-link"> is stretched over the whole card, so a click,
+ * Ctrl-click, middle click and right-click "Mở trong tab mới" work anywhere on it. Links, buttons and fields inside
+ * stay above it and keep their own click. */
+.stretch-host {
+  position: relative;
+}
+.stretch-host .stretched-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.stretch-host :is(a, button, input, .ant-select, .ant-switch, .ant-dropdown-trigger):not(.stretched-link) {
+  position: relative;
+  z-index: 1;
+}
