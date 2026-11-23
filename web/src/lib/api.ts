@@ -619,6 +619,8 @@ export type KnowledgeTopic = {
   article_prompt: string;
   /** The group's own narration voice, which its new videos start with; "" leaves it to each maker's defaults. */
   voice_id: string;
+  /** The voice read instead when the one above cannot (every key of its service wrong or spent); "" for none. */
+  voice_backup_id: string;
   /** "Kiểu video" of the group's new videos, unless one is picked for the video. */
   video_mode: GroupVideoMode;
   /** The mode a video made now takes by it ("Xen kẽ theo ngày" resolved for today in Vietnam). */

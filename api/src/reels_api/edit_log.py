@@ -38,6 +38,7 @@ TOPIC_FIELDS = (
     "banned_words",
     "photo_hint",
     "voice_id",
+    "voice_backup_id",
     "video_mode",
     "text_look",
     "text_ai",
@@ -64,6 +65,7 @@ TOPIC_RESTORABLE = (
     "banned_words",
     "photo_hint",
     "voice_id",
+    "voice_backup_id",
 )
 # Prompts with the app's default as a version of their own ("Bản mặc định của app" in their history).
 TOPIC_PROMPTS = TOPIC_RESTORABLE[:7]

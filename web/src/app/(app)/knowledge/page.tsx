@@ -353,6 +353,7 @@ const TOPIC_FIELDS: Record<string, string> = {
   banned_words: "Từ cấm",
   photo_hint: "Gợi ý tìm ảnh",
   voice_id: "Giọng mặc định",
+  voice_backup_id: "Giọng phụ",
   video_mode: "Kiểu video",
   text_look: "Chữ & phụ đề",
   text_ai: "AI chọn kiểu chữ cho từng video",
@@ -589,7 +590,13 @@ function TopicBody({
                         <GroupVideoModeCard topic={topic} update={update} />
                         <GroupNoPeopleCard topic={topic} update={update} />
                         <GroupOutroCard topic={topic} update={update} />
-                        <GroupVoiceCard topicId={topic.id} initial={topic.voice_id} update={update} reload={reload} />
+                        <GroupVoiceCard
+                          topicId={topic.id}
+                          initial={topic.voice_id}
+                          initialBackup={topic.voice_backup_id}
+                          update={update}
+                          reload={reload}
+                        />
                         <GroupTemplatesCard topic={topic} update={update} />
                       </Flex>
                     </Col>
@@ -1071,22 +1078,27 @@ function PhotoHintCard({
 function GroupVoiceCard({
   topicId,
   initial,
+  initialBackup,
   update,
   reload,
 }: {
   topicId: number;
   initial: string;
+  initialBackup: string;
   update: Update;
   reload: Reload;
 }) {
   const { message } = App.useApp();
   const [voice, setVoice] = useSaved(initial);
+  const [backup, setBackup] = useSaved(initialBackup);
   const [busy, setBusy] = useState(false);
 
   async function save() {
     setBusy(true);
     try {
-      setVoice((await update({ voice_id: voice })).voice_id);
+      const saved = await update({ voice_id: voice, voice_backup_id: backup });
+      setVoice(saved.voice_id);
+      setBackup(saved.voice_backup_id);
       message.success("Đã lưu giọng của nhóm");
     } catch (err) {
       message.error(errorMessage(err));
@@ -1122,7 +1134,22 @@ function GroupVoiceCard({
         unset="Theo Thiết lập mặc định của người tạo"
         onChange={(changes) => setVoice(changes.voice_id ?? "")}
       />
-      <Button type="primary" loading={busy} disabled={voice === initial} style={{ marginTop: 12 }} onClick={save}>
+      <Typography.Paragraph type="secondary" style={{ marginTop: 16 }}>
+        Giọng phụ: khi giọng chính không đọc được (mọi key của dịch vụ đó sai hoặc hết hạn mức), cảnh được đọc bằng
+        giọng này, có thể của dịch vụ khác. Để trống thì video báo lỗi như cũ.
+      </Typography.Paragraph>
+      <VoicePicker
+        values={{ voice_id: backup }}
+        unset="Không dùng giọng phụ"
+        onChange={(changes) => setBackup(changes.voice_id ?? "")}
+      />
+      <Button
+        type="primary"
+        loading={busy}
+        disabled={voice === initial && backup === initialBackup}
+        style={{ marginTop: 12 }}
+        onClick={save}
+      >
         Lưu giọng
       </Button>
     </Card>

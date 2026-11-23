@@ -723,6 +723,26 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
 
 
 def narrate(db: DbSession, video: Video, text: str, voice: str | None, failed: set[str]) -> bytes:
+    """One scene's narration in its voice; when every key of that voice's service is wrong or spent, in the video's
+    group's backup voice (`voice_backup_id`) if it has one, which may be of another service."""
+    try:
+        return _narrate_with_keys(db, video, text, voice, failed)
+    except TtsError as err:
+        group = db.get(KnowledgeTopic, video.knowledge_topic_id) if video.knowledge_topic_id else None
+        backup = group.voice_backup_id if group is not None else ""
+        if not err.key_fault or not backup or backup == (voice or config.voice_id()):
+            raise
+        log.warning("Narration for video %s: %s cannot read (%s), using the backup voice", video.id, voice, err.message)
+        try:
+            return _narrate_with_keys(db, video, text, backup, failed)
+        except TtsError as backup_err:
+            raise TtsError(
+                f"{err.message}. Giọng phụ của nhóm cũng không đọc được: {backup_err.message}",
+                f"{err.detail} | backup: {backup_err.detail}",
+            ) from None
+
+
+def _narrate_with_keys(db: DbSession, video: Video, text: str, voice: str | None, failed: set[str]) -> bytes:
     """One scene's narration, trying the service's keys in order (source_keys.chain: the team's main key, then its
     backups): a key that is wrong, not allowed or out of quota passes the scene to the next, and its row on Cài đặt
     says why at once (source_keys.mark); a busy or broken service fails at once, as with one key. A key that failed
@@ -760,7 +780,7 @@ def narrate(db: DbSession, video: Video, text: str, voice: str | None, failed: s
             continue
         source_keys.mark(db, service, ref, None)
         return data
-    raise TtsError(all_keys_failed(service, len(keys)), last.detail if last else "")
+    raise TtsError(all_keys_failed(service, len(keys)), last.detail if last else "", True)
 
 
 def run_voice_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
