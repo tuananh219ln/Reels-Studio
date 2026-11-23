@@ -1,9 +1,10 @@
+from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .errors import InputError
-from .framing import COVER, compose, plan_frame, unpadded
+from .framing import COVER, layers, plan_frame, unpadded
 
 _READ_ERRORS = (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError)
 JPEG_QUALITY = 95
@@ -17,6 +18,17 @@ def _upright(source: Path, label: str) -> Image.Image:
             return ImageOps.exif_transpose(image).convert("RGB")
     except _READ_ERRORS as err:
         raise InputError(f"{label}: ảnh hỏng hoặc không đọc được {source} ({err})") from None
+
+
+@dataclass(frozen=True)
+class Fitted:
+    """What fit_image made. `text_centre`: where the text box goes when nobody placed it (None: the template's place).
+    A framed photo also has `picture`, the photo alone, to lay at `box` (x, y, width, height) over the target, which
+    is then its blurred copy."""
+
+    text_centre: tuple[int, int] | None = None
+    picture: Path | None = None
+    box: tuple[int, int, int, int] | None = None
 
 
 def normalize_image(source: Path, target: Path, label: str) -> None:
@@ -33,21 +45,24 @@ def fit_image(
     centre: tuple[int, int] | None,
     min_top: int | None,
     crop_offset: float | None = None,
-) -> tuple[int, int] | None:
+) -> Fitted:
     """The scene's photo made ready for FFmpeg as its "image_fit" asks (framing.py): a photo to cover-crop as before,
-    or the whole 1080x1920 frame with the blurred copy under it. Returns where the text box goes when nobody placed
-    it (`centre` is a member's or the video's place, which only says above or below the photo), None for the
-    template's place."""
+    or its blurred copy at 1080x1920 in `target` and the photo alone beside it (`<target>-photo.jpg`). `centre` is a
+    member's or the video's place for the text, which only says above or below the photo."""
     upright = _upright(source, label)
     if fit == COVER:
         upright.save(target, "JPEG", quality=JPEG_QUALITY)
-        return None
+        return Fitted()
     picture = unpadded(upright, fit)
     framing = plan_frame(picture.width, picture.height, fit, text_height, centre, min_top, crop_offset)
-    if framing.kind != COVER:
-        picture = compose(picture, framing)
-    picture.save(target, "JPEG", quality=JPEG_QUALITY)
-    return framing.text_centre
+    if framing.kind == COVER:
+        picture.save(target, "JPEG", quality=JPEG_QUALITY)
+        return Fitted()
+    copy, photo = layers(picture, framing)
+    copy.save(target, "JPEG", quality=JPEG_QUALITY)
+    photo_path = target.with_name(f"{target.stem}-photo.jpg")
+    photo.save(photo_path, "JPEG", quality=JPEG_QUALITY)
+    return Fitted(framing.text_centre, photo_path, framing.picture)
 
 
 def is_image(source: Path) -> bool:

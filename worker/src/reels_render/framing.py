@@ -8,7 +8,10 @@ text at the same place; wider ones keep their shape. A 9:16 photo that is itself
 (a real picture in a middle band, blur above and below) has its band taken out first, so it is not padded twice.
 
 Everything here is Pillow only, shared by the render (render.py) and the app's previews, so both show the same
-frame. The fitted frame goes to FFmpeg as the scene's photo; at 1080x1920 its cover crop changes nothing.
+frame. The render hands FFmpeg two layers (`layers`): the blurred copy with the shadow, as the scene's photo at
+1080x1920 (its cover crop changes nothing), and the photo alone, laid in its box. The photo zooms inside its box and
+the copy under it half as far (PHOTO_ZOOM_SHARE, BACKDROP_ZOOM_SHARE of the video's own zoom), so the box never moves
+towards the text; the first frame is `compose`, which the previews draw.
 """
 
 import math
@@ -27,6 +30,10 @@ FRAME_RATIO = FRAME_WIDTH / FRAME_HEIGHT
 SQUARE_FROM = 0.745
 SQUARE_UP_TO = 1.34
 GAP = 40  # between the text box and the photo
+# The spec's 1.06 for the photo and 1.03 for the copy under it, as shares of the default 1.12 zoom: applied to
+# whatever zoom the video chose, with its own motion (zoom in or out, pan, handheld...).
+PHOTO_ZOOM_SHARE = 0.5
+BACKDROP_ZOOM_SHARE = 0.25
 # The blurred copy under the photo: scaled past cover so its blurred edges never show, then darkened.
 BACKDROP_ZOOM = 1.08
 BACKDROP_SMALL = (270, 480)  # blurred at a quarter size: much faster, and the eye cannot tell at this strength
@@ -101,11 +108,14 @@ def plan_frame(
         crop = (start, 0, start + side, side) if width > height else (0, start, side, start + side)
     shown_w, shown_h = crop[2] - crop[0], crop[3] - crop[1]
     picture_w = min(FRAME_WIDTH, round(FRAME_HEIGHT * shown_w / shown_h))
-    picture_h = min(FRAME_HEIGHT, round(picture_w * shown_h / shown_w))
-    x = (FRAME_WIDTH - picture_w) // 2
+    # Even sizes and places, so the photo lines up with the MP4's half-size colour planes when FFmpeg lays it.
+    picture_w -= picture_w % 2
+    picture_h = min(FRAME_HEIGHT, 2 * round(picture_w * shown_h / shown_w / 2))
+    x = (FRAME_WIDTH - picture_w) // 4 * 2
     if text_height <= 0:
-        return Framing(kind, crop, (x, (FRAME_HEIGHT - picture_h) // 2, picture_w, picture_h), None)
+        return Framing(kind, crop, (x, (FRAME_HEIGHT - picture_h) // 4 * 2, picture_w, picture_h), None)
     y, text_top = _place(picture_h, text_height, centre is not None and centre[1] >= FRAME_HEIGHT // 2, min_top)
+    y -= y % 2
     return Framing(kind, crop, (x, y, picture_w, picture_h), (FRAME_WIDTH // 2, text_top + text_height // 2))
 
 
@@ -183,6 +193,14 @@ def is_blurry(image: Image.Image) -> bool:
 
 def compose(image: Image.Image, framing: Framing) -> Image.Image:
     """The 1080x1920 frame for a WHOLE or SQUARE framing of `image`: its blurred copy, the shadow, the photo."""
+    canvas, picture = layers(image, framing)
+    canvas.paste(picture, framing.picture[:2])
+    return canvas
+
+
+def layers(image: Image.Image, framing: Framing) -> tuple[Image.Image, Image.Image]:
+    """The two layers of a WHOLE or SQUARE framing: the 1080x1920 blurred copy with the photo's shadow on it, and the
+    photo alone at its size in the frame (Lanczos, sharpened when enlarged), to lay at framing.picture."""
     canvas = backdrop(image)
     x, y, width, height = framing.picture
     shadow = Image.new("L", BACKDROP_SMALL, 0)
@@ -201,8 +219,7 @@ def compose(image: Image.Image, framing: Framing) -> Image.Image:
     picture = image.resize((width, height), Image.Resampling.LANCZOS, box=framing.crop)
     if width > framing.crop[2] - framing.crop[0]:
         picture = picture.filter(UNSHARP)
-    canvas.paste(picture, (x, y))
-    return canvas
+    return canvas, picture
 
 
 def backdrop(image: Image.Image) -> Image.Image:

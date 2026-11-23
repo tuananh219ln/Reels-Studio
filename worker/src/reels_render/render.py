@@ -10,6 +10,7 @@ from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplac
 from .graph import (
     MAX_CLIP_PIXELS,
     CaptionInput,
+    FramedInput,
     InsetInput,
     LayerInput,
     LogoInput,
@@ -19,7 +20,7 @@ from .graph import (
     build_ffmpeg_args,
     clip_lead,
 )
-from .images import fit_image
+from .images import Fitted, fit_image
 from .layers import card_corner, layer_corner, render_layer
 from .logo import TEXT_TOP_MIN, corner_placement
 from .markup import Run, cased
@@ -104,8 +105,9 @@ def render_video(
         for index, (scene, layout) in enumerate(zip(script.all_scenes, layouts)):
             # Room for the corner badge's row on the content scenes; the title scene has no logo.
             min_top = TEXT_TOP_MIN if script.logo is not None and index > 0 else None
-            # Where a framed photo (framing.py) puts the text when nobody placed it; None: the template's place.
-            framed_centre = None
+            # A framed photo (framing.py): where it puts the text when nobody placed it, and the photo laid over its
+            # blurred copy; none for every other picture.
+            fitted = Fitted()
             if scene.video is not None:
                 image, video_start = scene.video.resolve(), scene.video_start
                 if options.backdrop:
@@ -115,7 +117,7 @@ def render_video(
                 image, video_start = work_dir / "scene-00.jpg", None
             else:
                 image, video_start = work_dir / f"scene-{index:02d}.jpg", None
-                framed_centre = fit_image(
+                fitted = fit_image(
                     scene.image,
                     image,
                     scene.label,
@@ -134,7 +136,7 @@ def render_video(
                 box_x, box_y = place_box(
                     layout.width,
                     layout.height,
-                    scene.text_position or framed_centre,
+                    scene.text_position or fitted.text_centre,
                     is_title=index == 0,
                     min_top=min_top,
                 )
@@ -214,6 +216,7 @@ def render_video(
                     loop=video_start is not None and (options.backdrop or scene.video_loop),
                     blur=scene.video_blur if video_start is not None else (),
                     insets=tuple(insets),
+                    framed=FramedInput(fitted.picture, *fitted.box) if fitted.picture is not None else None,
                     motion_span=(
                         (scene_start - timeline.scene_frames[index], timeline.total_frames)
                         if options.backdrop and video_start is None

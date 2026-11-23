@@ -484,3 +484,37 @@ def test_auto_fit_lays_a_wide_photo_under_its_text_over_a_blurred_copy(tmp_path)
     assert boxed and photo[-1] - photo[0] > 900
     # The yellow text box sits high, on the blurred copy above the photo.
     assert min(boxed) < 600 and max(boxed) < photo[0]
+
+
+@needs_ffmpeg
+def test_a_framed_photo_zooms_inside_its_box_which_stays_put(tmp_path):
+    """The photo zooms inside its box (framing.PHOTO_ZOOM_SHARE) while its blurred copy moves under it: the box's
+    edge stays on the same row, so it never runs under the text, and a thin stripe along the photo's top edge is
+    zoomed out of view by the scene's end."""
+    from PIL import Image
+
+    photo = Image.new("RGB", (1000, 1000), (220, 40, 40))
+    photo.paste((30, 60, 230), (0, 0, 1000, 12))  # a thin blue stripe along the top
+    photo.save(tmp_path / "vuong.jpg")
+    make_image(tmp_path / "title.jpg", (1080, 1920), (60, 90, 160))
+    data = script_data(scene_count=1, image="title.jpg", seconds=1)
+    data["scenes"][0].update(image="vuong.jpg", seconds=2, image_fit="auto")
+    path = render_video(load_script(write_script(tmp_path, data)), tmp_path / "video.mp4")
+
+    def red_top(frame):
+        return next(
+            y for y in range(540, 1920) if (lambda r, g, b: r > 170 and g < 90 and b < 90)(*frame.getpixel((540, y)))
+        )
+
+    def blue_rows(frame, top):
+        return [
+            y for y in range(top - 30, top + 30) if (lambda r, g, b: b > 150 and r < 120)(*frame.getpixel((540, y)))
+        ]
+
+    early = extract_frame(path, 1.15, tmp_path / "early.png")
+    late = extract_frame(path, 2.9, tmp_path / "late.png")
+    # The box: red right under the blue stripe at first; at the end the stripe is gone and red starts at the top.
+    top = blue_rows(early, red_top(early))
+    assert top, "the stripe shows at the start"
+    assert not blue_rows(late, top[0] + 6), "the stripe is zoomed out of view by the end"
+    assert abs(red_top(late) - top[0]) <= 4, "the box has not moved"
