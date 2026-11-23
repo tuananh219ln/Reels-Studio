@@ -395,8 +395,8 @@ function AddModal({
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
           Dán token của một System User trong Business Manager đã được gán Page, có quyền <code>pages_show_list</code>,{" "}
           <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>pages_manage_engagement</code>,{" "}
-          <code>pages_read_user_content</code> và <code>read_insights</code>. Token được lưu mã hoá, không bao giờ hiện
-          lại.
+          <code>pages_read_user_content</code> và <code>read_insights</code>; muốn xem số liệu Instagram của Page, thêm{" "}
+          <code>instagram_manage_insights</code>. Token được lưu mã hoá, không bao giờ hiện lại.
         </Typography.Paragraph>
         <TokenInput
           value={token}

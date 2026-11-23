@@ -1211,6 +1211,13 @@ steps open the status card or the products block on its tab, the QC chip its pop
     posts "Xóa" is greyed out with why. "Thêm Fanpage" says which permissions the token needs (only there, not on the page) and takes it, "Kiểm tra token" lists the
     Pages it manages (a sole Page is ticked, one it cannot post to is greyed out), and "Lưu" keeps
     the chosen ones. A stopped Page cannot be posted to.
+  - **A Page's dashboard, Instagram side** ([decision](decisions/2026-11-23-instagram-dashboard.md)): a Page with a
+    linked Instagram account has "Facebook | Instagram" (in the address, `?platform=instagram`) beside the period.
+    On Instagram the tabs are "Tổng quan" (four figures against the period before: Lượt xem, Tiếp cận, Tương tác,
+    Người theo dõi mới with "Hiện có N"; "Lượt xem theo ngày"; a grey note that Instagram's numbers lag up to 48 hours)
+    and "Lịch đăng", shared with Facebook since Instagram follows Facebook's slot. A token without
+    `instagram_manage_insights` is one warning alert above the figures with the way to fix it ("Dán token mới"), never
+    a broken connection. "Nội dung" (per Reel) and "Đối tượng" are later rounds.
   - **A Page's dashboard** (`/fanpages/[id]`, modelled on Facebook's Professional Dashboard, built from what the
     app already reads): "← Quản lý kênh" above the Page's name; at the title's right "7 ngày / 28 ngày / 90 ngày"
     (28 at first, hidden on "Lịch đăng", which looks ahead) and "Kiểm tra ngay"; on "Lịch đăng" the grey line says

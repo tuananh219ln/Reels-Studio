@@ -724,6 +724,28 @@ export type DashboardFigure = { value: number | null; previous: number | null; c
 
 export type DashboardVideo = { id: number; title: string; thumbnail_url: string | null };
 
+/** The Page's linked Instagram account over the last `days` days in Vietnam time (api GET
+ * /fanpages/{id}/instagram-dashboard). A day with no stored number is null, never 0. */
+export type InstagramDashboard = {
+  page: { id: number; name: string; owner: { id: number; name: string } | null };
+  account: { id: string | null; username: string | null };
+  days: number;
+  start: string;
+  end: string;
+  series: {
+    day: string;
+    views: number | null;
+    reach: number | null;
+    interactions: number | null;
+    follows: number | null;
+  }[];
+  totals: Record<"views" | "reach" | "interactions" | "follows", DashboardFigure>;
+  /** The account's followers at the last check. */
+  followers: number | null;
+  /** Why the last check could not read the numbers (a token without instagram_manage_insights); null when it did. */
+  insights_error: string | null;
+};
+
 /** One Page's dashboard over the last `days` days in Vietnam time (api GET /fanpages/{id}/dashboard). */
 export type PageDashboard = {
   page: {
@@ -735,6 +757,8 @@ export type PageDashboard = {
     token_tail: string;
     check: Fanpage["check"];
     insights_error: string | null;
+    /** The linked Instagram account: the dashboard's "Facebook | Instagram" switch shows only when there is one. */
+    instagram: { id: string; username: string | null } | null;
   };
   days: number;
   start: string;

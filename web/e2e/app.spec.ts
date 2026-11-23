@@ -434,6 +434,34 @@ test("the worker checks a connected Page's token and shows its followers", async
   await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
 });
 
+test("a Page's dashboard has an Instagram side with its own figures and chart", async ({ page }) => {
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
+  const card = page.getByTestId("fanpage-card").filter({ hasText: "Trang Dưỡng Sinh" });
+  await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await card.getByText("Số liệu 7 ngày", { exact: false }).click();
+  await expect(page.getByRole("heading", { name: "Trang Dưỡng Sinh" })).toBeVisible();
+  // The switch shows because the Page has a linked Instagram account; Facebook is the side it opens on.
+  const platform = page.getByRole("radiogroup", { name: "Nền tảng" });
+  await expect(platform.getByRole("radio", { name: "Facebook" })).toBeChecked();
+  await platform.getByText("Instagram", { exact: true }).click();
+  await expect(page).toHaveURL(/platform=instagram/);
+  const overview = page.getByTestId("instagram-overview");
+  await expect(overview.getByTestId("figure-tile")).toHaveCount(4, { timeout: 20_000 });
+  await expect(overview.getByTestId("figure-tile").filter({ hasText: "Người theo dõi mới" })).toContainText(
+    "Hiện có 1.204",
+  );
+  await expect(overview.getByTestId("instagram-chart")).toBeVisible();
+  await expect(page.getByTestId("instagram-insights-error")).toHaveCount(0);
+  // Instagram has its overview and the schedule it shares with Facebook; the Facebook-only tabs are gone.
+  await expect(page.getByRole("tab", { name: "Tổng quan" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Lịch đăng" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Đối tượng" })).toHaveCount(0);
+  await platform.getByText("Facebook", { exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Đối tượng" })).toBeVisible();
+});
+
 test("a Page's card opens its dashboard, with a period and six tabs", async ({ page }) => {
   await loginAsSeed(page);
   await connectFacebook(page);

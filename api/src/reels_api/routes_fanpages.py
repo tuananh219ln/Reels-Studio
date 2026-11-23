@@ -419,6 +419,21 @@ def page_dashboard_view(
     return page_dashboard.dashboard(db, row, days)
 
 
+@router.get("/{fanpage_id}/instagram-dashboard")
+def page_instagram_dashboard_view(
+    fanpage_id: int, days: int = 28, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """The Page's linked Instagram account for the last `days` days (7, 28 or 90), each figure against the period before."""
+    if days not in page_dashboard.PERIODS:
+        raise invalid("Khoảng thời gian chỉ được là 7, 28 hoặc 90 ngày")
+    row = db.get(Fanpage, fanpage_id)
+    if row is None:
+        raise ApiError(404, "fanpage_not_found", "Không tìm thấy Fanpage")
+    if not row.instagram_user_id:
+        raise ApiError(404, "instagram_not_linked", "Page này chưa liên kết tài khoản Instagram")
+    return page_dashboard.instagram_dashboard(db, row, days)
+
+
 @router.get("/{fanpage_id}/content")
 def page_content_view(
     fanpage_id: int, days: int = 28, me: Session = Depends(current_member), db: DbSession = Depends(get_db)

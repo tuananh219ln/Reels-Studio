@@ -7,6 +7,7 @@ import StatusText from "@/components/StatusText";
 import VideoThumbnail from "@/components/VideoThumbnail";
 import ContentLibrary from "@/components/page/ContentLibrary";
 import DailyChart, { shortDay } from "@/components/page/DailyChart";
+import InstagramOverview from "@/components/page/InstagramOverview";
 import { FigureTile, TileRow, formatNumber, formatSeconds } from "@/components/page/Figures";
 import { ApiError, api, errorMessage, formatDateTime, type PageDashboard, type QueueOverview } from "@/lib/api";
 import { useFreshenOnOpen } from "@/lib/freshen";
@@ -398,6 +399,15 @@ function FanpageDashboard() {
   const [missing, setMissing] = useState(false);
   const [queue, setQueue] = useState<QueueOverview | null>(null);
   const [tab, setTabInAddress] = useUrlChoice<string>("tab", "overview");
+  // "Facebook | Instagram": the platform's numbers, in the address like the period and the tab.
+  const [platform, setPlatformInAddress] = useUrlChoice<"facebook" | "instagram">("platform", "facebook", [
+    "instagram",
+  ]);
+  const onInstagram = platform === "instagram" && Boolean(data?.page.instagram);
+  const setPlatform = (next: "facebook" | "instagram") => {
+    keepOnlyInAddress(period === "28" ? {} : { days: period });
+    setPlatformInAddress(next);
+  };
   // A tab starts without the last tab's sort and page; the period stays.
   const setTab = (next: string) => {
     keepOnlyInAddress(period === "28" ? {} : { days: period });
@@ -475,6 +485,17 @@ function FanpageDashboard() {
         actions={
           <>
             {/* The period is the numbers' only: "Lịch đăng" looks ahead, not back. */}
+            {data?.page.instagram && (
+              <Segmented<"facebook" | "instagram">
+                value={onInstagram ? "instagram" : "facebook"}
+                onChange={setPlatform}
+                aria-label="Nền tảng"
+                options={[
+                  { value: "facebook", label: "Facebook" },
+                  { value: "instagram", label: "Instagram" },
+                ]}
+              />
+            )}
             {tab !== "schedule" && (
               <Segmented<Days>
                 value={days}
@@ -497,6 +518,11 @@ function FanpageDashboard() {
           data &&
           (tab === "schedule" ? (
             "Video trong hàng chờ tự được hẹn giờ vào khung giờ đăng trống gần nhất (trong 48 giờ tới), rồi chuyển sang cột “Đã lên lịch”."
+          ) : onInstagram ? (
+            <>
+              Instagram @{data.page.instagram?.username ?? data.page.instagram?.id}, từ {shortDay(data.start)} đến{" "}
+              {shortDay(data.end)} (giờ Việt Nam), mỗi số so với {data.days} ngày trước đó.
+            </>
           ) : (
             <>
               Từ {shortDay(data.start)} đến {shortDay(data.end)} (giờ Việt Nam), mỗi số so với {data.days} ngày trước
@@ -511,9 +537,9 @@ function FanpageDashboard() {
       ) : (
         <Flex vertical gap={12}>
           <Tabs
-            activeKey={tab}
+            activeKey={onInstagram && tab !== "schedule" ? "overview" : tab}
             onChange={setTab}
-            items={tabs(data, queue, (overview) => {
+            items={tabs(data, queue, onInstagram, (overview) => {
               setQueue(overview);
               // A new group or posting times change the week's free times.
               void load();
@@ -525,7 +551,19 @@ function FanpageDashboard() {
   );
 }
 
-function tabs(data: PageDashboard, queue: QueueOverview | null, onQueue: (overview: QueueOverview) => void) {
+function tabs(
+  data: PageDashboard,
+  queue: QueueOverview | null,
+  instagram: boolean,
+  onQueue: (overview: QueueOverview) => void,
+) {
+  // Instagram's own tabs: its overview, and the posting schedule it shares with Facebook (it posts a minute after).
+  if (instagram) {
+    return [
+      { key: "overview", label: "Tổng quan", children: <InstagramOverview pageId={data.page.id} days={data.days} /> },
+      { key: "schedule", label: "Lịch đăng", children: <Schedule data={data} queue={queue} onQueue={onQueue} /> },
+    ];
+  }
   return [
     { key: "overview", label: "Tổng quan", children: <Overview data={data} /> },
     { key: "views", label: "Lượt xem", children: <Views data={data} /> },

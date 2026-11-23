@@ -687,6 +687,10 @@ class Fanpage(Base):
     instagram_username: Mapped[str | None] = mapped_column(String(100))
     # Why the last check could not read the linked account (migration 0112), shown on "Quản lý kênh"; None when it read.
     instagram_error: Mapped[str | None] = mapped_column(Text)
+    # Why the last check could not read the account's numbers (migration 0119, `instagram_manage_insights`); None when it
+    # did. The account's followers as of that check, and its days in `instagram_insights`.
+    instagram_insights_error: Mapped[str | None] = mapped_column(Text)
+    instagram_followers_count: Mapped[int | None] = mapped_column(Integer)
     # "Bộ bình luận" settings (aff_sets.DEFAULTS names them and fills what is missing; migration 0113).
     aff_settings: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
 
@@ -788,6 +792,23 @@ class FanpageInsights(Base):
     views: Mapped[int | None] = mapped_column(Integer)
     reach: Mapped[int | None] = mapped_column(Integer)
     engagements: Mapped[int | None] = mapped_column(Integer)
+
+
+class InstagramInsights(Base):
+    """A Page's Instagram numbers for one day (Vietnam time), read by the worker's check: views of its content, the
+    accounts reached, the interactions (likes, comments, shares, saves) and the follows that day; None when Instagram
+    gave no number."""
+
+    __tablename__ = "instagram_insights"
+    __table_args__ = (Index("uq_instagram_insights_fanpage_id_day", "fanpage_id", "day", unique=True),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fanpage_id: Mapped[int] = mapped_column(ForeignKey("fanpages.id", ondelete="CASCADE"))
+    day: Mapped[date] = mapped_column(Date)
+    views: Mapped[int | None] = mapped_column(Integer)
+    reach: Mapped[int | None] = mapped_column(Integer)
+    interactions: Mapped[int | None] = mapped_column(Integer)
+    follows: Mapped[int | None] = mapped_column(Integer)
 
 
 class LlmProvider(Base):

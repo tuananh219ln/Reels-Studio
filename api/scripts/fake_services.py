@@ -22,7 +22,7 @@ import threading
 import time
 import urllib.parse
 import wave
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
 from email import policy as email_policy
 from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -355,6 +355,14 @@ class FakeServices:
         self.instagram_upload_refused = False  # the upload server answers its `debug_info` 400 (rupload's shape)
         self.instagram_upload_paths: list[str] = []  # the path each file was sent to
         self.instagram_calls: list[str] = []  # "container", "upload", "status", "publish", "permalink", "media"
+        # The linked account's Instagram Insights: {metric: {"YYYY-MM-DD" (Vietnam day): value}} over the defaults, which
+        # give a day its number from its date; `instagram_insights_refused` is a token without instagram_manage_insights
+        # (code 10); a metric in `instagram_metrics_dropped` is refused as Meta refuses a retired one.
+        self.instagram_insights: dict[str, dict[str, int]] = {}
+        self.instagram_insights_refused = False
+        self.instagram_metrics_dropped: set[str] = set()
+        self.instagram_followers: int | None = 1204
+        self.instagram_insights_calls: list[str] = []
         # Photo and text posts on the Page's feed ("Bài viết"), by post id: {"message", "published", "scheduled",
         # "photo": bytes or None, "photos": the attached photos of a post of several}; their numbers by post id (reach,
         # shares, comments, reactions).
@@ -1377,6 +1385,51 @@ class FakeServices:
             reply["picture"] = {"data": {"url": self.facebook_picture, "is_silhouette": False}}
         return 200, reply
 
+    def _instagram_insights(self, query: dict) -> tuple[int, dict]:
+        """GET /{ig-user-id}/insights: `metric_type=total_value` for the window since..until (a day's total), or
+        `follower_count` per day (`values`), in the shape Meta documents."""
+        metric = query.get("metric", "")
+        self.instagram_insights_calls.append(metric)
+        if self.instagram_insights_refused:
+            return 403, {"error": {"message": "(#10) Requires instagram_manage_insights permission", "code": 10}}
+        if metric in self.instagram_metrics_dropped or metric not in (
+            "views",
+            "reach",
+            "total_interactions",
+            "follower_count",
+        ):
+            return 400, {"error": {"message": "(#100) The value must be a valid insights metric", "code": 100}}
+        zone = timezone(timedelta(hours=7))
+        since = datetime.fromtimestamp(int(query.get("since", "0")), zone)
+        until = datetime.fromtimestamp(int(query.get("until", "0")), zone)
+
+        def number(day: date) -> int:
+            base = {"views": 1000, "reach": 700, "total_interactions": 50, "follower_count": 0}[metric]
+            default = base + day.day if metric != "follower_count" else day.day % 5
+            return self.instagram_insights.get(metric, {}).get(day.isoformat(), default)
+
+        if query.get("metric_type") == "total_value":
+            return 200, {
+                "data": [
+                    {
+                        "name": metric,
+                        "period": "day",
+                        "total_value": {"value": number(since.date())},
+                        "id": f"{INSTAGRAM_USER}/insights/{metric}/day",
+                    }
+                ]
+            }
+        values, day = [], since.date()
+        while datetime(day.year, day.month, day.day, tzinfo=zone) < until:
+            end = datetime(day.year, day.month, day.day, tzinfo=zone) + timedelta(days=1)
+            values.append({"value": number(day), "end_time": end.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S+0000")})
+            day += timedelta(days=1)
+        return 200, {
+            "data": [
+                {"name": metric, "period": "day", "values": values, "id": f"{INSTAGRAM_USER}/insights/{metric}/day"}
+            ]
+        }
+
     def _instagram_refused(self) -> tuple[int, dict]:
         code = self.instagram_refusal
         return 403, {"error": {"message": f"(#{code}) Instagram refused", "code": code}}
@@ -1457,9 +1510,15 @@ class FakeServices:
             return self._instagram_refused()
         with self.lock:
             if target == INSTAGRAM_USER:
-                if self.instagram_username_refused:
+                fields = query.get("fields", "")
+                if self.instagram_username_refused and "followers_count" not in fields:
                     return 403, {"error": {"message": "(#10) Requires instagram_basic", "code": 10}}
-                return 200, {"id": INSTAGRAM_USER, "username": (self.instagram_account or {}).get("username")}
+                reply = {"id": INSTAGRAM_USER, "username": (self.instagram_account or {}).get("username")}
+                if "followers_count" in fields and self.instagram_followers is not None:
+                    reply["followers_count"] = self.instagram_followers
+                return 200, reply
+            if target == f"{INSTAGRAM_USER}/insights":
+                return self._instagram_insights(query)
             if target == f"{INSTAGRAM_USER}/media":
                 self.instagram_calls.append("media")
                 return 200, {"data": [dict(item) for item in self.instagram_media]}

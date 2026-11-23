@@ -11,6 +11,7 @@ import logging
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from . import config, crypto
@@ -241,3 +242,94 @@ def recent_media(page: Page, ig_user_id: str) -> list[dict]:
     )
     data = reply.get("data")
     return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
+
+
+# --- The account's numbers (Instagram Insights; needs `instagram_manage_insights` on the Page's token) ---
+
+NO_INSIGHTS_PERMISSION = "Token chưa có quyền đọc số liệu Instagram (instagram_manage_insights)"
+# One number for a whole window, asked a day at a time: `views`, `reach` and `total_interactions` give the account's
+# total over `since`..`until` (`metric_type=total_value`), so a day's number is the total of a one-day window.
+DAY_METRICS = {"views": "views", "reach": "reach", "interactions": "total_interactions"}
+
+
+def _count(value) -> int | None:
+    return int(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
+
+
+def _day_total(page: Page, ig_user_id: str, metric: str, start: datetime, end: datetime) -> int | None:
+    """The account's `metric` over [start, end), or None when Instagram gives no number for it."""
+    reply = _get(
+        page,
+        f"{urllib.parse.quote(ig_user_id, safe='')}/insights",
+        metric=metric,
+        metric_type="total_value",
+        period="day",
+        since=str(int(start.timestamp())),
+        until=str(int(end.timestamp())),
+    )
+    for item in reply.get("data") or []:
+        if isinstance(item, dict) and item.get("name") == metric:
+            return _count((item.get("total_value") or {}).get("value"))
+    return None
+
+
+def account_insights(
+    page: Page, ig_user_id: str, days: list[date], zone
+) -> tuple[dict[date, dict], int | None, list[str]]:
+    """The linked account's numbers for each of `days` (days in `zone`, Vietnam time): {day: {"views", "reach",
+    "interactions", "follows"}}, its followers now, and what went wrong. A metric Instagram refuses is left None and
+    named in the problems, so one the account lacks does not lose the others; a token without
+    `instagram_manage_insights` stops at the first call. `follows` is `follower_count`, the new followers of each day.
+    Instagram's data lags up to 48 hours: the last days are rewritten on each check."""
+    numbers: dict[date, dict] = {
+        day: {"views": None, "reach": None, "interactions": None, "follows": None} for day in days
+    }
+    problems: list[str] = []
+    for key, metric in DAY_METRICS.items():
+        for day in days:
+            start = datetime(day.year, day.month, day.day, tzinfo=zone)
+            try:
+                numbers[day][key] = _day_total(page, ig_user_id, metric, start, start + timedelta(days=1))
+            except FacebookError as err:
+                if err.code in PERMISSION_ERRORS:
+                    return numbers, None, [NO_INSIGHTS_PERMISSION]
+                problems.append(
+                    err.message if err.code in RATE_LIMIT_ERRORS else f"Instagram không trả số liệu {metric}"
+                )
+                break
+    first = datetime(days[0].year, days[0].month, days[0].day, tzinfo=zone)
+    last = datetime(days[-1].year, days[-1].month, days[-1].day, tzinfo=zone) + timedelta(days=1)
+    try:
+        reply = _get(
+            page,
+            f"{urllib.parse.quote(ig_user_id, safe='')}/insights",
+            metric="follower_count",
+            period="day",
+            since=str(int(first.timestamp())),
+            until=str(int(last.timestamp())),
+        )
+        for item in reply.get("data") or []:
+            for value in (item.get("values") or []) if isinstance(item, dict) else []:
+                ended = value.get("end_time")
+                if not isinstance(ended, str):
+                    continue
+                day = (
+                    (
+                        datetime.fromisoformat(ended.replace("Z", "+00:00").replace("+0000", "+00:00"))
+                        - timedelta(days=1)
+                    )
+                    .astimezone(zone)
+                    .date()
+                )
+                if day in numbers:
+                    numbers[day]["follows"] = _count(value.get("value"))
+    except FacebookError as err:
+        problems.append(err.message if err.code in RATE_LIMIT_ERRORS else "Instagram không trả số liệu follower_count")
+    followers = None
+    try:
+        followers = _count(
+            _get(page, urllib.parse.quote(ig_user_id, safe=""), fields="followers_count").get("followers_count")
+        )
+    except FacebookError as err:
+        log.warning("Instagram account %s: followers not read: %s %s", ig_user_id, err.message, err.detail)
+    return numbers, followers, list(dict.fromkeys(problems))

@@ -14,7 +14,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session as DbSession
 
 from . import analytics, facebook, fanpages, page_queue
-from .models import Fanpage, FanpageFollowers, FanpageInsights, PostMetrics, Publication, Video
+from .models import Fanpage, FanpageFollowers, FanpageInsights, InstagramInsights, PostMetrics, Publication, Video
 from .sessions import now
 from .videos import LIVE_POST_STATUSES, is_published, live_at, split_scenes, thumbnail_url, video_name
 
@@ -289,6 +289,10 @@ def dashboard(db: DbSession, page: Fanpage, days: int) -> dict:
             "token_tail": page.token_tail,
             "check": check,
             "insights_error": page.insights_error,
+            # The linked Instagram account: the dashboard's "Facebook | Instagram" switch shows only when there is one.
+            "instagram": {"id": page.instagram_user_id, "username": page.instagram_username}
+            if page.instagram_user_id
+            else None,
         },
         "days": days,
         "start": current.start.isoformat(),
@@ -320,4 +324,54 @@ def dashboard(db: DbSession, page: Fanpage, days: int) -> dict:
         # The newest post, even one older than both periods.
         "latest_post": _latest_post(db, posts or _posts(db, page.id, limit=1)),
         "upcoming": _upcoming(db, page, at),
+    }
+
+
+def instagram_dashboard(db: DbSession, page: Fanpage, days: int) -> dict:
+    """The Page's Instagram account for the last `days` days (7, 28 or 90), each figure against the period before it:
+    views, accounts reached, interactions and the follows of each day, read at the Page's check with
+    `instagram_manage_insights` (`instagram_insights_error` says when the token lacks it). Like the Facebook dashboard,
+    a day with no stored number is None, never 0."""
+    at = now()
+    current, previous = periods(days, _local_day(at))
+    rows = {
+        row.day: row
+        for row in db.scalars(
+            select(InstagramInsights).where(
+                InstagramInsights.fanpage_id == page.id,
+                InstagramInsights.day >= previous.start,
+                InstagramInsights.day <= current.end,
+            )
+        )
+    }
+
+    def total(period: Period, metric: str) -> int | None:
+        return _sum([getattr(rows[day], metric) for day in period.days() if day in rows])
+
+    return {
+        "page": {
+            "id": page.id,
+            "name": page.name,
+            "owner": {"id": page.owner.id, "name": page.owner.name} if page.owner else None,
+        },
+        "account": {"id": page.instagram_user_id, "username": page.instagram_username},
+        "days": days,
+        "start": current.start.isoformat(),
+        "end": current.end.isoformat(),
+        "series": [
+            {
+                "day": day.isoformat(),
+                "views": rows[day].views if day in rows else None,
+                "reach": rows[day].reach if day in rows else None,
+                "interactions": rows[day].interactions if day in rows else None,
+                "follows": rows[day].follows if day in rows else None,
+            }
+            for day in current.days()
+        ],
+        "totals": {
+            metric: figure(total(current, metric), total(previous, metric))
+            for metric in ("views", "reach", "interactions", "follows")
+        },
+        "followers": page.instagram_followers_count,
+        "insights_error": page.instagram_insights_error,
     }
