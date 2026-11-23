@@ -679,6 +679,8 @@ export type Fanpage = {
   /** The member whose Page it is; `mine` when that is the signed-in member. */
   owner: { id: number; name: string } | null;
   mine: boolean;
+  /** Views that fell by half or more against the week before, per platform. */
+  alerts: { platform: "facebook" | "instagram"; current: number; previous: number; change: number }[];
   /** The Shopee account whose links its comments carry, shown only to its owner. */
   shopee_account: { id: number; name: string; usable: boolean } | null;
   /** The TikTok account its videos open with on their Đăng TikTok card, shown only to its owner. */
@@ -742,8 +744,70 @@ export type InstagramDashboard = {
   totals: Record<"views" | "reach" | "interactions" | "follows", DashboardFigure>;
   /** The account's followers at the last check. */
   followers: number | null;
+  /** The followers' share (percent) by gender, age range and city, the biggest first; null before the first read. */
+  audience: Record<"gender" | "age" | "city", { key: string; share: number }[]> | null;
+  /** Why there is none (Instagram gives it only from 100 followers); null when there is one. */
+  audience_error: string | null;
   /** Why the last check could not read the numbers (a token without instagram_manage_insights); null when it did. */
   insights_error: string | null;
+};
+
+/** An Instagram Reel the app posted, with its latest reading (api GET /fanpages/{id}/instagram-content). */
+export type InstagramContent = {
+  days: number;
+  posts: {
+    id: number;
+    live_at: string;
+    url: string | null;
+    video: DashboardVideo;
+    numbers: {
+      views: number | null;
+      reach: number | null;
+      likes: number | null;
+      comments: number | null;
+      shares: number | null;
+      saves: number | null;
+      interactions: number | null;
+      avg_watch_seconds: number | null;
+      measured_at: string;
+    } | null;
+    pending: boolean;
+    error: string | null;
+  }[];
+};
+
+/** The same videos on Facebook and Instagram side by side (api GET /fanpages/{id}/compare). */
+export type PageCompare = {
+  days: number;
+  videos: {
+    video: DashboardVideo;
+    facebook: {
+      live_at: string;
+      url: string | null;
+      views: number | null;
+      reach: number | null;
+      interactions: number | null;
+    } | null;
+    instagram: {
+      live_at: string;
+      url: string | null;
+      views: number | null;
+      reach: number | null;
+      interactions: number | null;
+    } | null;
+  }[];
+};
+
+/** The hours the Page's posts were watched most, by platform (api GET /fanpages/{id}/best-times). */
+export type BestTimes = {
+  min_posts: number;
+  facebook: BestHours;
+  instagram: BestHours | null;
+};
+export type BestHours = {
+  posts: number;
+  enough: boolean;
+  hours: { hour: number; average_views: number; posts: number }[];
 };
 
 /** One Page's dashboard over the last `days` days in Vietnam time (api GET /fanpages/{id}/dashboard). */

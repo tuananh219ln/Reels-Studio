@@ -7,9 +7,21 @@ import StatusText from "@/components/StatusText";
 import VideoThumbnail from "@/components/VideoThumbnail";
 import ContentLibrary from "@/components/page/ContentLibrary";
 import DailyChart, { shortDay } from "@/components/page/DailyChart";
+import BestTimes from "@/components/page/BestTimes";
+import InstagramAudience from "@/components/page/InstagramAudience";
+import InstagramContent from "@/components/page/InstagramContent";
 import InstagramOverview from "@/components/page/InstagramOverview";
+import PageCompare from "@/components/page/PageCompare";
 import { FigureTile, TileRow, formatNumber, formatSeconds } from "@/components/page/Figures";
-import { ApiError, api, errorMessage, formatDateTime, type PageDashboard, type QueueOverview } from "@/lib/api";
+import {
+  ApiError,
+  api,
+  errorMessage,
+  formatDateTime,
+  type InstagramDashboard,
+  type PageDashboard,
+  type QueueOverview,
+} from "@/lib/api";
 import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
 import { keepOnlyInAddress, useUrlChoice } from "@/lib/urlState";
@@ -25,6 +37,7 @@ const REFRESH_MS = 60_000;
 const QUEUE_REFRESH_MS = 30_000;
 // The "Đã lên lịch" strip on Tổng quan names the first few; "Lịch đăng" lists the whole week.
 const STRIP = 6;
+const INSTAGRAM_TABS = ["overview", "content", "audience", "compare", "schedule"];
 
 const APPROXIMATE =
   "Cộng từ lần đo mới nhất của các bài app đăng trong khoảng này, nên gần đúng: số của một bài còn tăng sau ngày đăng, " +
@@ -375,6 +388,9 @@ function Schedule({
         )}
       </Card>
       <Scheduled data={data} />
+      <div style={{ gridColumn: "1 / -1" }}>
+        <BestTimes pageId={data.page.id} />
+      </div>
     </div>
   );
 }
@@ -537,7 +553,7 @@ function FanpageDashboard() {
       ) : (
         <Flex vertical gap={12}>
           <Tabs
-            activeKey={onInstagram && tab !== "schedule" ? "overview" : tab}
+            activeKey={onInstagram && !INSTAGRAM_TABS.includes(tab) ? "overview" : tab}
             onChange={setTab}
             items={tabs(data, queue, onInstagram, (overview) => {
               setQueue(overview);
@@ -561,6 +577,13 @@ function tabs(
   if (instagram) {
     return [
       { key: "overview", label: "Tổng quan", children: <InstagramOverview pageId={data.page.id} days={data.days} /> },
+      { key: "content", label: "Nội dung", children: <InstagramContent pageId={data.page.id} days={data.days} /> },
+      {
+        key: "audience",
+        label: "Đối tượng",
+        children: <InstagramAudienceTab pageId={data.page.id} days={data.days} />,
+      },
+      { key: "compare", label: "So sánh", children: <PageCompare pageId={data.page.id} days={data.days} /> },
       { key: "schedule", label: "Lịch đăng", children: <Schedule data={data} queue={queue} onQueue={onQueue} /> },
     ];
   }
@@ -570,10 +593,22 @@ function tabs(
     { key: "engagement", label: "Tương tác", children: <Engagement data={data} /> },
     { key: "audience", label: "Đối tượng", children: <Audience data={data} /> },
     { key: "content", label: "Nội dung", children: <ContentLibrary pageId={String(data.page.id)} days={data.days} /> },
+    ...(data.page.instagram
+      ? [{ key: "compare", label: "So sánh", children: <PageCompare pageId={data.page.id} days={data.days} /> }]
+      : []),
     {
       key: "schedule",
       label: "Lịch đăng",
       children: <Schedule data={data} queue={queue} onQueue={onQueue} />,
     },
   ];
+}
+
+/** The Instagram "Đối tượng" tab: the dashboard's audience, fetched on its own so Facebook's tab costs nothing. */
+function InstagramAudienceTab({ pageId, days }: { pageId: number; days: number }) {
+  const [data, setData] = useState<InstagramDashboard | null>(null);
+  useEffect(() => {
+    api<InstagramDashboard>(`/fanpages/${pageId}/instagram-dashboard?days=${days}`).then(setData, () => undefined);
+  }, [pageId, days]);
+  return data === null ? <Card loading /> : <InstagramAudience data={data} />;
 }

@@ -16,9 +16,18 @@ that line only; nothing else of it changes.
   Page with an account; a permission refusal stops at the first.
 - **Switch, not a second page.** The Page's dashboard gets "Facebook | Instagram", the tabs being "Tổng quan" and the
   shared "Lịch đăng"; the same figure tiles and chart. Hidden when the Page has no linked account.
-- **Not in this round** (still to do, each its own change): "Nội dung" (per-Reel numbers: views, reach, likes, comments,
-  shares, saves, average watch time, measured at 24 and 48 hours like Facebook's), "Đối tượng" (gender, age, city; Instagram
-  gives these only from 100 followers), and the Reels in the "Lịch đăng" tab.
+- **Per-Reel numbers** (the owner's second round, the same day): an Instagram Reel the app posted is read through its Page's
+  token like the other platforms' posts, on the same schedule (hourly in the first 48 hours, then thinning), kept as
+  snapshots (`raw.numbers` holds reach, saves, watch time), with no new column; "Nội dung" lists them.
+- **Audience:** `instagram_audience` (shares of gender, age, city) is read at the Page check and kept when a later read
+  gives nothing; under 100 followers Instagram refuses and the tab says why. **Facebook gets no demographics tab**: this round did not
+  confirm which Page demographic metrics Meta still gives (it has retired Page metrics before: `post_impressions_unique` in
+  2026-06), and the app does not add a metric on a guess. Facebook's "Đối tượng" stays followers.
+- **"So sánh"** puts a video's Facebook and Instagram numbers side by side; **"Giờ đăng hiệu quả"** names the best hours from
+  the Page's own posts (at least 6 posts a platform, 2 an hour, shown as a hint); **falling views** (half or less against
+  the week before, both weeks ending two days ago for Instagram's lag) shows on the Page card. All three work for
+  Facebook and Instagram.
+- **Still to do:** the Reels in the "Lịch đăng" tab, and a comparison over time (a platform's share of the Page's views).
 - **Not verified against Meta's live API** (no real calls in development, AGENTS.md): the metric names and the
   one-day `total_value` shape follow Meta's documentation; the first real read of a Page with the permission must be
   looked at before the numbers are trusted.

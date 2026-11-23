@@ -454,12 +454,21 @@ test("a Page's dashboard has an Instagram side with its own figures and chart", 
   );
   await expect(overview.getByTestId("instagram-chart")).toBeVisible();
   await expect(page.getByTestId("instagram-insights-error")).toHaveCount(0);
-  // Instagram has its overview and the schedule it shares with Facebook; the Facebook-only tabs are gone.
-  await expect(page.getByRole("tab", { name: "Tổng quan" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Lịch đăng" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Đối tượng" })).toHaveCount(0);
+  // Instagram has its own tabs; the Facebook-only ones (Lượt xem, Tương tác) are gone.
+  await expect(page.getByRole("tab", { name: "Lượt xem" })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Nội dung" }).click();
+  await expect(page.getByTestId("instagram-content")).toContainText("Chưa có Reel nào app đăng lên Instagram");
+  await page.getByRole("tab", { name: "Đối tượng" }).click();
+  // The audience is read with the Page's check: gender, age and city, the biggest first.
+  await expect(page.getByTestId("instagram-audience")).toContainText("Nữ", { timeout: 20_000 });
+  await expect(page.getByTestId("instagram-audience")).toContainText("25-34");
+  await page.getByRole("tab", { name: "So sánh" }).click();
+  await expect(page.getByTestId("page-compare")).toContainText("Chưa có video nào app đăng lên Page");
+  await page.getByRole("tab", { name: "Lịch đăng" }).click();
+  await expect(page.getByTestId("best-times")).toContainText("Mới có 0 bài đã đo, cần từ 6 bài");
   await platform.getByText("Facebook", { exact: true }).click();
-  await expect(page.getByRole("tab", { name: "Đối tượng" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Lượt xem" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "So sánh" })).toBeVisible();
 });
 
 test("a Page's card opens its dashboard, with a period and six tabs", async ({ page }) => {

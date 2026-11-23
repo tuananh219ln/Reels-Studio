@@ -6,6 +6,7 @@ Revises: 0118
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision = "0119"
 down_revision = "0118"
@@ -27,9 +28,14 @@ def upgrade() -> None:
     op.create_index("uq_instagram_insights_fanpage_id_day", "instagram_insights", ["fanpage_id", "day"], unique=True)
     op.add_column("fanpages", sa.Column("instagram_insights_error", sa.Text()))
     op.add_column("fanpages", sa.Column("instagram_followers_count", sa.Integer()))
+    # The followers' gender, age and city as of the last check, {"gender": {...}, "age": {...}, "city": {...}}.
+    op.add_column("fanpages", sa.Column("instagram_audience", postgresql.JSONB()))
+    op.add_column("fanpages", sa.Column("instagram_audience_error", sa.Text()))
 
 
 def downgrade() -> None:
+    op.drop_column("fanpages", "instagram_audience_error")
+    op.drop_column("fanpages", "instagram_audience")
     op.drop_column("fanpages", "instagram_followers_count")
     op.drop_column("fanpages", "instagram_insights_error")
     op.drop_index("uq_instagram_insights_fanpage_id_day", table_name="instagram_insights")

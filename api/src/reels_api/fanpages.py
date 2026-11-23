@@ -223,6 +223,16 @@ def read_instagram_insights(db: DbSession, row: Fanpage, page: Page, account: st
     values: dict = {"instagram_insights_error": "; ".join(problems) or None}
     if followers is not None:
         values["instagram_followers_count"] = followers
+    if instagram.NO_INSIGHTS_PERMISSION not in problems:
+        try:
+            shares, problem = instagram.audience(page, account)
+        except FacebookError as err:
+            log.warning("Fanpage %s: Instagram audience not read: %s %s", row.id, err.message, err.detail)
+        else:
+            # A read that gave nothing keeps the last audience, the Page's check going on.
+            if shares:
+                values["instagram_audience"] = shares
+            values["instagram_audience_error"] = problem if not shares else None
     return values
 
 
@@ -317,6 +327,53 @@ def insights_summary(db: DbSession, rows: list[Fanpage]) -> dict[int, dict]:
             },
             "error": row.insights_error,
         }
+    return result
+
+
+# A Page's views fell by half or more: the last 7 days with numbers against the 7 before them, both ending two days
+# ago because Instagram's data lags up to 48 hours. Neither week counts when the week before had too few views to mean
+# anything, or when the last week has fewer than ALERT_MIN_DAYS days with a number.
+ALERT_DROP = 0.5
+ALERT_MIN_PREVIOUS = 300
+ALERT_MIN_DAYS = 5
+
+
+def trend_alerts(db: DbSession, rows: list[Fanpage]) -> dict[int, list[dict]]:
+    """Each Page's views that fell by half or more, by platform: [{"platform", "current", "previous", "change"}]; an
+    empty list when none did. Facebook's come from `fanpage_insights`, Instagram's from `instagram_insights`."""
+    end = now().astimezone(analytics.VIETNAM).date() - timedelta(days=2)
+    current_start, previous_end, previous_start = (
+        end - timedelta(days=6),
+        end - timedelta(days=7),
+        end - timedelta(days=13),
+    )
+    result: dict[int, list[dict]] = {row.id: [] for row in rows}
+    for platform, model in (("facebook", FanpageInsights), ("instagram", InstagramInsights)):
+        found: dict[int, dict[str, list]] = {}
+        for fanpage_id, day, views in db.execute(
+            select(model.fanpage_id, model.day, model.views).where(model.day >= previous_start, model.day <= end)
+        ):
+            if views is not None:
+                found.setdefault(fanpage_id, {"current": [], "previous": []})[
+                    "current" if day >= current_start else "previous"
+                ].append(views)
+        for fanpage_id, weeks in found.items():
+            if fanpage_id not in result or len(weeks["current"]) < ALERT_MIN_DAYS:
+                continue
+            current, previous = sum(weeks["current"]), sum(weeks["previous"])
+            if (
+                previous >= ALERT_MIN_PREVIOUS
+                and len(weeks["previous"]) >= ALERT_MIN_DAYS
+                and current <= previous * ALERT_DROP
+            ):
+                result[fanpage_id].append(
+                    {
+                        "platform": platform,
+                        "current": current,
+                        "previous": previous,
+                        "change": round((current - previous) / previous, 4),
+                    }
+                )
     return result
 
 

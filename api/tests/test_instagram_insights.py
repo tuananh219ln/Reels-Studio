@@ -130,3 +130,37 @@ def test_the_instagram_dashboard_takes_only_the_three_periods(an, db, me, fakes)
     page = add_page(db, me)
     assert an.get(f"{URL}/{page.id}/instagram-dashboard?days=5").status_code == 422
     assert an.get(f"{URL}/999/instagram-dashboard").status_code == 404
+
+
+def test_a_check_keeps_the_followers_audience_as_shares(db, me, fakes):
+    page = add_page(db, me)
+    fanpages.check(db, page)
+    assert page.instagram_audience["gender"] == {"F": 72.0, "M": 27.0, "U": 1.0}
+    assert page.instagram_audience["age"]["25-34"] == 45.0
+    assert page.instagram_audience["city"] == {"Ho Chi Minh City, Vietnam": 61.3, "Hanoi, Vietnam": 38.7}
+    assert page.instagram_audience_error is None
+
+
+def test_an_account_under_100_followers_has_no_audience_and_says_why(db, me, fakes):
+    fakes.instagram_audience = {}
+    page = add_page(db, me)
+    fanpages.check(db, page)
+    assert page.instagram_audience is None and page.instagram_audience_error == instagram.NO_AUDIENCE
+    assert page.instagram_insights_error is None, "the account's daily numbers are still read"
+
+
+def test_an_audience_that_cannot_be_read_keeps_the_last_one(db, me, fakes):
+    page = add_page(db, me)
+    fanpages.check(db, page)
+    fakes.instagram_audience = {}
+    fanpages.check(db, page)
+    assert page.instagram_audience["gender"]["F"] == 72.0
+    assert page.instagram_audience_error == instagram.NO_AUDIENCE
+
+
+def test_the_dashboard_carries_the_audience(an, db, me, fakes):
+    page = add_page(db, me)
+    fanpages.check(db, page)
+    body = an.get(f"{URL}/{page.id}/instagram-dashboard").json()
+    assert body["audience"]["gender"][0] == {"key": "F", "share": 72.0} and body["audience_error"] is None
+    assert [row["key"] for row in body["audience"]["city"]] == ["Ho Chi Minh City, Vietnam", "Hanoi, Vietnam"]

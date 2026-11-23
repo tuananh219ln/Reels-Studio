@@ -691,6 +691,10 @@ class Fanpage(Base):
     # did. The account's followers as of that check, and its days in `instagram_insights`.
     instagram_insights_error: Mapped[str | None] = mapped_column(Text)
     instagram_followers_count: Mapped[int | None] = mapped_column(Integer)
+    # The followers' gender, age and city as of the last check ({"gender": {"F": 72.0, ...}, "age": {...}, "city": {...}},
+    # shares in percent), and why they could not be read (Instagram gives them only from 100 followers).
+    instagram_audience: Mapped[dict | None] = mapped_column(JSONB)
+    instagram_audience_error: Mapped[str | None] = mapped_column(Text)
     # "Bộ bình luận" settings (aff_sets.DEFAULTS names them and fills what is missing; migration 0113).
     aff_settings: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
 

@@ -229,6 +229,14 @@ function PageCard({
           {insights.error}
         </Typography.Text>
       )}
+      {row.alerts.map((alert) => (
+        // Views fell by half or more against the week before: said in words, with both numbers, on the platform's side.
+        <StatusText key={alert.platform} tone="warning" data-testid="fanpage-trend-alert">
+          Lượt xem {alert.platform === "facebook" ? "Facebook" : "Instagram"} giảm{" "}
+          {Math.round(Math.abs(alert.change) * 100)}% so với tuần trước ({count(alert.current)} so với{" "}
+          {count(alert.previous)})
+        </StatusText>
+      ))}
       <OwnerLine row={row} accounts={accounts} youtube={youtube} onRows={onRows} />
       {scheduled && <ScheduleLine page={scheduled} />}
 

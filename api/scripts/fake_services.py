@@ -360,9 +360,22 @@ class FakeServices:
         # (code 10); a metric in `instagram_metrics_dropped` is refused as Meta refuses a retired one.
         self.instagram_insights: dict[str, dict[str, int]] = {}
         self.instagram_insights_refused = False
+        # The followers' audience by breakdown ({"gender": {"F": 72, ...}}); an empty dict answers like an account under
+        # 100 followers (code 100).
+        self.instagram_audience: dict[str, dict[str, int]] = {
+            "gender": {"F": 72, "M": 27, "U": 1},
+            "age": {"18-24": 30, "25-34": 45, "35-44": 15, "45-54": 10},
+            "city": {"Ho Chi Minh City, Vietnam": 38, "Hanoi, Vietnam": 24},
+        }
         self.instagram_metrics_dropped: set[str] = set()
         self.instagram_followers: int | None = 1204
         self.instagram_insights_calls: list[str] = []
+        # A Reel's Media Insights by media id (over the defaults below); a metric in `instagram_media_dropped` makes a call
+        # that asks for it fail with (#100), as Meta does for a metric a media does not have; `instagram_media_gone`
+        # Reels answer (#100) to every metric.
+        self.instagram_media_insights: dict[str, dict[str, int]] = {}
+        self.instagram_media_dropped: set[str] = set()
+        self.instagram_media_gone: set[str] = set()
         # Photo and text posts on the Page's feed ("Bài viết"), by post id: {"message", "published", "scheduled",
         # "photo": bytes or None, "photos": the attached photos of a post of several}; their numbers by post id (reach,
         # shares, comments, reactions).
@@ -1392,6 +1405,21 @@ class FakeServices:
         self.instagram_insights_calls.append(metric)
         if self.instagram_insights_refused:
             return 403, {"error": {"message": "(#10) Requires instagram_manage_insights permission", "code": 10}}
+        if metric == "follower_demographics":
+            counts = self.instagram_audience.get(query.get("breakdown", ""))
+            if not counts:
+                return 400, {"error": {"message": "(#100) Not enough followers for demographics", "code": 100}}
+            results = [{"dimension_values": [key], "value": value} for key, value in counts.items()]
+            return 200, {
+                "data": [
+                    {
+                        "name": metric,
+                        "period": "lifetime",
+                        "total_value": {"breakdowns": [{"dimension_keys": [query["breakdown"]], "results": results}]},
+                        "id": f"{INSTAGRAM_USER}/insights/{metric}/lifetime",
+                    }
+                ]
+            }
         if metric in self.instagram_metrics_dropped or metric not in (
             "views",
             "reach",
@@ -1427,6 +1455,49 @@ class FakeServices:
         return 200, {
             "data": [
                 {"name": metric, "period": "day", "values": values, "id": f"{INSTAGRAM_USER}/insights/{metric}/day"}
+            ]
+        }
+
+    def _instagram_media_insights(self, media_id: str, query: dict) -> tuple[int, dict]:
+        """GET /{media-id}/insights?metric=a,b,c: each metric's lifetime value in `values`, as Meta documents."""
+        asked = [name for name in query.get("metric", "").split(",") if name]
+        self.instagram_insights_calls.append(f"media:{media_id}:{','.join(asked)}")
+        if self.instagram_insights_refused:
+            return 403, {"error": {"message": "(#10) Requires instagram_manage_insights permission", "code": 10}}
+        known = (
+            "views",
+            "reach",
+            "likes",
+            "comments",
+            "shares",
+            "saved",
+            "total_interactions",
+            "ig_reels_avg_watch_time",
+        )
+        if media_id in self.instagram_media_gone or any(
+            name not in known or name in self.instagram_media_dropped for name in asked
+        ):
+            return 400, {"error": {"message": "(#100) The value must be a valid insights metric", "code": 100}}
+        defaults = {
+            "views": 1000,
+            "reach": 800,
+            "likes": 60,
+            "comments": 5,
+            "shares": 9,
+            "saved": 12,
+            "total_interactions": 86,
+            "ig_reels_avg_watch_time": 6200,
+        }
+        numbers = defaults | self.instagram_media_insights.get(media_id, {})
+        return 200, {
+            "data": [
+                {
+                    "name": name,
+                    "period": "lifetime",
+                    "values": [{"value": numbers[name]}],
+                    "id": f"{media_id}/insights/{name}/lifetime",
+                }
+                for name in asked
             ]
         }
 
@@ -1519,6 +1590,8 @@ class FakeServices:
                 return 200, reply
             if target == f"{INSTAGRAM_USER}/insights":
                 return self._instagram_insights(query)
+            if target.endswith("/insights"):
+                return self._instagram_media_insights(target.removesuffix("/insights"), query)
             if target == f"{INSTAGRAM_USER}/media":
                 self.instagram_calls.append("media")
                 return 200, {"data": [dict(item) for item in self.instagram_media]}

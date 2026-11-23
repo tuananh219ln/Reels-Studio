@@ -144,6 +144,7 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
     )
     checks = fanpages.check_payload(db, rows)
     insights = fanpages.insights_summary(db, rows)
+    alerts = fanpages.trend_alerts(db, rows)
     scheduled = fanpages.scheduled_counts(db)
     posts = fanpages.post_counts(db)
     aff = aff_sets.summaries(db, rows)
@@ -179,6 +180,8 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
             "brand": _brand(brand_of_page.get(row.id)),
             "check": checks[row.id],
             "insights": insights[row.id],
+            # Views that fell by half or more against the week before, per platform: the card says so.
+            "alerts": alerts[row.id],
             "scheduled_posts": scheduled.get(row.id, 0),
             # Every post ever made to the Page, cancelled and deleted ones too: a Page with any is kept for history.
             "posts": posts.get(row.id, 0),
@@ -432,6 +435,41 @@ def page_instagram_dashboard_view(
     if not row.instagram_user_id:
         raise ApiError(404, "instagram_not_linked", "Page này chưa liên kết tài khoản Instagram")
     return page_dashboard.instagram_dashboard(db, row, days)
+
+
+def _page_for_dashboard(db: DbSession, fanpage_id: int, days: int | None = None, instagram: bool = False) -> Fanpage:
+    if days is not None and days not in page_dashboard.PERIODS:
+        raise invalid("Khoảng thời gian chỉ được là 7, 28 hoặc 90 ngày")
+    row = db.get(Fanpage, fanpage_id)
+    if row is None:
+        raise ApiError(404, "fanpage_not_found", "Không tìm thấy Fanpage")
+    if instagram and not row.instagram_user_id:
+        raise ApiError(404, "instagram_not_linked", "Page này chưa liên kết tài khoản Instagram")
+    return row
+
+
+@router.get("/{fanpage_id}/instagram-content")
+def page_instagram_content_view(
+    fanpage_id: int, days: int = 28, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """The Instagram "Nội dung" tab: the Reels the app posted to the Page's Instagram that went live in the last `days` days."""
+    return page_dashboard.instagram_content(db, _page_for_dashboard(db, fanpage_id, days, True), days)
+
+
+@router.get("/{fanpage_id}/compare")
+def page_compare_view(
+    fanpage_id: int, days: int = 28, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """The same videos on Facebook and Instagram side by side, for the last `days` days."""
+    return page_dashboard.compare(db, _page_for_dashboard(db, fanpage_id, days), days)
+
+
+@router.get("/{fanpage_id}/best-times")
+def page_best_times_view(
+    fanpage_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """The hours the Page's posts were watched most on each platform (last 90 days), for choosing its posting times."""
+    return page_dashboard.best_times(db, _page_for_dashboard(db, fanpage_id))
 
 
 @router.get("/{fanpage_id}/content")
