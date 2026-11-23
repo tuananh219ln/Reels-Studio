@@ -392,6 +392,30 @@ the video as before: HyperFrames never renders the whole video, and Remotion is 
   the rendered length), and every outro scene after it copies the kept clip, at once when it is made or in the next
   round. A scene whose outro render failed is not queued again; "Thử lại" on its job does it. Members edit or delete
   the scene like any other; a scene whose motion an assistant rewrites is no longer an outro.
+- **"Tiêu đề động"** ([title_motion.py](../api/src/reels_api/title_motion.py), `POST /api/title-motion/{scene_id}`,
+  the owner's spec "Tiêu đề động 3 giây", phase 1 for the "Sức khỏe" groups): the title scene becomes a 3 s motion scene where
+  the photos of the listed scenes (content scenes without the outro and a closing call to action; a clip gives its
+  frame at `video_start`) pop in one by one, the last hidden behind "?". The layout is chosen from the number of
+  listed scenes and the video's "Loại nội dung" (`grid` 2–6, `strip` 7–10, `ring` for "X + N" titles with 5–9 dishes,
+  `warn` for "tránh"; `layout`, `labels`, `hidden_label` and `count` in the body override it). The slot photos are
+  cut to their box and packed into one JPEG atlas that the markup shows as `assets/photo.jpg`, so HyperFrames, the
+  render machines and the render core are unchanged. The hook stays the scene's own text box, moved to (540, 400);
+  the scene's sounds are replaced by `title_motion.sounds` (Vút, Ting per dish, Dâng lên before the "?", Sai rồi on
+  `warn`); content scenes get none. `scenes.motion` carries `title` (layout, labels, count) and `classic` (the photo
+  or clip the scene showed, kept by `motion.attach`), so `POST /api/title-motion/{scene_id}/mode` (`classic` or
+  `motion`) switches without a render. The scene payload's `title_motion` says layout, count, `mode`, `ready`,
+  `pending`. Words the hook must not use (chữa, khỏi bệnh, hơn cả thuốc, thần dược, giải độc cực mạnh, kéo dài tuổi
+  thọ, 100%) come back as `warnings`. The hook (`hook_lines`, its narration `hook_voice` with the numbers in words) is written when the title is empty or the body has
+  `write_hook`: "LO [nỗi lo]? / ĂN N [món] NÀY", "[món chính] + N LOẠI / SỐ N ÍT AI BIẾT" or "[nỗi lo] / TRÁNH N MÓN NÀY",
+  the worry being the plan idea's `pain_group` and the dishes' word found in the video's topic (`noun_of`). Each slot is cut around the dish (`subject_centre`: the sharp, colourful part of the photo, a heuristic, no object
+  detector) unless a member set `focus`. `slots` ("Ảnh các ô": `from_scene`, `label`, `focus` per slot, kept in
+  `motion.title.slots` and reused by a rebuild) take a slot's photo from another scene, rename it or aim its crop; the
+  web panel renames and takes a photo of its own for a slot from an upload or a link
+  (`POST /api/title-motion/{scene_id}/slots/{index}/photo`, `photo-link`, `photo-library`: kept in the slot's
+  `image_key`, shown from the next build). The Page's default (`brands.title_style`, migration 0122, "Kiểu tiêu đề video của Page" beside the logo switch
+  on Cài đặt › Page): "classic" makes a title built for the first time keep showing its own photo or clip
+  (`motion.attach`), the member switching to Động on the video; a rebuild keeps the member's choice. Not checked
+  yet: video 259 against the owner's sample ([decision](decisions/2026-11-23-title-motion.md)).
 
 ### Scene Video Clips
 

@@ -1011,6 +1011,24 @@ def motion_payload(scene: Scene) -> dict | None:
     return {"html": motion["html"], "seconds": motion["seconds"], "pending": bool(motion.get("pending"))}
 
 
+def title_motion_payload(scene: Scene) -> dict | None:
+    """The title scene's "Tiêu đề động" (title_motion.py): its layout, how many dishes, whether the scene shows it
+    (`mode`) and whether its clip is made (`ready`) or being made (`pending`); None for a scene without one."""
+    made = scene.motion
+    if not scene.is_title or not made or not made.get("title"):
+        return None
+    shown = bool(made.get("clip_key") and made["clip_key"] == scene.video_key)
+    return {
+        "layout": made["title"]["layout"],
+        "count": made["title"]["count"],
+        "mode": "motion" if shown or made.get("pending") else "classic",
+        "ready": bool(made.get("clip_key")) and not made.get("pending"),
+        "pending": bool(made.get("pending")),
+        "has_classic": bool(made.get("classic")),
+        "labels": made["title"].get("labels", []),
+    }
+
+
 def photo_credit(scene: Scene) -> dict | None:
     """The credit the scene's shown photo asks for, without its url; None for no photo, a clip, or a photo that needs
     none. Kept only while the photo it was noted for is still the scene's (any other photo ends it)."""
@@ -1111,6 +1129,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | Non
         "voice_id": scene.voice_id,  # its own voice; None: the video's
         # A "Cảnh động" (motion.py): its markup and seconds while the scene shows its clip or it is being made.
         "motion": motion_payload(scene),
+        "title_motion": title_motion_payload(scene),
         "blocking": [issue.message for issue in checks.blocking if issue.scene_id == scene.id],
         "warnings": [issue.message for issue in checks.warnings if issue.scene_id == scene.id],
         # The same, each with the field it is about, so the page can offer the fix beside it ("Lặp clip").

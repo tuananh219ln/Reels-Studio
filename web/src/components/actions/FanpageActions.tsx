@@ -287,6 +287,23 @@ function LogoLine({ row, onRows }: { row: Fanpage; onRows: (rows: Fanpage[]) => 
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Video của Page tự gắn logo
           </Typography.Text>
+          <Select
+            size="small"
+            style={{ width: 150 }}
+            aria-label="Kiểu tiêu đề video của Page"
+            value={brand.title_style ?? "motion"}
+            disabled={busy}
+            options={[
+              { value: "motion", label: "Tiêu đề động" },
+              { value: "classic", label: "Tiêu đề cổ điển" },
+            ]}
+            onChange={(style) =>
+              change(async (id) => {
+                await api(`/brands/${id}`, "PATCH", { title_style: style });
+                return null;
+              })
+            }
+          />
           <Button size="small" type="link" onClick={() => setPhotoLogo(true)}>
             Logo trên ảnh bài viết
           </Button>

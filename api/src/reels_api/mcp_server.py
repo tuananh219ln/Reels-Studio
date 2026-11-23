@@ -47,6 +47,7 @@ from . import (
     remote_media,
     shuffle,
     slot_comments,
+    title_motion,
     video_options,
 )
 from . import routes_affiliate as affiliate_routes
@@ -1039,6 +1040,35 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             invoke,
             lambda db, me: changed(motion.request(db, get_storage(), scene_id, html, seconds, me)),
             write=True,
+        )
+
+    @tool("Làm tiêu đề động", read=False)
+    async def set_title_motion(
+        scene_id: int,
+        layout: Literal["auto", "grid", "ring", "strip", "warn"] = "auto",
+        write_hook: bool = False,
+        labels: Annotated[list[str] | None, Field(min_length=2, max_length=10)] = None,
+    ) -> dict:
+        """Biến cảnh tiêu đề thành "tiêu đề động" 3 giây của nhóm Sức khỏe: ảnh các món (lấy từ các cảnh liệt kê phía
+        dưới, cảnh nào cũng phải có ảnh hoặc clip) hiện lần lượt, món cuối giấu sau dấu "?". Bố cục tự chọn theo số
+        món và "Loại nội dung" (lưới 2–6, dải 7–10, vòng cho "X + N", "tránh" cho món nên tránh); layout để ép kiểu.
+        write_hook=true viết lại chữ và lời đọc tiêu đề theo mẫu (chữ trống thì luôn viết); labels đổi tên các ô.
+        Gắn lại âm thanh của cảnh tiêu đề. Job chạy nền 1–3 phút, đọc lại video để xem; ảnh hoặc clip cũ của cảnh được
+        giữ cho kiểu Cổ điển. Chữ tiêu đề có từ cấm (chữa, khỏi bệnh, thần dược...) thì có cảnh báo trong warnings."""
+
+        def operation(db, me):
+            video, warnings = title_motion.build(
+                db, get_storage(), scene_id, me, layout=layout, labels=labels, write_hook=write_hook
+            )
+            return {**changed(video), "warnings": warnings}
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Đổi kiểu tiêu đề", read=False)
+    async def set_title_style(scene_id: int, mode: Literal["classic", "motion"]) -> dict:
+        """Đổi cảnh tiêu đề giữa kiểu Cổ điển (ảnh hoặc clip cũ) và Động (tiêu đề động đã dựng), không cần render lại."""
+        return await run_in_threadpool(
+            invoke, lambda db, me: changed(title_motion.set_mode(db, get_storage(), scene_id, mode)), write=True
         )
 
     @tool("Gắn ảnh hoặc clip từ link", read=False, external=True)
