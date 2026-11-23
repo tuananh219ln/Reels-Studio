@@ -460,3 +460,27 @@ def test_script_without_images_renders_with_stock_photos(tmp_path, pixabay, isol
     assert (stream["width"], stream["height"]) == (1080, 1920)
     assert len(pixabay.downloads) == 3
     assert list(isolated_tmp.iterdir()) == []
+
+
+@needs_ffmpeg
+def test_auto_fit_lays_a_wide_photo_under_its_text_over_a_blurred_copy(tmp_path):
+    """A 5:4 photo is cut square and laid across the frame under the text, which goes on the blurred copy above it
+    instead of the template's place near the bottom (framing.py)."""
+    make_image(tmp_path / "ngang.jpg", (1000, 800), (220, 40, 40))
+    make_image(tmp_path / "title.jpg", (1080, 1920), (60, 90, 160))
+    data = script_data(scene_count=1, image="title.jpg", seconds=1)
+    data["scenes"][0].update(image="ngang.jpg", seconds=1.5, image_fit="auto")
+    path = render_video(load_script(write_script(tmp_path, data)), tmp_path / "video.mp4")
+
+    frame = extract_frame(path, 1.75, tmp_path / "scene.png")
+    column = [(y, frame.getpixel((540, y))) for y in range(0, 1920, 8)]
+    boxed = [y for y, (r, g, b) in column if r > 200 and g > 170 and b < 100]
+    red = [y for y, (r, g, b) in column if r > 170 and g < 90 and b < 90]
+    # The photo is the longest unbroken red run (the box's marked words are red too, but short).
+    runs = [[red[0]]] if red else []
+    for y in red[1:]:
+        runs[-1].append(y) if y - runs[-1][-1] == 8 else runs.append([y])
+    photo = max(runs, key=len)
+    assert boxed and photo[-1] - photo[0] > 900
+    # The yellow text box sits high, on the blurred copy above the photo.
+    assert min(boxed) < 600 and max(boxed) < photo[0]

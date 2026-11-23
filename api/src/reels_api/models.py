@@ -421,6 +421,12 @@ class Scene(Base):
     # "Tìm chữ/logo tự động" (image_marks job): {"key": the photo it looked at, "boxes": [[x, y, w, h], ...]}, offered
     # as boxes in "Xóa vùng" while the scene still shows that photo.
     image_marks: Mapped[dict | None] = mapped_column(JSONB)
+    # "Khung ảnh" (reels_render.framing): None is "Tự động", by the photo's shape; "cover" fills the frame as every
+    # photo once did, "whole" keeps the photo's shape and "square" cuts it square, both over its blurred copy. Only a
+    # content scene's photo on a slide video is framed so; the title and a backdrop video always fill the frame.
+    image_fit: Mapped[str | None] = mapped_column(String(8))
+    # Where the square is cut along the photo's longer side, 0 to 1; None: the middle. A new photo drops it.
+    image_crop_offset: Mapped[float | None] = mapped_column(Float)
     # "Làm mờ vùng" on a clip: {"key": the clip, "boxes": [[x, y, w, h], ...]} as fractions of the 1080x1920 frame,
     # blurred for the whole scene (reels_render/blur.py) while the scene still shows that clip.
     video_blur: Mapped[dict | None] = mapped_column(JSONB)

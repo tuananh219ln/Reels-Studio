@@ -1140,3 +1140,21 @@ def test_a_script_sent_over_mcp_is_offered_the_types_and_keeps_the_one_picked(mc
     )
     assert not made.get("isError"), made
     assert payload(made)["content_type"] == "Mẹo"
+
+
+def test_update_scene_sets_the_photo_frame_and_auto_clears_it(mcp_client, db, storage):
+    """ "Khung ảnh" through the assistant: a fit and the square's place are set, "auto" and the reset clear them."""
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    video = make_video(db, storage, user)
+    scene = db.scalar(select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False)))
+    edited = call(mcp_client, token, "update_scene", scene_id=scene.id, image_fit="square", image_crop_offset=0.25)
+    assert not edited.get("isError"), edited
+    db.refresh(scene)
+    assert (scene.image_fit, scene.image_crop_offset) == ("square", 0.25)
+    back = call(mcp_client, token, "update_scene", scene_id=scene.id, image_fit="auto", reset_image_crop_offset=True)
+    assert not back.get("isError"), back
+    db.refresh(scene)
+    assert (scene.image_fit, scene.image_crop_offset) == (None, None)
+    title = db.scalar(select(Scene).where(Scene.video_id == video.id, Scene.is_title))
+    assert call(mcp_client, token, "update_scene", scene_id=title.id, image_fit="whole")["isError"]

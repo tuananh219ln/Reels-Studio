@@ -13,7 +13,9 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
 from reels_render.blur import blur_image
+from reels_render.framing import COVER
 from reels_render.layers import HALF, HALF_HEIGHT_DEFAULT, HALF_X, half_height, half_y, is_card, is_half
+from reels_render.logo import TEXT_TOP_MIN
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 from reels_render.timeline import VOICE_LEAD, VOICE_TAIL, fit_seconds
 
@@ -34,7 +36,7 @@ from . import (
 )
 from .clips import ClipError, frame_at
 from .errors import ApiError
-from .frames import thumbnail_bytes
+from .frames import photo_blurry, plan_photo, thumbnail_bytes
 from .models import (
     ACTIVE_JOB_STATUSES,
     Fanpage,
@@ -57,7 +59,7 @@ from .script_rules import MAX_SECONDS as MAX_SCENE_SECONDS
 from .script_rules import MIN_SECONDS as MIN_SCENE_SECONDS
 from .script_rules import Checks, Issue, SceneInput, check_script, plain_title, text_problem
 from .sessions import now
-from .storage import DirectoryStorage
+from .storage import DirectoryStorage, get_storage
 from .tts import voice_signature
 from .video_options import (
     effective,
@@ -180,8 +182,10 @@ def new_key(video_id: int, name: str, extension: str) -> str:
 
 def drop_original(scene: Scene) -> str | None:
     """The photo kept from before "Sửa ảnh" (image_edit.py), forgotten when the scene gets another photo or a clip or
-    loses its photo: the caller deletes the returned file with the ones it replaces."""
+    loses its photo: the caller deletes the returned file with the ones it replaces. Where the square was cut
+    ("Khung ảnh") belongs to the old photo too."""
     key, scene.image_original_key = scene.image_original_key, None
+    scene.image_crop_offset = None
     return key
 
 
@@ -381,6 +385,62 @@ def text_position(video: Video, scene: Scene) -> list[int] | None:
     return effective(video)["text_position"] or opposite_the_inset(video, scene)
 
 
+def framable(video: Video, scene: Scene) -> bool:
+    """A content scene's photo on a slide video, which "Khung ảnh" frames (reels_render.framing). The title (the
+    cover) and a backdrop video's photo always fill the frame."""
+    return not scene.is_title and not is_backdrop(video) and bool(scene.image_key) and not scene.video_key
+
+
+def photo_fit(video: Video, scene: Scene) -> str:
+    """The scene's "image_fit" for the render: its own, "auto" when none was chosen, "cover" when it is not framed."""
+    return (scene.image_fit or "auto") if framable(video, scene) else COVER
+
+
+def text_floor(video: Video, scene: Scene) -> int | None:
+    """Where a content scene's text may start while the channel's logo is on, as the render keeps it."""
+    return TEXT_TOP_MIN if not scene.is_title and brands.logo_signature(video) is not None else None
+
+
+def photo_framing(storage: DirectoryStorage, video: Video, scene: Scene, centre: object = "placed"):
+    """How the render frames the scene's photo and the photo's size (frames.plan_photo), with the text where it is
+    placed (or at `centre`); None when it is not framed or its file is not there."""
+    fit = photo_fit(video, scene)
+    if fit == COVER or not storage.exists(scene.image_key):
+        return None
+    return plan_photo(
+        storage.path(scene.image_key),
+        fit,
+        scene.text,
+        False,
+        render_options(video),
+        text_position(video, scene) if centre == "placed" else centre,
+        text_floor(video, scene),
+        scene.image_crop_offset,
+    )
+
+
+def blurry_photo(storage: DirectoryStorage, video: Video, scene: Scene) -> bool:
+    """ "Ảnh mờ, nên thay ảnh khác" on a framed photo ("Khung ảnh", the spec's quality check): measured once per photo."""
+    return framable(video, scene) and storage.exists(scene.image_key) and photo_blurry(storage.path(scene.image_key))
+
+
+def frame_payload(video: Video, scene: Scene) -> dict | None:
+    """ "Khung ảnh" for the scene's card: what was chosen (`fit`, None: "Tự động"), what the render does (`kind`), the
+    photo's `shape`, where the square is cut (`offset`), and where the text goes when nobody placed it (`text_at`).
+    None for a scene that is not framed."""
+    if not framable(video, scene):
+        return None
+    planned = photo_framing(get_storage(), video, scene, centre=None)
+    framing, shape = planned if planned else (None, None)
+    return {
+        "fit": scene.image_fit,
+        "kind": framing.kind if framing else COVER,
+        "shape": list(shape) if shape else None,
+        "offset": scene.image_crop_offset,
+        "text_at": list(framing.text_centre) if framing and framing.text_centre else None,
+    }
+
+
 def opposite_the_inset(video: Video, scene: Scene) -> list[int] | None:
     """Where a content scene's text goes when nobody placed it (its own, the video's) and the scene has an inset photo:
     the side facing away from it, so it does not sit on the photo. An inset flush with the top edge leaves the text at
@@ -508,6 +568,12 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             # The studio's effects join only when set, so MP4s rendered before they existed stay current.
             *([["transition", scene.transition]] if scene.transition else []),
             *([["color", scene.color]] if scene.color else []),
+            # "Khung ảnh" joins only when chosen, so MP4s rendered before it existed stay current.
+            *(
+                [["image_fit", photo_fit(video, scene), scene.image_crop_offset]]
+                if framable(video, scene) and (scene.image_fit or scene.image_crop_offset is not None)
+                else []
+            ),
             *(
                 # A half-frame photo's own photo joins too; other layers have none, so their fingerprint stays.
                 [["layers", [layer_fields(layer) | _own_photo(layer) for layer in layers]]]
@@ -601,8 +667,10 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             text_case(video, scene.is_title),
             photo_credit(scene),
             bool(scene.video_key and scene.video_loop),
+            blurry_photo(storage, video, scene),
         )
 
+    storage = get_storage()
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
 
 
@@ -945,6 +1013,13 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     position = text_position(video, scene)
     if position:
         style = [*style, "text_position", *position]
+    # A framed photo's preview also follows its fit, its square, the logo's row and its text's height.
+    frame_look = (
+        ["fit", photo_fit(video, scene), scene.image_crop_offset, text_floor(video, scene), scene.text]
+        if framable(video, scene)
+        else []
+    )
+    style = [*style, *frame_look]
     still = scene.video_key or scene.image_key
     return {
         "id": scene.id,
@@ -1000,7 +1075,11 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "text_position": [scene.text_x, scene.text_y] if scene.text_x is not None else None,
         "placed_at": position,  # where it goes after all: its own place, the video's, or None (the template's)
         # The drag is drawn from the frame without text and the exact box image the renderer overlays.
-        "frame_url": f"{image}/frame.jpg?v={_version(still, scene.video_start, blur_of(scene))}" if still else None,
+        "frame_url": (
+            f"{image}/frame.jpg?v={_version(still, scene.video_start, blur_of(scene), *frame_look)}" if still else None
+        ),
+        # "Khung ảnh": how the photo fills the frame; None for a title, a clip or a backdrop video's scene.
+        "image_frame": frame_payload(video, scene),
         "textbox_url": (
             f"{image}/textbox.png?v={_version(scene.text, *preview_look(video, scene.is_title))}"
             if scene.text.strip() and text_problem(scene.text, scene.is_title, size, case) is None

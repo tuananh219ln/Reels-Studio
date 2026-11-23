@@ -22,7 +22,7 @@ from reels_render.errors import InputError
 from reels_render.layers import card_corner, render_card
 from reels_render.script import MAX_VIDEO_SPEED, MIN_VIDEO_SPEED
 from reels_render.sounds import MUSIC_LEVELS
-from reels_render.textbox import FRAME_WIDTH
+from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 
 from . import (
     affiliate_rounds,
@@ -103,6 +103,7 @@ from .videos import (
     drop_original,
     ensure_unlocked,
     follow_narration,
+    framable,
     group_video_mode,
     is_card_layer,
     list_extras,
@@ -113,6 +114,7 @@ from .videos import (
     made_voice_seconds,
     new_key,
     pending_publication,
+    photo_fit,
     posted_fanpage_ids,
     publications_of,
     refresh_thumbnail,
@@ -122,6 +124,7 @@ from .videos import (
     scene_still,
     split_scenes,
     spoken,
+    text_floor,
     text_position,
     thumbnail_url,
     video_name,
@@ -209,6 +212,13 @@ class ScenePatchBody(BaseModel):
     transition: object = None  # the transition into this scene (reels_render.effects); null: the video's
     color: object = None  # its colour preset; null: as shot
     music_level: object = None  # the music's level during the scene (reels_render.sounds); null: the video's
+    # "Khung ảnh" (reels_render.framing): "cover", "whole", "square"; null: "Tự động", by the photo's shape.
+    image_fit: object = None
+    image_crop_offset: object = None  # where the square is cut along the photo's longer side, 0–1; null: the middle
+
+
+# What "Khung ảnh" may be set to; null is "Tự động".
+IMAGE_FIT_CHOICES = ("cover", "whole", "square")
 
 
 class PublishBody(BaseModel):
@@ -1283,6 +1293,21 @@ def patch_scene(
         if body.video_loop and scene.video_sound:
             raise invalid("Tắt tiếng gốc của video trước khi lặp clip")
         scene.video_loop = body.video_loop
+    if "image_fit" in fields:
+        if body.image_fit is not None and body.image_fit not in IMAGE_FIT_CHOICES:
+            raise invalid(f"Khung ảnh không hợp lệ: {body.image_fit!r}")
+        if body.image_fit is not None and not framable(video, scene):
+            raise invalid("Chỉ ảnh của cảnh nội dung trong video từng cảnh mới chọn được khung ảnh")
+        scene.image_fit = body.image_fit
+    if "image_crop_offset" in fields:
+        offset = body.image_crop_offset
+        if offset is not None:
+            if isinstance(offset, bool) or not isinstance(offset, (int, float)) or not 0 <= offset <= 1:
+                raise invalid("Vị trí khung vuông phải từ 0 đến 1")
+            if not framable(video, scene):
+                raise invalid("Chỉ ảnh của cảnh nội dung trong video từng cảnh mới chọn được khung ảnh")
+            offset = round(float(offset), 3)
+        scene.image_crop_offset = offset
     moved = False
     if "text_position" in fields:
         try:
@@ -2278,6 +2303,7 @@ def scene_preview(
         video_options.render_options(video),
         text_position(video, scene),
         under=_card_under(storage, scene),
+        **_framed(video, scene),
     )
     return Response(
         frames.jpeg_bytes(frame), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
@@ -2296,18 +2322,45 @@ def _card_under(storage: DirectoryStorage, scene: Scene) -> list:
     return [(picture, card_corner(picture.width, picture.height, card.y))]
 
 
+def _framed(video: Video, scene: Scene) -> dict:
+    """How the preview frames the scene's photo, as the render does ("Khung ảnh")."""
+    if not framable(video, scene):
+        return {}
+    return {
+        "fit": photo_fit(video, scene),
+        "min_top": text_floor(video, scene),
+        "crop_offset": scene.image_crop_offset,
+    }
+
+
 @router.get("/scenes/{scene_id}/frame.jpg")
 def scene_frame(
     scene_id: int,
+    anchor: str = "top",
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> Response:
-    """The scene's first frame without its text box, which the text box is dragged over."""
-    still = scene_still(storage, _scene(db, scene_id))
+    """The scene's first frame without its text box, which the text box is dragged over. A framed photo
+    ("Khung ảnh") moves with the box: `anchor` "bottom" lays it out for a box in the lower half, else the upper."""
+    scene = _scene(db, scene_id)
+    still = scene_still(storage, scene)
     if still is None:
         raise ApiError(404, "file_not_found", "Cảnh chưa có ảnh hoặc không lấy được khung hình từ video")
-    frame = frames.compose_frame(still, "", is_title=False)
+    video = db.get(Video, scene.video_id)
+    if framable(video, scene):
+        centre = [FRAME_WIDTH // 2, FRAME_HEIGHT - 1] if anchor == "bottom" else None
+        frame = frames.compose_frame(
+            still,
+            scene.text,
+            scene.is_title,
+            video_options.render_options(video),
+            centre,
+            show_text=False,
+            **_framed(video, scene),
+        )
+    else:
+        frame = frames.compose_frame(still, "", is_title=False)
     return Response(
         frames.jpeg_bytes(frame), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
     )

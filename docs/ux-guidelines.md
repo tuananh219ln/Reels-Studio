@@ -622,7 +622,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
     tooltip, shown while the frame is pointed at (or tapped, or one of them has the keyboard): "Xem" (the only one in
     view mode: a centred dialog with the scene large in its 9:16 frame, the photo as the render crops it or the clip
     looping the part the scene plays, muted, at its speed, and the exact text box where the render puts it, with a
-    "Chữ trên màn hình" switch to hide it), "Chỉnh khung" for a photo or "Cắt video" for a clip, "Sửa ảnh" for a photo
+    "Chữ trên màn hình" switch to hide it; a framed photo as "Khung ảnh" lays it), "Chỉnh khung" for a photo or "Cắt video" for a clip, "Sửa ảnh" for a photo
     or "Làm mờ vùng" for a clip, "Vị trí chữ", and for a clip "Xoá video" (✕, confirmed). Beside the frame, while
     editing, the picture's tools are a column of their own, always shown (222 px, #fcfbfa, two columns, 36 px
     buttons), in three groups with small grey capitals: "LẤY ẢNH" ("Tải lên", a dashed area, and "Dán link"; "Chọn
@@ -683,6 +683,12 @@ steps open the status card or the products block on its tab, the QC chip its pop
   - "Chỉnh khung" and "Cắt video" open in the middle of the screen, the picture on the left and its
     controls in labelled groups beside it (under it on a phone), so "Áp dụng" needs no scrolling; the
     other picture dialogs (Vị trí chữ, the paste box, Chọn từ kho) are centred too.
+  - **"Khung ảnh"** (a content scene's photo on a slide video): under the picture, a small select "Tự động (what it
+    does for this photo) / Lấp đầy khung / Cắt vuông, nền mờ / Giữ nguyên ảnh, nền mờ", saved at once; when the
+    photo is cut square and is not square itself, a "Dịch khung vuông" slider (Trái–Phải or Trên–Dưới) moves the
+    square, saved when it is let go. "Vị trí chữ" shows the photo above or below the box as the box crosses the
+    frame's middle, and "Vị trí gốc" is where the framing puts the text. A framed photo that still looks soft at
+    the frame's width warns "Ảnh mờ, nên thay ảnh khác" (a warning, never blocking).
   - **"Chỉnh khung"** (photo): a dialog that crops the photo to 9:16 with a "Phóng to" slider
     (1–4×), "Xoay 90°", "Lật ngang" and "Đặt lại"; dragging moves the photo under the frame. "Áp dụng" cuts
     it in the browser to a JPEG of at most 1080×1920 and stores it in place of the photo, keeping
@@ -1320,8 +1326,12 @@ One template, derived from the reference channel (see [content.md](content.md#vi
 with named presets a video can switch (its "Thiết lập" tab, defaults on Cài đặt › Thiết lập mặc
 định). The defaults below are the original template; [Presets](#presets) lists the others.
 
-- **Frame:** 9:16 vertical, 1080×1920 at 30 fps. Photos are cover-cropped from the centre, with
-  no black bars.
+- **Frame:** 9:16 vertical, 1080×1920 at 30 fps, never with black bars. A photo close to 9:16 is
+  cover-cropped from the centre. On a slide video, a content scene's wider photo follows its "Khung ảnh"
+  ([framing.py](../worker/src/reels_render/framing.py)): "Tự động" cuts a 3:4 to about 4:3 photo square and keeps
+  a wider one whole, laid across the full width over its own blurred, darkened copy with a soft shadow under it;
+  the text sits on the blurred part above it (below when the text was placed in the lower half). The title scene
+  and a backdrop video always fill the frame.
 - **First frame = thumbnail** (and the cover of a reel the app posts to Facebook):
   - a close-up food photo filling the frame, with vivid color;
   - the chosen title in a text box centred in the frame, 3–5 lines, with no fade-in.

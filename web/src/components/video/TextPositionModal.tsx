@@ -64,6 +64,21 @@ const centreOf = (corner: Point, size: Size): Point => [
   corner[1] + Math.floor(size.height / 2),
 ];
 
+/** Where the scene's text box is drawn: where it was placed, else where a framed photo ("Khung ảnh") puts it, else
+ * null (the template's place). */
+export function shownAt(scene: SceneData): Point | null {
+  return scene.placed_at ?? scene.image_frame?.text_at ?? null;
+}
+
+/** The scene's frame without text for a box centred at `centre`: a framed photo sits below a box in the upper half
+ * and above one in the lower half, so its frame follows the box. */
+export function frameFor(scene: SceneData, centre: Point | null): string | null {
+  if (!scene.frame_url || !scene.image_frame || scene.image_frame.kind === "cover") {
+    return scene.frame_url;
+  }
+  return `${scene.frame_url}&anchor=${centre !== null && centre[1] >= FRAME_HEIGHT / 2 ? "bottom" : "top"}`;
+}
+
 /** Drag the scene's text box over its frame, inside the platforms' safe zone, and save it for the scene or video. */
 export default function TextPositionModal({
   scene,
@@ -75,7 +90,9 @@ export default function TextPositionModal({
   onSaved: (video: VideoDetail) => void;
 }) {
   const [size, setSize] = useState<Size | null>(null);
-  const [centre, setCentre] = useState<Point | null>(scene.placed_at);
+  // A framed photo's "Vị trí gốc" is where the framing puts the text.
+  const home = scene.image_frame?.text_at ?? null;
+  const [centre, setCentre] = useState<Point | null>(shownAt(scene));
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const drag = useRef<{ pointer: Point; centre: Point } | null>(null);
@@ -176,7 +193,7 @@ export default function TextPositionModal({
           {scene.frame_url && (
             // eslint-disable-next-line @next/next/no-img-element -- drawn by the api, like the previews
             <img
-              src={scene.frame_url}
+              src={frameFor(scene, point) ?? ""}
               alt=""
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
             />
@@ -263,7 +280,7 @@ export default function TextPositionModal({
         </div>
         {error && <Typography.Text type="danger">{error}</Typography.Text>}
         <Flex wrap gap={8} justify="center">
-          <Button onClick={() => setCentre(null)} disabled={saving !== null}>
+          <Button onClick={() => setCentre(home)} disabled={saving !== null}>
             Vị trí gốc
           </Button>
           {scene.is_title ? (

@@ -161,6 +161,9 @@ def _compact_scene(scene: dict) -> dict:
     for key in ("image_credit", "image_error", "voice_id"):
         if scene.get(key):
             row[key] = scene[key]
+    if frame := scene.get("image_frame"):
+        # "Khung ảnh": what was chosen (None: auto) and what the render does with this photo.
+        row["image_fit"] = {key: frame.get(key) for key in ("fit", "kind", "shape", "offset")}
     if scene.get("layers"):
         row["layers"] = [
             {
@@ -814,6 +817,20 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                 )
             ),
         ] = None,
+        image_fit: Annotated[
+            Literal["auto", "cover", "whole", "square"] | None,
+            Field(
+                description=(
+                    '"Khung ảnh" của ảnh cảnh nội dung (video từng cảnh): "auto" theo tỉ lệ ảnh, "cover" lấp đầy khung, '
+                    '"square" cắt vuông trên nền mờ, "whole" giữ nguyên ảnh trên nền mờ'
+                )
+            ),
+        ] = None,
+        image_crop_offset: Annotated[
+            float | None,
+            Field(ge=0, le=1, description="Vị trí khung vuông dọc cạnh dài của ảnh, 0 (trái/trên) đến 1 (phải/dưới)"),
+        ] = None,
+        reset_image_crop_offset: bool = False,
     ) -> dict:
         """Sửa chữ/lời đọc/thời lượng/từ khóa/prompt ảnh của một cảnh, kể cả cảnh tiêu đề. Với cảnh có clip:
         video_start là giây trong clip nơi cảnh bắt đầu, video_speed là tốc độ (1 là thường), video_sound bật/tắt
@@ -821,7 +838,9 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         cảnh này (như kéo chữ trên web; render giữ hộp trong vùng an toàn, cảnh tiêu đề chỉ dời lên xuống),
         reset_text_position đưa về chỗ chung của video. voice_id đặt giọng riêng cho cảnh (ví dụ đoạn kết đọc
         bằng giọng khác); chỉ cảnh đó được tạo lại giọng ở lần render sau (tốn ký tự cho riêng cảnh đó), giọng
-        mặc định của cả video vẫn đặt bằng "Tùy chọn của video". Không tạo ảnh."""
+        mặc định của cả video vẫn đặt bằng "Tùy chọn của video". image_fit chọn "Khung ảnh" (ảnh ngang/vuông nằm
+        trên nền mờ của chính nó, chữ trên nền mờ; xem lại bằng "Xem cảnh"); image_crop_offset dịch khung vuông khi ảnh
+        bị cắt vuông, reset_image_crop_offset đưa về giữa. Không tạo ảnh."""
         fields = given(
             text=text,
             voice_text=voice_text,
@@ -837,6 +856,12 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         )
         if reset_text_position:
             fields["text_position"] = None
+        if image_fit is not None:
+            fields["image_fit"] = None if image_fit == "auto" else image_fit
+        if image_crop_offset is not None:
+            fields["image_crop_offset"] = image_crop_offset
+        if reset_image_crop_offset:
+            fields["image_crop_offset"] = None
         body = videos.ScenePatchBody(**fields)
         return await run_in_threadpool(
             invoke, lambda db, me: changed(videos.patch_scene(scene_id, body, me, db, get_storage())), write=True

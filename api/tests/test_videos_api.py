@@ -1080,3 +1080,117 @@ def test_a_render_machine_is_sent_the_loop_flag_only_when_a_clip_loops():
 
     assert "clip_loop" not in render_nodes.options_dict(RenderOptions())
     assert render_nodes.options_dict(replace(RenderOptions(), clip_loop=True))["clip_loop"] is True
+
+
+# --- "Khung ảnh" (reels_render.framing) ---
+
+
+def wide_scene(db, storage, video, size=(1000, 800)):
+    """The first content scene, given a 5:4 photo instead of the seeded 9:16 one."""
+    scene = db.get(Scene, scene_ids(db, video)[0])
+    key = f"videos/{video.id}/wide-{size[0]}x{size[1]}.jpg"
+    storage.save_bytes(key, photo_bytes(size=size))
+    scene.image_key = key
+    db.commit()
+    return scene.id
+
+
+def shown_scene(data, scene_id):
+    return next(scene for scene in data["scenes"] if scene["id"] == scene_id)
+
+
+def test_a_wide_photo_is_framed_square_with_its_text_above(an, db, me, storage):
+    video = make_video(db, storage, me)
+    target = wide_scene(db, storage, video)
+    data = an.get(f"/api/videos/{video.id}").json()
+
+    frame = shown_scene(data, target)["image_frame"]
+    assert frame["fit"] is None and frame["kind"] == "square" and frame["shape"] == [1000, 800]
+    assert frame["text_at"][0] == 540 and frame["text_at"][1] < 960, "the text goes on the blurred copy above"
+    # A 9:16 photo still fills the frame; the title (the cover) is never framed.
+    other = next(scene for scene in data["scenes"] if scene["id"] != target)
+    assert other["image_frame"]["kind"] == "cover" and other["image_frame"]["text_at"] is None
+    assert data["title_scene"]["image_frame"] is None
+
+    for anchor in ("top", "bottom"):
+        response = an.get(f"/api/scenes/{target}/frame.jpg?anchor={anchor}")
+        assert response.status_code == 200
+        assert Image.open(io.BytesIO(response.content)).size == (1080, 1920)
+
+
+def test_choosing_the_fit_changes_the_preview_and_the_mp4_fingerprint(an, db, me, storage):
+    from reels_api.videos import render_signature, split_scenes
+
+    def signature():
+        db.expire_all()
+        row = db.get(Video, video.id)
+        return render_signature(row, *split_scenes(db, row))
+
+    video = make_video(db, storage, me)
+    target = wide_scene(db, storage, video)
+    before_preview = shown_scene(an.get(f"/api/videos/{video.id}").json(), target)["preview_url"]
+    before = signature()
+
+    whole = an.patch(f"/api/scenes/{target}", json={"image_fit": "whole"}).json()
+    shown = shown_scene(whole, target)
+    assert shown["image_frame"]["fit"] == "whole" and shown["image_frame"]["kind"] == "whole"
+    assert shown["preview_url"] != before_preview and signature() != before
+    preview = an.get(shown["preview_url"])
+    assert preview.status_code == 200 and Image.open(io.BytesIO(preview.content)).size == (1080, 1920)
+
+    slid = an.patch(f"/api/scenes/{target}", json={"image_fit": "square", "image_crop_offset": 0}).json()
+    assert shown_scene(slid, target)["image_frame"]["offset"] == 0
+    back = an.patch(f"/api/scenes/{target}", json={"image_fit": None, "image_crop_offset": None}).json()
+    assert shown_scene(back, target)["image_frame"]["fit"] is None
+    assert signature() == before, "back to Tự động with no square chosen: the fingerprint from before"
+
+
+def test_a_new_photo_forgets_where_the_square_was_cut(an, db, me, storage):
+    video = make_video(db, storage, me)
+    target = wide_scene(db, storage, video)
+    an.patch(f"/api/scenes/{target}", json={"image_crop_offset": 0.8})
+    uploaded = an.post(f"/api/scenes/{target}/image", files={"file": ("moi.jpg", photo_bytes(size=(900, 900)))})
+    assert uploaded.status_code == 200
+    assert shown_scene(uploaded.json(), target)["image_frame"]["offset"] is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{"image_fit": "stretch"}, {"image_fit": 3}, {"image_crop_offset": 2}, {"image_crop_offset": True}],
+)
+def test_bad_fits_are_refused(an, db, me, storage, body):
+    video = make_video(db, storage, me)
+    response = an.patch(f"/api/scenes/{scene_ids(db, video)[0]}", json=body)
+    assert response.status_code == 422
+
+
+def test_the_title_has_no_fit(an, db, me, storage):
+    video = make_video(db, storage, me)
+    response = an.patch(f"/api/scenes/{title_id(db, video)}", json={"image_fit": "square"})
+    assert response.status_code == 422 and "cảnh nội dung" in response.json()["message"]
+
+
+def test_a_blurry_photo_warns_and_a_sharp_or_plain_one_does_not(an, db, me, storage):
+    """ "Ảnh mờ, nên thay ảnh khác" (reels_render.framing.is_blurry) on a framed photo; the seeded one-colour photos
+    have nothing to judge."""
+    from conftest import API_DIR
+    from PIL import ImageFilter
+
+    from reels_api.script_rules import BLURRY_PHOTO
+
+    video = make_video(db, storage, me)
+    first, second = scene_ids(db, video)[:2]
+    sharp = Image.open(API_DIR.parent / "samples" / "xuong-khop" / "02-sua-chua.jpg").convert("RGB")
+    soft = sharp.filter(ImageFilter.GaussianBlur(3))
+    for scene_id, picture in ((first, soft), (second, sharp)):
+        buffer = io.BytesIO()
+        picture.save(buffer, "JPEG", quality=92)
+        key = f"videos/{video.id}/photo-{scene_id}.jpg"
+        storage.save_bytes(key, buffer.getvalue())
+        db.get(Scene, scene_id).image_key = key
+    db.commit()
+
+    data = an.get(f"/api/videos/{video.id}").json()
+    assert {"message": BLURRY_PHOTO, "field": "image", "level": "warning"} in shown_scene(data, first)["issues"]
+    assert BLURRY_PHOTO not in shown_scene(data, second)["warnings"]
+    assert all(BLURRY_PHOTO not in scene["warnings"] for scene in data["scenes"][2:])
