@@ -66,6 +66,8 @@ export type VideoRow = {
   posted_on: ("facebook" | "tiktok" | "youtube" | "instagram")[];
   /** The link of each platform's newest post, for the icon to open it; a platform without a link is left out. */
   posted_links?: Partial<Record<"facebook" | "tiktok" | "youtube" | "instagram", string>>;
+  /** What an icon must not hide: "draft" while the video is on TikTok only as drafts in its owner's inbox. */
+  posted_states?: Partial<Record<"facebook" | "tiktok" | "youtube" | "instagram", "draft">>;
   /** A TikTok version was made from it; a Facebook clone ("Nhân bản", a version for another Page) was made from it. */
   has_tiktok_version: boolean;
   cloned: boolean;

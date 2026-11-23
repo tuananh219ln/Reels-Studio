@@ -275,7 +275,7 @@ export default function TopicVideos({
                 <Flex vertical gap={4} align="flex-start">
                   <Flex gap={8} align="center" wrap>
                     <VideoStatusTags video={row} />
-                    <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} />
+                    <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} />
                   </Flex>
                   <VideoKindTags video={row} />
                 </Flex>
@@ -397,7 +397,7 @@ function VideoCards({
                 <VideoKindTags video={row} />
                 <Flex wrap gap={8} align="center">
                   <VideoStatusTags video={row} />
-                  <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} />
+                  <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} />
                 </Flex>
                 <Typography.Text type="secondary" style={{ fontSize: 13 }} data-testid="topic-video-numbers">
                   {figures.views === null && figures.views48 === null
