@@ -19,7 +19,7 @@ from .graph import (
     build_ffmpeg_args,
     clip_lead,
 )
-from .images import normalize_image
+from .images import fit_image
 from .layers import card_corner, layer_corner, render_layer
 from .logo import TEXT_TOP_MIN, corner_placement
 from .markup import Run, cased
@@ -102,6 +102,10 @@ def render_video(
         inputs, captions, layers, sounds = [], [], [], []
         scene_start = 0
         for index, (scene, layout) in enumerate(zip(script.all_scenes, layouts)):
+            # Room for the corner badge's row on the content scenes; the title scene has no logo.
+            min_top = TEXT_TOP_MIN if script.logo is not None and index > 0 else None
+            # Where a framed photo (framing.py) puts the text when nobody placed it; None: the template's place.
+            framed_centre = None
             if scene.video is not None:
                 image, video_start = scene.video.resolve(), scene.video_start
                 if options.backdrop:
@@ -111,17 +115,28 @@ def render_video(
                 image, video_start = work_dir / "scene-00.jpg", None
             else:
                 image, video_start = work_dir / f"scene-{index:02d}.jpg", None
-                normalize_image(scene.image, image, scene.label)
+                framed_centre = fit_image(
+                    scene.image,
+                    image,
+                    scene.label,
+                    scene.image_fit,
+                    layout.height if layout is not None else 0,
+                    scene.text_position,
+                    min_top,
+                    scene.image_crop_offset,
+                )
             box = work_dir / f"text-{index:02d}.png"
             if layout is None:
                 empty_box().save(box)
                 box_x, box_y = 0, 0
             else:
                 render_box(layout, first_palette if index == 0 else palette).save(box)
-                # Room for the corner badge's row on the content scenes; the title scene has no logo.
-                min_top = TEXT_TOP_MIN if script.logo is not None and index > 0 else None
                 box_x, box_y = place_box(
-                    layout.width, layout.height, scene.text_position, is_title=index == 0, min_top=min_top
+                    layout.width,
+                    layout.height,
+                    scene.text_position or framed_centre,
+                    is_title=index == 0,
+                    min_top=min_top,
                 )
             # Captions sit just above a content scene's text box; the title scene keeps its hook box alone. The
             # narration's are timed by estimate; a clip's own sound has each word's real seconds.

@@ -108,6 +108,7 @@ from .videos import (
     made_voice_seconds,
     new_key,
     pending_publication,
+    photo_fit,
     refresh_thumbnail,
     render_signature,
     reveal_steps,
@@ -841,6 +842,11 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                     scene.image_key, folder / f"image-{index:02d}.{scene.image_key.rsplit('.', 1)[-1]}"
                 )
                 data = {"text": scene.text, "seconds": scene.seconds, "image": image.name}
+                # "Khung ảnh" (reels_render.framing): a content scene's photo on a slide video; "cover" is the default.
+                if (fit := photo_fit(video, scene)) != "cover":
+                    data["image_fit"] = fit
+                    if scene.image_crop_offset is not None:
+                        data["image_crop_offset"] = scene.image_crop_offset
             if position := text_position(video, scene):
                 data["text_position"] = position
             if scene.transition and not scene.is_title:

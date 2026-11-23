@@ -325,8 +325,12 @@ export type SceneData = {
   text_position: [number, number] | null;
   /** Where the box goes after all: its own place, the video's place for content scenes, or null (the template's). */
   placed_at: [number, number] | null;
-  /** The frame without text and the exact box image, which the box is dragged with. */
+  /** The frame without text and the exact box image, which the box is dragged with. A framed photo's frame takes
+   * `&anchor=bottom` for a box in the lower half, where the photo sits above the text. */
   frame_url: string | null;
+  /** "Khung ảnh" (reels_render.framing): how the photo fills the 9:16 frame; null for the title, a clip or a backdrop
+   * video's scene, and from an api older than the page. */
+  image_frame?: ImageFrame | null;
   textbox_url: string | null;
   text_problem: string | null;
   /** The studio's effects (reels_render.effects): the transition into this scene, null for the video's one. */
@@ -350,6 +354,22 @@ export type SceneData = {
 };
 
 export type SceneIssue = { message: string; field: string; level: "blocking" | "warning" };
+
+/** What "Khung ảnh" may be set to; null is "Tự động", by the photo's shape. */
+export type ImageFit = "cover" | "whole" | "square";
+
+export type ImageFrame = {
+  /** What was chosen; null: "Tự động". */
+  fit: ImageFit | null;
+  /** What the render does: fill the frame, keep the photo's shape, or cut it square, both over its blurred copy. */
+  kind: ImageFit;
+  /** The photo's size (its padding taken off); null when it cannot be read. */
+  shape: [number, number] | null;
+  /** Where the square is cut along the photo's longer side, 0–1; null: the middle. */
+  offset: number | null;
+  /** Where the text box's centre goes when nobody placed it; null: the template's place. */
+  text_at: [number, number] | null;
+};
 
 export type VideoDetail = VideoRow & {
   /** The video's channel ("Kênh") and whether its logo is laid on the MP4 (api brands.payload_of). */

@@ -4,7 +4,7 @@ import { Flex, Modal, Switch, Typography } from "antd";
 import { useState } from "react";
 import type { SceneData } from "@/lib/api";
 import { silentVideo } from "./silentVideo";
-import { FRAME_HEIGHT, FRAME_WIDTH, placeBox } from "./TextPositionModal";
+import { FRAME_HEIGHT, FRAME_WIDTH, frameFor, placeBox, shownAt } from "./TextPositionModal";
 
 const STAGE_HEIGHT = "min(72vh, 720px)";
 const percent = (value: number, of: number) => `${(value / of) * 100}%`;
@@ -18,7 +18,7 @@ export default function SceneViewer({ scene, onClose }: { scene: SceneData; onCl
   const [showText, setShowText] = useState(true);
   const [box, setBox] = useState<{ width: number; height: number } | null>(null);
   const clip = scene.video;
-  const corner = box ? placeBox(box, scene.placed_at, scene.is_title) : null;
+  const corner = box ? placeBox(box, shownAt(scene), scene.is_title) : null;
   // The part of the clip the scene plays: its seconds at its speed, from its start.
   const clipEnd = clip ? clip.start + scene.seconds * clip.speed : 0;
 
@@ -69,7 +69,7 @@ export default function SceneViewer({ scene, onClose }: { scene: SceneData; onCl
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- drawn by the api with the renderer's own code
             <img
-              src={scene.frame_url ?? scene.image_url ?? ""}
+              src={frameFor(scene, shownAt(scene)) ?? scene.image_url ?? ""}
               alt="Ảnh của cảnh"
               style={{
                 width: "100%",

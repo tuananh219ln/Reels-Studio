@@ -85,9 +85,17 @@ def test_server_render_matches_the_cli_and_the_title_preview(committed, tmp_path
         title_image, title_text = storage.path(title.image_key), title.text
         print(f"render took {video.render_seconds}s for {video.mp4_seconds}s of video")
 
+    # The server frames each content scene's photo by its shape ("Khung ảnh" Tự động); the CLI is told the same.
+    script = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    for item in [script["title"], *script["scenes"]]:
+        item["image"] = str(SAMPLE.parent / item["image"])
+    for item in script["scenes"]:
+        item["image_fit"] = "auto"
+    cli_script = tmp_path / "cli.json"
+    cli_script.write_text(json.dumps(script, ensure_ascii=False), encoding="utf-8")
     cli_mp4 = tmp_path / "cli.mp4"
     subprocess.run(
-        [sys.executable, "-m", "reels_render", str(SAMPLE), "-o", str(cli_mp4)],
+        [sys.executable, "-m", "reels_render", str(cli_script), "-o", str(cli_mp4)],
         check=True,
         stdin=subprocess.DEVNULL,
         capture_output=True,

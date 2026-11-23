@@ -66,7 +66,17 @@ import { useEditor } from "./AutoSaveField";
 import { VoicePicker } from "./VideoSettings";
 import { Phone } from "./phone/Phone";
 import PlatformFrame, { PLATFORM_LABELS, type Platform } from "./PlatformFrame";
-import { COVERED, FRAME_HEIGHT, FRAME_WIDTH, LOGO_CORNER_WIDTH, SAFE, logoCorner, placeBox } from "./TextPositionModal";
+import {
+  COVERED,
+  FRAME_HEIGHT,
+  FRAME_WIDTH,
+  LOGO_CORNER_WIDTH,
+  SAFE,
+  frameFor,
+  logoCorner,
+  placeBox,
+  shownAt,
+} from "./TextPositionModal";
 import { isBackdrop, previewScenes } from "./videoModes";
 import "./preview/editor.css";
 
@@ -1026,7 +1036,7 @@ export default function VideoPreview({
   const boxSize = scene?.textbox_url ? boxes[scene.textbox_url] : undefined;
   const boxCorner =
     boxSize && scene
-      ? placeBox(boxSize, dragged?.sceneId === scene.id ? dragged.centre : scene.placed_at, scene.is_title)
+      ? placeBox(boxSize, dragged?.sceneId === scene.id ? dragged.centre : shownAt(scene), scene.is_title)
       : null;
   const covered = boxSize && boxCorner ? coveredBy(platform, boxCorner, boxSize) : [];
   const snapped = dragged && scene && dragged.sceneId === scene.id ? dragged.centre : null;
@@ -1737,10 +1747,11 @@ function SceneLayer({
   const grade = colorCss(scene.color);
   const end = ZOOMS[zoom];
   // The frame without text when there is one, so the box stays still while the picture moves; else the preview.
-  const picture = scene.frame_url ?? scene.preview_url;
+  // A framed photo ("Khung ảnh") moves above or below the box with it.
+  const picture = frameFor(scene, centre ?? shownAt(scene)) ?? scene.preview_url;
   const box = scene.frame_url ? scene.textbox_url : null;
   const size = box ? boxes[box] : undefined;
-  const corner = size ? placeBox(size, centre ?? scene.placed_at, scene.is_title) : null;
+  const corner = size ? placeBox(size, centre ?? shownAt(scene), scene.is_title) : null;
 
   /** The pointer in frame pixels (1080 × 1920). */
   function framePoint(event: React.PointerEvent): [number, number] | null {
