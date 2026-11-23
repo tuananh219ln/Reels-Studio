@@ -601,8 +601,9 @@ def test_preview_uses_the_photo_and_the_renderers_text_box(an, db, me, storage):
     from PIL import ImageChops, ImageOps, ImageStat
 
     from reels_api.frames import _yuv420
+    from reels_render.framing import plan_frame
     from reels_render.markup import parse_scene_text
-    from reels_render.textbox import SCENE_STYLE, layout_text, render_box, scene_box_position
+    from reels_render.textbox import SCENE_STYLE, layout_text, place_box, render_box
 
     video = make_video(db, storage, me)
     scene = an.get(f"/api/videos/{video.id}").json()["scenes"][0]
@@ -614,7 +615,10 @@ def test_preview_uses_the_photo_and_the_renderers_text_box(an, db, me, storage):
     box = render_box(layout)
     photo_key = db.scalar(select(Scene.image_key).where(Scene.id == scene["id"]))
     expected = ImageOps.fit(Image.open(storage.path(photo_key)).convert("RGB"), (1080, 1920), Image.Resampling.BICUBIC)
-    expected.paste(box, scene_box_position(layout.width, layout.height), box)
+    # A 9:16 photo under "Tự động" keeps its text on the line the framed scenes' text goes on (reels_render.framing),
+    # not at the template's place near the bottom.
+    centre = plan_frame(1080, 1920, "auto", layout.height).text_centre
+    expected.paste(box, place_box(layout.width, layout.height, centre, is_title=False), box)
     difference = sum(ImageStat.Stat(ImageChops.difference(preview, _yuv420(expected))).mean) / 3
     assert difference < 1, "only JPEG noise may differ"
 
