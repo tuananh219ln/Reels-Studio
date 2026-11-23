@@ -51,7 +51,12 @@ test("a member's Shopee account: added, checked, set on their Page, and hidden f
   await binh.goto("/settings/affiliate-accounts");
   await expect(binh.getByText("Chưa có tài khoản Shopee nào")).toBeVisible();
   await binh.goto("/fanpages");
-  await expect(binh.getByTestId("fanpage-owner")).toHaveText("Thuộc: Nguyễn Văn An");
+  // A teammate sees whose Page it is and what is public about it, never the owner's Shopee or TikTok account.
+  const theirs = binh.getByTestId("fanpage-owner");
+  await expect(theirs).toContainText("Thuộc: Nguyễn Văn An");
+  await expect(theirs).not.toContainText("Shopee");
+  await expect(theirs).not.toContainText("TikTok");
+  await expect(theirs.getByRole("button", { name: /^Cài đặt/ })).toHaveCount(0);
   await binh.goto("/affiliate");
   await binh.getByRole("tab", { name: "Doanh thu" }).click();
   await expect(binh.getByText("Chưa có tài khoản Shopee nào của bạn")).toBeVisible();

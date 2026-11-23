@@ -439,7 +439,10 @@ function FanpageDashboard() {
   };
   // A tab starts without the last tab's sort and page; the period stays.
   const setTab = (next: string) => {
-    keepOnlyInAddress(period === "28" ? {} : { days: period });
+    keepOnlyInAddress({
+      ...(period === "28" ? {} : { days: period }),
+      ...(platform === "instagram" ? { platform } : {}),
+    });
     setTabInAddress(next);
   };
 
