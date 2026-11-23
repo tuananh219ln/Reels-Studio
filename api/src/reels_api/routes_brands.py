@@ -4,6 +4,7 @@ a brand's owner changes it. See brands.py."""
 import tempfile
 from dataclasses import replace
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import FileResponse, Response
@@ -34,6 +35,7 @@ class BrandBody(BaseModel):
     youtube_channel_id: str | None = None
     youtube_handle: str | None = None
     logo_default_on: bool | None = None
+    title_style: Literal["classic", "motion"] | None = None
     # How the logo sits on an article's photos (photo_logo.py); `photo_logo_alt_threshold` null turns the white logo
     # off.
     photo_logo_position: str | None = None
@@ -89,6 +91,7 @@ def _payload(db: DbSession, brand: Brand, me: Session) -> dict:
         "youtube_channel_id": brand.youtube_channel_id,
         "youtube_handle": brand.youtube_handle,
         "logo_default_on": brand.logo_default_on,
+        "title_style": brand.title_style,
         "logo_url": brands.logo_url(brand),
         "logo_badge_url": brands.badge_url(brand),
         "logo_version": brand.logo_version,
@@ -146,6 +149,8 @@ def _apply(db: DbSession, brand: Brand, me: Session, body: BrandBody) -> None:
             setattr(brand, name, _link(value, label, strip) if value is not None else None)
     if "logo_default_on" in fields and body.logo_default_on is not None:
         brand.logo_default_on = body.logo_default_on
+    if "title_style" in fields:
+        brand.title_style = body.title_style
     _apply_photo_look(brand, body)
 
 

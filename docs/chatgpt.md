@@ -73,6 +73,8 @@ service:
    the product photo flying in) and the worker renders it with HyperFrames into the scene's clip
    ([architecture.md](architecture.md#motion-scenes-hyperframes)). The scene's photo at that moment is available as
    `assets/photo.*`, so attach a transparent product photo first. No cost to the team's AI service.
+6. `set_title_motion` builds the title scene's "Tiêu đề động" from the scenes below it, and `set_title_style` switches the
+   title between Cổ điển and Động ([architecture.md](architecture.md#motion-scenes-hyperframes)). No cost to the team's AI service.
 6. `render_video` queues the render; narration may use ElevenLabs.
 
 ## The media library

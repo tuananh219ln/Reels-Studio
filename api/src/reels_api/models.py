@@ -729,6 +729,9 @@ class Brand(Base):
     youtube_channel_id: Mapped[str | None] = mapped_column(String(64))
     youtube_handle: Mapped[str | None] = mapped_column(String(64))
     logo_default_on: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    # "Kiểu tiêu đề" of the Page's videos (title_motion.py): "classic" or "motion" is what a title built for the first time
+    # shows; None: the motion title.
+    title_style: Mapped[str | None] = mapped_column(String(8))
     # The logo on an article's photos (photo_logo.py): a white version for dark photos, used when the photo under
     # the logo is darker than `photo_logo_alt_threshold` (0–1, None: never); where it sits (PHOTO_LOGO_POSITIONS),
     # its width and its distance from the edges in % of the photo's width, and its opacity (0–1).

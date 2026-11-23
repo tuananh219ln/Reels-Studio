@@ -130,6 +130,7 @@ def _brand(brand: Brand | None) -> dict | None:
         "name": brand.name,
         "logo_badge_url": brands.badge_url(brand),
         "logo_default_on": brand.logo_default_on,
+        "title_style": brand.title_style,
         "owner_id": brand.owner_id,
     }
 
