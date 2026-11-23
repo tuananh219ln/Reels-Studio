@@ -294,6 +294,19 @@ def send_file(access_token: str, session_url: str, path: Path, start: int = 0) -
     raise _error(response)
 
 
+def set_thumbnail(access_token: str, video_id: str, jpeg: bytes) -> None:
+    """The video's custom thumbnail (thumbnails.set, a JPEG under 2 MB); YouTube allows it only on a verified channel."""
+    response = _call(
+        "POST",
+        "https://www.googleapis.com/upload/youtube/v3/thumbnails/set",
+        params={"videoId": video_id, "uploadType": "media"},
+        headers={"Authorization": f"Bearer {access_token}", "Content-Type": "image/jpeg"},
+        content=jpeg,
+    )
+    if response.status_code != 200:
+        raise _error(response)
+
+
 def studio_url(video_id: str) -> str:
     return f"https://studio.youtube.com/video/{video_id}/edit"
 

@@ -643,6 +643,13 @@ def title_poster_second(scene: Scene) -> float | None:
     return round(max(0.0, min(TITLE_POSTER_SECOND, (scene.seconds or 3.0) - 0.2)), 2)
 
 
+def motion_cover_second(db: DbSession, video: Video) -> float | None:
+    """Where a platform's cover is taken in the MP4 when the video's title is a motion title (`title_poster_second`);
+    None for any other title, which keeps the platform's own pick (or the first frame)."""
+    title, _ = split_scenes(db, video)
+    return title_poster_second(title) if title is not None else None
+
+
 def scene_still(storage: DirectoryStorage, scene: Scene, poster: bool = False) -> Path | Image.Image | None:
     """What the scene's first frame is drawn from: the clip's frame at its start time, or the photo. With `poster`
     (the thumbnail) a motion title is drawn from its settled frame."""

@@ -19,6 +19,7 @@ from .facebook import FacebookError, Page
 from .models import Fanpage, Job, Publication, Video
 from .sessions import now
 from .storage import DirectoryStorage
+from .videos import motion_cover_second
 
 log = logging.getLogger(__name__)
 
@@ -72,7 +73,8 @@ def _post(db: DbSession, page: Page, ig_user_id: str, post: Publication, storage
     post.remote_mp4_key = key
     db.commit()
     link = instagram.video_link(post.id)
-    post.remote_id, upload_uri = instagram.create_container(page, ig_user_id, post.post_text or "", link)
+    cover = motion_cover_second(db, db.get(Video, post.video_id))
+    post.remote_id, upload_uri = instagram.create_container(page, ig_user_id, post.post_text or "", link, cover)
     db.commit()
     if link:
         log.info("Instagram container %s of post %s fetches its MP4 from our link", post.remote_id, post.id)

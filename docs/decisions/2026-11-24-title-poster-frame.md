@@ -7,3 +7,6 @@ has stopped shaking. A classic title, or a clip that is no longer the motion, is
 
 Only the thumbnail and the cover change; the MP4 itself still opens on the animation. A reel already posted keeps the
 cover it has. The cover second follows the video's title at posting time, as the thumbnail does.
+
+TikTok (`video_cover_timestamp_ms`), Instagram (`thumb_offset`) and YouTube (`thumbnails.set`) get the same second, for
+motion titles only; a classic title keeps each platform's own pick as before. A TikTok draft has no cover setting.

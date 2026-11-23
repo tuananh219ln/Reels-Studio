@@ -325,3 +325,33 @@ def test_a_motion_titles_thumbnail_and_cover_come_from_its_settled_frame():
     assert title_poster_second(classic) is None
     assert title_poster_second(Scene(is_title=False, seconds=3.0, motion=made, video_key=made["clip_key"])) is None
     assert title_poster_second(Scene(is_title=True, seconds=3.0, motion=None, video_key="x")) is None
+
+
+def test_instagram_and_youtube_take_the_settled_frame_as_their_cover(monkeypatch):
+    from types import SimpleNamespace as NS
+
+    from reels_api import instagram, youtube_upload
+
+    sent = {}
+
+    def fake_post(page, path, **fields):
+        sent.update(fields)
+        return {"id": "1"}
+
+    monkeypatch.setattr(instagram, "_post", fake_post)
+    instagram.create_container(NS(), "ig", "caption", "https://x/video.mp4", 2.6)
+    assert sent["thumb_offset"] == 2600 and sent["media_type"] == "REELS"
+    sent.clear()
+    instagram.create_container(NS(), "ig", "caption", "https://x/video.mp4")
+    assert "thumb_offset" not in sent  # a classic title keeps Instagram's own pick
+
+    calls = []
+    monkeypatch.setattr(
+        youtube_upload,
+        "_call",
+        lambda method, url, **kw: calls.append((method, url, kw)) or NS(status_code=200),
+    )
+    youtube_upload.set_thumbnail("token", "abc", b"jpeg")
+    method, url, kw = calls[0]
+    assert (method, kw["params"]["videoId"], kw["content"]) == ("POST", "abc", b"jpeg")
+    assert url.endswith("/thumbnails/set") and kw["headers"]["Content-Type"] == "image/jpeg"

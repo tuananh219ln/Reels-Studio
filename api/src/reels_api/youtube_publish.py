@@ -14,8 +14,11 @@ import logging
 from sqlalchemy.orm import Session as DbSession
 
 from . import hashtags, youtube_connections, youtube_upload
+from .clips import ClipError, frame_at
+from .frames import jpeg_bytes
 from .models import Job, Publication, Video
 from .storage import DirectoryStorage
+from .videos import motion_cover_second
 
 log = logging.getLogger(__name__)
 
@@ -25,6 +28,18 @@ class PublishFailed(Exception):
         super().__init__(message)
         self.message = message
         self.detail = detail
+
+
+def _set_thumbnail(db: DbSession, token: str, video: Video, video_id: str, path) -> None:
+    """A motion title's thumbnail is its settled frame (videos.title_poster_second), not YouTube's pick. A thumbnail
+    that cannot be set (an unverified channel, a lost answer) leaves YouTube's own: the upload stands."""
+    second = motion_cover_second(db, video)
+    if second is None:
+        return
+    try:
+        youtube_upload.set_thumbnail(token, video_id, jpeg_bytes(frame_at(path, second)))
+    except (ClipError, youtube_upload.YouTubeUploadError) as err:
+        log.warning("YouTube video %s keeps the thumbnail YouTube picked: %s", video_id, err)
 
 
 def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
@@ -68,4 +83,5 @@ def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     post.external_id, post.post_url = video_id, youtube_upload.shorts_url(video_id)
     post.status, post.upload_url = "private", None
     db.commit()
+    _set_thumbnail(db, token, video, video_id, path)
     log.info("Job %s uploaded video %s to YouTube as %s (private)", job.id, video.id, video_id)
