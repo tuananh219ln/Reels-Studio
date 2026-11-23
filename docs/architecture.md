@@ -106,8 +106,10 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
   then the photo (cut square at `image_crop_offset` for `square`) is laid across the full width over its covered,
   blurred, darkened copy with a soft shadow, Lanczos plus unsharp mask when enlarged. The text box goes above the
   photo, or below it when its `text_position` is in the lower half; with no `text_position` it is centred on the
-  blurred part above, so the render places it there instead of the template's place. The zoom then moves the built
-  frame as one picture.
+  blurred part above, so the render places it there instead of the template's place. FFmpeg gets two layers: the
+  blurred copy (with the shadow) as the scene's photo and the photo alone (`FramedInput`), each with its own
+  `zoompan`; the photo zooms inside its fixed box at half the video's zoom and the copy at a quarter, with the video's
+  motion, and the colour preset grades both after the photo is laid on.
 - **Validation runs before FFmpeg.** The output is written to a temp file next to the target and
   replaced only after a successful render.
 - **FFmpeg safety:** every file is passed with `-i` and referenced by stream label, never written

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .blur import ffmpeg_blur
 from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
+from .framing import BACKDROP_ZOOM_SHARE, PHOTO_ZOOM_SHARE
 from .layers import ANIMATION_SECONDS, SLIDE_UP_PX
 from .logo import Placement
 from .options import DEFAULT_OPTIONS, RenderOptions
@@ -48,6 +49,21 @@ class SceneInput:
     blur: tuple[tuple[float, float, float, float], ...] = ()  # boxes of the clip blurred (blur.py)
     # Half-frame photos ("Ảnh chèn nửa khung") over the picture and under its text box, not moved by its zoom.
     insets: tuple["InsetInput", ...] = ()
+    # A framed photo ("Khung ảnh", framing.py): `image` is then its blurred copy, and this the photo laid on it.
+    framed: "FramedInput | None" = None
+
+
+@dataclass(frozen=True)
+class FramedInput:
+    """A framed photo alone, laid at (`left`, `top`) at its size in the frame. It zooms inside that box with the
+    video's motion at PHOTO_ZOOM_SHARE of its zoom, while the blurred copy under it moves at BACKDROP_ZOOM_SHARE:
+    the box itself never moves, so it never runs under the scene's text."""
+
+    image: Path
+    left: int
+    top: int
+    width: int
+    height: int
 
 
 @dataclass(frozen=True)
@@ -231,16 +247,36 @@ def _photo_chain(
     options: RenderOptions = DEFAULT_OPTIONS,
     color: str | None = None,
     span: tuple[int, int] | None = None,
+    zoom_share: float = 1.0,
+    size: tuple[int, int] = (FRAME_WIDTH, FRAME_HEIGHT),
 ) -> str:
-    scale_w, scale_h = FRAME_WIDTH * PRESCALE, FRAME_HEIGHT * PRESCALE
-    zoom = zoom_expression(frames, options.motion, options.zoom_end, span)
+    """A photo filling `size` (the frame, or a framed photo's box) and moving with the video's motion, at
+    `zoom_share` of the video's zoom."""
+    width, height = size
+    scale_w, scale_h = width * PRESCALE, height * PRESCALE
+    zoom_end = 1 + (options.zoom_end - 1) * zoom_share
+    zoom = zoom_expression(frames, options.motion, zoom_end, span)
     return (
         f"[{source}:v]scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase:out_range=tv,"
         f"crop={scale_w}:{scale_h},format=yuv420p,setsar=1,"
         f"zoompan=z='{zoom}':x='{_pan_x(frames, options.motion, span)}':y='{_pan_y(frames, options.motion, span)}'"
-        f":d={frames}:s={FRAME_WIDTH}x{FRAME_HEIGHT}:fps={FPS},"
+        f":d={frames}:s={width}x{height}:fps={FPS},"
         f"{_graded(color)}format=yuv420p[{label}]"
     )
+
+
+def _framed_chains(
+    source: int, picture: int, framed: FramedInput, frames: int, label: str, options: RenderOptions, color: str | None
+) -> list[str]:
+    """A framed photo: its blurred copy (input `source`) and the photo (input `picture`) each with its own share of
+    the motion, the photo laid in its box, then graded as one picture."""
+    return [
+        _photo_chain(source, frames, f"{label}c", options, zoom_share=BACKDROP_ZOOM_SHARE),
+        _photo_chain(
+            picture, frames, f"{label}p", options, zoom_share=PHOTO_ZOOM_SHARE, size=(framed.width, framed.height)
+        ),
+        f"[{label}c][{label}p]overlay=x={framed.left}:y={framed.top},{_graded(color)}format=yuv420p[{label}]",
+    ]
 
 
 def _clip_chain(
@@ -301,10 +337,11 @@ def build_filter_graph(
     blurs: list[tuple] | None = None,
     insets: list[tuple[InsetInput, ...]] | None = None,
     logo: LogoInput | None = None,
+    framed: list[FramedInput | None] | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
     narration of each scene that has one (`voices` says which do), then the caption images, the layers' and last
-    the `insets` pictures, scene by scene; a scene's insets go over its picture (after its zoom and colour) and under
+    the `framed` photos and `insets` pictures, scene by scene (its framed photo first); a scene's insets go over its picture (after its zoom and colour) and under
     its text box. A scene that `clips`
     marks has a video clip in its image's place, played at its `speeds` entry; the clip's own sound is heard only
     when `clip_sounds` marks the scene, on the narration's track, so the music ducks under it as under a voice.
@@ -328,6 +365,7 @@ def build_filter_graph(
     spans = spans or [None] * count
     blurs = blurs or [()] * count
     insets = insets or [()] * count
+    framed = framed or [None] * count
     first_caption = 2 * len(box_positions) + (music_volume is not None) + sum(voices or [])
     next_inset = first_caption + len(captions) + len(layers or [])
     chains: list[str] = []
@@ -335,6 +373,9 @@ def build_filter_graph(
         image, box = 2 * index, 2 * index + 1
         if clips[index]:
             chains.append(_clip_chain(image, frames, f"bg{index}", speeds[index], colors[index], blurs[index]))
+        elif framed[index] is not None:
+            chains += _framed_chains(image, next_inset, framed[index], frames, f"bg{index}", options, colors[index])
+            next_inset += 1
         else:
             chains.append(_photo_chain(image, frames, f"bg{index}", options, colors[index], spans[index]))
         under = f"bg{index}"
@@ -547,6 +588,8 @@ def build_ffmpeg_args(
         # Looped up to where it leaves, so its entrance has frames to fade in on.
         argv += ["-loop", "1", "-framerate", str(FPS), "-t", f"{layer.end:.3f}", "-i", str(layer.image)]
     for scene in scenes:
+        if scene.framed is not None:
+            argv += ["-i", str(scene.framed.image)]
         for inset in scene.insets:
             # Looped up to where it leaves its scene's picture, which is drawn from its own second 0.
             argv += ["-loop", "1", "-framerate", str(FPS), "-t", f"{inset.end:.3f}", "-i", str(inset.image)]
@@ -571,6 +614,7 @@ def build_ffmpeg_args(
         [scene.blur for scene in scenes],
         [scene.insets for scene in scenes],
         logo,
+        [scene.framed for scene in scenes],
     )
     argv += [
         "-filter_complex",

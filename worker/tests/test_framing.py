@@ -151,21 +151,38 @@ def test_other_photos_are_not_taken_for_padded_frames(picture):
     assert strip_padding(picture) is picture
 
 
-def test_fit_image_writes_the_frame_and_says_where_the_text_goes(tmp_path):
+def test_fit_image_writes_the_copy_and_the_photo_and_says_where_the_text_goes(tmp_path):
     source = tmp_path / "pomelo.jpg"
     noisy((540, 430)).save(source)
     target = tmp_path / "scene.jpg"
-    centre = fit_image(source, target, "Cảnh 1", "auto", TEXT, None, None)
-    assert centre == (540, SAFE_ZONE[1] + TEXT // 2)
-    with Image.open(target) as written:
-        assert written.size == (FRAME_WIDTH, FRAME_HEIGHT)
+    fitted = fit_image(source, target, "Cảnh 1", "auto", TEXT, None, None)
+    assert fitted.text_centre == (540, SAFE_ZONE[1] + TEXT // 2)
+    assert fitted.box == (0, SAFE_ZONE[1] + TEXT + GAP, FRAME_WIDTH, FRAME_WIDTH)
+    with Image.open(target) as copy, Image.open(fitted.picture) as photo:
+        assert copy.size == (FRAME_WIDTH, FRAME_HEIGHT)
+        assert photo.size == (FRAME_WIDTH, FRAME_WIDTH)
+        # The copy is blurred: where the photo goes it is much smoother than the photo itself.
+        under = copy.crop((0, fitted.box[1], FRAME_WIDTH, fitted.box[1] + FRAME_WIDTH))
+        assert (
+            ImageStat.Stat(under.filter(ImageFilter.FIND_EDGES)).mean[0]
+            < 0.2 * ImageStat.Stat(photo.filter(ImageFilter.FIND_EDGES)).mean[0]
+        )
+
+
+def test_framed_boxes_are_even_for_the_mp4s_colour_planes():
+    for size in [(1000, 800), (1921, 1080), (501, 1500), (777, 333)]:
+        for centre in (None, (540, 1300)):
+            for text in (0, 301, 299):
+                framing = plan_frame(*size, "auto" if size != (501, 1500) else WHOLE, text, centre)
+                assert all(value % 2 == 0 for value in framing.picture), (size, centre, text, framing.picture)
 
 
 def test_cover_fit_image_is_the_photo_as_before(tmp_path):
     source = tmp_path / "wide.jpg"
     noisy((400, 300)).save(source)
     target = tmp_path / "scene.jpg"
-    assert fit_image(source, target, "Cảnh 1", COVER, TEXT, None, None) is None
+    fitted = fit_image(source, target, "Cảnh 1", COVER, TEXT, None, None)
+    assert fitted.text_centre is None and fitted.picture is None
     with Image.open(target) as written:
         assert written.size == (400, 300)
         assert ImageStat.Stat(written).stddev[0] > 20
