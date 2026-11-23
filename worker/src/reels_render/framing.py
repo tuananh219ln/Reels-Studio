@@ -15,7 +15,7 @@ import math
 import statistics
 from dataclasses import dataclass
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps, ImageStat
 
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH, SAFE_ZONE
 
@@ -45,6 +45,14 @@ SHARP_FACTOR = 3
 MIN_SHARP = 3.0  # mean edge strength (0-255) a row needs, whatever the padding measures
 BAND_SHARE = (0.30, 0.85)
 MIN_PADDING_SHARE = 0.05  # each side's blurred rows, of the height
+# "Ảnh mờ, nên thay ảnh khác": the variance of the Laplacian of the photo as shown (1080 px wide, sharpened when
+# enlarged) under the spec's starting value, and also under BLURRY_RATIO times the photo's grey spread: a sharp photo
+# with little texture (white tofu on a white board) has a low variance too, but not for its contrast. A photo almost
+# one colour (spread under FLAT_SPREAD) has nothing to judge and never warns. To be tuned on the team's photos.
+BLURRY_BELOW = 40.0
+BLURRY_RATIO = 0.6
+FLAT_SPREAD = 8.0
+LAPLACIAN = ImageFilter.Kernel((3, 3), [0, 1, 0, 1, -4, 1, 0, 1, 0], scale=1, offset=128)
 
 
 @dataclass(frozen=True)
@@ -146,6 +154,31 @@ def padded_band(image: Image.Image) -> tuple[int, int] | None:
     scale = image.height / probe_h
     # +1 for the border row left out above; the band's bottom is the row after its last sharp one.
     return math.floor((first + 1) * scale), min(image.height, math.ceil((last + 2) * scale))
+
+
+def sharpness(image: Image.Image) -> tuple[float, float] | None:
+    """How sharp the photo looks once laid across the frame: the variance of the Laplacian of its grey at 1080 px
+    wide, after the same Lanczos and unsharp mask the framing gives an enlarged photo, and the grey's spread. None for
+    a photo almost one colour, which cannot be judged."""
+    gray = image.convert("L")
+    spread = ImageStat.Stat(gray).stddev[0]
+    if spread < FLAT_SPREAD:
+        return None
+    shown = gray.resize(
+        (FRAME_WIDTH, max(1, round(image.height * FRAME_WIDTH / image.width))), Image.Resampling.LANCZOS
+    )
+    if FRAME_WIDTH > image.width:
+        shown = shown.filter(UNSHARP)
+    return ImageStat.Stat(shown.filter(LAPLACIAN)).var[0], spread
+
+
+def is_blurry(image: Image.Image) -> bool:
+    """The photo looks soft even after sharpening: worth replacing."""
+    measured = sharpness(image)
+    if measured is None:
+        return False
+    variance, spread = measured
+    return variance < BLURRY_BELOW and variance < BLURRY_RATIO * spread
 
 
 def compose(image: Image.Image, framing: Framing) -> Image.Image:

@@ -27,6 +27,12 @@ only; "Chỉnh khung" still crops in the browser, and a photo cropped to 9:16 th
 - **Default on:** `image_fit` null means "Tự động", so a re-render of an existing slide video frames its wide photos
   the new way. The MP4 fingerprint changes only when a member picks a fit or slides the square, so MP4s rendered
   before are not all marked "chưa cập nhật" at once. The title scene (the cover) and a backdrop video keep the cover.
-- **Not done in round 1:** the "Ảnh mờ, nên thay ảnh khác" warning, per-layer zoom (the photo and its blurred copy
-  zoom together, as one picture), a draggable square on the photo (the slider covers the one free axis), and the
-  MCP tool's field for it.
+- **"Ảnh mờ, nên thay ảnh khác"** warns (never blocks) on a framed photo whose Laplacian variance, measured as
+  shown (1080 px wide, sharpened when enlarged), is under the spec's 40 **and** under 0.6 times the photo's grey
+  spread. The spec's raw value alone flagged a sharp but plain photo (white tofu on a white board, 26.5); the
+  sample photos measure at least 0.7 of their spread and the same photos blurred at most 0.57. A one-colour picture
+  is not judged. Both numbers are starting values to tune on the team's photos.
+- **The assistant can set it:** the MCP tool "Sửa cảnh" takes `image_fit` ("auto" clears it),
+  `image_crop_offset` and `reset_image_crop_offset`, and its answers show each scene's `image_fit`.
+- **Not done in round 1:** per-layer zoom (the photo and its blurred copy zoom together, as one picture) and a
+  draggable square on the photo (the slider covers the one free axis).

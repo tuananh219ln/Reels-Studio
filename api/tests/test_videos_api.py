@@ -1168,3 +1168,29 @@ def test_the_title_has_no_fit(an, db, me, storage):
     video = make_video(db, storage, me)
     response = an.patch(f"/api/scenes/{title_id(db, video)}", json={"image_fit": "square"})
     assert response.status_code == 422 and "cảnh nội dung" in response.json()["message"]
+
+
+def test_a_blurry_photo_warns_and_a_sharp_or_plain_one_does_not(an, db, me, storage):
+    """ "Ảnh mờ, nên thay ảnh khác" (reels_render.framing.is_blurry) on a framed photo; the seeded one-colour photos
+    have nothing to judge."""
+    from conftest import API_DIR
+    from PIL import ImageFilter
+
+    from reels_api.script_rules import BLURRY_PHOTO
+
+    video = make_video(db, storage, me)
+    first, second = scene_ids(db, video)[:2]
+    sharp = Image.open(API_DIR.parent / "samples" / "xuong-khop" / "02-sua-chua.jpg").convert("RGB")
+    soft = sharp.filter(ImageFilter.GaussianBlur(3))
+    for scene_id, picture in ((first, soft), (second, sharp)):
+        buffer = io.BytesIO()
+        picture.save(buffer, "JPEG", quality=92)
+        key = f"videos/{video.id}/photo-{scene_id}.jpg"
+        storage.save_bytes(key, buffer.getvalue())
+        db.get(Scene, scene_id).image_key = key
+    db.commit()
+
+    data = an.get(f"/api/videos/{video.id}").json()
+    assert {"message": BLURRY_PHOTO, "field": "image", "level": "warning"} in shown_scene(data, first)["issues"]
+    assert BLURRY_PHOTO not in shown_scene(data, second)["warnings"]
+    assert all(BLURRY_PHOTO not in scene["warnings"] for scene in data["scenes"][2:])

@@ -36,7 +36,7 @@ from . import (
 )
 from .clips import ClipError, frame_at
 from .errors import ApiError
-from .frames import plan_photo, thumbnail_bytes
+from .frames import photo_blurry, plan_photo, thumbnail_bytes
 from .models import (
     ACTIVE_JOB_STATUSES,
     Fanpage,
@@ -419,6 +419,11 @@ def photo_framing(storage: DirectoryStorage, video: Video, scene: Scene, centre:
     )
 
 
+def blurry_photo(storage: DirectoryStorage, video: Video, scene: Scene) -> bool:
+    """ "Ảnh mờ, nên thay ảnh khác" on a framed photo ("Khung ảnh", the spec's quality check): measured once per photo."""
+    return framable(video, scene) and storage.exists(scene.image_key) and photo_blurry(storage.path(scene.image_key))
+
+
 def frame_payload(video: Video, scene: Scene) -> dict | None:
     """ "Khung ảnh" for the scene's card: what was chosen (`fit`, None: "Tự động"), what the render does (`kind`), the
     photo's `shape`, where the square is cut (`offset`), and where the text goes when nobody placed it (`text_at`).
@@ -662,8 +667,10 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             text_case(video, scene.is_title),
             photo_credit(scene),
             bool(scene.video_key and scene.video_loop),
+            blurry_photo(storage, video, scene),
         )
 
+    storage = get_storage()
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
 
 

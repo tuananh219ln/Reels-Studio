@@ -1,4 +1,5 @@
 import random
+from pathlib import Path
 
 import pytest
 from conftest import scene, write_script
@@ -13,6 +14,7 @@ from reels_render.framing import (
     choose_kind,
     compose,
     frame_photo,
+    is_blurry,
     padded_band,
     plan_frame,
     strip_padding,
@@ -179,3 +181,18 @@ def test_script_reads_the_fit_and_its_offset(tmp_path):
     for bad in ({"image_fit": "stretch"}, {"image_crop_offset": 2}, {"image_crop_offset": "a"}):
         with pytest.raises(InputError, match="image_"):
             load_script(write_script(tmp_path, {"title": scene(), "scenes": [scene(**bad)]}))
+
+
+SAMPLES = Path(__file__).resolve().parents[2] / "samples" / "xuong-khop"
+
+
+@pytest.mark.parametrize("name", ["02-sua-chua.jpg", "03-dau-phu.jpg", "05-vung-den.jpg"])
+def test_a_sharp_photo_is_not_blurry_but_its_blurred_copy_is(name):
+    """White tofu on a white board has little texture, yet is sharp for its contrast: it must not warn."""
+    photo = Image.open(SAMPLES / name).convert("RGB")
+    assert not is_blurry(photo)
+    assert is_blurry(photo.filter(ImageFilter.GaussianBlur(3)))
+
+
+def test_a_one_colour_picture_is_never_called_blurry():
+    assert not is_blurry(Image.new("RGB", (720, 1280), (190, 120, 60)))

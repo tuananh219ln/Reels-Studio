@@ -687,7 +687,8 @@ steps open the status card or the products block on its tab, the QC chip its pop
     does for this photo) / Lấp đầy khung / Cắt vuông, nền mờ / Giữ nguyên ảnh, nền mờ", saved at once; when the
     photo is cut square and is not square itself, a "Dịch khung vuông" slider (Trái–Phải or Trên–Dưới) moves the
     square, saved when it is let go. "Vị trí chữ" shows the photo above or below the box as the box crosses the
-    frame's middle, and "Vị trí gốc" is where the framing puts the text.
+    frame's middle, and "Vị trí gốc" is where the framing puts the text. A framed photo that still looks soft at
+    the frame's width warns "Ảnh mờ, nên thay ảnh khác" (a warning, never blocking).
   - **"Chỉnh khung"** (photo): a dialog that crops the photo to 9:16 with a "Phóng to" slider
     (1–4×), "Xoay 90°", "Lật ngang" and "Đặt lại"; dragging moves the photo under the frame. "Áp dụng" cuts
     it in the browser to a JPEG of at most 1080×1920 and stores it in place of the photo, keeping

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from reels_render.framing import COVER, Framing, frame_photo, plan_frame, unpadded
+from reels_render.framing import COVER, Framing, frame_photo, is_blurry, plan_frame, unpadded
 from reels_render.markup import parse_scene_text
 from reels_render.options import DEFAULT_OPTIONS, RenderOptions
 from reels_render.textbox import (
@@ -57,16 +57,31 @@ def text_height(text: str, is_title: bool, options: RenderOptions = DEFAULT_OPTI
 
 
 @lru_cache(maxsize=1024)
-def _photo_size(path: str, stripped: bool) -> tuple[int, int] | None:
-    """The upright photo's size, after its padding is taken off when `stripped`; a stored photo never changes under
-    its key, so it is measured once per process. None for a file that cannot be read."""
+def _photo_facts(path: str) -> tuple[tuple[int, int], tuple[int, int], bool] | None:
+    """The upright photo's size, its size with its padding taken off, and whether it looks blurry once framed; a
+    stored photo never changes under its key, so it is measured once per process. None for a file that cannot be
+    read."""
     try:
         with Image.open(path) as source:
             source.load()
             upright = ImageOps.exif_transpose(source).convert("RGB")
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
         return None
-    return (unpadded(upright, "auto") if stripped else upright).size
+    picture = unpadded(upright, "auto")
+    return upright.size, picture.size, is_blurry(picture)
+
+
+def _photo_size(path: str, stripped: bool) -> tuple[int, int] | None:
+    """The upright photo's size, after its padding is taken off when `stripped`; None for a file that cannot be read."""
+    facts = _photo_facts(path)
+    return None if facts is None else facts[1 if stripped else 0]
+
+
+def photo_blurry(path: Path) -> bool:
+    """ "Ảnh mờ, nên thay ảnh khác": the photo still looks soft at the frame's width (reels_render.framing.is_blurry);
+    False for a file that cannot be read (that has its own reason)."""
+    facts = _photo_facts(str(path))
+    return facts is not None and facts[2]
 
 
 def plan_photo(
