@@ -20,7 +20,7 @@ from .graph import (
     build_ffmpeg_args,
     clip_lead,
 )
-from .images import Fitted, fit_image
+from .images import Fitted, fit_image, photo_is_framed
 from .layers import card_corner, layer_corner, render_layer
 from .logo import TEXT_TOP_MIN, corner_placement
 from .markup import Run, cased
@@ -102,6 +102,17 @@ def render_video(
         script = found.script
         inputs, captions, layers, sounds = [], [], [], []
         scene_start = 0
+        # Framed photos (framing.py) all start on one line, below the tallest text box of the video's framed scenes.
+        framed_heights = [
+            layout.height
+            for scene, layout in zip(script.all_scenes, layouts)
+            if layout is not None
+            and scene.image is not None
+            and scene.video is None
+            and not (options.backdrop and scene is not script.title)
+            and photo_is_framed(scene.image, scene.label, scene.image_fit)
+        ]
+        reserve = max(framed_heights, default=None)
         for index, (scene, layout) in enumerate(zip(script.all_scenes, layouts)):
             # Room for the corner badge's row on the content scenes; the title scene has no logo.
             min_top = TEXT_TOP_MIN if script.logo is not None and index > 0 else None
@@ -126,6 +137,7 @@ def render_video(
                     scene.text_position,
                     min_top,
                     scene.image_crop_offset,
+                    reserve,
                 )
             box = work_dir / f"text-{index:02d}.png"
             if layout is None:

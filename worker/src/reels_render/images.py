@@ -4,7 +4,7 @@ from pathlib import Path
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .errors import InputError
-from .framing import COVER, layers, plan_frame, unpadded
+from .framing import COVER, choose_kind, layers, plan_frame, unpadded
 
 _READ_ERRORS = (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError)
 JPEG_QUALITY = 95
@@ -36,6 +36,14 @@ def normalize_image(source: Path, target: Path, label: str) -> None:
     _upright(source, label).save(target, "JPEG", quality=JPEG_QUALITY)
 
 
+def photo_is_framed(source: Path, label: str, fit: str) -> bool:
+    """The photo will be laid over its blurred copy (not cover-cropped) for `fit`, as fit_image will do it."""
+    if fit == COVER:
+        return False
+    picture = unpadded(_upright(source, label), fit)
+    return choose_kind(picture.width, picture.height, fit) != COVER
+
+
 def fit_image(
     source: Path,
     target: Path,
@@ -45,6 +53,7 @@ def fit_image(
     centre: tuple[int, int] | None,
     min_top: int | None,
     crop_offset: float | None = None,
+    reserve: int | None = None,
 ) -> Fitted:
     """The scene's photo made ready for FFmpeg as its "image_fit" asks (framing.py): a photo to cover-crop as before,
     or its blurred copy at 1080x1920 in `target` and the photo alone beside it (`<target>-photo.jpg`). `centre` is a
@@ -54,15 +63,15 @@ def fit_image(
         upright.save(target, "JPEG", quality=JPEG_QUALITY)
         return Fitted()
     picture = unpadded(upright, fit)
-    framing = plan_frame(picture.width, picture.height, fit, text_height, centre, min_top, crop_offset)
+    framing = plan_frame(picture.width, picture.height, fit, text_height, centre, min_top, crop_offset, reserve)
     if framing.kind == COVER:
         picture.save(target, "JPEG", quality=JPEG_QUALITY)
-        return Fitted()
+        return Fitted(framing.text_centre)
     copy, photo = layers(picture, framing)
     copy.save(target, "JPEG", quality=JPEG_QUALITY)
     photo_path = target.with_name(f"{target.stem}-photo.jpg")
     photo.save(photo_path, "JPEG", quality=JPEG_QUALITY)
-    return Fitted(framing.text_centre, photo_path, framing.picture)
+    return Fitted(framing.text_centre, picture=photo_path, box=framing.picture)
 
 
 def is_image(source: Path) -> bool:

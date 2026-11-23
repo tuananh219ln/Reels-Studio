@@ -36,7 +36,7 @@ from . import (
 )
 from .clips import ClipError, frame_at
 from .errors import ApiError
-from .frames import photo_blurry, plan_photo, thumbnail_bytes
+from .frames import is_framed, photo_blurry, plan_photo, text_height, thumbnail_bytes
 from .models import (
     ACTIVE_JOB_STATUSES,
     Fanpage,
@@ -401,9 +401,25 @@ def text_floor(video: Video, scene: Scene) -> int | None:
     return TEXT_TOP_MIN if not scene.is_title and brands.logo_signature(video) is not None else None
 
 
-def photo_framing(storage: DirectoryStorage, video: Video, scene: Scene, centre: object = "placed"):
+def text_reserve(storage: DirectoryStorage, video: Video, scenes: list[Scene]) -> int | None:
+    """The tallest text box among the video's scenes whose photo is laid over its blurred copy: every such photo starts
+    on one line below it (reels_render.framing), as the render works it out. None when no scene has one."""
+    options = render_options(video)
+    heights = [
+        text_height(scene.text, False, options)
+        for scene in scenes
+        if framable(video, scene)
+        and storage.exists(scene.image_key)
+        and is_framed(storage.path(scene.image_key), photo_fit(video, scene))
+    ]
+    return max(heights, default=0) or None
+
+
+def photo_framing(
+    storage: DirectoryStorage, video: Video, scene: Scene, centre: object = "placed", reserve: int | None = None
+):
     """How the render frames the scene's photo and the photo's size (frames.plan_photo), with the text where it is
-    placed (or at `centre`); None when it is not framed or its file is not there."""
+    placed (or at `centre`) and the video's tallest `reserve`; None when it is not framed or its file is not there."""
     fit = photo_fit(video, scene)
     if fit == COVER or not storage.exists(scene.image_key):
         return None
@@ -416,6 +432,7 @@ def photo_framing(storage: DirectoryStorage, video: Video, scene: Scene, centre:
         text_position(video, scene) if centre == "placed" else centre,
         text_floor(video, scene),
         scene.image_crop_offset,
+        reserve,
     )
 
 
@@ -424,13 +441,13 @@ def blurry_photo(storage: DirectoryStorage, video: Video, scene: Scene) -> bool:
     return framable(video, scene) and storage.exists(scene.image_key) and photo_blurry(storage.path(scene.image_key))
 
 
-def frame_payload(video: Video, scene: Scene) -> dict | None:
+def frame_payload(video: Video, scene: Scene, reserve: int | None = None) -> dict | None:
     """ "Khung ảnh" for the scene's card: what was chosen (`fit`, None: "Tự động"), what the render does (`kind`), the
     photo's `shape`, where the square is cut (`offset`), and where the text goes when nobody placed it (`text_at`).
     None for a scene that is not framed."""
     if not framable(video, scene):
         return None
-    planned = photo_framing(get_storage(), video, scene, centre=None)
+    planned = photo_framing(get_storage(), video, scene, centre=None, reserve=reserve)
     framing, shape = planned if planned else (None, None)
     return {
         "fit": scene.image_fit,
@@ -1005,7 +1022,7 @@ def photo_credit(scene: Scene) -> dict | None:
     return {name: value for name, value in credit.items() if name != "url"}
 
 
-def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
+def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | None = None) -> dict:
     image = f"/api/scenes/{scene.id}"
     size, case = text_size(video, scene.is_title), text_case(video, scene.is_title)
     voice_seconds = made_voice_seconds(video, scene)
@@ -1015,7 +1032,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         style = [*style, "text_position", *position]
     # A framed photo's preview also follows its fit, its square, the logo's row and its text's height.
     frame_look = (
-        ["fit", photo_fit(video, scene), scene.image_crop_offset, text_floor(video, scene), scene.text]
+        ["fit", photo_fit(video, scene), scene.image_crop_offset, text_floor(video, scene), scene.text, reserve]
         if framable(video, scene)
         else []
     )
@@ -1079,7 +1096,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
             f"{image}/frame.jpg?v={_version(still, scene.video_start, blur_of(scene), *frame_look)}" if still else None
         ),
         # "Khung ảnh": how the photo fills the frame; None for a title, a clip or a backdrop video's scene.
-        "image_frame": frame_payload(video, scene),
+        "image_frame": frame_payload(video, scene, reserve),
         "textbox_url": (
             f"{image}/textbox.png?v={_version(scene.text, *preview_look(video, scene.is_title))}"
             if scene.text.strip() and text_problem(scene.text, scene.is_title, size, case) is None
@@ -1253,6 +1270,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
     job = active_job(db, video.id)
     failed = _last_failed(db, video.id)
     checks = run_checks(db, video, title, scenes) if video.has_script else Checks()
+    # Every framed photo starts on one line below the tallest text box of the video's framed scenes.
+    reserve = text_reserve(get_storage(), video, scenes)
     topic = knowledge.topic_of(db, video)
     posts = publications_of(db, video.id)
     # One small query, and only for a video that has posts: this payload answers every save and poll of the editor.
@@ -1394,7 +1413,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         # "Clone" from "Phân tích đối thủ": the competitor's video it was built from, and its sample comments.
         "competitor_source": competitors.source_payload(db, video),
         "title_scene": scene_payload(video, title, checks) if title else None,
-        "scenes": [scene_payload(video, scene, checks) for scene in scenes],
+        "scenes": [scene_payload(video, scene, checks, reserve) for scene in scenes],
         "video_blocking": [issue.message for issue in checks.blocking if issue.scene_id is None],
         "video_warnings": [
             {"field": issue.field, "message": issue.message} for issue in checks.warnings if issue.scene_id is None

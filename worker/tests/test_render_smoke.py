@@ -518,3 +518,39 @@ def test_a_framed_photo_zooms_inside_its_box_which_stays_put(tmp_path):
     assert top, "the stripe shows at the start"
     assert not blue_rows(late, top[0] + 6), "the stripe is zoomed out of view by the end"
     assert abs(red_top(late) - top[0]) <= 4, "the box has not moved"
+
+
+@needs_ffmpeg
+def test_framed_scenes_share_one_photo_line_and_a_full_frame_photo_keeps_its_text_on_top(tmp_path):
+    """A one-line text, a three-line text and a 9:16 photo: the framed photos start on the same row, and the 9:16
+    scene's text box is up on the same line, not at the template's place near the bottom."""
+    make_image(tmp_path / "ngang.jpg", (1000, 800), (220, 40, 40))
+    make_image(tmp_path / "doc.jpg", (540, 960), (40, 60, 220))
+    make_image(tmp_path / "title.jpg", (1080, 1920), (60, 90, 160))
+    data = script_data(scene_count=3, image="title.jpg", seconds=1)
+    data["scenes"][0].update(image="ngang.jpg", seconds=1, image_fit="auto", text="Một dòng")
+    data["scenes"][1].update(
+        image="ngang.jpg", seconds=1, image_fit="auto", text="Ba dòng chữ dài\nhơn nhiều\nso với cảnh trước"
+    )
+    data["scenes"][2].update(image="doc.jpg", seconds=1, image_fit="auto", text="Ảnh dọc")
+    path = render_video(load_script(write_script(tmp_path, data)), tmp_path / "video.mp4")
+
+    def photo_top(frame, colour):
+        return next(y for y in range(0, 1920) if colour(*frame.getpixel((20, y))))
+
+    def red(r, g, b):
+        return r > 170 and g < 90 and b < 90
+
+    def boxed(frame):
+        return [
+            y for y in range(0, 1920, 4) if (lambda r, g, b: r > 200 and g > 170 and b < 100)(*frame.getpixel((540, y)))
+        ]
+
+    first = extract_frame(path, 1.7, tmp_path / "first.png")  # the title lasts 1 s
+    second = extract_frame(path, 2.8, tmp_path / "second.png")
+    third = extract_frame(path, 3.9, tmp_path / "third.png")
+    assert abs(photo_top(first, red) - photo_top(second, red)) <= 2
+    # The text's middle is the same whatever its height, and the 9:16 scene's is up there too.
+    middles = [(min(rows) + max(rows)) / 2 for rows in (boxed(first), boxed(second), boxed(third))]
+    assert max(middles) - min(middles) <= 12, middles
+    assert max(middles) < 600

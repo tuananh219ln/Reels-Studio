@@ -126,6 +126,7 @@ from .videos import (
     spoken,
     text_floor,
     text_position,
+    text_reserve,
     thumbnail_url,
     video_name,
     video_not_found,
@@ -2303,7 +2304,7 @@ def scene_preview(
         video_options.render_options(video),
         text_position(video, scene),
         under=_card_under(storage, scene),
-        **_framed(video, scene),
+        **_framed(db, storage, video, scene),
     )
     return Response(
         frames.jpeg_bytes(frame), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
@@ -2322,14 +2323,16 @@ def _card_under(storage: DirectoryStorage, scene: Scene) -> list:
     return [(picture, card_corner(picture.width, picture.height, card.y))]
 
 
-def _framed(video: Video, scene: Scene) -> dict:
-    """How the preview frames the scene's photo, as the render does ("Khung ảnh")."""
+def _framed(db: DbSession, storage: DirectoryStorage, video: Video, scene: Scene) -> dict:
+    """How the preview frames the scene's photo, as the render does ("Khung ảnh"): with the video's tallest framed
+    text box, so every scene's photo starts on the same line."""
     if not framable(video, scene):
         return {}
     return {
         "fit": photo_fit(video, scene),
         "min_top": text_floor(video, scene),
         "crop_offset": scene.image_crop_offset,
+        "reserve": text_reserve(storage, video, split_scenes(db, video)[1]),
     }
 
 
@@ -2357,7 +2360,7 @@ def scene_frame(
             video_options.render_options(video),
             centre,
             show_text=False,
-            **_framed(video, scene),
+            **_framed(db, storage, video, scene),
         )
     else:
         frame = frames.compose_frame(still, "", is_title=False)

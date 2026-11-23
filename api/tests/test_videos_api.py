@@ -601,8 +601,9 @@ def test_preview_uses_the_photo_and_the_renderers_text_box(an, db, me, storage):
     from PIL import ImageChops, ImageOps, ImageStat
 
     from reels_api.frames import _yuv420
+    from reels_render.framing import plan_frame
     from reels_render.markup import parse_scene_text
-    from reels_render.textbox import SCENE_STYLE, layout_text, render_box, scene_box_position
+    from reels_render.textbox import SCENE_STYLE, layout_text, place_box, render_box
 
     video = make_video(db, storage, me)
     scene = an.get(f"/api/videos/{video.id}").json()["scenes"][0]
@@ -614,7 +615,10 @@ def test_preview_uses_the_photo_and_the_renderers_text_box(an, db, me, storage):
     box = render_box(layout)
     photo_key = db.scalar(select(Scene.image_key).where(Scene.id == scene["id"]))
     expected = ImageOps.fit(Image.open(storage.path(photo_key)).convert("RGB"), (1080, 1920), Image.Resampling.BICUBIC)
-    expected.paste(box, scene_box_position(layout.width, layout.height), box)
+    # A 9:16 photo under "Tự động" keeps its text on the line the framed scenes' text goes on (reels_render.framing),
+    # not at the template's place near the bottom.
+    centre = plan_frame(1080, 1920, "auto", layout.height).text_centre
+    expected.paste(box, place_box(layout.width, layout.height, centre, is_title=False), box)
     difference = sum(ImageStat.Stat(ImageChops.difference(preview, _yuv420(expected))).mean) / 3
     assert difference < 1, "only JPEG noise may differ"
 
@@ -1108,8 +1112,9 @@ def test_a_wide_photo_is_framed_square_with_its_text_above(an, db, me, storage):
     assert frame["fit"] is None and frame["kind"] == "square" and frame["shape"] == [1000, 800]
     assert frame["text_at"][0] == 540 and frame["text_at"][1] < 960, "the text goes on the blurred copy above"
     # A 9:16 photo still fills the frame; the title (the cover) is never framed.
+    # A 9:16 photo still fills the frame, but its text is up on the same line as the framed scene's.
     other = next(scene for scene in data["scenes"] if scene["id"] != target)
-    assert other["image_frame"]["kind"] == "cover" and other["image_frame"]["text_at"] is None
+    assert other["image_frame"]["kind"] == "cover" and other["image_frame"]["text_at"] == frame["text_at"]
     assert data["title_scene"]["image_frame"] is None
 
     for anchor in ("top", "bottom"):
@@ -1194,3 +1199,45 @@ def test_a_blurry_photo_warns_and_a_sharp_or_plain_one_does_not(an, db, me, stor
     assert {"message": BLURRY_PHOTO, "field": "image", "level": "warning"} in shown_scene(data, first)["issues"]
     assert BLURRY_PHOTO not in shown_scene(data, second)["warnings"]
     assert all(BLURRY_PHOTO not in scene["warnings"] for scene in data["scenes"][2:])
+
+
+def test_every_scenes_photo_and_text_share_one_line_whatever_the_text_height(an, db, me, storage):
+    """The video's tallest framed text box decides the line: a one-line scene, a three-line scene and a 9:16 scene put
+    their text on the same middle line, and the two framed photos start on the same row in the drag frame."""
+    video = make_video(db, storage, me)
+    first, second, third = scene_ids(db, video)[:3]
+    wide_scene(db, storage, video, size=(1000, 800))
+    key = f"videos/{video.id}/wide-second.jpg"
+    storage.save_bytes(key, photo_bytes(size=(1380, 1000)))
+    db.get(Scene, second).image_key = key
+    db.commit()
+    an.patch(f"/api/scenes/{first}", json={"text": "Một dòng"})
+    an.patch(f"/api/scenes/{second}", json={"text": "Ba dòng chữ dài\nhơn nhiều\nso với cảnh trước"})
+    data = an.get(f"/api/videos/{video.id}").json()
+
+    at = [shown_scene(data, scene_id)["image_frame"]["text_at"] for scene_id in (first, second, third)]
+    assert all(at), at
+    assert max(point[1] for point in at) - min(point[1] for point in at) <= 1
+    assert shown_scene(data, second)["image_frame"]["kind"] == "square", "1.38 is cut square like a 5:4 photo"
+
+    def photo_row(scene_id):
+        response = an.get(f"/api/scenes/{scene_id}/frame.jpg?anchor=top")
+        frame = Image.open(io.BytesIO(response.content)).convert("RGB")
+        # The photo is the seeded colour (190, 120, 60); its blurred copy around it is darker.
+        return next(
+            y for y in range(1920) if all(abs(a - b) < 12 for a, b in zip(frame.getpixel((20, y)), (190, 120, 60)))
+        )
+
+    assert abs(photo_row(first) - photo_row(second)) <= 2
+
+
+def test_a_scenes_taller_text_draws_the_other_scenes_frames_again(an, db, me, storage):
+    """The tallest text box sets the line for every scene (a 9:16 scene's text goes on it too), so changing it gives the
+    other scenes' frames a new address, and the preview is drawn again."""
+    video = make_video(db, storage, me)
+    first, second = scene_ids(db, video)[:2]
+    wide_scene(db, storage, video)
+    before = shown_scene(an.get(f"/api/videos/{video.id}").json(), second)["frame_url"]
+    an.patch(f"/api/scenes/{first}", json={"text": "Ba dòng chữ dài\nhơn nhiều\nso với cảnh trước"})
+    after = shown_scene(an.get(f"/api/videos/{video.id}").json(), second)["frame_url"]
+    assert before != after

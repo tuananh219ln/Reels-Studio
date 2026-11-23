@@ -11,7 +11,7 @@ from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from reels_render.framing import COVER, Framing, frame_photo, is_blurry, plan_frame, unpadded
+from reels_render.framing import COVER, Framing, choose_kind, frame_photo, is_blurry, plan_frame, unpadded
 from reels_render.markup import parse_scene_text
 from reels_render.options import DEFAULT_OPTIONS, RenderOptions
 from reels_render.textbox import (
@@ -93,6 +93,7 @@ def plan_photo(
     centre: Centre = None,
     min_top: int | None = None,
     crop_offset: float | None = None,
+    reserve: int | None = None,
 ) -> tuple[Framing, tuple[int, int]] | None:
     """How the render frames the photo at `path` (reels_render.framing), and the photo's (unpadded) size; None for a
     file that cannot be read."""
@@ -100,7 +101,14 @@ def plan_photo(
     if size is None:
         return None
     height = text_height(text, is_title, options)
-    return plan_frame(*size, fit, height, tuple(centre) if centre else None, min_top, crop_offset), size
+    return plan_frame(*size, fit, height, tuple(centre) if centre else None, min_top, crop_offset, reserve), size
+
+
+def is_framed(path: Path, fit: str) -> bool:
+    """The render lays the photo at `path` over its blurred copy for `fit`, not filling the frame; False for a file
+    that cannot be read."""
+    size = _photo_size(str(path), fit != COVER)
+    return size is not None and fit != COVER and choose_kind(*size, fit) != COVER
 
 
 def compose_frame(
@@ -114,10 +122,11 @@ def compose_frame(
     min_top: int | None = None,
     crop_offset: float | None = None,
     show_text: bool = True,
+    reserve: int | None = None,
 ) -> Image.Image:
     """The fitted photo (or clip frame) plus the text box; no box without text or while the text cannot render.
     `under`: pictures laid on the frame under the text box, at their corners (a card, as the render lays it). `fit`,
-    `min_top` and `crop_offset` frame a photo as the render does (reels_render.framing); `show_text` False leaves the
+    `min_top`, `crop_offset` and `reserve` (the video's tallest framed text box) frame a photo as the render does (reels_render.framing); `show_text` False leaves the
     box out but still frames the photo around it, for dragging the box."""
     if isinstance(image, Image.Image):
         upright = image.convert("RGB")
@@ -129,7 +138,9 @@ def compose_frame(
         frame = ImageOps.fit(upright, (FRAME_WIDTH, FRAME_HEIGHT), Image.Resampling.BICUBIC, centering=(0.5, 0.5))
     else:
         position = tuple(centre) if centre else None
-        frame, framing = frame_photo(upright, fit, text_height(text, is_title, options), position, min_top, crop_offset)
+        frame, framing = frame_photo(
+            upright, fit, text_height(text, is_title, options), position, min_top, crop_offset, reserve
+        )
         centre = centre or framing.text_centre
     for picture, corner in under or []:
         frame.paste(picture, corner, picture if picture.mode == "RGBA" else None)
