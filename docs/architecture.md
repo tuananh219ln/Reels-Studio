@@ -414,7 +414,8 @@ the video as before: HyperFrames never renders the whole video, and Remotion is 
   (`POST /api/title-motion/{scene_id}/slots/{index}/photo`, `photo-link`, `photo-library`: kept in the slot's
   `image_key`, shown from the next build). The Page's default (`brands.title_style`, migration 0122, "Kiểu tiêu đề video của Page" beside the logo switch
   on Cài đặt › Page): "classic" makes a title built for the first time keep showing its own photo or clip
-  (`motion.attach`), the member switching to Động on the video; a rebuild keeps the member's choice. The thumbnail (`videos.refresh_thumbnail`), the card's poster and the Facebook cover of a motion
+  (`motion.attach`), the member switching to Động on the video; a rebuild keeps the member's choice. The slots start 40 px under the hook's text box (`hook_bottom`, `top_for`: 640 for two lines, lower for a taller
+  hook, never below 1000) and shrink to fit what is left; a changed hook needs "Dựng lại tiêu đề". The thumbnail (`videos.refresh_thumbnail`), the card's poster and the Facebook cover of a motion
   title come from its settled frame at 2.6 s (`videos.title_poster_second`), not from frame 0, which is nearly empty. The same second is the cover on TikTok (`video_cover_timestamp_ms`, direct posts only: a draft carries no
   `post_info`), Instagram (`thumb_offset`) and YouTube (`thumbnails.set` after the upload, which YouTube allows on verified
   channels only: a refusal is logged and the upload stands); `videos.motion_cover_second` is None for any other title,
