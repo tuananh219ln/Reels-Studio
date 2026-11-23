@@ -1,13 +1,14 @@
 "use client";
 
+import { countFormat, decimalFormat, percentFormat } from "@/lib/format";
 import { ArrowDownOutlined, ArrowUpOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { Card, Flex, Tooltip, Typography, theme } from "antd";
 import type { ReactNode } from "react";
 import type { DashboardFigure } from "@/lib/api";
 
-const count = new Intl.NumberFormat("vi-VN");
-const percent = new Intl.NumberFormat("vi-VN", { style: "percent", maximumFractionDigits: 1 });
-const decimal = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });
+const count = countFormat;
+const percent = percentFormat;
+const decimal = decimalFormat;
 
 export function formatNumber(value: number | null): string {
   return value === null ? "—" : count.format(value);

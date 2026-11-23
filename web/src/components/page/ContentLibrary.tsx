@@ -1,4 +1,5 @@
 "use client";
+import { decimalFormat } from "@/lib/format";
 import VideoActions from "@/components/actions/VideoActions";
 import ManagedPostActions from "@/components/actions/ManagedPostActions";
 
@@ -26,7 +27,7 @@ const REFRESH_MS = 60_000;
 // Remembered in this browser, like the list or grid choice of other pages.
 const COLUMNS_KEY = "page-content-columns";
 
-const times = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });
+const times = decimalFormat;
 
 type Key =
   | "live_at"

@@ -1,4 +1,5 @@
 "use client";
+import { formatCount } from "@/lib/format";
 import { FanpageMenu, TokenInput, TokenModal } from "@/components/actions/FanpageActions";
 
 import { COLORS } from "@/app/theme";
@@ -29,7 +30,7 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
 const QUEUE_REFRESH_MS = 30_000;
-const number = (value: number) => value.toLocaleString("vi-VN");
+const number = formatCount;
 const count = (value: number | null) => (value === null ? "—" : number(value));
 
 /** Broken Pages first, so the one that needs a member is at the top. */

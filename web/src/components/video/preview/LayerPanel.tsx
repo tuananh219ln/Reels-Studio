@@ -1,5 +1,6 @@
 "use client";
 
+import { formatTrimmed } from "@/lib/format";
 import { DeleteOutlined, FontSizeOutlined, PictureOutlined } from "@ant-design/icons";
 import { Button, Divider, Flex, Input, InputNumber, Popconfirm, Segmented, Select, Slider, Typography } from "antd";
 import { useState } from "react";
@@ -15,7 +16,7 @@ import {
   layerName,
 } from "./layers";
 
-const seconds = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+const seconds = formatTrimmed;
 /** A layer's longest seconds (routes_layers.MAX_SECONDS): longer than any scene, so "to the end of its scene". */
 const WHOLE_SCENE = 60;
 

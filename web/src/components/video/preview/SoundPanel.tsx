@@ -1,12 +1,13 @@
 "use client";
 
+import { formatTrimmed } from "@/lib/format";
 import { DeleteOutlined, PlusOutlined, SoundOutlined } from "@ant-design/icons";
 import { Button, Flex, InputNumber, Popconfirm, Segmented, Typography } from "antd";
 import { useEffect, useRef, useState } from "react";
 import type { SceneData, SceneSound } from "@/lib/api";
 import { MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS, soundGain, soundLabel, soundUrl } from "./sounds";
 
-const seconds = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+const seconds = formatTrimmed;
 
 /** Plays a sound once, at the listener's level (a browser plays at most full volume). */
 function hear(url: string, gain: number) {

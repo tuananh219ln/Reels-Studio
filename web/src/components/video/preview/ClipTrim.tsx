@@ -1,5 +1,6 @@
 "use client";
 
+import { formatTrimmed } from "@/lib/format";
 import { Typography } from "antd";
 import { useRef, useState } from "react";
 import { COLORS } from "@/app/theme";
@@ -7,7 +8,7 @@ import { COLORS } from "@/app/theme";
 const MIN = 1;
 const MAX = 10;
 const tenth = (value: number) => Math.round(value * 10) / 10;
-const shown = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+const shown = formatTrimmed;
 
 type Part = { start: number; seconds: number };
 
