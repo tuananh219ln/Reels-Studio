@@ -183,6 +183,24 @@ def _upcoming(db: DbSession, page: Fanpage, at: datetime) -> dict:
         )
         .order_by(Publication.scheduled_at, Publication.id)
     ).all()
+    # What Instagram does with each of them: its own post when there is one (not cancelled), "auto" when the Page's switch
+    # will send it a minute after Facebook, nothing for a Page without a linked account.
+    on_instagram = dict(
+        db.execute(
+            select(Publication.video_id, Publication.status).where(
+                Publication.video_id.in_([post.video_id for post in posts]),
+                Publication.platform == "instagram",
+                Publication.fanpage_id == page.id,
+                Publication.status.in_(("pending", "scheduled", "published")),
+            )
+        ).all()
+    )
+
+    def instagram_of(post: Publication) -> str | None:
+        if not page.instagram_user_id:
+            return None
+        return on_instagram.get(post.video_id) or ("auto" if page.instagram_auto else None)
+
     return {
         "posts": [
             {
@@ -190,6 +208,8 @@ def _upcoming(db: DbSession, page: Fanpage, at: datetime) -> dict:
                 "status": post.status,
                 "scheduled_at": post.scheduled_at.isoformat(),
                 "video": _video(db, db.get(Video, post.video_id)),
+                # The Page's Instagram for this post: "pending", "scheduled", "published", "auto" or None.
+                "instagram": instagram_of(post),
             }
             for post in posts
         ],

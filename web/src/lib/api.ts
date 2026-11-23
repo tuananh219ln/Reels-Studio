@@ -859,7 +859,14 @@ export type PageDashboard = {
   } | null;
   /** The next week: posts waiting for their time, and posting times no post takes yet. */
   upcoming: {
-    posts: { id: number; status: string; scheduled_at: string; video: DashboardVideo }[];
+    posts: {
+      id: number;
+      status: string;
+      scheduled_at: string;
+      video: DashboardVideo;
+      /** What the Page's Instagram does with it: its own post's state, "auto" (follows Facebook), or null. */
+      instagram: "pending" | "scheduled" | "published" | "auto" | null;
+    }[];
     free_slots: string[];
     post_times: string[];
   };

@@ -1016,6 +1016,7 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     `GET /api/fanpages/{id}/insights` its last 30 days with the followers of each day.
     `GET /api/fanpages/{id}/instagram-dashboard?days=7|28|90` is the same for the linked Instagram account (404 without one):
     figures against the period before, the days, followers, the audience and `insights_error`;
+    `upcoming.posts[].instagram` of the dashboard is `pending`, `scheduled`, `published` (the video's own non-cancelled Instagram post on the Page), `auto` (the Page's `instagram_auto` will follow Facebook) or null.
     `GET /api/fanpages/{id}/instagram-content?days=` lists its Reels with their latest reading;
     `GET /api/fanpages/{id}/compare?days=` puts each video's Facebook and Instagram numbers side by side;
     `GET /api/fanpages/{id}/best-times` names the Vietnam hours (at least 2 posts each, at least 6 posts a platform) the Page's

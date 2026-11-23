@@ -27,7 +27,9 @@ that line only; nothing else of it changes.
   the Page's own posts (at least 6 posts a platform, 2 an hour, shown as a hint); **falling views** (half or less against
   the week before, both weeks ending two days ago for Instagram's lag) shows on the Page card. All three work for
   Facebook and Instagram.
-- **Still to do:** the Reels in the "Lịch đăng" tab, and a comparison over time (a platform's share of the Page's views).
+- **Instagram in the schedule:** each post in "Đã lên lịch" says what the Page's Instagram does with it (its own post's state, or
+  "tự đăng sau Facebook" when the switch is on), since Instagram has no scheduled time of its own.
+- **Still to do:** a comparison over time (a platform's share of the Page's views).
 - **Not verified against Meta's live API** (no real calls in development, AGENTS.md): the metric names and the
   one-day `total_value` shape follow Meta's documentation; the first real read of a Page with the permission must be
   looked at before the numbers are trusted.

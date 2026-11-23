@@ -135,6 +135,13 @@ function LatestPost({ data }: { data: PageDashboard }) {
   );
 }
 
+const INSTAGRAM_SLOT = {
+  auto: "tự đăng sau Facebook",
+  pending: "đang đăng",
+  scheduled: "đã hẹn giờ",
+  published: "đã đăng",
+} as const;
+
 type Slot = { at: string; post: PageDashboard["upcoming"]["posts"][number] | null };
 
 /** The week's scheduled posts and free posting times, in time order. */
@@ -162,6 +169,12 @@ function SlotRow({ slot }: { slot: Slot }) {
             </Link>
           </Typography.Text>
           <StatusText tone="waiting">{slot.post.status === "pending" ? "Đang đăng" : "Đã hẹn giờ"}</StatusText>
+          {slot.post.instagram && (
+            // Instagram has no scheduled time of its own: "auto" is the Page's switch sending it after Facebook.
+            <StatusText tone={slot.post.instagram === "published" ? "success" : "idle"} data-testid="slot-instagram">
+              Instagram: {INSTAGRAM_SLOT[slot.post.instagram]}
+            </StatusText>
+          )}
         </>
       ) : (
         <Typography.Text type="secondary" style={{ fontSize: 13 }}>

@@ -185,3 +185,59 @@ def test_the_best_times_endpoint_reads_each_platform_on_its_own(an, db, me, stor
     page.instagram_user_id = None
     db.commit()
     assert an.get(f"{URL}/{page.id}/best-times").json()["instagram"] is None
+
+
+# --- Instagram in the schedule
+
+
+def scheduled_on_facebook(db, me, storage, page, hours=5):
+    video = make_video(db, storage, me, scene_count=1)
+    db.add(
+        Publication(
+            video_id=video.id,
+            platform="facebook",
+            status="scheduled",
+            created_by_id=me.id,
+            fanpage_id=page.id,
+            scheduled_at=datetime.now(UTC) + timedelta(hours=hours),
+        )
+    )
+    db.commit()
+    return video
+
+
+def upcoming_instagram(an, page):
+    return [post["instagram"] for post in an.get(f"{URL}/{page.id}/dashboard").json()["upcoming"]["posts"]]
+
+
+def test_a_scheduled_post_says_what_instagram_does_with_it(an, db, me, storage, page):
+    video = scheduled_on_facebook(db, me, storage, page)
+    assert upcoming_instagram(an, page) == [None], "the switch is off and nothing is posted there"
+    page.instagram_auto = True
+    db.commit()
+    assert upcoming_instagram(an, page) == ["auto"]
+    db.add(
+        Publication(
+            video_id=video.id, platform="instagram", status="scheduled", created_by_id=me.id, fanpage_id=page.id
+        )
+    )
+    db.commit()
+    assert upcoming_instagram(an, page) == ["scheduled"], "its own post says more than the switch"
+
+
+def test_a_cancelled_instagram_post_does_not_count(an, db, me, storage, page):
+    video = scheduled_on_facebook(db, me, storage, page)
+    db.add(
+        Publication(
+            video_id=video.id, platform="instagram", status="cancelled", created_by_id=me.id, fanpage_id=page.id
+        )
+    )
+    db.commit()
+    assert upcoming_instagram(an, page) == [None]
+
+
+def test_a_page_without_instagram_has_no_instagram_in_its_schedule(an, db, me, storage, page):
+    scheduled_on_facebook(db, me, storage, page)
+    page.instagram_auto, page.instagram_user_id = True, None
+    db.commit()
+    assert upcoming_instagram(an, page) == [None]

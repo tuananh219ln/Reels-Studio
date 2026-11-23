@@ -1231,6 +1231,10 @@ steps open the status card or the products block on its tab, the QC chip its pop
     "Đối tượng" (followers now; bars for gender, age and the top cities, or the reason there are none: Instagram gives it
     only from 100 followers), "So sánh" and "Lịch đăng". A token without `instagram_manage_insights` is one warning alert
     above the figures with the way to fix it ("Dán token mới"), never a broken connection.
+  - **Instagram in "Đã lên lịch"** (both sides, on a Page with a linked account): each scheduled post has a grey line "Instagram:
+    tự đăng sau Facebook" (the Page's switch will send it a minute after), "đang đăng", "đã hẹn giờ" or "đã đăng" (green)
+    when the video has its own Instagram post; nothing when the switch is off and there is none. Instagram has no time of its
+    own to show.
   - **"So sánh"** (both sides of a Page with Instagram): one row per video the app posted to the Page in the period,
     Facebook's and Instagram's views, reach and interactions side by side, "Chưa đăng" where it is not on one; a grey note
     that the two count differently.
