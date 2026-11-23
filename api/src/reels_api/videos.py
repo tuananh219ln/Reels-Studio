@@ -629,13 +629,36 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
-def scene_still(storage: DirectoryStorage, scene: Scene) -> Path | Image.Image | None:
-    """What the scene's first frame is drawn from: the clip's frame at its start time, or the photo."""
+# A "Tiêu đề động" (title_motion.py) pops its slots in from 0.1 s to 1.7 s and has settled by 2.4 s, so its first frame
+# is nearly empty: the thumbnail and the Facebook cover show this second instead.
+TITLE_POSTER_SECOND = 2.6
+
+
+def title_poster_second(scene: Scene) -> float | None:
+    """The second of the scene's motion title where every slot is in place; None for a scene that is not one (or
+    whose clip is not the motion any more), which stands for itself at its first frame."""
+    made = scene.motion
+    if not (scene.is_title and made and made.get("title") and made.get("clip_key") == scene.video_key):
+        return None
+    return round(max(0.0, min(TITLE_POSTER_SECOND, (scene.seconds or 3.0) - 0.2)), 2)
+
+
+def motion_cover_second(db: DbSession, video: Video) -> float | None:
+    """Where a platform's cover is taken in the MP4 when the video's title is a motion title (`title_poster_second`);
+    None for any other title, which keeps the platform's own pick (or the first frame)."""
+    title, _ = split_scenes(db, video)
+    return title_poster_second(title) if title is not None else None
+
+
+def scene_still(storage: DirectoryStorage, scene: Scene, poster: bool = False) -> Path | Image.Image | None:
+    """What the scene's first frame is drawn from: the clip's frame at its start time, or the photo. With `poster`
+    (the thumbnail) a motion title is drawn from its settled frame."""
     if scene.video_key:
         if not storage.exists(scene.video_key):
             return None
         try:
-            frame = frame_at(storage.path(scene.video_key), scene.video_start)
+            second = title_poster_second(scene) if poster else None
+            frame = frame_at(storage.path(scene.video_key), scene.video_start if second is None else second)
         except ClipError:
             return None
         if blurred := blur_of(scene):
@@ -651,7 +674,7 @@ def scene_still(storage: DirectoryStorage, scene: Scene) -> Path | Image.Image |
 def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, title: Scene | None) -> None:
     """The thumbnail is the title scene's preview; it follows every change of that photo, clip or text."""
     old = video.thumbnail_key
-    still = scene_still(storage, title) if title is not None else None
+    still = scene_still(storage, title, poster=True) if title is not None else None
     if still is None:
         video.thumbnail_key = None
     else:

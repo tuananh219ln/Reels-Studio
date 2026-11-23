@@ -158,10 +158,12 @@ def link_post_id(token: str) -> int | None:
     return int(value) if value is not None and value.isdigit() else None
 
 
-def create_container(page: Page, ig_user_id: str, text: str, video_url: str = "") -> tuple[str, str]:
+def create_container(
+    page: Page, ig_user_id: str, text: str, video_url: str = "", cover_second: float | None = None
+) -> tuple[str, str]:
     """A Reel container: its id (what the publish is sent to) and the `uri` Meta gave to send the file to ("" when it
     gave none). With a `video_url` Instagram fetches the MP4 itself; without, it waits for the file by resumable
-    upload."""
+    upload. `cover_second` is where the Reel's cover is taken (`thumb_offset`, in ms); None leaves Instagram's pick."""
     how = {"video_url": video_url} if video_url else {"upload_type": "resumable"}
     reply = _post(
         page,
@@ -170,6 +172,7 @@ def create_container(page: Page, ig_user_id: str, text: str, video_url: str = ""
         **how,
         caption=text,
         share_to_feed="true",
+        **({"thumb_offset": round(cover_second * 1000)} if cover_second is not None else {}),
     )
     uri = reply.get("uri") if isinstance(reply, dict) else None
     return _id(reply), uri if isinstance(uri, str) else ""
