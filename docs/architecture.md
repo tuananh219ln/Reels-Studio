@@ -108,8 +108,8 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
   photo, or below it when its `text_position` is in the lower half; with no `text_position` it goes in the block
   above the photo. Every framed photo of the video starts on one line, below the tallest text box of the video's
   framed scenes (`reserve`, found by the render from its scenes and by the api in `videos.text_reserve`), the text
-  centred in that block; a photo that fills the frame under `auto` puts its text in the same block, and `auto`
-  cuts a photo square up to 1.6 wide. FFmpeg gets two layers: the
+  centred in that block, and `auto` cuts a photo square up to 1.6 wide. A photo that fills the frame leaves its
+  text where it always went (the scene's or the video's `text_position`, else the template's). FFmpeg gets two layers: the
   blurred copy (with the shadow) as the scene's photo and the photo alone (`FramedInput`), each with its own
   `zoompan`; the photo zooms inside its fixed box at half the video's zoom and the copy at a quarter, with the video's
   motion, and the colour preset grades both after the photo is laid on.

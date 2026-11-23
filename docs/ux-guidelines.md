@@ -1331,9 +1331,9 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
   ([framing.py](../worker/src/reels_render/framing.py)): "Tự động" cuts a 3:4 to about 16:10 photo square and keeps
   a wider one whole, laid across the full width over its own blurred, darkened copy with a soft shadow under it;
   the text sits on the blurred part above it (below when the text was placed in the lower half). Every such photo
-  of a video starts on one line below the tallest text box of the video, with the text centred in that block, and
-  a 9:16 photo under "Tự động" keeps its text on the same line, so the scenes do not jump. "Tự động" cuts a photo
-  square up to about 16:10. The title scene and a backdrop video always fill the frame.
+  of a video starts on one line below the tallest text box of the video, with the text centred in that block. A
+  9:16 photo is not touched: its text goes where it always did (the scene's place, else the video's, else the
+  template's). "Tự động" cuts a photo square up to about 16:10. The title scene and a backdrop video always fill the frame.
 - **First frame = thumbnail** (and the cover of a reel the app posts to Facebook):
   - a close-up food photo filling the frame, with vivid color;
   - the chosen title in a text box centred in the frame, 3–5 lines, with no fade-in.

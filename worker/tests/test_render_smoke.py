@@ -521,9 +521,9 @@ def test_a_framed_photo_zooms_inside_its_box_which_stays_put(tmp_path):
 
 
 @needs_ffmpeg
-def test_framed_scenes_share_one_photo_line_and_a_full_frame_photo_keeps_its_text_on_top(tmp_path):
-    """A one-line text, a three-line text and a 9:16 photo: the framed photos start on the same row, and the 9:16
-    scene's text box is up on the same line, not at the template's place near the bottom."""
+def test_framed_scenes_share_one_photo_line_and_a_full_frame_photo_keeps_the_templates_text_place(tmp_path):
+    """A one-line text, a three-line text and a 9:16 photo: the framed photos start on the same row and their texts
+    share a middle line; the 9:16 scene's text box stays where the template puts it, near the bottom."""
     make_image(tmp_path / "ngang.jpg", (1000, 800), (220, 40, 40))
     make_image(tmp_path / "doc.jpg", (540, 960), (40, 60, 220))
     make_image(tmp_path / "title.jpg", (1080, 1920), (60, 90, 160))
@@ -550,7 +550,9 @@ def test_framed_scenes_share_one_photo_line_and_a_full_frame_photo_keeps_its_tex
     second = extract_frame(path, 2.8, tmp_path / "second.png")
     third = extract_frame(path, 3.9, tmp_path / "third.png")
     assert abs(photo_top(first, red) - photo_top(second, red)) <= 2
-    # The text's middle is the same whatever its height, and the 9:16 scene's is up there too.
-    middles = [(min(rows) + max(rows)) / 2 for rows in (boxed(first), boxed(second), boxed(third))]
+    # The framed scenes' text middles are the same whatever the text's height; the 9:16 scene's box ends at the
+    # template's line (SCENE_BOX_BOTTOM), as it always did.
+    middles = [(min(rows) + max(rows)) / 2 for rows in (boxed(first), boxed(second))]
     assert max(middles) - min(middles) <= 12, middles
     assert max(middles) < 600
+    assert abs(max(boxed(third)) - SCENE_BOX_BOTTOM) <= 8
