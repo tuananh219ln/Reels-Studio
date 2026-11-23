@@ -2411,6 +2411,7 @@ class TopicPatchBody(BaseModel):
     analyze_prompt: str | None = None
     article_prompt: str | None = None  # "Bài viết": empty brings back the default prompt.
     voice_id: str | None = None  # the group's own voice; "" leaves it to each maker's defaults
+    voice_backup_id: str | None = None  # the voice read instead when the voice above cannot; "" for none
     templates: list[int] | None = None  # the group's own "Mẫu dựng" (saved ones' ids)
     stock_order: list[str] | None = None  # "Thứ tự nguồn ảnh"; [] goes back to the app's order
     edit_template_default: object = None  # "app", one of `templates`, or null: what its new videos take (if sent)
@@ -2456,6 +2457,7 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "analyze_prompt": topic.analyze_prompt,
                 "article_prompt": topic.article_prompt,
                 "voice_id": topic.voice_id,
+                "voice_backup_id": topic.voice_backup_id,
                 # "Kiểu video" and the mode a video made now takes by it ("Xen kẽ theo ngày" resolved for today).
                 "video_mode": topic.video_mode,
                 "video_mode_today": group_video_mode(topic),
@@ -2599,6 +2601,11 @@ def patch_topic(
     if body.voice_id is not None:
         try:
             topic.voice_id = video_options.clean({"voice_id": body.voice_id})["voice_id"]
+        except video_options.OptionError as err:
+            raise invalid(str(err)) from None
+    if body.voice_backup_id is not None:
+        try:
+            topic.voice_backup_id = video_options.clean({"voice_id": body.voice_backup_id})["voice_id"]
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
     if body.video_mode is not None:

@@ -7,7 +7,7 @@ from fake_services import ELEVENLABS_KEY, IMAGE_GEN_KEY, VIENEU_KEY
 from test_voice import needs_ffmpeg
 
 from reels_api import jobs, source_keys, tts
-from reels_api.models import ApiKey, EditLog
+from reels_api.models import ApiKey, EditLog, KnowledgeTopic
 
 BACKUP = f"{ELEVENLABS_KEY}-backup-1111"
 BACKUP_2 = f"{ELEVENLABS_KEY}-backup-2222"
@@ -267,3 +267,75 @@ def test_the_voice_list_falls_back_to_a_key_that_answers(an, db, me, fakes, monk
     payload = an.get("/api/settings/voices").json()
     assert any(voice["service"] == "elevenlabs" for voice in payload["voices"])
     assert payload["problems"] == []
+
+
+# --- What ElevenLabs's refusals mean for a key ---
+
+
+def test_a_free_plan_key_refused_a_library_voice_is_not_called_out_of_credit():
+    body = '{"detail":{"status":"paid_plan_required","message":"Free users cannot use library voices via the API."}}'
+    error = tts._http_error(402, body)
+    assert error.key_fault  # another key may still read it
+    assert "gói miễn phí" in error.message
+    assert "hết ký tự" not in error.message
+
+
+def test_a_voice_the_key_has_not_got_moves_on_to_the_next_key():
+    error = tts._http_error(
+        404, '{"detail":{"status":"voice_not_found","message":"A voice with the ID was not found"}}'
+    )
+    assert error.key_fault
+    assert "không có giọng" in error.message
+
+
+# --- The group's backup voice ---
+
+
+def set_backup(db, video, voice):
+    db.get(KnowledgeTopic, video.knowledge_topic_id).voice_backup_id = voice
+    db.commit()
+
+
+def test_the_backup_voice_reads_when_every_key_of_the_voice_is_spent(db, me, storage, fakes):
+    fakes.exhausted_keys = {ELEVENLABS_KEY}
+    source_keys.save(db, "vieneu", VIENEU_KEY, me.id)
+    video = make_video(db, storage, me)
+    set_backup(db, video, "vieneu:Ngọc Lan")
+    assert jobs.narrate(db, video, "một hai ba", None, set())
+    assert len(fakes.tts_requests) == 1  # ElevenLabs was asked once, then VieNeu read it
+    assert [request["voice"] for request in fakes.vieneu_requests] == ["Ngọc Lan"]
+
+
+def test_without_a_backup_voice_a_spent_key_still_fails(db, me, storage, fakes):
+    fakes.exhausted_keys = {ELEVENLABS_KEY}
+    video = make_video(db, storage, me)
+    with pytest.raises(tts.TtsError, match="hết ký tự"):
+        jobs.narrate(db, video, "một hai ba", None, set())
+
+
+def test_the_backup_voice_is_not_used_for_a_busy_service(db, me, storage, fakes):
+    fakes.tts_mode = "error500"
+    video = make_video(db, storage, me)
+    set_backup(db, video, "vieneu:Ngọc Lan")
+    with pytest.raises(tts.TtsError, match="ElevenLabs đang lỗi"):
+        jobs.narrate(db, video, "một hai ba", None, set())
+    assert fakes.vieneu_requests == []
+
+
+def test_when_the_backup_voice_fails_too_both_reasons_are_shown(db, me, storage, fakes):
+    fakes.exhausted_keys = {ELEVENLABS_KEY, VIENEU_KEY}
+    source_keys.save(db, "vieneu", VIENEU_KEY, me.id)
+    video = make_video(db, storage, me)
+    set_backup(db, video, "vieneu:Ngọc Lan")
+    with pytest.raises(tts.TtsError) as caught:
+        jobs.narrate(db, video, "một hai ba", None, set())
+    assert "ElevenLabs" in caught.value.message and "Giọng phụ" in caught.value.message
+
+
+def test_a_group_saves_its_backup_voice(an, db, storage, me):
+    video = make_video(db, storage, me)
+    topic = video.knowledge_topic_id
+    saved = an.patch(f"/api/knowledge/topics/{topic}", json={"voice_backup_id": "vieneu:Ngọc Lan"})
+    assert saved.status_code == 200, saved.text
+    saved_topic = next(item for item in saved.json()["topics"] if item["id"] == topic)
+    assert saved_topic["voice_backup_id"] == "vieneu:Ngọc Lan"

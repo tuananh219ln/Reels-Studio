@@ -380,12 +380,29 @@ def change_speed(data: bytes, speed: float) -> bytes:
 
 def _http_error(status: int, body: str) -> TtsError:
     detail = f"HTTP {status}: {body}"
+    lowered = body.lower()
+    # A free plan cannot read library voices through the API: ElevenLabs answers HTTP 402 "paid_plan_required". It is
+    # the key's plan, not its credit, so another key (a paid one, or the voice in its own account) may still read.
+    if "paid_plan_required" in lowered or "library voice" in lowered:
+        return TtsError(
+            "Key ElevenLabs gói miễn phí không đọc được giọng thư viện qua API: dùng key gói trả phí hoặc chọn giọng "
+            "có sẵn trong tài khoản của key này",
+            detail,
+            True,
+        )
     # ElevenLabs says a spent plan with HTTP 401 and "quota_exceeded", so this comes before the 401 of a wrong key.
-    if "quota" in body.lower() or status == 402:
+    if "quota" in lowered or status == 402:
         return TtsError("Tài khoản ElevenLabs đã hết ký tự (credit), cần nạp thêm", detail, True)
     if status == 401:
         return TtsError(
             "Key ElevenLabs không hợp lệ hoặc đã bị thu hồi: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu", detail, True
+        )
+    if status == 404 and "voice_not_found" in lowered:
+        # A voice lives in one account: a key of another account does not have it, but the next key may.
+        return TtsError(
+            "Tài khoản của key ElevenLabs này không có giọng đã chọn: thêm giọng đó vào tài khoản hoặc chọn giọng khác",
+            detail,
+            True,
         )
     if status == 404:
         return TtsError(

@@ -879,7 +879,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
       xuyên suốt, ngày chẵn: slide)", "Slide ảnh" for a new group; on "Xen kẽ" a grey line "Hôm nay (giờ Việt Nam):
       …") with "Lưu kiểu video", the switches "Không dùng cảnh có người" and "Cảnh kết Theo dõi & Chia sẻ" (each saved
       when turned, with a grey line on what it does; the outro's says it replaces the script's closing call to action
-      and leaves existing videos as they are), "Giọng mặc định của nhóm" (the voice picker of Thiết lập mặc định, empty showing
+      and leaves existing videos as they are), "Giọng mặc định của nhóm" (a second picker "Giọng phụ" below the main voice: read instead when the main voice's keys are all wrong or spent; the voice picker of Thiết lập mặc định, empty showing
       "Theo Thiết lập mặc định của người tạo", cleared with ×) with "Lưu giọng", and "Mẫu dựng của nhóm" (a multiple
       choice of the saved templates the group holds and the one its new videos take: "Không áp mẫu của nhóm", "Gợi ý
       của app" or one of the group's, with "Lưu mẫu dựng"; the order a new video's template is picked in is spelled

@@ -171,6 +171,9 @@ class KnowledgeTopic(Base):
     # The group's own narration voice (an ElevenLabs id or "vieneu:<id>"): a new video of the group starts with it,
     # over its maker's defaults (video_options.apply_defaults). Empty: the maker's defaults decide.
     voice_id: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    # The group's backup voice: a narration whose own voice cannot be read (every key of its service wrong or spent) is
+    # read with this one instead (jobs.narrate). Empty: no backup.
+    voice_backup_id: Mapped[str] = mapped_column(String(200), default="", server_default="")
     # "Từ video mẫu" (reference.py): the prompt that writes a script from a sample video, and the one that analyses
     # the sample on its own (ways B, C and D). Empty: the default in prompts/.
     learn_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
