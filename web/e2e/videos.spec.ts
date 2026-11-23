@@ -485,15 +485,16 @@ test("knowledge topics: a group's own voice is what its new videos start with", 
   const card = group.locator(".ant-card").filter({ hasText: "Giọng mặc định của nhóm" });
   await expect(card).toContainText("Theo Thiết lập mặc định của người tạo");
   await expect(card.getByRole("button", { name: "Lưu giọng" })).toBeDisabled();
-  await card.getByLabel("Giọng đọc").click();
-  await card.getByLabel("Giọng đọc").fill("Mai");
+  // The card has two pickers now: the main voice first, then the backup ("Giọng phụ").
+  await card.getByLabel("Giọng đọc").first().click();
+  await card.getByLabel("Giọng đọc").first().fill("Mai");
   await page.keyboard.press("Enter");
   await card.getByRole("button", { name: "Lưu giọng" }).click();
   await expect(page.getByText("Đã lưu giọng của nhóm")).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: /Già Mà Khỏe/ }).click();
   await group.getByRole("tab", { name: "Cài đặt nhóm" }).click();
-  await expect(card.locator(".ant-select")).toContainText("Mai");
+  await expect(card.locator(".ant-select").first()).toContainText("Mai");
 
   // A new video of the group reads with the group's voice, with nothing set on it by hand.
   await group.getByRole("tab", { name: /^Video/ }).click();

@@ -298,6 +298,7 @@ def set_backup(db, video, voice):
 
 def test_the_backup_voice_reads_when_every_key_of_the_voice_is_spent(db, me, storage, fakes):
     fakes.exhausted_keys = {ELEVENLABS_KEY}
+    source_keys.save(db, "vieneu", VIENEU_KEY, me.id)
     video = make_video(db, storage, me)
     set_backup(db, video, "vieneu:Ngọc Lan")
     assert jobs.narrate(db, video, "một hai ba", None, set())
@@ -323,6 +324,7 @@ def test_the_backup_voice_is_not_used_for_a_busy_service(db, me, storage, fakes)
 
 def test_when_the_backup_voice_fails_too_both_reasons_are_shown(db, me, storage, fakes):
     fakes.exhausted_keys = {ELEVENLABS_KEY, VIENEU_KEY}
+    source_keys.save(db, "vieneu", VIENEU_KEY, me.id)
     video = make_video(db, storage, me)
     set_backup(db, video, "vieneu:Ngọc Lan")
     with pytest.raises(tts.TtsError) as caught:
@@ -335,4 +337,5 @@ def test_a_group_saves_its_backup_voice(an, db, storage, me):
     topic = video.knowledge_topic_id
     saved = an.patch(f"/api/knowledge/topics/{topic}", json={"voice_backup_id": "vieneu:Ngọc Lan"})
     assert saved.status_code == 200, saved.text
-    assert saved.json()["voice_backup_id"] == "vieneu:Ngọc Lan"
+    saved_topic = next(item for item in saved.json()["topics"] if item["id"] == topic)
+    assert saved_topic["voice_backup_id"] == "vieneu:Ngọc Lan"
