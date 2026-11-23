@@ -342,10 +342,16 @@ export function usePlanTabs(
               move(item, null);
             }
           }}
-          style={{ outline: overTab ? "2px dashed #fa8c16" : undefined, padding: "2px 4px", borderRadius: 4 }}
+          style={{ outline: overTab ? `2px dashed ${COLORS.primary}` : undefined, padding: "2px 4px", borderRadius: 4 }}
         >
           Backlog{" "}
-          <Badge count={backlog.length} showZero color="#bfbfbf" size="small" style={{ marginInlineStart: 4 }} />
+          <Badge
+            count={backlog.length}
+            showZero
+            color={COLORS.textSecondary}
+            size="small"
+            style={{ marginInlineStart: 4 }}
+          />
         </span>
       ),
       children: body((plan) => (
@@ -808,7 +814,7 @@ function DayCell({
         borderRadius: 8,
         background: token.colorBgContainer,
         border: `${selected ? 2 : 1}px solid ${selected ? token.colorPrimary : token.colorBorderSecondary}`,
-        outline: over ? "2px dashed #fa8c16" : undefined,
+        outline: over ? `2px dashed ${COLORS.primary}` : undefined,
         cursor: "pointer",
       }}
       {...handlers}
@@ -1199,7 +1205,7 @@ function DayCard({
           />
         )
       }
-      style={{ outline: over ? "2px dashed #fa8c16" : undefined }}
+      style={{ outline: over ? `2px dashed ${COLORS.primary}` : undefined }}
       {...handlers}
     >
       <Flex vertical gap={8}>
@@ -1379,7 +1385,7 @@ function IdeaCard({
       data-status={item.status}
       style={
         {
-          border: "1px solid #f0f0f0",
+          border: `1px solid ${COLORS.border}`,
           borderLeft: `3px solid ${statusColor(item.status, token)}`,
           borderRadius: 8,
           padding: 8,
@@ -1626,7 +1632,7 @@ function BacklogPanel({
       size="small"
       title={`Backlog (${backlog.length})`}
       data-testid="backlog-panel"
-      style={{ position: "sticky", top: 16, outline: over ? "2px dashed #fa8c16" : undefined }}
+      style={{ position: "sticky", top: 16, outline: over ? `2px dashed ${COLORS.primary}` : undefined }}
       styles={{ body: { maxHeight: "calc(100vh - 140px)", overflowY: "auto" } }}
       {...handlers}
     >

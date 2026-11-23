@@ -46,8 +46,8 @@ import { PostRows, PublishButton } from "./PublishCard";
 import type { PostStep } from "./postRound";
 
 /** The result colours of the publish panel spec; the brand's orange comes from the theme (COLORS). */
-const SUCCESS = "#16A34A";
-const DANGER = "#E5484D";
+const SUCCESS = COLORS.success;
+const DANGER = COLORS.danger;
 
 /**
  * Where the card stands: no MP4 yet; rendered and never tried ("ready"); a platform on its way ("publishing"); then,

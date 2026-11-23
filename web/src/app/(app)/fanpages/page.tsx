@@ -8,6 +8,7 @@ import { useMe } from "@/components/MeContext";
 import PageChannels from "@/components/page/PageChannels";
 import PageHeader from "@/components/PageHeader";
 import StatusText from "@/components/StatusText";
+import WhoseFilter from "@/components/WhoseFilter";
 import {
   api,
   errorMessage,
@@ -23,20 +24,7 @@ import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
 import { useUrlChoice } from "@/lib/urlState";
 import { DeleteOutlined, FacebookOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
-import {
-  App,
-  Avatar,
-  Button,
-  Card,
-  Checkbox,
-  Collapse,
-  Flex,
-  Popconfirm,
-  Segmented,
-  Space,
-  Tooltip,
-  Typography,
-} from "antd";
+import { App, Avatar, Button, Card, Checkbox, Collapse, Flex, Popconfirm, Space, Tooltip, Typography } from "antd";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
@@ -472,14 +460,14 @@ function Fanpages() {
       <Flex vertical gap={16}>
         {rows !== null && rows.length > 0 && (
           <Flex gap={8} wrap align="center">
-            <Segmented
-              aria-label="Trang nào"
+            <WhoseFilter
+              label="Trang nào"
               value={showing}
-              onChange={(next) => setWhose(next as "mine" | "all")}
-              options={[
-                { value: "mine", label: `Trang của tôi (${rows.filter((row) => row.mine).length})` },
-                { value: "all", label: `Tất cả (${rows.length})` },
-              ]}
+              onChange={setWhose}
+              mineLabel="Trang của tôi"
+              allLabel="Tất cả"
+              mine={rows.filter((row) => row.mine).length}
+              all={rows.length}
             />
             <StatusText tone="success">{inUse.length} đang dùng</StatusText>
             {broken > 0 && <StatusText tone="danger">{broken} lỗi kết nối</StatusText>}

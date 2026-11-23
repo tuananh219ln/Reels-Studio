@@ -16,6 +16,8 @@ export default function WhoseFilter({
   mine,
   all,
   mineLabel = "Của tôi",
+  allLabel = "Cả đội",
+  label = "Của ai",
 }: {
   value: Whose;
   onChange: (next: Whose) => void;
@@ -23,16 +25,20 @@ export default function WhoseFilter({
   all?: number;
   /** "Của tôi" by default; "Tôi thêm" where a row is mine by who added it. */
   mineLabel?: string;
+  /** "Cả đội" by default; "Tất cả" where the rows are Pages or products, not the team's work. */
+  allLabel?: string;
+  /** The group's accessible name. */
+  label?: string;
 }) {
   const count = (n: number | undefined) => (n === undefined ? "" : ` (${n})`);
   return (
     <Segmented<Whose>
-      aria-label="Của ai"
+      aria-label={label}
       value={value}
       onChange={onChange}
       options={[
         { value: "mine", label: `${mineLabel}${count(mine)}` },
-        { value: "all", label: `Cả đội${count(all)}` },
+        { value: "all", label: `${allLabel}${count(all)}` },
       ]}
     />
   );

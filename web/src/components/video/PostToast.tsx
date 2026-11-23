@@ -52,7 +52,7 @@ export default function PostToast({
         gap: 10,
         padding: "12px 16px 12px 14px",
         background: "#fff",
-        borderLeft: `4px solid ${out.length > 0 ? "#16A34A" : "#E5484D"}`,
+        borderLeft: `4px solid ${out.length > 0 ? COLORS.success : COLORS.danger}`,
         borderRadius: 12,
         boxShadow: "0 4px 16px rgba(0,0,0,.08)",
       }}
@@ -61,7 +61,7 @@ export default function PostToast({
         <div style={{ fontSize: 14, fontWeight: 600, lineHeight: "20px", color: COLORS.text }}>
           {out.length > 0 ? (
             <>
-              <CheckOutlined style={{ color: "#16A34A", marginRight: 6 }} />
+              <CheckOutlined style={{ color: COLORS.success, marginRight: 6 }} />
               {scheduled ? "Đã hẹn giờ trên" : "Đã đăng lên"} {names(out)}
             </>
           ) : (

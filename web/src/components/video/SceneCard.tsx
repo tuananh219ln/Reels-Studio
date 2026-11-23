@@ -635,7 +635,7 @@ function SceneHeader({
         className="scene-card-arrow"
         style={{
           fontSize: 11,
-          color: "#8c8c8c",
+          color: COLORS.textSecondary,
           transform: `rotate(${expanded ? 90 : 0}deg)`,
         }}
       />
@@ -648,7 +648,7 @@ function SceneHeader({
           style={{ width: 24, height: 32, objectFit: "cover", borderRadius: 4, flex: "none" }}
         />
       ) : (
-        <div style={{ width: 24, height: 32, borderRadius: 4, background: "#f0f0f0", flex: "none" }} />
+        <div style={{ width: 24, height: 32, borderRadius: 4, background: COLORS.selected, flex: "none" }} />
       )}
       <Typography.Text strong style={{ flex: "none" }}>
         {label}
@@ -980,7 +980,7 @@ export function ScenePicture({
         padding: compact ? "0 14px" : "0 10px",
         boxSizing: "border-box",
         borderRadius: 8,
-        border: `1px dashed ${dragging ? COLORS.primary : "#C9D0D5"}`,
+        border: `1px dashed ${dragging ? COLORS.primary : COLORS.border}`,
         background: dragging ? COLORS.primaryBg : compact ? COLORS.muted : "#fff",
         cursor: off ? "not-allowed" : "pointer",
         opacity: off && !uploading ? 0.6 : 1,

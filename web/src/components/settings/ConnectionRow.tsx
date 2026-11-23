@@ -1,5 +1,6 @@
 "use client";
 
+import { COLORS } from "@/app/theme";
 import { Flex, Tag, Typography } from "antd";
 import type { ReactNode } from "react";
 
@@ -33,7 +34,7 @@ export default function ConnectionRow({
       vertical
       gap={6}
       data-testid={testId}
-      style={{ padding: "12px 16px", borderTop: "1px solid var(--ant-color-border-secondary, #f0f0f0)" }}
+      style={{ padding: "12px 16px", borderTop: `1px solid ${COLORS.border}` }}
     >
       <Flex gap={12} align="flex-start" wrap>
         <Flex vertical gap={2} style={{ minWidth: 0, flex: "1 1 280px" }}>

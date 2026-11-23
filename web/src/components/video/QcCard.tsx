@@ -1,5 +1,6 @@
 "use client";
 
+import { COLORS } from "@/app/theme";
 import { Button, Flex, Popover, Tooltip, Typography } from "antd";
 import StatusText, { type StatusTone } from "@/components/StatusText";
 import type { QcResult } from "@/lib/api";
@@ -9,9 +10,9 @@ type QcStatus = QcResult["status"];
 const TONE: Record<QcStatus, StatusTone> = { pass: "success", warn: "warning", fail: "danger" };
 // Light fills and borders a step apart, so red, yellow and green read at a glance; the text stays dark on all three.
 const TILE: Record<QcStatus, { background: string; border: string }> = {
-  fail: { background: "#FFF1F0", border: "#FFA39E" },
-  warn: { background: "#FFFBE6", border: "#FFE58F" },
-  pass: { background: "#F6FFED", border: "#B7EB8F" },
+  fail: { background: COLORS.dangerBg, border: COLORS.dangerBorder },
+  warn: { background: COLORS.warningBg, border: COLORS.warningBorder },
+  pass: { background: COLORS.successBg, border: COLORS.successBorder },
 };
 const HINT: Record<QcStatus, string> = {
   fail: "Nên sửa rồi render lại trước khi đăng.",
