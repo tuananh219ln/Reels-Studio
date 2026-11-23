@@ -186,8 +186,8 @@ def test_the_scene_preview_shows_the_card_under_the_text(an, db, me, storage):
     db.commit()
     an.post("/api/layers/card", json={"scene_id": first.id, "media_id": item.id, "top": 200})
     after = Image.open(io.BytesIO(an.get(f"/api/scenes/{first.id}/preview.jpg").content)).convert("RGB")
-    # 972 × 583 from y 200, centred: red below the text (now at the top of the frame), the picture as before above.
-    red, green, blue = after.getpixel((540, 700))
+    # 972 × 583 from y 200, centred: red there now, the picture as before above it.
+    red, green, blue = after.getpixel((540, 450))
     assert red > 180 and green < 80 and blue < 80
     assert after.getpixel((540, 100)) == before.getpixel((540, 100))
 

@@ -106,13 +106,11 @@ def test_no_text_centres_the_photo_and_leaves_the_box_alone():
     assert framing.text_centre is None
 
 
-def test_a_photo_that_fills_the_frame_keeps_its_text_on_the_same_line_as_the_framed_ones():
-    """9:16 under "Tự động": the text goes on the top line, centred in the same block, not at the template's place."""
-    framing = plan_frame(1080, 1920, "auto", TEXT)
-    assert framing.kind == COVER and framing.picture is None
-    assert framing.text_centre == plan_frame(1080, 860, "auto", TEXT).text_centre
-    below = plan_frame(1080, 1920, "auto", TEXT, centre=(540, 1300))
-    assert below.text_centre == plan_frame(1080, 860, "auto", TEXT, centre=(540, 1300)).text_centre
+def test_a_photo_that_fills_the_frame_keeps_its_text_where_it_always_went():
+    """9:16 under "Tự động": the member's or the video's place, else the template's; the framing does not move it."""
+    for centre in (None, (540, 1300)):
+        framing = plan_frame(1080, 1920, "auto", TEXT, centre=centre, reserve=TEXT)
+        assert framing.kind == COVER and framing.picture is None and framing.text_centre is None
 
 
 def test_a_forced_cover_keeps_the_template_place():

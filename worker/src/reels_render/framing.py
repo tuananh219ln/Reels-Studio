@@ -101,15 +101,11 @@ def plan_frame(
     video's framed scenes: the photo then starts on one line for every scene (text and photo anchored to the safe
     zone's edge, not centred as a group), whatever its own text's height."""
     kind = choose_kind(width, height, fit)
-    below = centre is not None and centre[1] >= FRAME_HEIGHT // 2
     if kind == COVER:
-        # A photo that fills the frame ("Tự động" chose it) keeps its text on the same line as the framed scenes'; a
-        # forced "cover" is the template's place as always.
-        at = None
-        if fit != COVER and text_height > 0:
-            _, text_top = _anchor(0, text_height, max(reserve or 0, text_height), below, min_top)
-            at = (FRAME_WIDTH // 2, text_top + text_height // 2)
-        return Framing(COVER, (0, 0, width, height), None, at)
+        # A photo that fills the frame keeps its text where it always went: the member's or the video's place, else
+        # the template's.
+        return Framing(COVER, (0, 0, width, height), None, None)
+    below = centre is not None and centre[1] >= FRAME_HEIGHT // 2
     crop = (0, 0, width, height)
     if kind == SQUARE:
         side = min(width, height)
