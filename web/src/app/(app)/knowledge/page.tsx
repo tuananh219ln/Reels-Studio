@@ -1,5 +1,6 @@
 "use client";
 
+import StatusText, { toneOf } from "@/components/StatusText";
 import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import {
@@ -27,7 +28,6 @@ import {
   Spin,
   Switch,
   Tabs,
-  Tag,
   theme,
   Tooltip,
   Typography,
@@ -874,9 +874,7 @@ function PromptsPanel({
                   <Typography.Text strong={active} style={{ color: active ? token.colorPrimaryText : undefined }}>
                     {prompt.label}
                   </Typography.Text>
-                  <Tag color={state.color} style={{ marginInlineEnd: 0 }}>
-                    {state.label}
-                  </Tag>
+                  <StatusText tone={toneOf(state.color)}>{state.label}</StatusText>
                 </Flex>
               </button>
             );

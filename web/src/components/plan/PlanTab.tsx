@@ -1,4 +1,5 @@
 "use client";
+import StatusText from "@/components/StatusText";
 import VideoActions from "@/components/actions/VideoActions";
 import ApproveVideoButton from "@/components/actions/ApproveVideoButton";
 
@@ -1911,9 +1912,9 @@ function PreviewModal({
                   <li key={day}>
                     Ngày {day}: {now.length ? `${now.length} ý tưởng hiện có sẽ bị thay` : "đang trống"}
                     {made > 0 && (
-                      <Tag color="warning" style={{ marginInlineStart: 8 }}>
+                      <StatusText tone="warning" style={{ marginInlineStart: 8 }}>
                         Ngày {day} đã có video ({made}), video vẫn giữ trong thư viện
-                      </Tag>
+                      </StatusText>
                     )}
                   </li>
                 );

@@ -1,6 +1,7 @@
 "use client";
 
-import { App, Alert, Button, Card, Checkbox, Flex, Space, Table, Tag, Typography } from "antd";
+import StatusText from "@/components/StatusText";
+import { App, Alert, Button, Card, Checkbox, Flex, Space, Table, Typography } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import VideoTitleCell from "@/components/VideoTitleCell";
@@ -174,7 +175,7 @@ export default function ReworkVideos() {
                 key: "eligible",
                 render: (_, row) =>
                   row.eligible ? (
-                    <Tag color="green">Có thể nâng cấp</Tag>
+                    <StatusText tone="success">Có thể nâng cấp</StatusText>
                   ) : (
                     <Typography.Text type="secondary">{row.reason}</Typography.Text>
                   ),
@@ -186,8 +187,8 @@ export default function ReworkVideos() {
                   if (!row.job) return "—";
                   if (row.job.status === "failed")
                     return <Typography.Text type="danger">{row.job.error}</Typography.Text>;
-                  if (row.job.status === "cancelled") return <Tag>Đã hủy</Tag>;
-                  if (row.job.status !== "done") return <Tag color="processing">Đang xử lý</Tag>;
+                  if (row.job.status === "cancelled") return <StatusText tone="idle">Đã hủy</StatusText>;
+                  if (row.job.status !== "done") return <StatusText tone="active">Đang xử lý</StatusText>;
                   return (
                     <Flex vertical gap={4}>
                       <Typography.Text>

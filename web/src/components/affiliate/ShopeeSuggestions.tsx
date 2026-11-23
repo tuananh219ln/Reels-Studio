@@ -1,9 +1,10 @@
 "use client";
+import StatusText from "@/components/StatusText";
 import ProductActions from "@/components/actions/ProductActions";
 
 import { api, errorMessage, formatDateTime, type AffiliateSuggestions } from "@/lib/api";
 import { SearchOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Flex, Image, Input, Space, Tag, Typography } from "antd";
+import { Alert, App, Button, Flex, Image, Input, Space, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 
 const lines = (text: string) =>
@@ -186,7 +187,7 @@ export default function ShopeeSuggestions({
                 }}
               />
               {attached.has(product.id) ? (
-                <Tag color="success">Đã chọn</Tag>
+                <StatusText tone="success">Đã chọn</StatusText>
               ) : product.problems.length > 0 ? null : (
                 <Button size="small" disabled={busy} onClick={() => choose(product.id)}>
                   Chọn

@@ -1103,10 +1103,10 @@ steps open the status card or the products block on its tab, the QC chip its pop
       cả gợi ý (N)". An imported reel once matched shows "Meta Suite" on its cell; its opened line has "Đổi video
       khớp" and "Bỏ khớp" (back to "Chưa khớp") instead of the app's buttons.
     - **"Dán link bài đã đăng"**: 1–50 links, one per line, read 400 ms after typing stops. A row per link: the link,
-      "Nền tảng · Kênh" (a Page picker for Facebook: the member's own Pages), the video ("✓ Khớp N%" picked by itself
+      "Nền tảng và kênh" (a Page picker for Facebook: the member's own Pages), the video ("✓ Khớp N%" picked by itself
       at 85 % and 10 points ahead, else "? Cần chọn tay" with suggestions and every video to search), the posting time
-      (now by default, editable, Vietnam time) and the result ("✕ Kênh chưa khai báo" with "Thêm kênh", "✕ Link không
-      hợp lệ", "✕ Không truy cập được", "✕ Đã có trong hệ thống" with the video it is on). From a cell the video is
+      (now by default, editable, Vietnam time) and the result, a dot and a word (green, amber or red: "Kênh chưa khai báo" with "Thêm kênh", "Link không
+      hợp lệ", "Không truy cập được", "Đã có trong hệ thống" with the video it is on). From a cell the video is
       fixed. The video picker also offers "Video ngoài (không gắn video)". "Lưu N link" saves the lines ready;
       "Đã lưu N link".
   - **Lịch** (`/posts?view=calendar`; `/calendar` redirects there), after the content calendar of

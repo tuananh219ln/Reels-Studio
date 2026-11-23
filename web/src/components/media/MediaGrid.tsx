@@ -1,5 +1,6 @@
 "use client";
 
+import StatusText from "@/components/StatusText";
 import EmptyState from "@/components/EmptyState";
 import type { MediaItem } from "@/lib/api";
 import { isSmall, shapeOf, specLine, formatClock } from "@/lib/mediaSpecs";
@@ -226,9 +227,9 @@ function Tile({
             </Tag>
           )}
           {warn && (
-            <Tag color="warning" style={{ margin: 0, paddingInline: 5, lineHeight: "18px", fontSize: 11 }}>
+            <StatusText tone="warning" style={{ fontSize: 11 }}>
               Nhỏ
-            </Tag>
+            </StatusText>
           )}
           {shape && shape !== "tall" && (
             <Tag style={{ margin: 0, paddingInline: 5, lineHeight: "18px", fontSize: 11 }}>

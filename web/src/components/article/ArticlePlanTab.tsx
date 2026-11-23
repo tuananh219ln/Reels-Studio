@@ -1,5 +1,6 @@
 "use client";
 
+import StatusText, { toneOf } from "@/components/StatusText";
 import FormDrawer from "@/components/FormDrawer";
 import {
   api,
@@ -1143,10 +1144,10 @@ function ImportModal({
         {preview && (
           <>
             <Flex gap={8} align="center" wrap>
-              <Tag color="green">{preview.counts.ok} hợp lệ</Tag>
-              <Tag color="orange">{preview.counts.warning} cảnh báo</Tag>
-              <Tag color="red">{preview.counts.error} lỗi</Tag>
-              <Tag>{preview.counts.backlog} vào Backlog</Tag>
+              <StatusText tone="success">{preview.counts.ok} hợp lệ</StatusText>
+              <StatusText tone="warning">{preview.counts.warning} cảnh báo</StatusText>
+              <StatusText tone="danger">{preview.counts.error} lỗi</StatusText>
+              <StatusText tone="idle">{preview.counts.backlog} vào Backlog</StatusText>
               <Select
                 aria-label="Hiện dòng"
                 size="small"
@@ -1188,7 +1189,9 @@ function ImportModal({
                   title: "Kiểm tra",
                   key: "check",
                   width: 100,
-                  render: (_, row) => <Tag color={CHECK_TAGS[row.check].color}>{CHECK_TAGS[row.check].label}</Tag>,
+                  render: (_, row) => (
+                    <StatusText tone={toneOf(CHECK_TAGS[row.check].color)}>{CHECK_TAGS[row.check].label}</StatusText>
+                  ),
                 },
                 {
                   title: "Lý do",
