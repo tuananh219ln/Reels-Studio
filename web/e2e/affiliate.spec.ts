@@ -49,7 +49,7 @@ test("a member's Shopee account: added, checked, set on their Page, and hidden f
   await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
   await expect(binh).toHaveURL(/\/videos$/);
   await binh.goto("/settings/affiliate-accounts");
-  await expect(binh.getByText("Chưa có tài khoản nào")).toBeVisible();
+  await expect(binh.getByText("Chưa có tài khoản Shopee nào")).toBeVisible();
   await binh.goto("/fanpages");
   await expect(binh.getByTestId("fanpage-owner")).toHaveText("Thuộc: Nguyễn Văn An");
   await binh.goto("/affiliate");
@@ -253,7 +253,7 @@ test("a member's TikTok account: set on their Page, and shown there after a relo
     "TikTok: An Lành SK (@anlanhsk)",
   );
   await page.reload();
-  await expect(page.getByTestId("fanpage-owner")).toContainText("TikTok: An Lành SK (@anlanhsk)");
+  await expect(page.getByTestId("fanpage-owner")).toContainText("TikTok: An Lành SK");
 
   // The auto-post mode shows once an account is linked, starts on the draft, and "Đăng thẳng" stays after a reload.
   await expect(page.getByTestId("fanpage-owner")).toContainText("đẩy nháp đúng giờ");

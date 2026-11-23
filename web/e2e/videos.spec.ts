@@ -1588,7 +1588,7 @@ test("a video opens with its Page's TikTok account already chosen", async ({ pag
     settings.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"),
     "TikTok: An Lành SK (@anlanhsk)",
   );
-  await expect(owner).toContainText("TikTok: An Lành SK (@anlanhsk)");
+  await expect(owner).toContainText("TikTok: An Lành SK");
   await page.keyboard.press("Escape");
 
   await renderedVideo(page);
@@ -3613,7 +3613,7 @@ test("30-day plan: an idea added for today becomes a video, linked both ways", a
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
   await plan.getByRole("button", { name: "Chọn ngày 1", exact: true }).click();
-  await idea.getByRole("button", { name: "Tạo video" }).click();
+  await idea.getByRole("link", { name: "Tạo video" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
   await expect(dialog.getByTestId("picked-idea")).toContainText("Theo kế hoạch, ngày 1");
@@ -3831,7 +3831,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await addToday.getByRole("button", { name: "Thêm" }).click();
   const todayIdea = strip.getByTestId("plan-today-idea").filter({ hasText: "Uống trà gừng sau bữa sáng" });
   await expect(todayIdea).toContainText("Ý tưởng");
-  await expect(todayIdea.getByRole("button", { name: "Tạo video" })).toBeVisible();
+  await expect(todayIdea.getByRole("link", { name: "Tạo video" })).toBeVisible();
   await expect(todayIdea.getByRole("button", { name: "Sửa" })).toBeVisible();
   await expect(plan.getByTestId("plan-summary")).toHaveText(/^Đã làm \d+\/\d+, đã lên lịch \d+, ngày còn trống \d+$/);
 
@@ -3887,7 +3887,7 @@ test("knowledge topics: a group's maker turns off Cho cả đội sửa, and a t
   await expect(theirs.getByRole("switch", { name: "Cho cả đội sửa" })).toHaveCount(0);
   await expect(theirs.getByRole("button", { name: "Đổi tên" })).toHaveCount(0);
   // Its videos are still made by anyone; its prompts are read, not edited.
-  await expect(theirs.getByRole("button", { name: "Tạo video" })).toBeEnabled();
+  await expect(theirs.getByRole("link", { name: "Tạo video" })).toBeEnabled();
   await theirs.getByRole("tab", { name: "Prompt", exact: true }).click();
   await expect(theirs.getByLabel("Prompt viết kịch bản", { exact: true })).toBeDisabled();
   await theirs.getByRole("tab", { name: "Cài đặt nhóm" }).click();

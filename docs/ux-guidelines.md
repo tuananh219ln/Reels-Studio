@@ -1223,6 +1223,21 @@ steps open the status card or the products block on its tab, the QC chip its pop
     posts "Xóa" is greyed out with why. "Thêm Fanpage" says which permissions the token needs (only there, not on the page) and takes it, "Kiểm tra token" lists the
     Pages it manages (a sole Page is ticked, one it cannot post to is greyed out), and "Lưu" keeps
     the chosen ones. A stopped Page cannot be posted to.
+  - **A Page's dashboard, Instagram side** ([decision](decisions/2026-11-23-instagram-dashboard.md)): a Page with a
+    linked Instagram account has "Facebook | Instagram" (in the address, `?platform=instagram`) beside the period.
+    On Instagram the tabs are "Tổng quan" (four figures against the period before: Lượt xem, Tiếp cận, Tương tác,
+    Người theo dõi mới with "Hiện có N"; "Lượt xem theo ngày"; a grey note that Instagram's numbers lag up to 48 hours),
+    "Nội dung" (a table of the Reels the app posted: views, reach, likes, comments, shares, saves, watch time, "Mở bài ↗"),
+    "Đối tượng" (followers now; bars for gender, age and the top cities, or the reason there are none: Instagram gives it
+    only from 100 followers), "So sánh" and "Lịch đăng". A token without `instagram_manage_insights` is one warning alert
+    above the figures with the way to fix it ("Dán token mới"), never a broken connection.
+  - **"So sánh"** (both sides of a Page with Instagram): one row per video the app posted to the Page in the period,
+    Facebook's and Instagram's views, reach and interactions side by side, "Chưa đăng" where it is not on one; a grey note
+    that the two count differently.
+  - **"Giờ đăng hiệu quả"** (on "Lịch đăng", both sides): per platform, the best three Vietnam hours of the last 90 days by
+    average views (two posts an hour at least), or "Mới có N bài đã đo, cần từ 6 bài".
+  - **Falling views** on a Page card, one amber line per platform: "Lượt xem Facebook giảm 62% so với tuần trước (140 so
+    với 700)" ([decision](decisions/2026-11-23-instagram-dashboard.md)).
   - **A Page's dashboard** (`/fanpages/[id]`, modelled on Facebook's Professional Dashboard, built from what the
     app already reads): "← Quản lý kênh" above the Page's name; at the title's right "7 ngày / 28 ngày / 90 ngày"
     (28 at first, hidden on "Lịch đăng", which looks ahead) and "Kiểm tra ngay"; on "Lịch đăng" the grey line says
