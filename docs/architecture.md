@@ -105,8 +105,11 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
   1080×1920 frame with Pillow before FFmpeg: a 9:16 photo already padded with its blur has its sharp band taken out,
   then the photo (cut square at `image_crop_offset` for `square`) is laid across the full width over its covered,
   blurred, darkened copy with a soft shadow, Lanczos plus unsharp mask when enlarged. The text box goes above the
-  photo, or below it when its `text_position` is in the lower half; with no `text_position` it is centred on the
-  blurred part above, so the render places it there instead of the template's place. FFmpeg gets two layers: the
+  photo, or below it when its `text_position` is in the lower half; with no `text_position` it goes in the block
+  above the photo. Every framed photo of the video starts on one line, below the tallest text box of the video's
+  framed scenes (`reserve`, found by the render from its scenes and by the api in `videos.text_reserve`), the text
+  centred in that block; a photo that fills the frame under `auto` puts its text in the same block, and `auto`
+  cuts a photo square up to 1.6 wide. FFmpeg gets two layers: the
   blurred copy (with the shadow) as the scene's photo and the photo alone (`FramedInput`), each with its own
   `zoompan`; the photo zooms inside its fixed box at half the video's zoom and the copy at a quarter, with the video's
   motion, and the colour preset grades both after the photo is laid on.

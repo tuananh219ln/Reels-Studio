@@ -36,6 +36,9 @@ def noisy(size: tuple[int, int], seed: int = 1) -> Image.Image:
     ("size", "kind"),
     [
         ((1920, 1080), WHOLE),  # 16:9 keeps its shape
+        ((1380, 1000), SQUARE),  # 1.38: cut square like a 5:4 photo, so the two scenes match
+        ((1600, 1000), SQUARE),  # 16:10, the widest cut square
+        ((1620, 1000), WHOLE),
         ((1080, 860), SQUARE),  # 5:4, the pomelo scene
         ((1000, 1000), SQUARE),
         ((900, 1200), SQUARE),  # 3:4
@@ -103,9 +106,48 @@ def test_no_text_centres_the_photo_and_leaves_the_box_alone():
     assert framing.text_centre is None
 
 
-def test_cover_keeps_the_template_place():
+def test_a_photo_that_fills_the_frame_keeps_its_text_on_the_same_line_as_the_framed_ones():
+    """9:16 under "Tự động": the text goes on the top line, centred in the same block, not at the template's place."""
     framing = plan_frame(1080, 1920, "auto", TEXT)
+    assert framing.kind == COVER and framing.picture is None
+    assert framing.text_centre == plan_frame(1080, 860, "auto", TEXT).text_centre
+    below = plan_frame(1080, 1920, "auto", TEXT, centre=(540, 1300))
+    assert below.text_centre == plan_frame(1080, 860, "auto", TEXT, centre=(540, 1300)).text_centre
+
+
+def test_a_forced_cover_keeps_the_template_place():
+    framing = plan_frame(1080, 1920, COVER, TEXT)
     assert framing.kind == COVER and framing.picture is None and framing.text_centre is None
+
+
+def test_with_a_reserve_every_photo_starts_on_one_line_and_the_text_is_centred_in_its_block():
+    """The video's tallest text box (`reserve`) decides the line: a short text, a tall one and no text all put their
+    photo at the same row, and the text keeps the block's middle."""
+    reserve = 300
+    shapes = [(1080, 860), (1380, 1000), (900, 1200), (1920, 1080)]
+    frames = [plan_frame(*shape, "auto", text, reserve=reserve) for shape in shapes for text in (96, 200, 300, 0)]
+    assert len({frame.picture[1] for frame in frames}) == 1
+    assert {frame.text_centre[1] for frame in frames if frame.text_centre} == {SAFE_ZONE[1] + reserve // 2}
+    assert plan_frame(1080, 860, "auto", 0, reserve=reserve).text_centre is None
+    # Photos of every shape start the same row, though a wide one is shorter.
+    assert (
+        plan_frame(1920, 1080, "auto", 96, reserve=reserve).picture[3]
+        < plan_frame(1080, 860, "auto", 96, reserve=reserve).picture[3]
+    )
+
+
+def test_with_a_reserve_text_placed_low_gets_its_block_at_the_bottom_and_the_photo_above_it():
+    low = (540, 1300)
+    bottom = SAFE_ZONE[3]
+    short = plan_frame(1080, 860, "auto", 100, centre=low, reserve=300)
+    tall = plan_frame(1080, 860, "auto", 300, centre=low, reserve=300)
+    assert short.picture == tall.picture == (0, bottom - 300 - GAP - FRAME_WIDTH, FRAME_WIDTH, FRAME_WIDTH)
+    assert short.text_centre == tall.text_centre == (540, bottom - 150)
+
+
+def test_the_logo_row_moves_the_whole_shared_block_down():
+    framing = plan_frame(1080, 860, "auto", 200, min_top=370, reserve=300)
+    assert framing.picture[1] == 370 + 300 + GAP and framing.text_centre == (540, 370 + 150)
 
 
 def test_tall_photo_forced_whole_fits_the_height():
