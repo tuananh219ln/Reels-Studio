@@ -1,11 +1,11 @@
 "use client";
-import { FanpageMenu, OwnerLine, TokenInput, TokenModal } from "@/components/actions/FanpageActions";
+import { FanpageMenu, TokenInput, TokenModal } from "@/components/actions/FanpageActions";
 
 import { COLORS } from "@/app/theme";
-import ChannelsCard from "@/components/ChannelsCard";
 import EmptyState from "@/components/EmptyState";
 import FormDrawer from "@/components/FormDrawer";
 import { useMe } from "@/components/MeContext";
+import PageChannels from "@/components/page/PageChannels";
 import PageHeader from "@/components/PageHeader";
 import StatusText from "@/components/StatusText";
 import {
@@ -38,7 +38,6 @@ import {
   Typography,
 } from "antd";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
 const QUEUE_REFRESH_MS = 30_000;
@@ -101,16 +100,6 @@ function ScheduleLine({ page }: { page: QueuePage }) {
   );
 }
 
-// A click on these inside a card does its own thing, not open the Page's dashboard.
-const OWN_CLICK = "a, button, input, .ant-select, .ant-dropdown, .ant-popover, .ant-modal, .ant-drawer";
-
-/** The card's line on the Page's "Bộ bình luận" (api aff_sets.summaries). */
-function affSetsLine(aff: Fanpage["aff_sets"]): string {
-  if (aff.sets === 0) return "Chưa có bộ bình luận aff";
-  if (!aff.enabled) return `Bộ bình luận aff: đang tắt (${aff.sets} bộ)`;
-  return `Bộ bình luận aff: ${aff.usable}/${aff.sets} bộ dùng được, ${aff.per_post} bộ mỗi reel`;
-}
-
 /** A Page in use, compact: who it is, whether its token works, its numbers, a line on how it posts on a schedule, and
  * what a member can do with it. A click anywhere else opens its dashboard. */
 function PageCard({
@@ -129,7 +118,6 @@ function PageCard({
   onToken: (row: Fanpage) => void;
 }) {
   const scheduled = queue?.pages.find((page) => page.id === row.id);
-  const router = useRouter();
   const dashboard = `/fanpages/${row.id}`;
   const { message } = App.useApp();
   const { check, insights } = row;
@@ -147,12 +135,10 @@ function PageCard({
     <Card
       size="small"
       hoverable
+      className="stretch-host"
       data-testid="fanpage-card"
-      style={{ height: "100%", borderColor: check.error ? COLORS.primaryBorder : undefined, cursor: "pointer" }}
+      style={{ height: "100%", borderColor: check.error ? COLORS.primaryBorder : undefined }}
       styles={{ body: { display: "flex", flexDirection: "column", gap: 10, height: "100%" } }}
-      onClick={(event) => {
-        if (!(event.target as HTMLElement).closest(OWN_CLICK)) router.push(dashboard);
-      }}
     >
       <Flex gap={10} align="center">
         {/* The Page's Facebook picture; its initial while there is none or the link has expired (antd falls back). */}
@@ -166,7 +152,7 @@ function PageCard({
         </Avatar>
         <Flex vertical style={{ minWidth: 0, flex: 1 }}>
           <Typography.Text strong ellipsis>
-            <Link prefetch={false} href={dashboard}>
+            <Link prefetch={false} href={dashboard} className="stretched-link">
               {row.name}
             </Link>
           </Typography.Text>
@@ -179,20 +165,6 @@ function PageCard({
               ID {row.page_id}, token …{row.token_tail}
             </Typography.Text>
           </Flex>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis data-testid="fanpage-instagram">
-            {row.instagram ? `Instagram: @${row.instagram.username ?? row.instagram.id}` : "Chưa liên kết Instagram"}
-          </Typography.Text>
-          {row.instagram_error && (
-            // Why the last check could not read the account: the whole text, never cut, so the cause is readable.
-            <Typography.Text type="warning" style={{ fontSize: 12 }} data-testid="fanpage-instagram-error">
-              {row.instagram_error}
-            </Typography.Text>
-          )}
-          <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis data-testid="fanpage-aff-sets">
-            <Link prefetch={false} href={`/affiliate?tab=sets&page=${row.id}`}>
-              {affSetsLine(row.aff_sets)}
-            </Link>
-          </Typography.Text>
         </Flex>
         <FanpageMenu
           row={row}
@@ -229,7 +201,7 @@ function PageCard({
           {insights.error}
         </Typography.Text>
       )}
-      <OwnerLine row={row} accounts={accounts} youtube={youtube} onRows={onRows} />
+      <PageChannels row={row} accounts={accounts} youtube={youtube} onRows={onRows} />
       {scheduled && <ScheduleLine page={scheduled} />}
 
       <Flex justify="space-between" align="center" gap={8} style={{ marginTop: "auto" }}>
@@ -495,7 +467,7 @@ function Fanpages() {
             Thêm Fanpage
           </Button>
         }
-        description="Các kênh đội đăng bài: Fanpage (số liệu 7 ngày, chủ Page, tài khoản Shopee và TikTok, lịch đăng; tool tự kiểm tra token mỗi 12 giờ), kênh TikTok và YouTube."
+        description="Các kênh đội đăng bài: số liệu 7 ngày, nơi mỗi Page đăng và lịch đăng. Tool tự kiểm tra token mỗi 12 giờ."
       />
       <Flex vertical gap={16}>
         {rows !== null && rows.length > 0 && (
@@ -557,7 +529,6 @@ function Fanpages() {
           </div>
         )}
         <StoppedPages rows={stopped} onRows={setRows} />
-        <ChannelsCard />
       </Flex>
       <AddModal open={adding} onClose={() => setAdding(false)} onSaved={setRows} />
       <TokenModal row={replacing} onClose={() => setReplacing(null)} onSaved={setRows} />

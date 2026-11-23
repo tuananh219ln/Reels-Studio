@@ -533,7 +533,7 @@ test("Cài đặt holds the defaults, AI model and sources as tabs, each with it
   expect(names.map((name) => name.split("\n")[0])).toEqual([
     "Của tôi",
     "Thiết lập mặc định",
-    "Tài khoản affiliate",
+    "Tài khoản và kênh",
     "Kết nối MCP",
     "Chung cả nhóm",
     "AI và nguồn tư liệu",

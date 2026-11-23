@@ -736,8 +736,8 @@ function Platforms({
             YouTube
           </Typography.Text>
           {channels.length === 0 ? (
-            <Link prefetch={false} href="/fanpages" style={{ fontSize: 13 }}>
-              Chưa kết nối kênh YouTube nào, mở Quản lý kênh
+            <Link prefetch={false} href="/settings/affiliate-accounts" style={{ fontSize: 13 }}>
+              Chưa kết nối kênh YouTube nào, mở Tài khoản và kênh
             </Link>
           ) : (
             <Select

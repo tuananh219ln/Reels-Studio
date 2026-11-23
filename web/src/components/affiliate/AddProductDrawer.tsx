@@ -234,7 +234,7 @@ export default function AddProductDrawer({
                   description={
                     <>
                       Thêm App ID và Secret ở{" "}
-                      <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản affiliate</Link>. Chưa có thì dùng{" "}
+                      <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản và kênh</Link>. Chưa có thì dùng{" "}
                       <Typography.Link onClick={() => setTab("file")}>Nhập file</Typography.Link> từ Shopee Affiliate.
                     </>
                   }

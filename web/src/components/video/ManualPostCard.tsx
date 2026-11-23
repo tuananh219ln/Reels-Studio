@@ -256,7 +256,7 @@ function YouTubeUpload({ video }: { video: VideoDetail }) {
       </Typography.Text>
       {connections !== null && usable.length === 0 ? (
         <Typography.Text type="warning">
-          Bạn chưa kết nối kênh YouTube nào: bấm Kết nối YouTube ở Quản lý kênh.
+          Bạn chưa kết nối kênh YouTube nào: bấm Kết nối YouTube ở Cài đặt › Tài khoản và kênh.
         </Typography.Text>
       ) : (
         <>

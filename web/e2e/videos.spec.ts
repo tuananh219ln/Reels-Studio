@@ -1565,7 +1565,8 @@ test("a video opens with its Page's TikTok account already chosen", async ({ pag
     return route.fulfill({ status: 302, headers: { location: `http://localhost:3100${back}` } });
   });
   await page.goto("/settings/affiliate-accounts");
-  await page.getByRole("button", { name: "Kết nối TikTok" }).first().click();
+  await page.getByRole("button", { name: "Thêm kết nối" }).click();
+  await page.getByRole("menuitem", { name: "Kết nối TikTok" }).click();
   await expect(page.getByText("Đã kết nối tài khoản TikTok")).toBeVisible();
 
   await connectFacebook(page);
@@ -1579,7 +1580,16 @@ test("a video opens with its Page's TikTok account already chosen", async ({ pag
   // The Page's TikTok account, picked once on its card.
   await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
-  await chooseOption(page, owner.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"), "TikTok: An Lành SK (@anlanhsk)");
+  await expect(owner).toContainText("Thuộc: bạn");
+  await page.getByRole("button", { name: "Cài đặt Trang Dưỡng Sinh" }).click();
+  const settings = page.getByRole("dialog", { name: /Tài khoản và chủ Page/ });
+  await chooseOption(
+    page,
+    settings.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"),
+    "TikTok: An Lành SK (@anlanhsk)",
+  );
+  await expect(owner).toContainText("TikTok: An Lành SK (@anlanhsk)");
+  await page.keyboard.press("Escape");
 
   await renderedVideo(page);
   await openPublish(page);
@@ -1956,11 +1966,14 @@ test("a rendered video waits in Chưa đăng until its Facebook cell posts it", 
 test("Tải MP4 for TikTok waits for its link, and pasting it records the post", async ({ page }) => {
   test.setTimeout(240_000);
   await renderedVideo(page);
-  // A TikTok channel added from its link on Quản lý kênh.
-  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
-  await page.getByLabel("Link kênh TikTok hoặc YouTube").fill("https://www.tiktok.com/@kenhthu");
-  await page.getByRole("button", { name: "Thêm kênh" }).click();
-  await expect(page.getByTestId("channel-tiktok")).toContainText("@kenhthu");
+  // A TikTok channel added from its link on Cài đặt › Tài khoản và kênh.
+  await page.goto("/settings/affiliate-accounts");
+  await page.getByRole("button", { name: "Thêm kết nối" }).click();
+  await page.getByRole("menuitem", { name: "Thêm kênh bằng link" }).click();
+  const linkDrawer = page.getByRole("dialog", { name: "Thêm kênh bằng link" });
+  await linkDrawer.getByLabel("Link kênh TikTok hoặc YouTube").fill("https://www.tiktok.com/@kenhthu");
+  await linkDrawer.getByRole("button", { name: "Thêm kênh" }).click();
+  await expect(page.getByTestId("connection-tiktok")).toContainText("@kenhthu");
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   const groups = page.getByTestId("post-group");

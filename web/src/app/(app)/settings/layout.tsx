@@ -30,8 +30,8 @@ const GROUPS: { key: string; label: string; tabs: Tab[] }[] = [
       },
       {
         key: "/settings/affiliate-accounts",
-        label: "Tài khoản affiliate",
-        hint: "Shopee, TikTok của tôi",
+        label: "Tài khoản và kênh",
+        hint: "Shopee, TikTok, YouTube",
         icon: <ShoppingOutlined />,
       },
       { key: "/settings/mcp", label: "Kết nối MCP", hint: "ChatGPT, Claude của tôi", icon: <ApiOutlined /> },

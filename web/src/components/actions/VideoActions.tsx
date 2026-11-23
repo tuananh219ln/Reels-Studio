@@ -13,6 +13,7 @@ import { api, errorMessage, type VideoDetail } from "@/lib/api";
 import { MoreOutlined } from "@ant-design/icons";
 import { App, Button, Dropdown, Flex, Spin, Typography } from "antd";
 import type { MenuProps } from "antd";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import JobActions from "./JobActions";
@@ -91,7 +92,14 @@ export default function VideoActions({
     const mine = detail.created_by_id === me.id;
     const posting = Boolean(detail.mp4) || Boolean(detail.active_job ?? detail.failed_job);
     return [
-      { key: "open", label: "Mở video", onClick: () => router.push(`/videos/${video.id}`) },
+      {
+        key: "open",
+        label: (
+          <Link href={`/videos/${video.id}`} prefetch={false}>
+            Mở video
+          </Link>
+        ),
+      },
       ...(posting ? [{ key: "post", label: "Đăng bài, hàng chờ, job…", onClick: () => setOpen(true) }] : []),
       ...(detail.mp4
         ? [{ key: "mp4", label: "Tải MP4", onClick: () => window.location.assign(detail.mp4!.download_url) }]

@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/youtube")
 
-CHANNELS_PAGE = "/fanpages"
+CHANNELS_PAGE = "/settings/affiliate-accounts"
 # A planned time this far back is taken as a mistake: the reminder would be overdue already.
 PLANNED_SLACK = timedelta(minutes=5)
 
