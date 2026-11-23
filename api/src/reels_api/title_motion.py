@@ -74,20 +74,48 @@ def choose_layout(content_type: str, title: str, n: int, requested: str = "auto"
 # --- Geometry ---
 
 
-def grid_boxes(n: int) -> list[tuple[int, int, int, int]]:
-    x0, y0, x1, y1 = AREA
-    width, height, gap = x1 - x0, y1 - y0, 40
+def room(top: int) -> tuple[int, float]:
+    """The height under a hook box that ends at `top`, and how much of the usual 800 px of it is left (at most 1)."""
+    height = AREA[3] - top
+    return height, min(1.0, height / (AREA[3] - AREA[1]))
+
+
+def hook_bottom(video: Video, scene: Scene) -> int:
+    """Where the title's text box ends in the render: a hook of four lines reaches well below two lines'."""
+    from .frames import text_box
+    from .videos import render_options
+
+    try:
+        image, (_, y) = text_box(scene.text or "", True, render_options(video), HOOK_CENTRE)
+    except Exception:  # noqa: BLE001  (a text the box cannot lay out: the build goes on with the usual place)
+        return AREA[1] - 40
+    return y + image.height
+
+
+def top_for(bottom: int) -> int:
+    """The first row of the slots: the usual 640, or lower when the hook is taller (never below 1000, so they stay
+    big enough to read)."""
+    return max(AREA[1], min(1000, bottom + 40))
+
+
+def grid_boxes(n: int, top: int = AREA[1]) -> list[tuple[int, int, int, int]]:
+    x0, _, x1, _ = AREA
+    y0 = top
+    (height, k) = room(top)
+    width, gap = x1 - x0, 40
     if n == 2:
         w = (width - gap) // 2
-        return [(x0, y0 + 60, w, 620), (x0 + w + gap, y0 + 60, w, 620)]
+        h = round(620 * k)
+        return [(x0, y0 + round(60 * k), w, h), (x0 + w + gap, y0 + round(60 * k), w, h)]
     if n == 3:
         w = (width - gap) // 2
-        return [(x0, y0, width, 380), (x0, y0 + 420, w, 360), (x0 + w + gap, y0 + 420, w, 360)]
+        big, small, step = round(380 * k), round(360 * k), round(420 * k)
+        return [(x0, y0, width, big), (x0, y0 + step, w, small), (x0 + w + gap, y0 + step, w, small)]
     if n in (4, 5):
         w, h = (width - gap) // 2, (height - gap - 20) // 2
         boxes = [(x0, y0, w, h), (x0 + w + gap, y0, w, h), (x0, y0 + h + gap, w, h), (x0 + w + gap, y0 + h + gap, w, h)]
         if n == 5:
-            d = 300
+            d = round(300 * k)
             boxes.append((540 - d // 2, y0 + h + gap // 2 - d // 2, d, d))
         return boxes
     if n == 6:
@@ -96,12 +124,15 @@ def grid_boxes(n: int) -> list[tuple[int, int, int, int]]:
     raise invalid("Lưới dành cho 2–6 món")
 
 
-def strip_height(n: int) -> int:
-    return (AREA[3] - AREA[1] - 14 * (n - 1)) // n
+def strip_height(n: int, top: int = AREA[1]) -> int:
+    return (AREA[3] - top - 14 * (n - 1)) // n
 
 
-def ring_boxes(n: int) -> list[tuple[int, int, int, int]]:
-    cx, cy, radius, bubble, hero = RING
+def ring_boxes(n: int, top: int = AREA[1]) -> list[tuple[int, int, int, int]]:
+    height, k = room(top)
+    cx, _, radius, bubble, hero = RING
+    cy = top + height // 2
+    radius, bubble, hero = round(radius * k), round(bubble * k), round(hero * k)
     boxes = [(cx - hero // 2, cy - hero // 2, hero, hero)]
     leaves = n - 1
     for k in range(leaves):
@@ -117,13 +148,13 @@ def ring_boxes(n: int) -> list[tuple[int, int, int, int]]:
     return boxes
 
 
-def slot_sizes(layout: str, n: int) -> list[tuple[int, int]]:
+def slot_sizes(layout: str, n: int, top: int = AREA[1]) -> list[tuple[int, int]]:
     """The size of each slot's photo, as the markup shows it."""
     if layout in ("grid", "warn"):
-        return [(w, h) for _, _, w, h in grid_boxes(n)]
+        return [(w, h) for _, _, w, h in grid_boxes(n, top)]
     if layout == "ring":
-        return [(w, h) for _, _, w, h in ring_boxes(n)]
-    h = strip_height(n)
+        return [(w, h) for _, _, w, h in ring_boxes(n, top)]
+    h = strip_height(n, top)
     return [(round(h * 1.6), h)] * n
 
 
@@ -220,14 +251,14 @@ def _card(i, label, box, radius, hidden, atlas, hidden_label, *, name_size=46, b
     )
 
 
-def build_html(layout: str, labels: list[str], atlas: dict, hidden_label: str) -> str:
+def build_html(layout: str, labels: list[str], atlas: dict, hidden_label: str, top: int = AREA[1]) -> str:
     """The motion scene's markup. `atlas`: {"name", "width", "height", "sizes", "offsets"} of the packed photos."""
     n = len(labels)
     parts = [f"<style>{CSS}</style>", f'<div class="bg" style="{_background(atlas)}"></div><div class="shade"></div>']
     starts, shake = timing(n)
     anim = ['tl.fromTo(".bg",{scale:1.15},{scale:1,duration:3,ease:"none"},0);']
     if layout in ("grid", "warn"):
-        for i, box in enumerate(grid_boxes(n)):
+        for i, box in enumerate(grid_boxes(n, top)):
             circle = n == 5 and i == 4
             hidden = layout == "grid" and i == n - 1
             parts.append(
@@ -238,7 +269,7 @@ def build_html(layout: str, labels: list[str], atlas: dict, hidden_label: str) -
                 )
             )  # fmt: skip
     elif layout == "ring":
-        for i, box in enumerate(ring_boxes(n)):
+        for i, box in enumerate(ring_boxes(n, top)):
             hero = i == 0
             parts.append(
                 _card(
@@ -247,8 +278,9 @@ def build_html(layout: str, labels: list[str], atlas: dict, hidden_label: str) -
                 )
             )  # fmt: skip
     else:
-        x0, y0, x1, _ = AREA
-        h = strip_height(n)
+        x0, _, x1, _ = AREA
+        y0 = top
+        h = strip_height(n, top)
         for i, label in enumerate(labels):
             hidden = i >= n - 2
             y = y0 + i * (h + 14)
@@ -495,7 +527,14 @@ def build(
     names = [label or label_of(s) for label, s in zip(given, listed, strict=True)]
     if not all(names):
         raise invalid("Có cảnh liệt kê chưa có chữ để làm tên món")
-    sizes = slot_sizes(layout, n)
+    scene.text_x, scene.text_y = HOOK_CENTRE
+    if write_hook or not (scene.text or "").strip():
+        pain = db.scalar(select(TopicPlanItem.pain_group).where(TopicPlanItem.video_id == video.id)) or ""
+        noun = noun_of(video.topic)
+        scene.text = hook_lines(layout, n, pain, noun, names[0])
+        scene.voice_text = hook_voice(layout, n, pain, noun, names[0])
+    top = top_for(hook_bottom(video, scene))  # a tall hook pushes the slots down
+    sizes = slot_sizes(layout, n, top)
     width, height, offsets = atlas_layout(sizes)
     atlas = {"name": "photo.jpg", "width": width, "height": height, "sizes": sizes, "offsets": offsets}
     images = [
@@ -511,19 +550,13 @@ def build(
     ]
     number = n - 1 if layout == "ring" else n
     hidden = (hidden_label or f"SỐ {number} ÍT AI NGỜ").strip().upper()[:30]
-    markup = build_html(layout, names, atlas, hidden)
-    scene.text_x, scene.text_y = HOOK_CENTRE
-    if write_hook or not (scene.text or "").strip():
-        pain = db.scalar(select(TopicPlanItem.pain_group).where(TopicPlanItem.video_id == video.id)) or ""
-        noun = noun_of(video.topic)
-        scene.text = hook_lines(layout, n, pain, noun, names[0])
-        scene.voice_text = hook_voice(layout, n, pain, noun, names[0])
+    markup = build_html(layout, names, atlas, hidden, top)
     for old in list(scene.sounds):
         db.delete(old)
     db.flush()
     for sound, start, volume in sounds(layout, n):
         scene.sounds.append(SceneSound(sound=sound, start=start, volume=volume))
-    info = {"layout": layout, "labels": names, "hidden_label": hidden, "count": n, "slots": slots}
+    info = {"layout": layout, "labels": names, "hidden_label": hidden, "count": n, "slots": slots, "top": top}
     # The Page's "Kiểu tiêu đề": a title built for the first time shows its classic photo or clip when the channel
     # says so (motion.attach); the member switches to "Động" on the video. A rebuild keeps what the member chose.
     brand = brands.brand_of(db, video)

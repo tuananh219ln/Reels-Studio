@@ -355,3 +355,36 @@ def test_instagram_and_youtube_take_the_settled_frame_as_their_cover(monkeypatch
     method, url, kw = calls[0]
     assert (method, kw["params"]["videoId"], kw["content"]) == ("POST", "abc", b"jpeg")
     assert url.endswith("/thumbnails/set") and kw["headers"]["Content-Type"] == "image/jpeg"
+
+
+@pytest.mark.parametrize("top", [640, 700, 800, 1000])
+def test_a_taller_hook_pushes_every_layout_down_and_shrinks_it_to_fit(top):
+    for layout, n in [("grid", 2), ("grid", 3), ("grid", 4), ("grid", 5), ("grid", 6), ("ring", 8), ("strip", 10)]:
+        sizes = title_motion.slot_sizes(layout, n, top)
+        boxes = (
+            title_motion.grid_boxes(n, top)
+            if layout == "grid"
+            else title_motion.ring_boxes(n, top)
+            if layout == "ring"
+            else None
+        )
+        if boxes:
+            for x, y, w, h in boxes:
+                assert y >= top and y + h <= 1440 and x >= 0 and x + w <= 1080, (layout, n, top, (x, y, w, h))
+        else:
+            assert top + n * sizes[0][1] + 14 * (n - 1) <= 1440
+        markup = title_motion.build_html(layout, ["A"] * n, {**atlas_for(layout, n), "sizes": sizes}, "X", top)
+        assert motion.check_markup(markup)
+
+
+def test_the_slots_start_below_the_hook_box_whatever_its_height():
+    assert title_motion.top_for(500) == 640  # two lines: the usual place
+    assert title_motion.top_for(747) == 787  # four lines: 40 px under the box
+    assert title_motion.top_for(1500) == 1000  # never so low that the slots cannot be read
+
+
+def test_the_hook_box_of_four_lines_ends_lower_than_two_lines():
+    video = Video(topic="x", options={})
+    two = title_motion.hook_bottom(video, Scene(text="LO ĐƯỜNG HUYẾT?\nĂN 4 TRÁI NÀY"))
+    four = title_motion.hook_bottom(video, Scene(text="4 TRÁI CÂY ÍT NGỌT\nHỖ TRỢ ĐƯỜNG\nHUYẾT ĐỪNG BỎ\nQUA"))
+    assert four > two and four + 40 > 640 + 40
