@@ -1047,7 +1047,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
   "Ngắt kết nối", "Chưa kết nối TikTok" with "Kết nối TikTok", or a warning with "Kết nối lại" when TikTok refused a
   refresh) and YouTube (posts, "Ngắt kết nối", "Kết nối lại", "Xóa" for a channel added from a link). Each row also
   says which of the member's Pages use it ("Dùng cho Page: …" or "Chưa gắn cho Page nào"), and has "Đang dùng", "Sửa"
-  (an empty Secret keeps the saved one) and "Xoá" where the account is the member's. "Của tôi / Cả nhóm" (in the
+  (an empty Secret keeps the saved one) and "Xoá" where the account is the member's. "Của tôi / Cả đội" (in the
   address) switches between them and a read-only list of every TikTok and YouTube channel of the team, with who owns
   it and its posts; Shopee is never shown to others. The header has one button, "Thêm kết nối ▾": "Kết nối TikTok" and
   "Kết nối YouTube" (the consent page, then back here with a message), "Thêm tài khoản" (Shopee or TikTok by hand) and

@@ -2,13 +2,13 @@
 
 Asked by the owner (namtc) on 2026-11-23: the same accounts were handled in three places in three looks (the block
 under the Page cards on Quản lý kênh, Cài đặt › Tài khoản affiliate, and the Page card's own selects). The owner chose
-one place, the same UI, and a "Của tôi / Cả nhóm" switch so the team's channels stay visible.
+one place, the same UI, and a "Của tôi / Cả đội" switch so the team's channels stay visible.
 
 - Adding, connecting again and removing a Shopee account, a TikTok account or a YouTube channel is done only on
   Cài đặt › Tài khoản và kênh (route `/settings/affiliate-accounts` kept, so links and bookmarks work). A Page only
   picks among them, in its "Cài đặt" drawer.
 - One `ConnectionRow` for all three platforms. "Của tôi" shows the member's own with their actions and the Pages
-  using each; "Cả nhóm" is a read-only list of the TikTok and YouTube channels from `GET /api/channels`.
+  using each; "Cả đội" is a read-only list of the TikTok and YouTube channels from `GET /api/channels`.
 - The block "Kênh TikTok, YouTube và đồng bộ Facebook" under the Page cards is gone. The per-Page Facebook sync switch
   ("Đồng bộ bài đăng ngoài app") and "Đồng bộ ngay" moved into the Page's "Cài đặt" drawer (`PageSync`), still the
   owner's alone.

@@ -6,6 +6,7 @@ import { useMe } from "@/components/MeContext";
 import ConnectionRow from "@/components/settings/ConnectionRow";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 import StatusText from "@/components/StatusText";
+import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 import { api, errorMessage, formatDateTime, type AffiliateAccount, type Channels, type Fanpage } from "@/lib/api";
 import { useUrlChoice } from "@/lib/urlState";
 import { DeleteOutlined, DisconnectOutlined, DownOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
@@ -20,7 +21,6 @@ import {
   Form,
   Input,
   Popconfirm,
-  Segmented,
   Select,
   Space,
   Switch,
@@ -38,7 +38,7 @@ function usedBy(pages: Fanpage[], picked: (page: Fanpage) => boolean): string {
 }
 
 export default function ConnectionsPage() {
-  // "Của tôi / Cả nhóm" is in the address, which a static page only knows in the browser.
+  // "Của tôi / Cả đội" is in the address, which a static page only knows in the browser.
   return (
     <Suspense fallback={null}>
       <Connections />
@@ -47,13 +47,13 @@ export default function ConnectionsPage() {
 }
 
 /** "Tài khoản và kênh": every account and channel a member connects to post and earn, as one list of rows. "Của tôi"
- * is where they are added, connected again and removed (a Shopee Secret only ever goes in); "Cả nhóm" reads the TikTok
+ * is where they are added, connected again and removed (a Shopee Secret only ever goes in); "Cả đội" reads the TikTok
  * and YouTube channels the whole team has, without changing anyone else's. A Page picks among the member's own from
  * its "Cài đặt" on Quản lý kênh. */
 function Connections() {
   const { message } = App.useApp();
   const { me } = useMe();
-  const [whose, setWhose] = useUrlChoice<"mine" | "all">("whose", "mine", ["mine", "all"]);
+  const [whose, setWhose] = useUrlChoice<Whose>("whose", "mine", ["mine", "all"]);
   const [accounts, setAccounts] = useState<AffiliateAccount[]>([]);
   const [channels, setChannels] = useState<Channels | null>(null);
   const [pages, setPages] = useState<Fanpage[]>([]);
@@ -212,15 +212,7 @@ function Connections() {
           </Dropdown>
         }
       />
-      <Segmented
-        aria-label="Của ai"
-        value={whose}
-        onChange={(next) => setWhose(next as "mine" | "all")}
-        options={[
-          { value: "mine", label: "Của tôi" },
-          { value: "all", label: "Cả nhóm" },
-        ]}
-      />
+      <WhoseFilter value={whose} onChange={setWhose} />
 
       {whose === "mine" ? (
         <>
