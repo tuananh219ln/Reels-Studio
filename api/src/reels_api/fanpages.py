@@ -342,11 +342,7 @@ def trend_alerts(db: DbSession, rows: list[Fanpage]) -> dict[int, list[dict]]:
     """Each Page's views that fell by half or more, by platform: [{"platform", "current", "previous", "change"}]; an
     empty list when none did. Facebook's come from `fanpage_insights`, Instagram's from `instagram_insights`."""
     end = now().astimezone(analytics.VIETNAM).date() - timedelta(days=2)
-    current_start, previous_end, previous_start = (
-        end - timedelta(days=6),
-        end - timedelta(days=7),
-        end - timedelta(days=13),
-    )
+    current_start, previous_start = end - timedelta(days=6), end - timedelta(days=13)
     result: dict[int, list[dict]] = {row.id: [] for row in rows}
     for platform, model in (("facebook", FanpageInsights), ("instagram", InstagramInsights)):
         found: dict[int, dict[str, list]] = {}
