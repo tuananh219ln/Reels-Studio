@@ -182,7 +182,7 @@ export default function StatusCard({
         </Flex>
       ) : (
         <div className="publish-card__body">
-          <VideoThumb key={mp4.url} url={mp4.url} seconds={mp4.seconds} />
+          <VideoThumb key={mp4.url} url={mp4.url} seconds={mp4.seconds} poster={video.thumbnail_url} />
           <Flex vertical gap={12} style={{ minWidth: 0 }}>
             <Flex vertical gap={2}>
               <Typography.Text strong style={{ fontSize: 15, lineHeight: "20px" }}>
@@ -835,13 +835,13 @@ function Platforms({
  * The MP4 small (112 × 199, 96 × 171 in a narrow card) with ▶ in its middle and its length in a corner. ▶ opens it in
  * a window with the browser's controls, at the listener's volume (set under it).
  */
-function VideoThumb({ url, seconds }: { url: string; seconds: number }) {
+function VideoThumb({ url, seconds, poster }: { url: string; seconds: number; poster: string | null }) {
   const [open, setOpen] = useState(false);
   const length = `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`;
   return (
     <div className="publish-card__thumb">
-      {/* The first frame stands for a poster: the render's own title, as viewers see it. */}
-      <video src={url} preload="metadata" muted playsInline tabIndex={-1} aria-hidden />
+      {/* The title's thumbnail stands for a poster (a motion title's first frame is nearly empty). */}
+      <video src={url} poster={poster ?? undefined} preload="metadata" muted playsInline tabIndex={-1} aria-hidden />
       <button type="button" className="publish-card__play" aria-label="Phát MP4" onClick={() => setOpen(true)}>
         <CaretRightFilled />
       </button>

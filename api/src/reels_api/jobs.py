@@ -119,6 +119,7 @@ from .videos import (
     spoken,
     text_position,
     title_of,
+    title_poster_second,
 )
 from .videos import content_types as team_content_types
 
@@ -1002,7 +1003,8 @@ def run_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     post.scheduled_at = (facebook.scheduled_time(status) or post.scheduled_at) if post.status == "scheduled" else None
     post.published_at = now()
     db.commit()
-    _set_cover(page, post, storage)
+    title, _ = split_scenes(db, video)
+    _set_cover(page, post, storage, (title_poster_second(title) if title is not None else None) or 0)
     log.info("Job %s posted video %s to Facebook as %s", job.id, video.id, post.remote_id)
 
 
@@ -1090,14 +1092,14 @@ def _article_photos(
         raise JobFailure(f"Không thấy {str(err).lower()} của bài trong storage, hãy chọn lại ảnh rồi đăng") from None
 
 
-def _set_cover(page: facebook.Page, post: Publication, storage: DirectoryStorage) -> None:
-    """The reel's cover is the title scene: the first frame of the MP4 the reel holds, so it matches what was posted
-    even when the title changed since. Set once the reel is live or scheduled, since Facebook may not take a cover
+def _set_cover(page: facebook.Page, post: Publication, storage: DirectoryStorage, second: float = 0) -> None:
+    """The reel's cover is the title scene: the first frame of the MP4 the reel holds (a motion title's settled frame,
+    `second`), so it matches what was posted even when the title changed since. Set once the reel is live or scheduled, since Facebook may not take a cover
     for a reel it is still processing. A cover that cannot be set leaves Facebook's own pick: the post stands."""
     try:
         if not post.remote_mp4_key or not storage.exists(post.remote_mp4_key):
             raise ClipError("MP4 của bài đăng không còn trong storage")
-        cover = jpeg_bytes(frame_at(storage.path(post.remote_mp4_key), 0))
+        cover = jpeg_bytes(frame_at(storage.path(post.remote_mp4_key), second))
         facebook.set_cover(page, post.remote_id, cover)
     except (ClipError, FacebookError) as err:
         log.warning("Reel %s keeps the cover Facebook picked: %s", post.remote_id, err)

@@ -312,3 +312,16 @@ def test_a_page_set_to_classic_keeps_the_first_built_title_on_its_own_photo(comm
         assert title.motion["clip_key"] and storage.exists(title.motion["clip_key"])
         title_motion.set_mode(db, storage, title_id, "motion")
         assert db.get(Scene, title_id).video_key == title.motion["clip_key"]
+
+
+def test_a_motion_titles_thumbnail_and_cover_come_from_its_settled_frame():
+    from reels_api.videos import title_poster_second
+
+    made = {"title": {"layout": "grid"}, "clip_key": "videos/1/motion-1.mp4"}
+    shown = Scene(is_title=True, seconds=3.0, motion=made, video_key="videos/1/motion-1.mp4")
+    assert title_poster_second(shown) == 2.6  # every slot is in by 2.4 s; the first frame is nearly empty
+    assert title_poster_second(Scene(is_title=True, seconds=2.0, motion=made, video_key="videos/1/motion-1.mp4")) == 1.8
+    classic = Scene(is_title=True, seconds=3.0, motion=made, video_key=None, image_key="videos/1/a.jpg")
+    assert title_poster_second(classic) is None
+    assert title_poster_second(Scene(is_title=False, seconds=3.0, motion=made, video_key=made["clip_key"])) is None
+    assert title_poster_second(Scene(is_title=True, seconds=3.0, motion=None, video_key="x")) is None

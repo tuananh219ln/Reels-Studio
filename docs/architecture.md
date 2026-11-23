@@ -414,7 +414,9 @@ the video as before: HyperFrames never renders the whole video, and Remotion is 
   (`POST /api/title-motion/{scene_id}/slots/{index}/photo`, `photo-link`, `photo-library`: kept in the slot's
   `image_key`, shown from the next build). The Page's default (`brands.title_style`, migration 0122, "Kiểu tiêu đề video của Page" beside the logo switch
   on Cài đặt › Page): "classic" makes a title built for the first time keep showing its own photo or clip
-  (`motion.attach`), the member switching to Động on the video; a rebuild keeps the member's choice. Not checked
+  (`motion.attach`), the member switching to Động on the video; a rebuild keeps the member's choice. The thumbnail (`videos.refresh_thumbnail`), the card's poster and the Facebook cover of a motion
+  title come from its settled frame at 2.6 s (`videos.title_poster_second`), not from frame 0, which is nearly empty.
+  Not checked
   yet: video 259 against the owner's sample ([decision](decisions/2026-11-23-title-motion.md)).
 
 ### Scene Video Clips
