@@ -20,9 +20,9 @@ const DEFAULTS: PhotoLogo = {
 };
 const DEFAULT_THRESHOLD = 0.35;
 const SAMPLES = [
-  { ratio: "1:1", label: "1:1 · 1080×1080" },
-  { ratio: "4:5", label: "4:5 · 1080×1350" },
-  { ratio: "1.91:1", label: "1.91:1 · 1200×628" },
+  { ratio: "1:1", label: "1:1, 1080×1080" },
+  { ratio: "4:5", label: "4:5, 1080×1350" },
+  { ratio: "1.91:1", label: "1.91:1, 1200×628" },
 ];
 
 /** The address of a sample photo drawn by the api with the settings on screen, saved or not. */

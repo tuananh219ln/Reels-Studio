@@ -191,7 +191,7 @@ export default function ReworkVideos() {
                   return (
                     <Flex vertical gap={4}>
                       <Typography.Text>
-                        Đã đổi {row.job.progress.replaced?.length ?? 0} cảnh · Giữ tư liệu cũ{" "}
+                        Đã đổi {row.job.progress.replaced?.length ?? 0} cảnh, giữ tư liệu cũ{" "}
                         {row.job.progress.kept?.length ?? 0} cảnh
                       </Typography.Text>
                       <Link prefetch={false} href={`/videos/${row.id}`}>

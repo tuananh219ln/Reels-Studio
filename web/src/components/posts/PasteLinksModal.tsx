@@ -156,7 +156,7 @@ export default function PasteLinksModal({
       ),
     },
     {
-      title: "Nền tảng · Kênh",
+      title: "Nền tảng và kênh",
       key: "channel",
       width: 200,
       render: (_, row, index) => {
@@ -247,7 +247,7 @@ export default function PasteLinksModal({
             {row.message}
           </Tag>
           {row.result === "unknown_channel" && row.platform !== "facebook" && (
-            <a href="/fanpages" target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+            <a href="/settings/affiliate-accounts" target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
               Thêm kênh
             </a>
           )}
