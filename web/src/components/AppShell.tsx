@@ -151,7 +151,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const pageItem = (item: { key: string; icon: React.ReactNode; label: string }) => ({
     key: item.key,
-    icon: item.icon,
+    // On a rail only the icon shows, so the icon is the link (new tab, right-click); a plain click is the Menu's.
+    icon: rail ? (
+      <Link
+        href={item.key}
+        prefetch={false}
+        aria-label={item.label}
+        onClick={(event) => {
+          if (!event.metaKey && !event.ctrlKey && !event.shiftKey) event.preventDefault();
+        }}
+      >
+        {item.icon}
+      </Link>
+    ) : (
+      item.icon
+    ),
     // No prefetch: each would render that page on the web worker (about a second or more each) while the
     // current page is still loading; a click renders it then.
     label: (
@@ -184,10 +198,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       selectedKeys={[selected]}
       style={{ border: "none", padding: "0 6px" }}
       items={NAV.map((group) => ({ type: "group" as const, ...group, children: group.children.map(pageItem) }))}
-      onClick={({ key }) => {
+      onClick={({ key, domEvent }) => {
         setDrawerOpen(false);
-        // A rail shows only the icons: the click on one is the link.
-        if (rail) router.push(key);
+        // A rail shows only the icons: the click on one is the link (Ctrl/Cmd/Shift-click is the link's own).
+        if (rail && !domEvent.metaKey && !domEvent.ctrlKey && !domEvent.shiftKey) router.push(key);
       }}
     />
   );
