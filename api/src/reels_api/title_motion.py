@@ -247,7 +247,7 @@ def fit_round_name(label: str, width: int, size: int) -> int:
     """The font size for a name of up to two lines inside a round slot (its bottom is narrow, so only 80 % of the
     width is used): the longest line is the longest word or half the name."""
     longest = max([len(word) for word in label.split()] + [math.ceil(len(label) / 2) if " " in label else len(label)])
-    return max(18, min(size, int((width * 0.8 - 12) / (0.7 * max(longest, 1)))))
+    return max(18, min(size, int((width * 0.7 - 8) / (0.75 * max(longest, 1)))))
 
 
 def _card(
@@ -274,7 +274,7 @@ def _card(
             inner += '<div class="x"></div>'
         if ring:
             size = fit_round_name(label, w, round(w * 0.15))
-            style = f"font-size:{size}px;padding:{size}px 6px {round(w * 0.17)}px"
+            style = f"font-size:{size}px;padding:{size}px {round(w * 0.15)}px {round(w * 0.17)}px"
         elif fit:
             style = f"font-size:{fit_name(label, w, min(48, round(40 * k)))}px;white-space:nowrap"
         else:
