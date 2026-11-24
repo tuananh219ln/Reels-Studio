@@ -7,6 +7,7 @@ is compared with the period of the same length just before it. Numbers Facebook 
 non-followers, traffic sources, unfollows, 3-second views) are left out rather than guessed.
 """
 
+import statistics
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -28,7 +29,7 @@ from .sessions import now
 from .videos import LIVE_POST_STATUSES, is_published, live_at, split_scenes, thumbnail_url, video_name
 
 PERIODS = (7, 28, 90)
-# How far ahead the "Đã lên lịch" strip and the "Lịch đăng" tab look.
+# How far ahead the "Đã hẹn giờ" strip and the "Lịch đăng" tab look.
 AHEAD = timedelta(days=7)
 
 
@@ -248,6 +249,7 @@ def _content_row(db: DbSession, post: Publication, median: analytics.Median | No
         else None,
         "views_48h": views_48h,
         "times_median": round(times, 1) if times is not None else None,
+        "is_winner": analytics.is_winner(times),
         # "Cập nhật view" (POST /api/posts/{id}/metrics) takes only a reel that is on Facebook.
         "can_refresh": published and post.remote_id is not None,
         "pending": asked is not None and (tried is None or tried < asked),
@@ -585,4 +587,71 @@ def best_times(db: DbSession, page: Fanpage) -> dict:
         "min_posts": BEST_MIN_POSTS,
         "facebook": _best_hours(facebook_samples),
         "instagram": _best_hours(instagram_samples) if page.instagram_user_id else None,
+    }
+
+
+# "Cửa đo 48h" (docs/decisions/2026-11-24-winner-gate-docs.md): the numbers a Page's first videos are judged by.
+GATE_FIRST = 14  # a first look at this many videos measured at 48 hours
+GATE_LAST = 30  # the verdict at this many
+GATE_MEDIAN = 1000  # pass: the median at 48 hours above this ...
+GATE_TOP = 10000  # ... and at least one video above this
+GATE_CHANGE_MEDIAN = 500  # after GATE_LAST videos: a median below this ...
+GATE_CHANGE_SHARE = 0.001  # ... and share/view below this means a new hook and pillar (not a new Page name)
+
+
+def gate(db: DbSession, page: Fanpage) -> dict:
+    """The Page's gate: the median views and median share/view of its videos measured at 48 hours, how many are
+    measured towards 14 and 30, the gate's state and the winners (10× the median). The median is the Page's 60-day
+    one (analytics.medians), the same as everywhere else; the count is of all its measured videos."""
+    marks = [mark for mark in analytics._marks(db) if mark.fanpage_id == page.id]
+    measured = len(marks)
+    median = analytics.medians(db).get(page.id)
+    rates = [rate for mark in marks if (rate := analytics.share_rate(mark.views, mark.shares)) is not None]
+    share = statistics.median(rates) if rates else None
+    top = max((mark.views for mark in marks), default=None)
+    enough = median is not None and median.samples >= analytics.MIN_SAMPLES
+    views = median.views if median else None
+    if measured >= GATE_LAST and views is not None and views < GATE_CHANGE_MEDIAN and (share or 0) < GATE_CHANGE_SHARE:
+        state, text = "change", "Đổi hook và trụ nội dung (không đổi tên Page)"
+    elif enough and views > GATE_MEDIAN and top is not None and top > GATE_TOP:
+        state, text = "pass", "Đạt cửa đo"
+    elif measured >= GATE_LAST:
+        state, text = "hold", "Chưa đạt cửa đo, chưa tới ngưỡng đổi hook và trụ"
+    else:
+        state = "measuring"
+        text = (
+            "Đang đo: chưa đạt trung vị hoặc chưa có video vượt mốc"
+            if enough
+            else f"Đang đo: cần ít nhất {analytics.MIN_SAMPLES} video đã đủ 48 giờ để so"
+        )
+    winners = []
+    for mark in marks:
+        times = analytics.times_median(mark.views, median)
+        if analytics.is_winner(times):
+            post = db.get(Publication, mark.publication_id)
+            winners.append(
+                {
+                    "post_id": post.id,
+                    "video": _video(db, db.get(Video, post.video_id)),
+                    "views_48h": mark.views,
+                    "times_median": round(times, 1),
+                }
+            )
+    winners.sort(key=lambda row: row["views_48h"], reverse=True)
+    return {
+        "measured": measured,
+        "first": GATE_FIRST,
+        "last": GATE_LAST,
+        "median_views": views,
+        "samples": median.samples if median else 0,
+        "median_share_rate": share,
+        "top_views": top,
+        "state": state,
+        "state_label": text,
+        "rules": {
+            "pass": "Trung vị 48 giờ trên 1.000 view và có ít nhất 1 video trên 10.000 view",
+            "change": f"Sau {GATE_LAST} video: trung vị dưới 500 view và share/view dưới 0,1% thì đổi hook và trụ",
+            "winner": f"Winner: từ {analytics.WINNER_TIMES} lần trung vị của Page",
+        },
+        "winners": winners,
     }

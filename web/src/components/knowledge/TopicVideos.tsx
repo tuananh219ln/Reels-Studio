@@ -7,6 +7,7 @@ import EmptyState from "@/components/EmptyState";
 import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import VideoTitleCell from "@/components/VideoTitleCell";
+import WinnerFlag from "@/components/WinnerFlag";
 import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
 import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
 import { VIDEO_STATUS_FILTERS } from "@/lib/videoStatus";
@@ -278,6 +279,7 @@ export default function TopicVideos({
                     <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} />
                   </Flex>
                   <VideoKindTags video={row} />
+                  <WinnerFlag video={row} onChanged={() => load(true)} />
                 </Flex>
               ),
             },
@@ -290,10 +292,10 @@ export default function TopicVideos({
                 return (
                   <Flex vertical>
                     <Typography.Text>
-                      View <b>{count(n.views)}</b>, 48h <b>{count(n.views48)}</b>
+                      View Facebook <b>{count(n.views)}</b>, tool 48h <b>{count(n.views48)}</b>
                     </Typography.Text>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      Share {count(n.shares)}, share/view {percent(n.rate)}
+                      Share 48h {count(n.shares)}, share/view 48h {percent(n.rate)}
                     </Typography.Text>
                   </Flex>
                 );
@@ -395,6 +397,7 @@ function VideoCards({
                     .join(" · ")}
                 </Typography.Text>
                 <VideoKindTags video={row} />
+                <WinnerFlag video={row} onChanged={onChanged} />
                 <Flex wrap gap={8} align="center">
                   <VideoStatusTags video={row} />
                   <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} />
@@ -402,7 +405,7 @@ function VideoCards({
                 <Typography.Text type="secondary" style={{ fontSize: 13 }} data-testid="topic-video-numbers">
                   {figures.views === null && figures.views48 === null
                     ? "Chưa có số liệu đăng"
-                    : `${count(figures.views)} view; 48h: ${count(figures.views48)} view, ${count(figures.shares)} share, share/view ${percent(figures.rate)}`}
+                    : `${count(figures.views)} view (Facebook, đến nay); 48h (tool): ${count(figures.views48)} view, ${count(figures.shares)} share, share/view ${percent(figures.rate)}`}
                 </Typography.Text>
               </Flex>
             </Flex>

@@ -135,3 +135,27 @@ def _copy_into(db: DbSession, source: Video, draft: Video, files: _Files) -> dic
         db.add(VideoAffiliateProduct(video_id=draft.id, product_id=product_id))
     db.flush()
     return copied
+
+
+# "Tạo 3 biến thể" of a winner (docs/decisions/2026-11-24-winner-gate-docs.md): three exact copies, each named for what to
+# change in it, so whoever edits it (a member, or an assistant through MCP) knows the brief. No LLM call here.
+VARIANTS = ("đổi hook", "đổi 1–2 món", "đổi dạng")
+
+
+def variant_drafts(db: DbSession, storage: DirectoryStorage, source: Video, user_id: int) -> list[Video]:
+    """Three draft copies of `source` named "… (biến thể 1: đổi hook)", "… (biến thể 2: đổi 1–2 món)" and
+    "… (biến thể 3: đổi dạng)". All or none: one copy that fails leaves none of the three."""
+    title, _ = split_scenes(db, source)
+    name = video_name(source, title)
+    drafts: list[Video] = []
+    try:
+        for number, change in enumerate(VARIANTS, start=1):
+            drafts.append(
+                copy_video(db, storage, source, user_id, with_suffix(name, f" (biến thể {number}: {change})"))[0]
+            )
+    except BaseException:
+        for draft in drafts:
+            storage.delete_prefix(f"videos/{draft.id}")
+        db.rollback()
+        raise
+    return drafts

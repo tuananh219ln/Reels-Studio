@@ -5,6 +5,7 @@ import PageHeader from "@/components/PageHeader";
 import PageQueueSection from "@/components/PageQueueSection";
 import StatusText from "@/components/StatusText";
 import VideoThumbnail from "@/components/VideoThumbnail";
+import PageGate from "@/components/PageGate";
 import ContentLibrary from "@/components/page/ContentLibrary";
 import DailyChart, { shortDay } from "@/components/page/DailyChart";
 import BestTimes from "@/components/page/BestTimes";
@@ -35,7 +36,7 @@ const PERIODS = [7, 28, 90] as const;
 type Days = (typeof PERIODS)[number];
 const REFRESH_MS = 60_000;
 const QUEUE_REFRESH_MS = 30_000;
-// The "Đã lên lịch" strip on Tổng quan names the first few; "Lịch đăng" lists the whole week.
+// The "Đã hẹn giờ" strip on Tổng quan names the first few; "Lịch đăng" lists the whole week.
 const STRIP = 6;
 const INSTAGRAM_TABS = ["overview", "content", "audience", "compare", "schedule"];
 
@@ -110,7 +111,7 @@ function LatestPost({ data }: { data: PageDashboard }) {
             {post.numbers ? (
               <>
                 <Flex gap={16} wrap style={{ fontSize: 13 }}>
-                  <span>Lượt xem {formatNumber(post.numbers.views)}</span>
+                  <span>Lượt xem (Facebook, mới nhất) {formatNumber(post.numbers.views)}</span>
                   <span>Tiếp cận {formatNumber(post.numbers.reach)}</span>
                   <span>Cảm xúc {formatNumber(post.numbers.reactions)}</span>
                   <span>Bình luận {formatNumber(post.numbers.comments)}</span>
@@ -189,7 +190,7 @@ function Scheduled({ data, limit }: { data: PageDashboard; limit?: number }) {
   const slots = slotsOf(data);
   const shown = limit ? slots.slice(0, limit) : slots;
   return (
-    <Card size="small" title="Đã lên lịch, 7 ngày tới" data-testid="scheduled-strip">
+    <Card size="small" title="Đã hẹn giờ, 7 ngày tới" data-testid="scheduled-strip">
       {slots.length === 0 ? (
         <Typography.Text type="secondary">
           {data.upcoming.post_times.length === 0
@@ -336,9 +337,9 @@ function Engagement({ data }: { data: PageDashboard }) {
         Chia theo loại, từ các bài app đăng trong khoảng này (gần đúng):
       </Typography.Text>
       <TileRow>
-        <FigureTile title="Cảm xúc" figure={posts.reactions} days={days} tip={APPROXIMATE} />
-        <FigureTile title="Bình luận" figure={posts.comments} days={days} tip={APPROXIMATE} />
-        <FigureTile title="Chia sẻ" figure={posts.shares} days={days} tip={APPROXIMATE} />
+        <FigureTile title="Cảm xúc" source="Tool" figure={posts.reactions} days={days} tip={APPROXIMATE} />
+        <FigureTile title="Bình luận" source="Tool" figure={posts.comments} days={days} tip={APPROXIMATE} />
+        <FigureTile title="Chia sẻ" source="Tool" figure={posts.shares} days={days} tip={APPROXIMATE} />
       </TileRow>
     </Flex>
   );
@@ -549,7 +550,7 @@ function FanpageDashboard() {
         description={
           data &&
           (tab === "schedule" ? (
-            "Video trong hàng chờ tự được hẹn giờ vào khung giờ đăng trống gần nhất (trong 48 giờ tới), rồi chuyển sang cột “Đã lên lịch”."
+            "Video trong hàng chờ tự được hẹn giờ vào khung giờ đăng trống gần nhất (trong 48 giờ tới), rồi chuyển sang cột “Đã hẹn giờ”."
           ) : onInstagram ? (
             <>
               Instagram @{data.page.instagram?.username ?? data.page.instagram?.id}, từ {shortDay(data.start)} đến{" "}
@@ -568,6 +569,7 @@ function FanpageDashboard() {
         <Card loading />
       ) : (
         <Flex vertical gap={12}>
+          {!onInstagram && <PageGate pageId={data.page.id} />}
           <Tabs
             activeKey={onInstagram && !INSTAGRAM_TABS.includes(tab) ? "overview" : tab}
             onChange={setTab}

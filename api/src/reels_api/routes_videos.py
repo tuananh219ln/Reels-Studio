@@ -54,7 +54,7 @@ from . import (
 )
 from .claude import GeneratedScript
 from .db import get_db
-from .duplicate import MAX_NAME_LENGTH, duplicate_video
+from .duplicate import MAX_NAME_LENGTH, duplicate_video, variant_drafts
 from .errors import ApiError
 from .models import (
     AffiliateProduct,
@@ -1119,6 +1119,22 @@ def duplicate(
     The source is only read, never locked: a teammate may keep working on it."""
     draft = duplicate_video(db, storage, duplicable(db, video_id), me.user_id)
     return _saved(db, draft)
+
+
+@router.post("/videos/{video_id}/variants", status_code=201)
+def variants(
+    video_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Tạo 3 biến thể" of a winner: three draft copies named for what to change (hook, 1-2 dishes, format), with no
+    LLM call; the member (or an assistant) edits each, then renders it. Only a video that went live and is a winner at
+    48 hours is offered it, but the source is only read."""
+    source = duplicable(db, video_id)
+    drafts = variant_drafts(db, storage, source, me.user_id)
+    db.commit()
+    return {"videos": [video_payload(db, draft) for draft in drafts]}
 
 
 def duplicable(db: DbSession, video_id: int) -> Video:

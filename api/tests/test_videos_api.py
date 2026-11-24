@@ -107,7 +107,7 @@ def test_list_keeps_one_topic_groups_videos_for_its_tab_in_kho_kien_thuc(an, db,
 
 
 def test_a_rendered_video_says_whether_it_waits_to_be_posted_is_scheduled_or_is_out(an, db, me, storage):
-    """ "Xong" said nothing about posting: a video with an MP4 is "Chờ đăng", "Đã lên lịch" or "Đã đăng"."""
+    """ "Xong" said nothing about posting: a video with an MP4 is "Chờ đăng", "Đã hẹn giờ" or "Đã đăng"."""
     page = Fanpage(page_id="p1", name="Vườn nhà", token_encrypted="x", token_tail="x")
     db.add(page)
     draft, ready, later, out = (make_video(db, storage, me, topic=name) for name in ("nháp", "chờ", "hẹn", "đăng"))
@@ -122,12 +122,12 @@ def test_a_rendered_video_says_whether_it_waits_to_be_posted_is_scheduled_or_is_
     expected = {
         draft.id: ("draft", "Nháp", None),
         ready.id: ("done", "Chờ đăng", "ready"),
-        later.id: ("done", "Đã lên lịch", "scheduled"),
+        later.id: ("done", "Đã hẹn giờ", "scheduled"),
         out.id: ("done", "Đã đăng", "posted"),
     }
     assert {key: (row["status"], row["status_label"], row["post_stage"]) for key, row in rows.items()} == expected
     page_view = an.get(f"/api/videos/{later.id}").json()
-    assert (page_view["status_label"], page_view["post_stage"]) == ("Đã lên lịch", "scheduled")
+    assert (page_view["status_label"], page_view["post_stage"]) == ("Đã hẹn giờ", "scheduled")
 
 
 def _post(db, me, video, page, status="published", at=None, latest=None, h48=None):
@@ -192,6 +192,7 @@ def test_the_list_shows_each_videos_posts_views_and_48_hour_numbers(an, db, me, 
         "share_rate": 0.005,
         "share_met": True,  # against analytics.SHARE_GOAL
         "times_median": 12.0,
+        "is_winner": True,
     }
     scheduled = rows["Hẹn giờ"]["post"]
     assert (scheduled["state"], scheduled["fanpage"], scheduled["views"]) == ("scheduled", "Vườn nhà", None)

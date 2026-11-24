@@ -98,7 +98,7 @@ const STATUS_LABELS: Record<PlanItemStatus, string> = {
   started: "Đã tạo video",
   scripted: "Đã viết kịch bản",
   done: "Chờ đăng",
-  scheduled: "Đã lên lịch",
+  scheduled: "Đã hẹn giờ",
   posted: "Đã đăng",
 };
 
@@ -1231,6 +1231,22 @@ function DayCard({
             compact={compact}
             shareGoal={plan.share_goal}
           />
+        ))}
+        {/* The posting times the day's ideas do not fill yet: the n-th idea of a day takes the n-th time, so adding
+            one here takes that slot's time. Counted on all the day's ideas, never on the filtered ones. */}
+        {plan.post_times.slice(total).map((time) => (
+          <Button
+            key={time}
+            block
+            type="dashed"
+            icon={<PlusOutlined />}
+            disabled={total >= MAX_PER_DAY}
+            data-testid="plan-empty-slot"
+            aria-label={`Khung trống ${time} ngày ${day}`}
+            onClick={onAdd}
+          >
+            Khung trống {time}: thêm ý để tạo video
+          </Button>
         ))}
       </Flex>
     </Card>

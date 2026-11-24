@@ -114,7 +114,7 @@ export default function PageQueueSection({
         </Typography.Text>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Video chờ đến lượt đăng, theo thứ tự dưới đây. Khi một khung giờ trống còn trong {overview.fill_ahead_hours}{" "}
-          giờ tới, video đầu hàng được hẹn giờ vào khung đó và chuyển sang “Đã lên lịch”.
+          giờ tới, video đầu hàng được hẹn giờ vào khung đó và chuyển sang “Đã hẹn giờ”.
         </Typography.Text>
         {page.items.length === 0 ? (
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>

@@ -763,7 +763,7 @@ def queue_position(db: DbSession, job: Job) -> int:
 
 
 # A video with its MP4 and no job, by where its posts stand: "Xong" said nothing about posting (2026-11-12).
-POST_STAGE_LABELS = {"ready": "Chờ đăng", "scheduled": "Đã lên lịch", "posted": "Đã đăng"}
+POST_STAGE_LABELS = {"ready": "Chờ đăng", "scheduled": "Đã hẹn giờ", "posted": "Đã đăng"}
 
 
 def post_stage(extras: dict) -> str:
@@ -1268,8 +1268,8 @@ def video_name(video: Video, title: Scene | None) -> str:
     return video.name or title_of(video, title) or video.topic
 
 
-# What "Nhân bản" and "Nhân bản xáo cảnh" add to a name: "(copy)" (older copies), "(bản N)", "(xáo N)".
-NAME_SUFFIX = re.compile(r"(\s*\((?:copy|bản \d+|xáo \d+)\))+\s*$", re.IGNORECASE)
+# What "Nhân bản" and "Nhân bản xáo cảnh" add to a name: "(copy)" (older copies), "(bản N)", "(xáo N)", "(biến thể N: …)".
+NAME_SUFFIX = re.compile(r"(\s*\((?:copy|bản \d+|xáo \d+|biến thể \d+[^)]*)\))+\s*$", re.IGNORECASE)
 
 
 def base_name(name: str | None) -> str:
@@ -1674,6 +1674,7 @@ def _post_summary(
             "share_rate": None,
             "share_met": None,
             "times_median": None,
+            "is_winner": False,
         }
 
     def latest_views(item: tuple[Publication, str]) -> int:
@@ -1698,6 +1699,7 @@ def _post_summary(
         "share_rate": analysis["share_rate"],
         "share_met": analysis["share_rate"] >= analytics.SHARE_GOAL if analysis["share_rate"] is not None else None,
         "times_median": analysis["times_median"],
+        "is_winner": analysis["is_winner"],
     }
 
 

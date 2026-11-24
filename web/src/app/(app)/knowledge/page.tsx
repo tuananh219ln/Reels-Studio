@@ -42,6 +42,7 @@ import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
 import TopicMedia from "@/components/knowledge/TopicMedia";
 import TopicSchedule from "@/components/knowledge/TopicSchedule";
+import TopicDocs from "@/components/knowledge/TopicDocs";
 import StockOrderCard from "@/components/knowledge/StockOrderCard";
 import GroupVideoModeCard from "@/components/knowledge/GroupVideoModeCard";
 import GroupNoPeopleCard from "@/components/knowledge/GroupNoPeopleCard";
@@ -492,7 +493,10 @@ function TopicBody({
           <>
             {topic.video_count} video, {edited} prompt đã sửa
             {!topic.script_prompt && (
-              <Typography.Text type="warning">, chưa có prompt viết kịch bản nên chưa tạo video được</Typography.Text>
+              <Typography.Text type="warning">
+                , chưa có prompt viết kịch bản nên chưa tạo được video bằng AI trên web (vẫn tạo được qua MCP hoặc tự
+                viết kịch bản)
+              </Typography.Text>
             )}
             {locked && (
               <Typography.Text data-testid="group-locked">
@@ -614,6 +618,11 @@ function TopicBody({
             ),
           },
           ...planTabs,
+          {
+            key: "docs",
+            label: "Tài liệu",
+            children: <TopicDocs topicId={topic.id} canEdit={!locked} visible={visible && tab === "docs"} />,
+          },
           {
             key: "schedule",
             label: "Lịch đăng",

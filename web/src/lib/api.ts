@@ -75,7 +75,7 @@ export type VideoRow = {
   created_by_id: number;
   created_at: string;
   status: VideoStatus;
-  /** For a person; a video with its MP4 is named by its posting ("Chờ đăng", "Đã lên lịch", "Đã đăng"). */
+  /** For a person; a video with its MP4 is named by its posting ("Chờ đăng", "Đã hẹn giờ", "Đã đăng"). */
   status_label: string;
   /** Where a video with its MP4 stands on posting (api videos.post_stage); null until it has one. */
   post_stage: "ready" | "scheduled" | "posted" | null;
@@ -123,6 +123,8 @@ export type VideoRowPost = {
   share_met: boolean | null;
   /** Null while its Page has fewer than 5 posts measured at 48 hours. */
   times_median: number | null;
+  /** 10× its Page's median or more at 48 hours: worked out when shown, never stored. */
+  is_winner: boolean;
 };
 
 /** A photo or clip in the team's "Kho tư liệu" (api routes_media.py). */
@@ -940,6 +942,7 @@ export type PageContentPost = {
   views_48h: number | null;
   /** The 48-hour views as a multiple of the Page's median; null until the Page has enough measured posts. */
   times_median: number | null;
+  is_winner: boolean;
   /** "Cập nhật view" takes only a reel that is on Facebook. */
   can_refresh: boolean;
   /** A reading was asked for and the worker has not run it yet. */
@@ -1898,7 +1901,38 @@ export type PostAnalysis = {
   median_views: number | null;
   samples: number;
   times_median: number | null;
+  is_winner: boolean;
   share_rate: number | null;
+};
+
+/** A document of a topic group ("Tài liệu" on Kho kiến thức): `body` only when one is opened. */
+export type TopicDoc = {
+  id: number;
+  knowledge_topic_id: number;
+  section: string;
+  section_label: string;
+  name: string;
+  title: string;
+  pinned: boolean;
+  size: number;
+  updated_by: string | null;
+  updated_at: string;
+  body?: string;
+};
+
+/** "Cửa đo 48h" of a Page (api page_dashboard.gate). */
+export type PageGate = {
+  measured: number;
+  first: number;
+  last: number;
+  median_views: number | null;
+  samples: number;
+  median_share_rate: number | null;
+  top_views: number | null;
+  state: "measuring" | "pass" | "hold" | "change";
+  state_label: string;
+  rules: { pass: string; change: string; winner: string };
+  winners: { post_id: number; video: { id: number; title: string }; views_48h: number; times_median: number }[];
 };
 
 /** One week of the KPI strip, Monday to Sunday in Vietnam time (`start` is the Monday). */

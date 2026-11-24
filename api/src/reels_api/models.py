@@ -257,6 +257,26 @@ class TopicPlanItem(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class TopicDoc(Base):
+    """A document of a topic group ("Tài liệu" on Kho kiến thức): a Markdown file of how the group's Page is run (a
+    template, a plan, a prompt, a report, the daily job). The copy here is the master; assistants read it through
+    MCP (`list_docs`, `get_doc`) instead of having its rules pasted into their jobs."""
+
+    __tablename__ = "topic_docs"
+    __table_args__ = (UniqueConstraint("knowledge_topic_id", "name", name="uq_topic_docs_topic_name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    knowledge_topic_id: Mapped[int] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"), index=True)
+    section: Mapped[str] = mapped_column(String(20))  # a key of topic_docs.SECTIONS
+    name: Mapped[str] = mapped_column(String(120))  # its file name, e.g. "mau-chung.md"
+    body: Mapped[str] = mapped_column(Text, default="", server_default="")
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class VideoReference(Base):
     """A sample video members learn from ("Từ video mẫu", reference.py): its file stays stored so scene clips can be
     cut from it, by any number of videos. `frames` are the stills the AI looks at: [{"second", "key", "note"}], the

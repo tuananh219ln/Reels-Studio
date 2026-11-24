@@ -184,7 +184,7 @@ def test_an_article_from_a_script_is_filled_from_it_and_freed_when_deleted(an, d
     )
     db.commit()
     plan = an.get(f"/api/article-plans/{page}").json()
-    assert cell_of(plan, 1, 2)["status_label"] == "Đã lên lịch" and plan["plan"]["scheduled"] == 1
+    assert cell_of(plan, 1, 2)["status_label"] == "Đã hẹn giờ" and plan["plan"]["scheduled"] == 1
     db.execute(Publication.__table__.delete())
     db.commit()
     assert an.delete(f"/api/articles/{article['id']}").json() == {"ok": True}
