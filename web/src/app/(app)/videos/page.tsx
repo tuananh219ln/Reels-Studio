@@ -835,9 +835,7 @@ function VideoTable({
             title: "Thao tác",
             fixed: "right",
             width: 120,
-            render: (_, row) => (
-              <VideoActions video={row} onChanged={onChanged} onRename={() => setRenaming(row.id)} />
-            ),
+            render: (_, row) => <VideoActions video={row} onChanged={onChanged} onRename={() => setRenaming(row.id)} />,
           },
           {
             title: "Video",
