@@ -5,13 +5,14 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session as DbSession
 
 from . import remote_media, title_motion
 from .db import get_db
 from .errors import ApiError
-from .models import MediaItem, Session
+from .models import MediaItem, Scene, Session
 from .sessions import current_member
 from .storage import DirectoryStorage, get_storage
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension, read_limited
@@ -87,6 +88,40 @@ def _photo(db: DbSession, storage: DirectoryStorage, scene_id: int, index: int, 
     except UploadRejected as err:
         raise ApiError(415, "invalid_image", str(err)) from None
     return title_motion.set_slot_photo(db, storage, scene_id, index, data, extension)
+
+
+@router.get("/{scene_id}/slots/{index}/photo")
+def slot_photo_file(
+    scene_id: int,
+    index: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> FileResponse:
+    """A slot's own photo, for its thumbnail in the list of slots."""
+    scene = db.get(Scene, scene_id)
+    slots = ((scene.motion or {}).get("title") or {}).get("slots") or [] if scene else []
+    key = slots[index].get("image_key") if 0 <= index < len(slots) else None
+    if not key or not storage.exists(key):
+        raise ApiError(404, "file_not_found", "Ô này chưa có ảnh riêng")
+    types = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}
+    return FileResponse(
+        storage.path(key),
+        media_type=types.get(key.rsplit(".", 1)[-1], "application/octet-stream"),
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
+
+
+@router.delete("/{scene_id}/slots/{index}/photo")
+def slot_photo_remove(
+    scene_id: int,
+    index: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Xóa ảnh": the slot goes back to its scene's photo the next time the title is built."""
+    return title_motion.remove_slot_photo(db, storage, scene_id, index)
 
 
 @router.post("/{scene_id}/slots/{index}/photo")

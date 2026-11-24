@@ -1,9 +1,15 @@
 "use client";
 
-import { Alert, Button, Checkbox, Flex, Input, Popover, Segmented, Typography } from "antd";
+import { Alert, App, Button, Checkbox, Flex, Input, Segmented, Typography } from "antd";
 import { useState } from "react";
 import { api, errorMessage, type SceneData, type VideoDetail, upload } from "@/lib/api";
+import { useSentImage } from "@/lib/googleExtension";
+import { looksLikeClipLink, unwrapLink, fileFromDataUrl } from "@/lib/mediaLinks";
 import { useEditor } from "./AutoSaveField";
+import TitleSlotPhoto from "./TitleSlotPhoto";
+
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 
 const LAYOUTS = { grid: "lưới", ring: "vòng", strip: "dải", warn: "món nên tránh" } as const;
 
@@ -14,6 +20,7 @@ const LAYOUTS = { grid: "lưới", ring: "vòng", strip: "dải", warn: "món n�
  */
 export default function TitleMotionField({ scene, disabled }: { scene: SceneData; disabled: boolean }) {
   const editor = useEditor();
+  const { message } = App.useApp();
   const made = scene.title_motion;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,6 +28,9 @@ export default function TitleMotionField({ scene, disabled }: { scene: SceneData
   const [writeHook, setWriteHook] = useState(false);
   // Names the member typed into a slot, by its place; the others keep following their scene.
   const [edited, setEdited] = useState<Record<number, string>>({});
+
+  // "Gửi ảnh vào Reels Studio" while a slot is the one being filled arrives here instead of at the scene.
+  useSentImage(scene.id, (url, cell) => (cell === null ? undefined : void assignLink(cell, url)), true);
 
   if (!scene.is_title || editor.readOnly) {
     return null;
@@ -45,16 +55,47 @@ export default function TitleMotionField({ scene, disabled }: { scene: SceneData
   }
 
   /** A photo of the member's own for one slot; it shows from the next "Dựng lại tiêu đề". */
-  async function slotPhoto(index: number, send: () => Promise<VideoDetail>) {
+  async function slotPhoto(index: number, send: () => Promise<VideoDetail>, done?: string) {
     setBusy(true);
     setError(null);
     try {
       editor.onSaved(await send());
+      const name = (edited[index] ?? made?.labels[index] ?? "").trim();
+      void message.success(done ?? `Đã gán ảnh cho ô ${index + 1}${name ? `: ${name}` : ""}`);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
+  }
+
+  /** A chosen, dropped or pasted file, checked like the api does before it is sent. */
+  function assignFile(index: number, file: File) {
+    if (!IMAGE_TYPES.includes(file.type)) {
+      void message.error(file.type.startsWith("video/") ? "Ô tiêu đề chỉ nhận ảnh" : "Chỉ nhận ảnh JPG, PNG hoặc WebP");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      void message.error("Ảnh quá 15 MB, hãy chọn ảnh nhỏ hơn");
+      return;
+    }
+    void slotPhoto(index, () => upload<VideoDetail>(`/title-motion/${scene.id}/slots/${index}/photo`, file));
+  }
+
+  /** A photo's link (or a data: photo); a video's link is refused, a slot holds a photo only. */
+  async function assignLink(index: number, text: string) {
+    const link = unwrapLink(text.trim());
+    if (/^data:image\//i.test(link)) {
+      assignFile(index, await fileFromDataUrl(link));
+      return;
+    }
+    if (looksLikeClipLink(link)) {
+      void message.error("Ô tiêu đề chỉ nhận ảnh");
+      return;
+    }
+    void slotPhoto(index, () =>
+      api<VideoDetail>(`/title-motion/${scene.id}/slots/${index}/photo-link`, "POST", { url: link }),
+    );
   }
 
   async function switchTo(mode: "classic" | "motion") {
@@ -120,45 +161,28 @@ export default function TitleMotionField({ scene, disabled }: { scene: SceneData
                   disabled={off}
                   onChange={(event) => setEdited({ ...edited, [index]: event.target.value })}
                 />
-                <Popover
-                  trigger="click"
-                  title={`Ảnh riêng cho ô ${index + 1}`}
-                  content={
-                    <Flex vertical gap={6} style={{ width: 240 }}>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        aria-label={`Tải ảnh cho ô ${index + 1}`}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          if (file) {
-                            void slotPhoto(index, () =>
-                              upload<VideoDetail>(`/title-motion/${scene.id}/slots/${index}/photo`, file),
-                            );
-                          }
-                        }}
-                      />
-                      <Input.Search
-                        size="small"
-                        placeholder="Dán link ảnh"
-                        enterButton="Lấy"
-                        onSearch={(url) =>
-                          url.trim()
-                            ? void slotPhoto(index, () =>
-                                api<VideoDetail>(`/title-motion/${scene.id}/slots/${index}/photo-link`, "POST", {
-                                  url,
-                                }),
-                              )
-                            : undefined
-                        }
-                      />
-                    </Flex>
+                <TitleSlotPhoto
+                  title={scene}
+                  index={index}
+                  name={edited[index] ?? label}
+                  photoUrl={made.slots?.[index]?.photo_url ?? null}
+                  from={made.slots?.[index]?.from_scene ?? null}
+                  disabled={off}
+                  onFile={(file) => assignFile(index, file)}
+                  onLink={(text) => assignLink(index, text)}
+                  onLibrary={(mediaId) =>
+                    api<VideoDetail>(`/title-motion/${scene.id}/slots/${index}/photo-library`, "POST", {
+                      media_id: mediaId,
+                    })
                   }
-                >
-                  <Button size="small" type="link" disabled={off}>
-                    Ảnh
-                  </Button>
-                </Popover>
+                  onRemove={() =>
+                    void slotPhoto(
+                      index,
+                      () => api<VideoDetail>(`/title-motion/${scene.id}/slots/${index}/photo`, "DELETE"),
+                      "Đã xóa ảnh của ô",
+                    )
+                  }
+                />
               </div>
             ))}
           </div>

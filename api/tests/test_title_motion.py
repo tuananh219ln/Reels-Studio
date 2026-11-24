@@ -287,6 +287,33 @@ def test_a_slots_own_photo_is_kept_by_a_rebuild_and_replaced_by_the_next(committ
 
 @needs_ffmpeg
 @needs_posix
+def test_a_slots_photo_shows_in_the_payload_and_goes_back_to_its_scene_when_removed(
+    committed, storage, fake_hyperframes
+):  # noqa: F811
+    from conftest import photo_bytes
+
+    from reels_api import videos
+
+    job_id, title_id, _, _ = queue(committed, storage)
+    jobs.run_job(job_id, committed, storage)
+    with committed() as db:
+        before = videos.title_motion_payload(db.get(Scene, title_id))["slots"]
+        assert len(before) == db.get(Scene, title_id).motion["title"]["count"]
+        assert all(slot["photo_url"] is None for slot in before)
+        title_motion.set_slot_photo(db, storage, title_id, 1, photo_bytes((250, 10, 10)), "jpg")
+        key = db.get(Scene, title_id).motion["title"]["slots"][1]["image_key"]
+        shown = videos.title_motion_payload(db.get(Scene, title_id))["slots"]
+        assert shown[1]["photo_url"].startswith(f"/api/title-motion/{title_id}/slots/1/photo?v=")
+        assert shown[0]["photo_url"] is None
+        title_motion.remove_slot_photo(db, storage, title_id, 1)
+        assert "image_key" not in db.get(Scene, title_id).motion["title"]["slots"][1]
+        assert not storage.exists(key)
+        with pytest.raises(ApiError):
+            title_motion.remove_slot_photo(db, storage, title_id, 99)
+
+
+@needs_ffmpeg
+@needs_posix
 def test_a_page_set_to_classic_keeps_the_first_built_title_on_its_own_photo(committed, storage, fake_hyperframes):  # noqa: F811
     from reels_api.models import Brand
 
