@@ -178,19 +178,26 @@ def check_account(account_id: int, me: Session = Depends(current_member), db: Db
 
 
 @router.get("/revenue")
-def revenue(days: int = 30, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """The member's own Shopee orders of the last `days`, by video and Page (from the sub ids of its links)."""
+def revenue(
+    days: int = 30,
+    fanpage_id: int | None = None,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """The member's own Shopee orders of the last `days`, by video and Page (from the sub ids of its links); with
+    `fanpage_id`, the orders that name that Page."""
     if days not in REVENUE_DAYS:
         raise invalid("Khoảng thời gian không hợp lệ")
     since = datetime.now(UTC) - timedelta(days=days)
-    rows = list(
-        db.scalars(
-            select(AffiliateConversion)
-            .join(AffiliateAccount, AffiliateAccount.id == AffiliateConversion.account_id)
-            .where(AffiliateAccount.owner_id == me.user_id, AffiliateConversion.purchased_at >= since)
-            .order_by(AffiliateConversion.purchased_at.desc())
-        )
+    query = (
+        select(AffiliateConversion)
+        .join(AffiliateAccount, AffiliateAccount.id == AffiliateConversion.account_id)
+        .where(AffiliateAccount.owner_id == me.user_id, AffiliateConversion.purchased_at >= since)
+        .order_by(AffiliateConversion.purchased_at.desc())
     )
+    if fanpage_id is not None:
+        query = query.where(AffiliateConversion.fanpage_id == fanpage_id)
+    rows = list(db.scalars(query))
     groups: dict[tuple[int | None, int | None], dict] = defaultdict(lambda: {"orders": 0, "commission": 0})
     for row in rows:
         group = groups[(row.video_id, row.fanpage_id)]
@@ -206,6 +213,7 @@ def revenue(days: int = 30, me: Session = Depends(current_member), db: DbSession
                 "video_id": video_id,
                 "title": title,
                 "fanpage": page.name if page else None,
+                "fanpage_id": fanpage_id,
                 **totals,
             }
         )

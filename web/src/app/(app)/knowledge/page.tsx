@@ -6,9 +6,11 @@ import { useMe } from "@/components/MeContext";
 import {
   CheckCircleFilled,
   CheckOutlined,
+  CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   ExclamationCircleOutlined,
+  LinkOutlined,
   HistoryOutlined,
   LeftOutlined,
   MoreOutlined,
@@ -36,6 +38,8 @@ import {
   Tooltip,
   Typography,
 } from "antd";
+import type { MenuProps } from "antd";
+import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type EditTemplates, type Knowledge, type KnowledgeTopic } from "@/lib/api";
 import { useStoredChoice } from "@/lib/storedChoice";
@@ -337,7 +341,13 @@ function Knowledge() {
           ) : (
             mounted.map((topic) => (
               <div key={topic.id} hidden={topic.id !== current.id}>
-                <TopicBody topic={topic} defaults={data} onSaved={setData} visible={topic.id === current.id} />
+                <TopicBody
+                  topic={topic}
+                  defaults={data}
+                  onSaved={setData}
+                  onOpenTopic={choose}
+                  visible={topic.id === current.id}
+                />
               </div>
             ))
           )}
@@ -697,11 +707,14 @@ function TopicBody({
   topic,
   defaults,
   onSaved,
+  onOpenTopic,
   visible,
 }: {
   topic: KnowledgeTopic;
   defaults: Knowledge;
   onSaved: (data: Knowledge) => void;
+  /** Opens another group (the copy "Nhân bản nhóm" makes). */
+  onOpenTopic: (id: number) => void;
   /** The group shown: its tab is the address's; a group opened earlier and hidden keeps its own. */
   visible: boolean;
 }) {
@@ -744,6 +757,7 @@ function TopicBody({
         path={path}
         update={update}
         onSaved={onSaved}
+        onOpenTopic={onOpenTopic}
         summary={
           <>
             {topic.video_count} video, {edited} prompt đã sửa
@@ -762,7 +776,11 @@ function TopicBody({
                   kind="fields"
                   fieldLabels={TOPIC_FIELDS}
                   trigger={(open) => (
-                    <Typography.Link onClick={open} style={{ fontSize: "inherit" }}>
+                    <Typography.Link
+                      id={`topic-history-${topic.id}`}
+                      onClick={open}
+                      style={{ fontSize: "inherit", color: "inherit", textDecoration: "underline dotted" }}
+                    >
                       <HistoryOutlined /> {lastEditText(topic.last_edit!, TOPIC_FIELDS)}
                     </Typography.Link>
                   )}
@@ -910,12 +928,14 @@ function TopicHeader({
   path,
   update,
   onSaved,
+  onOpenTopic,
   summary,
 }: {
   topic: KnowledgeTopic;
   path: string;
   update: Update;
   onSaved: (data: Knowledge) => void;
+  onOpenTopic: (id: number) => void;
   summary: React.ReactNode;
 }) {
   const { message, modal } = App.useApp();
@@ -924,6 +944,7 @@ function TopicHeader({
   const [value, setValue] = useState(topic.name);
   const locked = !topic.team_edit && topic.created_by_id !== me.id;
   const [busy, setBusy] = useState(false);
+  const isMaker = topic.created_by_id === me.id;
 
   async function rename() {
     setBusy(true);
@@ -954,6 +975,114 @@ function TopicHeader({
       },
     });
   }
+
+  async function duplicate() {
+    try {
+      const saved = await api<Knowledge>(`/knowledge/topics/${topic.id}/duplicate`, "POST");
+      onSaved(saved);
+      // The newest of the copies of this group is the one just made.
+      const made = saved.topics
+        .filter((other) => other.id !== topic.id && other.name.startsWith(`${topic.name} (bản sao`))
+        .sort((x, y) => y.id - x.id)[0];
+      if (made) onOpenTopic(made.id);
+      message.success(`Đã nhân bản thành “${made?.name ?? "nhóm mới"}”`);
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }
+
+  async function run(call: () => Promise<unknown>, done: string) {
+    try {
+      await call();
+      message.success(done);
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }
+
+  // "Quản lý nhóm": everything done to the group itself, in one menu.
+  const items: MenuProps["items"] = [
+    {
+      key: "rename",
+      icon: <EditOutlined />,
+      disabled: locked,
+      label: "Đổi tên nhóm",
+      onClick: () => setEditing(true),
+    },
+    { key: "duplicate", icon: <CopyOutlined />, label: "Nhân bản nhóm", onClick: duplicate },
+    {
+      key: "history",
+      icon: <HistoryOutlined />,
+      disabled: !topic.last_edit,
+      label: "Lịch sử thay đổi",
+      onClick: () => document.getElementById(`topic-history-${topic.id}`)?.click(),
+    },
+    ...(topic.created_by_id === null
+      ? [
+          {
+            key: "claim",
+            icon: <TeamOutlined />,
+            label: "Nhận nhóm",
+            onClick: () =>
+              run(
+                async () => onSaved(await api<Knowledge>(`/knowledge/topics/${topic.id}/owner`, "POST")),
+                "Đã nhận nhóm",
+              ),
+          },
+        ]
+      : isMaker
+        ? [
+            {
+              key: "team",
+              icon: <TeamOutlined />,
+              // The menu stays open while the switch is turned, as a switch in a menu should.
+              label: (
+                <Tooltip
+                  placement="left"
+                  title="Tắt: chỉ bạn sửa được prompt, từ cấm, mẫu dựng và kế hoạch của nhóm; cả đội vẫn tạo video từ nhóm."
+                >
+                  <Flex justify="space-between" align="center" gap={16}>
+                    Cho cả đội sửa
+                    <Switch
+                      size="small"
+                      aria-label="Cho cả đội sửa"
+                      checked={topic.team_edit}
+                      onClick={(_, event) => event.stopPropagation()}
+                      onChange={(on) =>
+                        run(
+                          () => update({ team_edit: on }),
+                          on ? "Cả đội sửa được nhóm này" : "Chỉ bạn sửa được nhóm này",
+                        )
+                      }
+                    />
+                  </Flex>
+                </Tooltip>
+              ),
+            },
+          ]
+        : []),
+    { type: "divider" },
+    { key: "pages", icon: <LinkOutlined />, label: <Link href="/fanpages">Mở Quản lý kênh</Link> },
+    {
+      key: "products",
+      icon: <LinkOutlined />,
+      label: <Link href={`/affiliate?tab=products&group=${topic.id}`}>Sản phẩm của nhóm trong Affiliate</Link>,
+    },
+    { type: "divider" },
+    {
+      key: "delete",
+      danger: true,
+      icon: <DeleteOutlined />,
+      // Only the group's maker deletes it, and never while it holds videos.
+      disabled: topic.video_count > 0 || !isMaker,
+      label: !isMaker
+        ? "Xoá nhóm (chỉ người tạo nhóm)"
+        : topic.video_count > 0
+          ? "Xoá nhóm (nhóm còn video)"
+          : "Xoá nhóm",
+      onClick: remove,
+    },
+  ];
 
   return (
     <Flex wrap gap={12} justify="space-between" align="flex-start">
@@ -994,109 +1123,24 @@ function TopicHeader({
             </Button>
           </Flex>
         ) : (
-          <Flex gap={4} align="center" style={{ minWidth: 0 }}>
-            <Typography.Title level={4} ellipsis style={{ margin: 0 }}>
-              {topic.name}
-            </Typography.Title>
-            {!locked && (
-              <Tooltip title="Đổi tên">
-                <Button
-                  type="text"
-                  size="small"
-                  aria-label="Đổi tên"
-                  icon={<EditOutlined />}
-                  onClick={() => setEditing(true)}
-                />
-              </Tooltip>
-            )}
-          </Flex>
+          <Typography.Title
+            level={4}
+            ellipsis
+            style={{ margin: 0 }}
+            // A double click renames, as the pencil used to.
+            onDoubleClick={() => !locked && setEditing(true)}
+          >
+            {topic.name}
+          </Typography.Title>
         )}
         <Typography.Text type="secondary">{summary}</Typography.Text>
       </Flex>
-      <TeamEdit topic={topic} update={update} onSaved={onSaved} />
-      <Dropdown
-        trigger={["click"]}
-        menu={{
-          items: [
-            {
-              key: "delete",
-              danger: true,
-              icon: <DeleteOutlined />,
-              // Only the group's maker deletes it, and never while it holds videos.
-              disabled: topic.video_count > 0 || topic.created_by_id !== me.id,
-              label:
-                topic.created_by_id !== me.id
-                  ? "Xoá nhóm (chỉ người tạo nhóm)"
-                  : topic.video_count > 0
-                    ? "Xoá nhóm (nhóm còn video)"
-                    : "Xoá nhóm",
-              onClick: remove,
-            },
-          ],
-        }}
-      >
-        <Button aria-label="Thao tác khác với nhóm" icon={<MoreOutlined />} />
+      <Dropdown trigger={["click"]} menu={{ items }}>
+        <Button aria-label="Thao tác khác với nhóm" icon={<MoreOutlined />}>
+          Quản lý nhóm
+        </Button>
       </Dropdown>
     </Flex>
-  );
-}
-
-/** "Cho cả đội sửa", the maker's switch (on: every member edits the group and its plan; off: only the maker); a
- * group nobody is known to have made offers "Nhận nhóm" instead, as a Page offers "Nhận Page". */
-function TeamEdit({
-  topic,
-  update,
-  onSaved,
-}: {
-  topic: KnowledgeTopic;
-  update: Update;
-  onSaved: (data: Knowledge) => void;
-}) {
-  const { message } = App.useApp();
-  const { me } = useMe();
-  const [busy, setBusy] = useState(false);
-
-  async function run(call: () => Promise<unknown>, done: string) {
-    setBusy(true);
-    try {
-      await call();
-      message.success(done);
-    } catch (err) {
-      message.error(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (topic.created_by_id === null) {
-    return (
-      <Button
-        loading={busy}
-        onClick={() =>
-          run(async () => onSaved(await api<Knowledge>(`/knowledge/topics/${topic.id}/owner`, "POST")), "Đã nhận nhóm")
-        }
-      >
-        Nhận nhóm
-      </Button>
-    );
-  }
-  if (topic.created_by_id !== me.id) {
-    return null;
-  }
-  return (
-    <Tooltip title="Tắt: chỉ bạn sửa được prompt, từ cấm, mẫu dựng và kế hoạch của nhóm; cả đội vẫn tạo video từ nhóm.">
-      <Flex gap={8} align="center">
-        <Switch
-          aria-label="Cho cả đội sửa"
-          checked={topic.team_edit}
-          loading={busy}
-          onChange={(on) =>
-            run(() => update({ team_edit: on }), on ? "Cả đội sửa được nhóm này" : "Chỉ bạn sửa được nhóm này")
-          }
-        />
-        <Typography.Text>Cho cả đội sửa</Typography.Text>
-      </Flex>
-    </Tooltip>
   );
 }
 

@@ -1791,3 +1791,16 @@ Replaces the groups bar of 2026-11-14 ([decision](decisions/2026-11-25-knowledge
   its text in a column of at most 760 px, with "Sao chép" (the Markdown to the clipboard), and, for a document with
   three or more headings, "Trên trang này", a sticky outline whose entries scroll to the heading.
 
+#### The group's own menu, "Quản lý nhóm" (2026-11-25)
+
+The pencil, the "Cho cả đội sửa" switch, "Nhận nhóm" and the history link are gathered in one menu, the button "Quản lý
+nhóm" (accessible name "Thao tác khác với nhóm") at the right of the group's name: "Đổi tên nhóm" (disabled for a member
+who only reads the group; a double click on the name does the same), "Nhân bản nhóm", "Lịch sử thay đổi" (disabled until
+the group has a logged change), "Cho cả đội sửa" as a switch that keeps the menu open (the maker only) or "Nhận nhóm"
+(a group nobody is known to have made), then "Mở Quản lý kênh" and "Sản phẩm của nhóm trong Affiliate" (on this group),
+then "Xoá nhóm" last, with its reason in the label while disabled. "Nhân bản nhóm" (`POST /api/knowledge/topics/{id}/duplicate`)
+makes a group of the member's, named "<tên> (bản sao)" ("(bản sao 2)"…), with the prompts, từ cấm, "Gợi ý tìm ảnh", voice,
+"Kiểu video", text and outro settings, "Mẫu dựng" and stock order of the source, none of its videos, plan, documents or linked
+folder; any member may copy any group, and the copy opens. The line under the name keeps "chỉ <người tạo> sửa được nhóm
+này" and the last change, in grey, a click on which still opens the history.
+

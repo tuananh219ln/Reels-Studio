@@ -320,12 +320,20 @@ def list_videos(
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     knowledge_topic_id: int | None = None,
+    fanpage_id: int | None = None,
 ) -> list[dict]:
     """Every video, newest first; `q` searches the name, the topic and the title, `knowledge_topic_id` keeps one topic group's
-    (its "Video" tab in Kho kiến thức)."""
+    (its "Video" tab in Kho kiến thức) and `fanpage_id` the ones posted on, or waiting in the queue of, one Page."""
     query = select(Video).order_by(Video.created_at.desc(), Video.id.desc())
     if knowledge_topic_id is not None:
         query = query.where(Video.knowledge_topic_id == knowledge_topic_id)
+    if fanpage_id is not None:
+        query = query.where(
+            or_(
+                Video.id.in_(select(Publication.video_id).where(Publication.fanpage_id == fanpage_id)),
+                Video.id.in_(select(PageQueueItem.video_id).where(PageQueueItem.fanpage_id == fanpage_id)),
+            )
+        )
     if q.strip():
         literal = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{unicodedata.normalize('NFC', literal)}%"
@@ -2549,6 +2557,13 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
             .group_by(Fanpage.knowledge_topic_id)
         ).all()
     )
+    page_rows: dict[int, list[dict]] = {}
+    for row in db.scalars(
+        select(Fanpage)
+        .where(Fanpage.active.is_(True), Fanpage.knowledge_topic_id.is_not(None))
+        .order_by(Fanpage.name, Fanpage.id)
+    ):
+        page_rows.setdefault(row.knowledge_topic_id, []).append({"id": row.id, "name": row.name})
     docs = dict(
         db.execute(select(TopicDoc.knowledge_topic_id, func.count()).group_by(TopicDoc.knowledge_topic_id)).all()
     )
@@ -2597,6 +2612,8 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 # "Tư liệu": the folder of the team's library the group's view shows; None: none linked yet.
                 "media_folder": topic.media_folder,
                 "video_count": counts.get(topic.id, 0),
+                # The active Pages that post the group, to read its videos and revenue for one of them.
+                "page_list": page_rows.get(topic.id, []),
                 "readiness": {
                     "pages": pages.get(topic.id, 0),
                     "docs": docs.get(topic.id, 0),
@@ -2668,6 +2685,69 @@ def get_knowledge(me: Session = Depends(current_member), db: DbSession = Depends
 @router.post("/knowledge/topics", status_code=201)
 def create_topic(body: NewTopicBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     topic = KnowledgeTopic(name=_topic_name(db, body.name), created_by_id=me.user_id, updated_by_id=me.user_id)
+    db.add(topic)
+    db.flush()
+    edit_log.record(
+        db,
+        edit_log.TOPIC,
+        topic.id,
+        "create",
+        me.user_id,
+        label=topic.name,
+        changes={"name": {"old": None, "new": topic.name}},
+    )
+    db.commit()
+    return _knowledge_payload(db, me.user_id)
+
+
+# What "Nhân bản nhóm" copies: the prompts and the settings a group's new videos start from. Not its videos, plan,
+# documents, text suggestions or linked folder (a folder belongs to one group).
+COPIED_TOPIC_FIELDS = (
+    "script_prompt",
+    "clone_prompt",
+    "revise_prompt",
+    "learn_prompt",
+    "analyze_prompt",
+    "article_prompt",
+    "plan_prompt",
+    "photo_hint",
+    "voice_id",
+    "voice_backup_id",
+    "video_mode",
+    "text_ai",
+    "no_people",
+    "outro_cta",
+    "edit_template_default",
+)
+
+
+def _copy_name(db: DbSession, name: str) -> str:
+    """ "<name> (bản sao)", then "(bản sao 2)" and so on, cut to fit the name's length."""
+    taken = {topic.name.casefold() for topic in knowledge.all_topics(db)}
+    for number in range(1, 1000):
+        suffix = " (bản sao)" if number == 1 else f" (bản sao {number})"
+        candidate = name[: MAX_TOPIC_NAME_LENGTH - len(suffix)].rstrip() + suffix
+        if candidate.casefold() not in taken:
+            return candidate
+    raise invalid("Có quá nhiều bản sao của nhóm này")
+
+
+@router.post("/knowledge/topics/{topic_id}/duplicate", status_code=201)
+def duplicate_topic(topic_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Nhân bản nhóm": a new group of the member's with the prompts and settings of this one. Using a group is open to
+    everyone, so any member may copy any group; the copy is theirs, and open to the team."""
+    source = _topic(db, topic_id)
+    topic = KnowledgeTopic(
+        name=_copy_name(db, source.name),
+        created_by_id=me.user_id,
+        updated_by_id=me.user_id,
+        banned_words=list(source.banned_words),
+        plan_post_times=list(source.plan_post_times),
+        stock_order=list(source.stock_order) if source.stock_order else None,
+        text_look=dict(source.text_look) if source.text_look else None,
+        **{field: getattr(source, field) for field in COPIED_TOPIC_FIELDS},
+    )
+    topic.edit_templates = list(source.edit_templates)
     db.add(topic)
     db.flush()
     edit_log.record(
