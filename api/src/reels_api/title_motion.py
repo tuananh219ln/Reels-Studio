@@ -30,8 +30,13 @@ from .videos import ensure_unlocked, lock_scene, new_key, refresh_thumbnail, spl
 LAYOUTS = ("grid", "ring", "strip", "warn")
 TITLE_SECONDS = 3.0
 HOOK_CENTRE = (540, 400)
-AREA = (80, 640, 1000, 1440)  # x0, y0, x1, y1: under the hook box, above the Reels caption zone
-RING = (540, 1040, 300, 190, 360)  # centre x, centre y, radius, bubble, main dish
+SAFE_BOTTOM = 1680  # the lowest pixel the slots may reach (the Reels caption zone starts below it)
+SIDE_MARGIN = 60
+GAP = 30  # between two slots, across and down
+TITLE_GAP = 40  # between the hook box and the first row
+SPRITE_SCALE = 2  # the atlas is cut at twice the slots' size so the photos stay sharp
+AREA = (SIDE_MARGIN, 640, 1080 - SIDE_MARGIN, SAFE_BOTTOM)  # x0, y0, x1, y1: under the hook box, above the caption zone
+RING = (540, 1040, 300, 190, 360)  # centre x, centre y, radius, bubble, main dish (at scale 1)
 MAX_LABEL = 22
 COMBINED = re.compile(r"\+\s*\d+|kết hợp với\s*\d+", re.IGNORECASE)
 # Words a health hook must not use (spec section 3): found ones are reported, never silently removed.
@@ -74,10 +79,12 @@ def choose_layout(content_type: str, title: str, n: int, requested: str = "auto"
 # --- Geometry ---
 
 
-def room(top: int) -> tuple[int, float]:
-    """The height under a hook box that ends at `top`, and how much of the usual 800 px of it is left (at most 1)."""
+def ring_scale(top: int) -> tuple[int, float]:
+    """The height under `top`, and how much the ring's usual sizes grow or shrink to fill it (the half of the height
+    or of the width left, whichever is smaller, over the ring's reach of 395 px)."""
     height = AREA[3] - top
-    return height, min(1.0, height / (AREA[3] - AREA[1]))
+    reach = RING[2] + RING[3] / 2
+    return height, min(1.25, (min((AREA[2] - AREA[0]) / 2, height / 2) - 6) / reach)
 
 
 def hook_bottom(video: Video, scene: Scene) -> int:
@@ -88,40 +95,37 @@ def hook_bottom(video: Video, scene: Scene) -> int:
     try:
         image, (_, y) = text_box(scene.text or "", True, render_options(video), HOOK_CENTRE)
     except Exception:  # noqa: BLE001  (a text the box cannot lay out: the build goes on with the usual place)
-        return AREA[1] - 40
+        return AREA[1] - TITLE_GAP
     return y + image.height
 
 
 def top_for(bottom: int) -> int:
     """The first row of the slots: the usual 640, or lower when the hook is taller (never below 1000, so they stay
     big enough to read)."""
-    return max(AREA[1], min(1000, bottom + 40))
+    return max(AREA[1], min(1000, bottom + TITLE_GAP))
 
 
 def grid_boxes(n: int, top: int = AREA[1]) -> list[tuple[int, int, int, int]]:
-    x0, _, x1, _ = AREA
+    """The slots fill the height from `top` to SAFE_BOTTOM and the width between the side margins: 2 dishes one over
+    the other, 3 a wide one over two, 4–6 two columns (a last odd one in the middle), none taller than wide."""
+    if not 2 <= n <= 6:
+        raise invalid("Lưới dành cho 2–6 món")
+    x0, _, x1, y1 = AREA
+    width, avail = x1 - x0, y1 - top
+    cols = 1 if n == 2 else 2
+    rows = math.ceil(n / cols) if n != 3 else 2
+    tile_w = (width - (cols - 1) * GAP) // cols
+    tile_h = min((avail - (rows - 1) * GAP) // rows, tile_w)
     y0 = top
-    (height, k) = room(top)
-    width, gap = x1 - x0, 40
-    if n == 2:
-        w = (width - gap) // 2
-        h = round(620 * k)
-        return [(x0, y0 + round(60 * k), w, h), (x0 + w + gap, y0 + round(60 * k), w, h)]
+    if tile_h == tile_w:  # the tile hit its width, not the room: the grid sits in the middle of what is left
+        y0 += (avail - (rows * tile_h + (rows - 1) * GAP)) // 2
+    step = tile_h + GAP
     if n == 3:
-        w = (width - gap) // 2
-        big, small, step = round(380 * k), round(360 * k), round(420 * k)
-        return [(x0, y0, width, big), (x0, y0 + step, w, small), (x0 + w + gap, y0 + step, w, small)]
-    if n in (4, 5):
-        w, h = (width - gap) // 2, (height - gap - 20) // 2
-        boxes = [(x0, y0, w, h), (x0 + w + gap, y0, w, h), (x0, y0 + h + gap, w, h), (x0 + w + gap, y0 + h + gap, w, h)]
-        if n == 5:
-            d = round(300 * k)
-            boxes.append((540 - d // 2, y0 + h + gap // 2 - d // 2, d, d))
-        return boxes
-    if n == 6:
-        w, h = (width - gap) // 2, (height - 2 * gap) // 3
-        return [(x0 + c * (w + gap), y0 + r * (h + gap), w, h) for r in range(3) for c in range(2)]
-    raise invalid("Lưới dành cho 2–6 món")
+        return [(x0, y0, width, tile_h)] + [(x0 + c * (tile_w + GAP), y0 + step, tile_w, tile_h) for c in range(2)]
+    boxes = [(x0 + (i % cols) * (tile_w + GAP), y0 + (i // cols) * step, tile_w, tile_h) for i in range(n)]
+    if n == 5:
+        boxes[4] = ((1080 - tile_w) // 2, boxes[4][1], tile_w, tile_h)
+    return boxes
 
 
 def strip_height(n: int, top: int = AREA[1]) -> int:
@@ -129,7 +133,7 @@ def strip_height(n: int, top: int = AREA[1]) -> int:
 
 
 def ring_boxes(n: int, top: int = AREA[1]) -> list[tuple[int, int, int, int]]:
-    height, k = room(top)
+    height, k = ring_scale(top)
     cx, _, radius, bubble, hero = RING
     cy = top + height // 2
     radius, bubble, hero = round(radius * k), round(bubble * k), round(hero * k)
@@ -200,8 +204,8 @@ CSS = """
 .it{position:absolute;overflow:hidden;box-shadow:0 14px 0 rgba(0,0,0,.3)}
 .it:after{content:"";position:absolute;left:0;top:0;right:0;bottom:0;border:6px solid #fff;border-radius:inherit}
 .ph{position:absolute;left:0;top:0;right:0;bottom:0;background-color:#3f4a37;background-repeat:no-repeat}
-.badge{position:absolute;left:16px;top:14px;width:72px;height:72px;border-radius:50%;background:#FF3B30;color:#fff;font-weight:900;font-size:44px;line-height:70px;text-align:center;box-shadow:0 4px 0 rgba(0,0,0,.3);z-index:2}
-.name{position:absolute;left:0;bottom:0;width:100%;padding:30px 8px 18px;box-sizing:border-box;text-align:center;font-weight:900;font-size:46px;line-height:1.05;color:#fff;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.78));text-shadow:0 3px 0 rgba(0,0,0,.5)}
+.badge{position:absolute;left:18px;top:16px;width:72px;height:72px;border-radius:50%;background:#FF3B30;color:#fff;font-weight:900;font-size:44px;line-height:70px;text-align:center;box-shadow:0 4px 0 rgba(0,0,0,.3);z-index:2}
+.name{position:absolute;left:0;bottom:0;width:100%;padding:40px 8px 20px;box-sizing:border-box;text-align:center;white-space:nowrap;font-weight:900;font-size:46px;line-height:1.05;color:#fff;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.78));text-shadow:0 3px 0 rgba(0,0,0,.5)}
 .hid .ph{filter:blur(8px) brightness(.5);transform:scale(1.12)}
 .hid .badge{background:#FFD60A;color:#111}
 .qm{position:absolute;left:0;width:100%;text-align:center;font-weight:900;line-height:1;color:#FFD60A;text-shadow:0 8px 0 rgba(0,0,0,.45);z-index:2}
@@ -232,19 +236,39 @@ def _background(atlas: dict) -> str:
     )
 
 
-def _card(i, label, box, radius, hidden, atlas, hidden_label, *, name_size=46, badge=True, qsize=200, warn=False):
+def scale_of(height: int) -> float:
+    """How much a slot taller than the 189 px the details were drawn for scales them (1 to 1.3)."""
+    return max(1.0, min(1.3, height / 189))
+
+
+def fit_name(label: str, width: int, size: int) -> int:
+    """The font size that keeps `label` on one line in a slot `width` wide (about 0.7 em a bold capital)."""
+    return max(20, min(size, int((width - 28) / (0.7 * max(len(label), 1)))))
+
+
+def _card(
+    i, label, box, radius, hidden, atlas, hidden_label, *, name_size=46, badge=True, qsize=200, warn=False, fit=False
+):
     x, y, w, h = box
+    k = scale_of(h) if fit else 1.0
     inner = f'<div class="ph" style="{_photo(atlas, i)}"></div>'
     if badge:
-        inner += f'<div class="badge">{i + 1}</div>'
+        kb = min(k, 7 / 6)  # the approved sample's 84 px badge
+        d = round(72 * kb)
+        inner += (
+            f'<div class="badge" style="width:{d}px;height:{d}px;font-size:{math.ceil(44 * kb)}px;line-height:{d - 2}px">'
+            f"{i + 1}</div>"
+        )
     if hidden:
-        inner += f'<div class="qm" style="top:{max(10, (h - qsize) // 2 - 20)}px;font-size:{qsize}px">?</div>'
-        if hidden_label and h >= 260 and w != h:
+        top = 18 if fit else max(10, (h - qsize) // 2 - 20)
+        inner += f'<div class="qm" style="top:{top}px;font-size:{qsize}px">?</div>'
+        if hidden_label and h >= (360 if fit else 260) and (fit or w != h):
             inner += f'<div class="sub">{H.escape(hidden_label)}</div>'
     else:
         if warn:
             inner += '<div class="x"></div>'
-        inner += f'<div class="name" style="font-size:{name_size}px">{H.escape(label)}</div>'
+        size = fit_name(label, w, min(48, round(40 * k))) if fit else name_size
+        inner += f'<div class="name" style="font-size:{size}px">{H.escape(label)}</div>'
     return (
         f'<div class="it s{i}{" hid" if hidden else ""}" style="left:{x}px;top:{y}px;width:{w}px;height:{h}px;'
         f'border-radius:{radius}px">{inner}</div>'
@@ -259,13 +283,11 @@ def build_html(layout: str, labels: list[str], atlas: dict, hidden_label: str, t
     anim = ['tl.fromTo(".bg",{scale:1.15},{scale:1,duration:3,ease:"none"},0);']
     if layout in ("grid", "warn"):
         for i, box in enumerate(grid_boxes(n, top)):
-            circle = n == 5 and i == 4
             hidden = layout == "grid" and i == n - 1
             parts.append(
                 _card(
-                    i, labels[i], box, box[2] // 2 if circle else 36, hidden, atlas, hidden_label,
-                    name_size=46 if box[3] > 260 else 40, badge=not circle, qsize=170 if circle else 200,
-                    warn=layout == "warn",
+                    i, labels[i], box, round(36 * min(scale_of(box[3]), 1.05)), hidden, atlas, hidden_label,
+                    qsize=round(box[3] * 0.87), warn=layout == "warn", fit=True,
                 )
             )  # fmt: skip
     elif layout == "ring":
@@ -417,7 +439,7 @@ def slot_photo(
     focus: tuple[float, float] | None = None,
     own: str | None = None,
 ) -> Image.Image:
-    """The scene's photo, or its clip's frame at the start time, cut to the slot's shape around the dish (`focus`, a
+    """The scene's photo, or its clip's frame at the start time, cut to `size` around the dish (`focus`, a
     member's pick, else `subject_centre`)."""
     try:
         if own and storage.exists(own):
@@ -438,9 +460,9 @@ def slot_photo(
 
 
 def pack(images: list[Image.Image], atlas: dict) -> bytes:
-    sheet = Image.new("RGB", (atlas["width"], atlas["height"]), (63, 74, 55))
-    for image, offset in zip(images, atlas["offsets"], strict=True):
-        sheet.paste(image, offset)
+    sheet = Image.new("RGB", (atlas["width"] * SPRITE_SCALE, atlas["height"] * SPRITE_SCALE), (63, 74, 55))
+    for image, (ox, oy) in zip(images, atlas["offsets"], strict=True):
+        sheet.paste(image, (ox * SPRITE_SCALE, oy * SPRITE_SCALE))
     out = io.BytesIO()
     sheet.save(out, "JPEG", quality=90)
     return out.getvalue()
@@ -542,7 +564,7 @@ def build(
             storage,
             s,
             i + 1,
-            size,
+            (size[0] * SPRITE_SCALE, size[1] * SPRITE_SCALE),
             tuple(slots[i]["focus"]) if slots[i].get("focus") else None,
             slots[i].get("image_key"),
         )
