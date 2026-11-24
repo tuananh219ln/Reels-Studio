@@ -150,10 +150,19 @@ function Knowledge() {
       <Flex gap={16} align="flex-start" wrap>
         <Flex
           vertical
-          gap={12}
+          gap={folded ? 6 : 12}
           component="aside"
           aria-label="Nhóm chủ đề"
-          style={{ flex: folded ? "0 0 56px" : "0 0 240px", width: folded ? 56 : 240, maxWidth: "100%" }}
+          style={{
+            flex: folded ? "0 0 60px" : "0 0 256px",
+            width: folded ? 60 : 256,
+            maxWidth: "100%",
+            // The column is a card like the group beside it, folded or not.
+            background: token.colorBgContainer,
+            border: `1px solid ${token.colorBorderSecondary}`,
+            borderRadius: token.borderRadiusLG,
+            padding: folded ? "10px 0" : 12,
+          }}
         >
           <Flex justify={folded ? "center" : "space-between"} align="center">
             {!folded && (
@@ -223,14 +232,15 @@ function Knowledge() {
                       onClick={() => choose(topic.id)}
                       style={{
                         position: "relative",
-                        width: 40,
-                        height: 40,
-                        margin: "2px auto",
-                        borderRadius: token.borderRadiusLG,
-                        border: `1px solid ${active ? token.colorPrimary : token.colorBorderSecondary}`,
-                        background: active ? token.colorPrimaryBg : token.colorBgContainer,
-                        color: active ? token.colorPrimaryText : token.colorText,
+                        width: 38,
+                        height: 38,
+                        margin: "0 auto",
+                        borderRadius: token.borderRadius,
+                        border: `1px solid ${active ? token.colorPrimaryBorder : "transparent"}`,
+                        background: active ? token.colorPrimaryBg : token.colorFillQuaternary,
+                        color: active ? token.colorPrimaryText : token.colorTextSecondary,
                         font: "inherit",
+                        fontSize: 13,
                         fontWeight: 600,
                         cursor: "pointer",
                       }}
@@ -240,12 +250,12 @@ function Knowledge() {
                         aria-hidden
                         style={{
                           position: "absolute",
-                          top: -2,
-                          right: -2,
+                          top: -3,
+                          right: -3,
                           width: 10,
                           height: 10,
                           borderRadius: "50%",
-                          border: `2px solid ${token.colorBgLayout}`,
+                          border: `2px solid ${token.colorBgContainer}`,
                           background: missing.length === 0 ? token.colorSuccess : token.colorWarning,
                         }}
                       />
