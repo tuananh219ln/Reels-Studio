@@ -29,6 +29,7 @@ from .models import (
     Fanpage,
     Video,
 )
+from .ownership import can_add_products
 from .sessions import now
 
 log = logging.getLogger("reels_api.affiliate_rounds")
@@ -136,14 +137,22 @@ def suggest(db: DbSession, video: Video | Article) -> None:
             }
             candidates = []
             for offer in offers:
-                product = known.get(offer.item_id) or AffiliateProduct(
-                    platform="shopee",
-                    shopee_item_id=offer.item_id,
-                    knowledge_topic_id=topic.id,
-                    topic=topic,
-                    status="draft",
-                    created_by_id=video.suggest_by_id,
+                # A search adds a row only for the group's maker (decision 2026-11-25); for anyone else it offers
+                # the products the team already lists.
+                product = known.get(offer.item_id) or (
+                    AffiliateProduct(
+                        platform="shopee",
+                        shopee_item_id=offer.item_id,
+                        knowledge_topic_id=topic.id,
+                        topic=topic,
+                        status="draft",
+                        created_by_id=video.suggest_by_id,
+                    )
+                    if can_add_products(topic, video.suggest_by_id)
+                    else None
                 )
+                if product is None:
+                    continue
                 if product.id is None:
                     _fill(product, offer)
                 if not affiliate.problems(product):

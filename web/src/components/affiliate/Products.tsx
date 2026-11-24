@@ -418,11 +418,18 @@ export default function Products() {
       ? [{ label: myTopics.length > 0 ? "Nhóm khác" : "Các nhóm", options: otherTopics.map(topicOption) }]
       : []),
   ];
+  // Only the member who made a group adds products to it (decision 2026-11-25); with no group open, any group of mine.
+  const canAdd = open ? open.can_add : options.topics.some((topic) => topic.can_add);
+  const cannotAdd = open
+    ? `Chỉ người tạo nhóm “${open.name}” mới thêm được sản phẩm`
+    : "Bạn chưa có nhóm nào để thêm sản phẩm";
   const importExport = [
     {
       key: "file",
       icon: <UploadOutlined />,
       label: "Nhập file (Lấy link hàng loạt)",
+      disabled: !canAdd,
+      title: canAdd ? undefined : cannotAdd,
       onClick: () => setAdding("file"),
     },
     {
@@ -672,9 +679,11 @@ export default function Products() {
               Nhập / Xuất <DownOutlined />
             </Button>
           </Dropdown>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
-            Thêm sản phẩm
-          </Button>
+          <Tooltip title={canAdd ? undefined : cannotAdd}>
+            <Button type="primary" icon={<PlusOutlined />} disabled={!canAdd} onClick={() => setAdding("links")}>
+              Thêm sản phẩm
+            </Button>
+          </Tooltip>
         </Space>
       </Flex>
       <Flex wrap gap={12} align="center">
@@ -729,7 +738,8 @@ export default function Products() {
                 : "Bạn chưa thêm sản phẩm nào. Chọn “Cả đội” để xem của mọi người."
             }
             action={
-              products.length === 0 && (
+              products.length === 0 &&
+              canAdd && (
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
                   Nhập sản phẩm đầu tiên
                 </Button>

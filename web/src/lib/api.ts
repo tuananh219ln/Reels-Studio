@@ -1618,7 +1618,8 @@ export type AffiliateOptions = {
   platforms: { value: ProductPlatform; label: string }[];
   shop_types: Record<ProductPlatform, { value: string; label: string }[]>;
   /** `mine`: a group of a Page the member owns and uses, listed first. */
-  topics: { id: number; name: string; mine: boolean; product_count: number }[];
+  /** `can_add`: only the member who made a group adds products to it (decision 2026-11-25). */
+  topics: { id: number; name: string; mine: boolean; product_count: number; can_add: boolean }[];
   /** The Pages in use and the group each posts, to import "for a Page". */
   pages: AffiliatePage[];
   /** Some member has a Shopee account with App ID, so a pasted link is filled in by itself. */

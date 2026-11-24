@@ -99,7 +99,10 @@ export default function ProductModal({
         >
           <Select
             aria-label="Nhóm chủ đề"
-            options={options.topics.map((topic) => ({ value: topic.id, label: topic.name }))}
+            // Only the member who made a group adds products to it; the product's own group stays listed.
+            options={options.topics
+              .filter((topic) => topic.can_add || (target !== "new" && target?.knowledge_topic_id === topic.id))
+              .map((topic) => ({ value: topic.id, label: topic.name }))}
           />
         </Form.Item>
         <Form.Item

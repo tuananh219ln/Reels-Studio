@@ -1038,6 +1038,9 @@ steps open the status card or the products block on its tab, the QC chip its pop
     tooltip says that saved link goes in the comment of a Page without its own Shopee account) and how many videos
     carry it; rating and sales, commission per order with its rate and price, status and "Link" ("Có link" with a copy
     button, or yellow "Chưa có link"), with the same row actions.
+    Only the member who made a group adds products to it ([decision](decisions/2026-11-25-group-owner-adds-products.md)):
+    "Thêm sản phẩm" and "Nhập file" are disabled, with the reason on hover, in a group of someone else, and the drawer below
+    lists only the groups (and their Pages) the member may add to.
     "Thêm sản phẩm" opens a drawer: "Nhập vào" by Page (into the group it posts; a Page without a group cannot be
     picked) or by group (the open group to start with), then two tabs, "Dán link Shopee" (one link per line, up to
     50; the rest is read from Shopee, so it needs a Shopee account with App ID somewhere in the team and says so when

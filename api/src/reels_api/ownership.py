@@ -23,6 +23,19 @@ def ensure_none_of_others(counts: dict[str, int], what: str) -> None:
         )
 
 
+def can_add_products(topic: KnowledgeTopic, user_id: int) -> bool:
+    """Only the member who made a topic group adds products to it (decision 2026-11-25). A group whose maker is unknown
+    (the one the first migration made) is open: there is nobody to protect."""
+    return topic.created_by_id is None or topic.created_by_id == user_id
+
+
+def ensure_can_add_products(topic: KnowledgeTopic, user_id: int) -> None:
+    if not can_add_products(topic, user_id):
+        raise ApiError(
+            403, "group_owner_only", f"Chỉ người tạo nhóm “{topic.name}” mới thêm được sản phẩm vào nhóm này"
+        )
+
+
 def ensure_group_editor(db, topic: KnowledgeTopic, user_id: int) -> None:
     """Editing a topic group and its plan: anyone while "Cho cả đội sửa" is on, else only the group's maker
     (2026-11-09). Using the group (videos, its ideas, reading its prompts and plan) is never refused here."""

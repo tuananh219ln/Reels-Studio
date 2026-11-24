@@ -32,7 +32,7 @@ from .models import (
     Video,
     VideoAffiliateProduct,
 )
-from .ownership import ensure_owner
+from .ownership import can_add_products, ensure_can_add_products, ensure_owner
 from .routes_music import like_pattern
 from .routes_videos import invalid, my_topic_ids
 from .sessions import current_member, now
@@ -798,7 +798,14 @@ def options(me: Session = Depends(current_member), db: DbSession = Depends(get_d
         },
         # "mine": a group a Page I own and use posts (decisions 2026-11-08), listed first in the filter.
         "topics": [
-            {"id": topic.id, "name": topic.name, "mine": topic.id in mine, "product_count": products.get(topic.id, 0)}
+            {
+                "id": topic.id,
+                "name": topic.name,
+                "mine": topic.id in mine,
+                "product_count": products.get(topic.id, 0),
+                # Only the group's maker adds products to it (decision 2026-11-25).
+                "can_add": can_add_products(topic, me.user_id),
+            }
             for topic in knowledge.all_topics(db)
         ],
         # The Pages in use and the group each posts, so a file can be imported "for a Page" into its group.
@@ -883,6 +890,9 @@ def export_products(
 
 @router.post("", status_code=201)
 def add_product(body: ProductBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    topic = db.get(KnowledgeTopic, body.knowledge_topic_id)
+    if topic is not None:
+        ensure_can_add_products(topic, me.user_id)
     product = AffiliateProduct(**_fields(db, body), created_by_id=me.user_id)
     db.add(product)
     db.commit()
@@ -894,6 +904,7 @@ def add_links(body: LinksBody, me: Session = Depends(current_member), db: DbSess
     """ "Thêm sản phẩm": a member pastes Shopee links and the worker reads each product within seconds (name, shop,
     stars, sales, price, commission); the request itself never calls Shopee."""
     topic = _topic(db, body.knowledge_topic_id)
+    ensure_can_add_products(topic, me.user_id)
     links = _shopee_links(body.links)
     if affiliate_rounds.team_account(db, me.user_id) is None:
         raise invalid(NO_SHOPEE_ACCOUNT)
@@ -945,6 +956,7 @@ def _from_links(
         if known is not None:
             found[link] = (known, False)
             continue
+        ensure_can_add_products(topic, user_id)
         product = AffiliateProduct(
             knowledge_topic_id=topic.id,
             platform="shopee",
@@ -1038,12 +1050,20 @@ def _sorted_rows(
     return known, rows
 
 
+def _refuse_new_rows(topic: KnowledgeTopic, rows: list[dict], user_id: int) -> None:
+    """A member who did not make the group may still update their own rows there (from before the rule); a row that
+    would be added ("new" or "copy") is refused."""
+    if not can_add_products(topic, user_id) and any(row["state"] != "mine" for row in rows):
+        ensure_can_add_products(topic, user_id)
+
+
 @router.post("/import/preview")
 def preview_import(body: ImportBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     """What "Nhập" would do with the file, row by row; writes nothing."""
-    _topic(db, body.knowledge_topic_id)
+    topic = _topic(db, body.knowledge_topic_id)
     parsed, errors = _parsed_file(body.text)
     _, rows = _sorted_rows(db, parsed, me.user_id, body.knowledge_topic_id)
+    _refuse_new_rows(topic, rows, me.user_id)
     return {"rows": rows, "errors": errors}
 
 
@@ -1058,6 +1078,7 @@ def import_products(body: ImportBody, me: Session = Depends(current_member), db:
     topic = _topic(db, body.knowledge_topic_id)
     parsed, errors = _parsed_file(body.text)
     known, rows = _sorted_rows(db, parsed, me.user_id, topic.id)
+    _refuse_new_rows(topic, rows, me.user_id)
     ask = affiliate_rounds.team_account(db, me.user_id) is not None
     added = updated = shared = 0
     renamed: list[int] = []
@@ -1112,6 +1133,10 @@ def update_product(
     product_id: int, body: ProductBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
     product = _get(db, product_id)
+    if body.knowledge_topic_id != product.knowledge_topic_id:
+        target = db.get(KnowledgeTopic, body.knowledge_topic_id)
+        if target is not None:
+            ensure_can_add_products(target, me.user_id)
     fields = _fields(db, body)
     changed = {name for name, value in fields.items() if getattr(product, name) != value}
     if changed:
