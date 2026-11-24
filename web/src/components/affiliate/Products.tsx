@@ -443,7 +443,12 @@ export default function Products() {
 
   return (
     <Flex gap={16} align="flex-start" wrap>
-      <Card size="small" style={{ flex: "0 0 260px", maxWidth: "100%" }} styles={{ body: { padding: 6 } }}>
+      <Card
+        size="small"
+        // A fixed width, and min-width 0: a long Page name on one line would otherwise stretch the column.
+        style={{ flex: "0 0 240px", width: 240, minWidth: 0, maxWidth: "100%" }}
+        styles={{ body: { padding: 6, overflow: "hidden" } }}
+      >
         <nav aria-label="Nhóm chủ đề">
           {group(undefined, "Tất cả nhóm", total)}
           {myTopics.length > 0 && (
