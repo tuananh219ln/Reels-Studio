@@ -45,6 +45,7 @@ from . import (
     frames,
     jobs,
     mcp_competitors,
+    media_tags,
     motion,
     remote_media,
     shuffle,
@@ -1866,12 +1867,25 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     async def add_media_from_links(
         urls: Annotated[list[Annotated[str, Field(max_length=2000)]], Field(min_length=1, max_length=10)],
         folder: Annotated[str, Field(max_length=200)] = "",
+        tags: Annotated[
+            list[Annotated[str, Field(max_length=media_tags.MAX_TAG)]] | None,
+            Field(
+                max_length=media_tags.MAX_TAGS,
+                description="Thẻ gắn cho mọi tư liệu của lần gọi này (ảnh bài viết: chủ đề + dạng bài; cho cảnh: "
+                "video + cảnh + món/chủ đề)",
+            ),
+        ] = None,
     ) -> dict:
         """Tải về kho các link người dùng đưa hoặc đồng ý: link ảnh (Google Ảnh, ảnh sản phẩm, ảnh nền trong suốt),
-        link video TikTok hoặc file video; clip dài hơn 1 phút giữ phút đầu. Link lỗi được báo riêng, link khác vẫn
-        vào kho. Người đưa link chịu trách nhiệm bản quyền."""
+        link video TikTok, file video, hoặc link MỘT file Google Drive đặt chia sẻ "Bất kỳ ai có đường liên kết"
+        (không dùng link thư mục). Ảnh tối đa 15 MB, clip tối đa 50 MB; clip dài hơn 1 phút giữ phút đầu. Link phải mở
+        được không cần đăng nhập. Link lỗi được báo riêng trong `failed` (url, error, reason), link khác vẫn vào kho:
+        not_public (chưa chia sẻ công khai → đổi chia sẻ hoặc dùng link khác), expired_or_unreachable (hết hạn hoặc
+        không tìm thấy → xin link mới), too_large (quá giới hạn → nén nhỏ lại), not_media (không phải ảnh/clip → link
+        khác, đừng thử lại cùng link), blocked_host, invalid_link. Gửi lại chỉ link lỗi, tối đa 2 lần thử mỗi ảnh. Người
+        đưa link chịu trách nhiệm bản quyền."""
         return await run_in_threadpool(
-            invoke, lambda db, me: media_routes.add_links(db, get_storage(), me, urls, folder), write=True
+            invoke, lambda db, me: media_routes.add_links(db, get_storage(), me, urls, folder, tags), write=True
         )
 
     @tool("Cắt clip thành file mới trong kho", read=False)

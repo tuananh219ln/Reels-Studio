@@ -334,7 +334,7 @@ Photos and clips gathered once and used in any scene ([routes_media.py](../api/s
   item's numbers and actions (a clip's "Cắt thành file mới" among them). A scene's picker and a group's tab keep one grid without the sidebar.
 - **MCP:** `list_media` (by folder, kind, tags and a search over names, folders and tags; each item with its tags),
   `view_media` (the pictures of up to eight items, so the assistant chooses by looking),
-  `add_media_from_links`, `set_scene_media_from_library`, `cut_clip_to_library` and `delete_media`.
+  `add_media_from_links` (with `tags`; a Google Drive file link is fetched through its direct-download address; a failed link has a `reason`), `set_scene_media_from_library`, `cut_clip_to_library` and `delete_media`.
 
 ### Render QC
 

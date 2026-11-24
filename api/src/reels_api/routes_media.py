@@ -447,10 +447,10 @@ def add_links(
                 added.append(payload(item))
             except remote_media.RemoteMediaError as err:
                 db.rollback()
-                failed.append({"url": url, "error": str(err)})
+                failed.append({"url": url, "error": str(err), "reason": err.reason})
             except ApiError as err:
                 db.rollback()
-                failed.append({"url": url, "error": err.message})
+                failed.append({"url": url, "error": err.message, "reason": remote_media.NOT_A_FILE})
     return {"added": added, "failed": failed}
 
 

@@ -82,7 +82,7 @@ service:
 Members fill "Kho tư liệu" (`/media`) by dragging whole folders of their own footage and product photos, or by
 searching the product on Google Ảnh / TikTok from the page and pasting the links back. The assistant reads it with
 `list_media` (by folder, kind, tags such as `xoay-co,sofa` (every one) or a search over names, folders and tags; each item with its tags), **looks at the items** with `view_media` before choosing, adds links the
-member gives with `add_media_from_links`, and puts an item in a scene with `set_scene_media_from_library` (a copy).
+member gives with `add_media_from_links` (up to 10, with `folder` and `tags`; a link to one Google Drive file shared "anyone with the link" works too, a folder does not; a failed link comes back in `failed` with a `reason`: `not_public`, `expired_or_unreachable`, `too_large`, `not_media`, `blocked_host` or `invalid_link`, so the assistant resends only that link, at most twice, then asks the member; MCP still carries no files, [decision](decisions/2026-11-24-media-links-drive.md)), and puts an item in a scene with `set_scene_media_from_library` (a copy).
 `cut_clip_to_library` cuts the part a scene needs out of a library clip into a new item (no sound, folder, tags
 required, the clip's source link kept; the clip stays), so the library keeps only cut parts, attached afterwards with
 `video_start` 0; `delete_media` deletes an item the member added, only when they ask (a scene keeps its own copy).
