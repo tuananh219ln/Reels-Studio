@@ -3,6 +3,7 @@ cannot turn a product page into an affiliate link, so it writes the file Shopee'
 page per row, `Sub_id1` = the Page, so an order names its Page: affiliate_rounds.read_orders), a member uploads it
 there once and brings the result back."""
 
+import csv
 import io
 import re
 import unicodedata
@@ -115,34 +116,65 @@ def _header(cell: object) -> str:
     return " ".join(unicodedata.normalize("NFC", str(cell or "")).lower().split())
 
 
-def parsed_file(data: bytes) -> list[tuple[int, str, str | None]]:
-    """The file's rows as (row number, original link, converted link or None). The original is the column headed like
-    Shopee's template ("Liên kết gốc"); the converted link is the other cell of the row that is a Shopee link, so the
-    result file's own column name does not have to be known."""
+CONVERTED_HEADERS = ("liên kết chuyển đổi", "converted link", "converted url")
+REASON_HEADERS = ("lí do thất bại", "lý do thất bại", "failure reason", "reason")
+
+
+def _table(data: bytes) -> list[list[object]]:
+    """The file's rows: Shopee hands the result back as CSV (BOM, comma), a member may save it as Excel."""
+    if data[:2] == b"PK":
+        try:
+            sheet = load_workbook(io.BytesIO(data), read_only=True, data_only=True).worksheets[0]
+            return [list(row) for row in sheet.iter_rows(values_only=True)]
+        except (zipfile.BadZipFile, KeyError, ValueError, IndexError, OSError):
+            raise invalid("File Excel không đọc được") from None
+    try:
+        text = data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise invalid("File không đọc được: cần file CSV (UTF-8) hoặc Excel (.xlsx) Shopee trả về") from None
+    try:
+        dialect = csv.Sniffer().sniff(text.split("\n", 1)[0], delimiters=",;\t")
+    except csv.Error:
+        dialect = csv.excel
+    return list(csv.reader(io.StringIO(text), dialect))
+
+
+def _column(headers: list[str], names: tuple[str, ...]) -> int | None:
+    return next((index for index, name in enumerate(headers) if name in names), None)
+
+
+def parsed_file(data: bytes) -> list[tuple[int, str, str | None, str]]:
+    """The file's rows as (row number, original link, converted link or None, why Shopee failed it). Columns by the
+    names Shopee's result file has ("Liên kết gốc", "Liên kết chuyển đổi", "Lí do thất bại"); without a named
+    converted-link column, the other cell of the row that is a Shopee link."""
     if len(data) > MAX_FILE_BYTES:
         raise invalid("File quá lớn, hãy chia nhỏ")
-    try:
-        sheet = load_workbook(io.BytesIO(data), read_only=True, data_only=True).worksheets[0]
-        table = list(sheet.iter_rows(values_only=True))
-    except (zipfile.BadZipFile, KeyError, ValueError, IndexError, OSError):
-        raise invalid("File không đọc được: cần file Excel (.xlsx) Shopee trả về sau khi chuyển đổi") from None
+    table = _table(data)
     if not table:
         raise invalid("File trống")
     headers = [_header(cell) for cell in table[0]]
-    original = next((index for index, name in enumerate(headers) if name in ORIGINAL_HEADERS), None)
+    original = _column(headers, ORIGINAL_HEADERS)
     if original is None:
         shown = ", ".join(name for name in headers if name) or "không có tiêu đề"
         raise invalid(f"Không thấy cột “Liên kết gốc” (các cột có: {shown}). Hãy dùng file Shopee trả về")
+    named = _column(headers, CONVERTED_HEADERS)
+    reason_at = _column(headers, REASON_HEADERS)
     rows = []
     for number, row in enumerate(table[1:], start=2):
         cells = list(row)
         link = cells[original] if original < len(cells) else None
         if not isinstance(link, str) or not link.strip():
             continue
-        converted = next(
-            (str(cell).strip() for index, cell in enumerate(cells) if index != original and _is_short_link(cell)), None
-        )
-        rows.append((number, link.strip(), converted))
+        if named is not None:
+            cell = cells[named] if named < len(cells) else None
+            converted = str(cell).strip() if _is_short_link(cell) else None
+        else:
+            converted = next(
+                (str(cell).strip() for index, cell in enumerate(cells) if index != original and _is_short_link(cell)),
+                None,
+            )
+        why = cells[reason_at] if reason_at is not None and reason_at < len(cells) else None
+        rows.append((number, link.strip(), converted, str(why).strip() if why else ""))
     if not rows:
         raise invalid("File không có dòng nào")
     if len(rows) > MAX_LINKS:
@@ -150,7 +182,7 @@ def parsed_file(data: bytes) -> list[tuple[int, str, str | None]]:
     return rows
 
 
-def _matched(db: DbSession, topic_id: int, user_id: int, rows: list[tuple[int, str, str | None]]) -> list[dict]:
+def _matched(db: DbSession, topic_id: int, user_id: int, rows: list[tuple[int, str, str | None, str]]) -> list[dict]:
     """Each row with what the import would do: "ok" (a product I added in this group), "others" (only a teammate's has
     this page: their link stays), or an error. A teammate's product is never written, whatever the file says."""
     products = list(
@@ -170,13 +202,15 @@ def _matched(db: DbSession, topic_id: int, user_id: int, rows: list[tuple[int, s
             theirs.setdefault(key, product)
     result = []
     seen: set[str] = set()
-    for number, link, converted in rows:
+    for number, link, converted, why in rows:
         key = page_key(link)
         row = {"row": number, "original": link, "link": converted, "state": "error", "message": "", "ids": []}
         if key in seen:
             row["message"] = "Link gốc trùng với một dòng phía trên"
         elif converted is None:
-            row["message"] = "Link chuyển đổi trống hoặc không phải link Shopee (Shopee có thể đã báo lỗi dòng này)"
+            row["message"] = (
+                f"Shopee không chuyển đổi được: {why}" if why else "Link chuyển đổi trống hoặc không phải link Shopee"
+            )
         elif len(converted) > MAX_URL_LENGTH:
             row["message"] = f"Link chuyển đổi dài quá {MAX_URL_LENGTH} ký tự"
         elif key in mine:

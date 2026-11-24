@@ -236,8 +236,33 @@ def test_a_page_listed_twice_takes_the_first_row_only(an, db, me):
 def test_a_file_that_is_not_excel_or_lacks_the_original_column_is_refused(an, db, me):
     refused = send(an, db, PREVIEW, b"khong phai excel")
     assert refused.status_code == 422
-    assert "file Excel" in refused.json()["message"]
+    assert "Liên kết gốc" in refused.json()["message"]
+    broken = send(an, db, PREVIEW, b"PK\x03\x04junk")
+    assert broken.status_code == 422
+    assert "Excel không đọc được" in broken.json()["message"]
     wrong = send(an, db, PREVIEW, result_file(("a", "b"), header=("Tên", "Giá")))
     assert wrong.status_code == 422
     assert "Liên kết gốc" in wrong.json()["message"]
     assert "tên, giá" in wrong.json()["message"]
+
+
+# What Shopee's Custom Link page really returned (24/11/2026): a CSV with a BOM, the template's six columns, then the
+# converted link and why a row failed.
+SHOPEE_RESULT = (
+    "\ufeffLiên kết gốc,Sub_id1,Sub_id2,Sub_id3,Sub_id4,Sub_id5,Liên kết chuyển đổi,Lí do thất bại\n"
+    "https://shopee.vn/product/1/1,p1,,,,,https://s.shopee.vn/8pnbffRIIN,\n"
+    "https://shopee.vn/product/1/2,p1,,,,,,Liên kết không hợp lệ\n"
+).encode()
+
+
+def test_shopees_own_csv_result_is_read_with_its_failure_reason(an, db, me):
+    topic = first_topic(db)
+    first = product(db, me, topic, 1)
+    product(db, me, topic, 2)
+    got = send(an, db, IMPORT, SHOPEE_RESULT)
+    assert got.status_code == 200, got.text
+    body = got.json()
+    assert (body["linked"], body["errors"]) == (1, 1)
+    assert "Liên kết không hợp lệ" in body["rows"][1]["message"]
+    db.refresh(first)
+    assert first.url == "https://s.shopee.vn/8pnbffRIIN"

@@ -30,8 +30,8 @@ from an Excel file (up to 10,000 links; header `Liên kết gốc, Sub_id1 … S
   teammate's) does not apply, nothing is created here.
 - An approved product stays approved unless `affiliate.problems` now fails it (as the CSV import); comments already
   under live posts are asked to follow the new link (`ask_comment_refresh`, forgetting Page-account links).
-- **Unverified assumption:** the result file of Shopee has not been seen yet (only the input template was). The
-  original link is the column headed like the template ("Liên kết gốc"); the converted link is the other cell of the
-  row that is a Shopee link (`shopee.vn`, `shope.ee`, `shp.ee`), so the result's own column name is not needed. A
-  file without the original column is refused, naming the columns it has. To be checked with one real conversion
-  before merging; the parser changes if the real file differs.
+- **Shopee's real result file** (seen 25/11/2026 with three links): a **CSV** (UTF-8 with BOM), the template's six
+  columns, then `Liên kết chuyển đổi` and `Lí do thất bại`; a converted link was a new `s.shopee.vn/...` even when the
+  original was already a short link. The import reads CSV or `.xlsx` (by the file's first bytes), takes the columns by
+  those names, and shows Shopee's own failure reason on a failed row. A file without `Liên kết gốc` is refused,
+  naming the columns it has. Failed rows of a real bigger file (what Shopee says for a bad link) are still unseen.

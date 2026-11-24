@@ -92,11 +92,11 @@ export default function CustomLinkImport({ topicId, onDone }: { topicId?: number
       >
         <Flex vertical gap={12}>
           <Typography.Text>
-            Chọn file Excel Shopee Affiliate › Custom Link trả về. Chỉ sản phẩm do bạn thêm trong nhóm này được gắn
-            link; link của đồng đội giữ nguyên.
+            Chọn file Shopee Affiliate › Custom Link trả về (CSV hoặc Excel). Chỉ sản phẩm do bạn thêm trong nhóm này
+            được gắn link; link của đồng đội giữ nguyên.
           </Typography.Text>
           <Upload
-            accept=".xlsx"
+            accept=".csv,.xlsx"
             maxCount={1}
             showUploadList={false}
             beforeUpload={(chosen) => {
@@ -105,7 +105,7 @@ export default function CustomLinkImport({ topicId, onDone }: { topicId?: number
             }}
           >
             <Button icon={<UploadOutlined />} loading={busy}>
-              {file ? file.name : "Chọn file .xlsx"}
+              {file ? file.name : "Chọn file kết quả (.csv hoặc .xlsx)"}
             </Button>
           </Upload>
           {preview && (
