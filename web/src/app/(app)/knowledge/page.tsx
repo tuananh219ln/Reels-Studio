@@ -138,6 +138,95 @@ function Knowledge() {
     }
   }
 
+  // "Cả đội" lists the groups under the member who made each, the member's own first.
+  const makerName = (topic: KnowledgeTopic) =>
+    topic.created_by_id === me.id ? `${topic.owner ?? "Bạn"} (bạn)` : (topic.owner ?? "Chưa có người tạo");
+  const sections: { key: string; title: string; items: KnowledgeTopic[] }[] =
+    scope === "all"
+      ? [...new Set(listed.map(makerName))]
+          .sort((x, y) => Number(y.endsWith("(bạn)")) - Number(x.endsWith("(bạn)")) || x.localeCompare(y, "vi"))
+          .map((maker) => {
+            const items = listed.filter((topic) => makerName(topic) === maker);
+            return { key: maker, title: `${maker} · ${items.length}`, items };
+          })
+      : [{ key: "mine", title: "", items: listed }];
+  const renderTopic = (topic: KnowledgeTopic) => {
+    const active = topic.id === current?.id;
+    const missing = missingRequired(topic);
+    const tile = <GroupTile topic={topic} active={active} missing={missing.length > 0} />;
+    if (folded) {
+      return (
+        <Tooltip
+          key={topic.id}
+          placement="right"
+          title={`${topic.name} · ${topic.video_count} video${missing.length ? ` · còn thiếu: ${missing.join(", ")}` : ""}`}
+        >
+          <button
+            type="button"
+            aria-label={topic.name}
+            aria-current={active ? "true" : undefined}
+            onClick={() => choose(topic.id)}
+            style={{ border: 0, background: "transparent", padding: 0, margin: "0 auto", cursor: "pointer" }}
+          >
+            {tile}
+          </button>
+        </Tooltip>
+      );
+    }
+    const pages = topic.page_list.length;
+    return (
+      <button
+        key={topic.id}
+        type="button"
+        aria-current={active ? "true" : undefined}
+        onClick={() => choose(topic.id)}
+        title={missing.length === 0 ? "Sẵn sàng tạo video" : `Còn thiếu: ${missing.join(", ")}`}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          width: "100%",
+          border: 0,
+          borderRadius: token.borderRadius,
+          font: "inherit",
+          textAlign: "left",
+          cursor: "pointer",
+          padding: "8px 10px",
+          background: active ? token.colorPrimaryBg : "transparent",
+          color: token.colorText,
+        }}
+      >
+        {tile}
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span
+            style={{
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+              fontWeight: active ? 600 : 500,
+              color: active ? token.colorPrimaryText : undefined,
+              lineHeight: 1.3,
+            }}
+          >
+            {topic.name}
+          </span>
+          <span
+            style={{
+              display: "block",
+              fontSize: 12,
+              color: missing.length === 0 ? token.colorTextTertiary : token.colorWarningText,
+            }}
+          >
+            {missing.length === 0
+              ? `${topic.video_count} video · ${pages} Page`
+              : `${topic.video_count} video · thiếu ${missing[0]}`}
+          </span>
+        </span>
+      </button>
+    );
+  };
+
   return (
     <>
       <PageHeader
@@ -241,82 +330,16 @@ function Knowledge() {
                 Bạn chưa có nhóm nào. Chọn “Cả đội” để xem các nhóm của mọi người, hoặc thêm một nhóm mới.
               </Typography.Text>
             )}
-            {listed.map((topic) => {
-              const active = topic.id === current?.id;
-              const missing = missingRequired(topic);
-              const tile = <GroupTile topic={topic} active={active} missing={missing.length > 0} />;
-              if (folded) {
-                return (
-                  <Tooltip
-                    key={topic.id}
-                    placement="right"
-                    title={`${topic.name} · ${topic.video_count} video${missing.length ? ` · còn thiếu: ${missing.join(", ")}` : ""}`}
-                  >
-                    <button
-                      type="button"
-                      aria-label={topic.name}
-                      aria-current={active ? "true" : undefined}
-                      onClick={() => choose(topic.id)}
-                      style={{ border: 0, background: "transparent", padding: 0, margin: "0 auto", cursor: "pointer" }}
-                    >
-                      {tile}
-                    </button>
-                  </Tooltip>
-                );
-              }
-              const pages = topic.page_list.length;
-              return (
-                <button
-                  key={topic.id}
-                  type="button"
-                  aria-current={active ? "true" : undefined}
-                  onClick={() => choose(topic.id)}
-                  title={missing.length === 0 ? "Sẵn sàng tạo video" : `Còn thiếu: ${missing.join(", ")}`}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    width: "100%",
-                    border: 0,
-                    borderRadius: token.borderRadius,
-                    font: "inherit",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    padding: "8px 10px",
-                    background: active ? token.colorPrimaryBg : "transparent",
-                    color: token.colorText,
-                  }}
-                >
-                  {tile}
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span
-                      style={{
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                        fontWeight: active ? 600 : 500,
-                        color: active ? token.colorPrimaryText : undefined,
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {topic.name}
-                    </span>
-                    <span
-                      style={{
-                        display: "block",
-                        fontSize: 12,
-                        color: missing.length === 0 ? token.colorTextTertiary : token.colorWarningText,
-                      }}
-                    >
-                      {missing.length === 0
-                        ? `${topic.video_count} video · ${pages} Page`
-                        : `${topic.video_count} video · thiếu ${missing[0]}`}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
+            {sections.map(({ key, title, items }) => (
+              <Flex vertical gap={folded ? 8 : 4} key={key}>
+                {title && !folded && (
+                  <Typography.Text type="secondary" style={{ fontSize: 12, padding: "8px 10px 0" }}>
+                    {title}
+                  </Typography.Text>
+                )}
+                {items.map(renderTopic)}
+              </Flex>
+            ))}
           </Flex>
           {!folded && (
             <Input

@@ -1823,3 +1823,7 @@ status dot, green when it can make videos, amber while it lacks a required step)
 line "<n> video · <m> Page" (amber "<n> video · thiếu <prompt viết kịch bản | Page đăng nhóm>" while it lacks one). Folded,
 the tiles alone remain, each with the same dot and a tooltip.
 
+Under "Cả đội" the groups are listed under the member who made each, one small grey heading per member ("NamTC (bạn) · 4",
+"Looper · 2", "Chưa có người tạo · 1" for a group nobody is known to have made): the member's own first, then the others by
+name. "Của tôi" stays one list.
+
