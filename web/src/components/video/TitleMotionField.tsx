@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, App, Button, Checkbox, Flex, Input, Segmented, Typography } from "antd";
+import { Alert, App, Button, Checkbox, Flex, Input, Segmented, Select, Typography } from "antd";
 import { useState } from "react";
 import { api, errorMessage, type SceneData, type VideoDetail, upload } from "@/lib/api";
 import { useSentImage } from "@/lib/googleExtension";
@@ -12,6 +12,14 @@ const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 
 const LAYOUTS = { grid: "lưới", ring: "vòng", strip: "dải", warn: "món nên tránh" } as const;
+type Choice = "auto" | keyof typeof LAYOUTS;
+const CHOICES: { value: Choice; label: string }[] = [
+  { value: "auto", label: "Tự động" },
+  { value: "grid", label: "Lưới (2–6 món)" },
+  { value: "ring", label: "Vòng (5–9 món)" },
+  { value: "strip", label: "Dải (7–10 món)" },
+  { value: "warn", label: "Món nên tránh (2–6 món)" },
+];
 
 /**
  * "Tiêu đề động" of the title scene (api title_motion.py): a 3-second title where the listed dishes' photos pop in
@@ -26,6 +34,9 @@ export default function TitleMotionField({ scene, disabled }: { scene: SceneData
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [writeHook, setWriteHook] = useState(false);
+  // The layout asked for: the member's pick, else the one the title was built with ("auto" for a new one).
+  const [picked, setPicked] = useState<Choice | null>(null);
+  const layout: Choice = picked ?? made?.requested ?? "auto";
   // Names the member typed into a slot, by its place; the others keep following their scene.
   const [edited, setEdited] = useState<Record<number, string>>({});
 
@@ -42,6 +53,7 @@ export default function TitleMotionField({ scene, disabled }: { scene: SceneData
     setError(null);
     try {
       const done = await api<{ video: VideoDetail; warnings: string[] }>(`/title-motion/${scene.id}`, "POST", {
+        layout,
         write_hook: writeHook,
         slots: made?.labels.map((_, index) => (edited[index]?.trim() ? { label: edited[index] } : {})),
       });
@@ -119,6 +131,15 @@ export default function TitleMotionField({ scene, disabled }: { scene: SceneData
         <Button size="small" loading={busy || Boolean(made?.pending)} disabled={off} onClick={() => void build()}>
           {made ? "Dựng lại tiêu đề" : "Tạo tiêu đề động"}
         </Button>
+        <Select
+          size="small"
+          aria-label="Bố cục tiêu đề"
+          value={layout}
+          options={CHOICES}
+          disabled={off}
+          style={{ width: 190 }}
+          onChange={(value) => setPicked(value)}
+        />
         <Checkbox checked={writeHook} disabled={off} onChange={(event) => setWriteHook(event.target.checked)}>
           Viết lại chữ tiêu đề theo mẫu
         </Checkbox>
