@@ -19,3 +19,19 @@ from an Excel file (up to 10,000 links; header `Liên kết gốc, Sub_id1 … S
 - **Limit:** 10,000 links per file, checked in code (one file is enough for the current ~200 products).
 - Not done: no call to Shopee (no API), no upload or download from Shopee, no per-video sub id, and the CSV import
   "Lấy link hàng loạt" (`IMPORT_COLUMNS`, `/import`) is untouched.
+
+## Import (`POST /custom-link/import/preview` and `/import`, multipart: `knowledge_topic_id` + `file`)
+
+- Two steps like the CSV import: the preview writes nothing, the import writes. Limits: 5 MB, 10,000 rows.
+- Matching is by the **original link normalised** (`routes_custom_link.page_key`: the shop and item from the address,
+  so a tracking tail or a slug does not matter) against `page_url`, **only among the products in the chosen group**.
+  Only products **I added** get the link; a page only a teammate's product has is listed as `others` and keeps its
+  link (never overwritten). This is not `_sorted_rows`: the CSV import's `copy` state (my own row beside a
+  teammate's) does not apply, nothing is created here.
+- An approved product stays approved unless `affiliate.problems` now fails it (as the CSV import); comments already
+  under live posts are asked to follow the new link (`ask_comment_refresh`, forgetting Page-account links).
+- **Unverified assumption:** the result file of Shopee has not been seen yet (only the input template was). The
+  original link is the column headed like the template ("Liên kết gốc"); the converted link is the other cell of the
+  row that is a Shopee link (`shopee.vn`, `shope.ee`, `shp.ee`), so the result's own column name is not needed. A
+  file without the original column is refused, naming the columns it has. To be checked with one real conversion
+  before merging; the parser changes if the real file differs.

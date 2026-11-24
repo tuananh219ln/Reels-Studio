@@ -22,6 +22,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AddProductDrawer, { type AddMode } from "./AddProductDrawer";
 import CustomLinkExport from "./CustomLinkExport";
+import CustomLinkImport from "./CustomLinkImport";
 import PlacesChip from "./PlacesChip";
 import ProductModal from "./ProductModal";
 import QuickFill, { needsQuickFill } from "./QuickFill";
@@ -389,6 +390,7 @@ export default function Products() {
               Xuất CSV
             </Button>
             <CustomLinkExport topicId={topicId} topicName={open?.name} />
+            <CustomLinkImport topicId={topicId} onDone={() => reload(true)} />
             <Button icon={<UploadOutlined />} onClick={() => setAdding("file")}>
               Nhập file
             </Button>
