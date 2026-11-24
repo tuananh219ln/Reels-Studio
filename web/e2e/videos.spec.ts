@@ -715,8 +715,12 @@ test("video list: status and creator filters, grid or list view remembered", asy
   await expect(page.locator(".ant-select").filter({ has: page.getByLabel("Lọc theo nhóm chủ đề") })).toContainText(
     "Sức khỏe",
   );
-  console.log("DEBUGROW", await page.evaluate(() => { const r = document.querySelector('[data-testid="video-row"]')!.getBoundingClientRect(); const e = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return JSON.stringify({ r: [r.x, r.y, r.width, r.height], tag: e?.tagName, cls: e?.className, html: e?.outerHTML.slice(0, 300), up: e?.closest("a, button, input, .ant-select")?.outerHTML.slice(0, 200) }); }));
+  page.on("pageerror", (e) => console.log("DEBUGERR", String(e).slice(0, 400)));
+  page.on("console", (m) => { if (m.type() === "error") console.log("DEBUGCON", m.text().slice(0, 400)); });
+  page.on("framenavigated", (f) => console.log("DEBUGNAV", f.url()));
   await page.getByTestId("video-row").first().click();
+  await page.waitForTimeout(3000);
+  console.log("DEBUGURL", page.url(), await page.title());
   await expect(page).toHaveURL(/\/videos\/\d+$/);
   await page.goto("/videos");
   await page.getByTitle("Dạng lưới").click();
