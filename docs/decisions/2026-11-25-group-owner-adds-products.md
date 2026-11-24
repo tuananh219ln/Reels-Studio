@@ -18,3 +18,7 @@ their own row of an item into any group, with their own link. A member now adds 
   links of the member's own products.
 - **Screen**: "Thêm sản phẩm" and "Nhập file" are disabled (with the reason on hover) when the open group is not the
   member's; the add drawer lists only the groups the member may add to, and the Pages that post them.
+- **"Tôi thêm / Cả đội" is gone from "Sản phẩm"** (the owner's request, same day). It narrows the "Của tôi / Cả đội" rule of
+  [2026-11-08](../decisions.md) for this one screen: a group lists all its products, and "Người thêm: <tên>" on each
+  row tells a teammate's old row from the maker's. The group select already splits "Nhóm của tôi" from "Nhóm khác". Every
+  other list keeps its switch.

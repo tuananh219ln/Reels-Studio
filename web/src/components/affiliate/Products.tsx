@@ -5,7 +5,6 @@ import EmptyState from "@/components/EmptyState";
 import FilterSelect from "@/components/FilterSelect";
 import { useMe } from "@/components/MeContext";
 import StatusText from "@/components/StatusText";
-import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
 import { useUrlChoice, useUrlId, useUrlPage } from "@/lib/urlState";
 import {
@@ -139,8 +138,6 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const [target, setTarget] = useState<AffiliateProduct | "new" | null>(null);
   const [adding, setAdding] = useState<AddMode | null>(null);
-  // "Tôi thêm" or "Cả đội"; null until chosen (the default follows whether the member has added a product).
-  const [whosePick, setWhose] = useUrlChoice<Whose | null>("whose", null, ["mine", "all"]);
   const [stage, setStage] = useUrlChoice<Stage>("stage", "all", ["fill", "waiting", "approved"]);
   // The rows ticked for "Xoá đã chọn"; only the ones still listed count, so a filter never deletes hidden rows.
   const [ticked, setTicked] = useState<number[]>([]);
@@ -201,18 +198,18 @@ export default function Products() {
 
   useEffect(loadOptions, [loadOptions]);
 
-  const mineCount = products.filter((product) => product.created_by_id === me.id).length;
-  const whose = whosePick ?? (mineCount > 0 ? "mine" : "all");
-  const whoseRows = products.filter((product) => whose === "all" || product.created_by_id === me.id);
+  // The whole list of the group: new rows are only the group maker's, so there is no "Tôi thêm / Cả đội" here (decision
+  // 2026-11-25); each row says who added it.
+  const allRows = products;
   const stageCounts = Object.fromEntries(
     STAGES.map(({ value }) => [
       value,
-      value === "all" ? whoseRows.length : whoseRows.filter((product) => stageOf(product) === value).length,
+      value === "all" ? allRows.length : allRows.filter((product) => stageOf(product) === value).length,
     ]),
   ) as Record<Stage, number>;
-  const staged = stage === "all" ? whoseRows : whoseRows.filter((product) => stageOf(product) === stage);
+  const staged = stage === "all" ? allRows : allRows.filter((product) => stageOf(product) === stage);
   const shown = noLink ? staged.filter((product) => !product.url) : staged;
-  const withoutLink = whoseRows.filter((product) => !product.url).length;
+  const withoutLink = allRows.filter((product) => !product.url).length;
   // "Xuất CSV" follows the group, platform and search, and the stage as far as the api knows it (draft or approved).
   const exportQuery = [query, stage === "approved" ? "status=approved" : stage === "all" ? "" : "status=draft"]
     .filter(Boolean)
@@ -443,7 +440,7 @@ export default function Products() {
     Lane,
     AffiliateProduct[]
   >;
-  for (const product of whoseRows) lanes[laneOf(product)].push(product);
+  for (const product of allRows) lanes[laneOf(product)].push(product);
   const mineToLink = lanes.link.filter((product) => product.created_by_id === me.id).length;
   const needsGroup = "Chọn một nhóm chủ đề ở trên trước";
 
@@ -664,7 +661,6 @@ export default function Products() {
           </Typography.Text>
         )}
         <Space wrap style={{ marginLeft: "auto" }}>
-          <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={products.length} mineLabel="Tôi thêm" />
           <Segmented<"board" | "table">
             aria-label="Cách xem sản phẩm"
             value={view}
@@ -713,29 +709,29 @@ export default function Products() {
       <div data-testid="product-progress">
         <Flex justify="space-between" gap={8} wrap>
           <Typography.Text strong>
-            {ready} / {whoseRows.length} sẵn sàng dùng trong bình luận
+            {ready} / {allRows.length} sẵn sàng dùng trong bình luận
           </Typography.Text>
           <Typography.Text type={lanes.link.length > 0 ? "warning" : "secondary"}>
             {lanes.link.length > 0 ? `còn ${lanes.link.length} món chưa có link` : "mọi món đã duyệt đều có link"}
           </Typography.Text>
         </Flex>
         <Progress
-          percent={whoseRows.length === 0 ? 0 : Math.round(((ready + lanes.link.length) / whoseRows.length) * 100)}
-          success={{ percent: whoseRows.length === 0 ? 0 : Math.round((ready / whoseRows.length) * 100) }}
+          percent={allRows.length === 0 ? 0 : Math.round(((ready + lanes.link.length) / allRows.length) * 100)}
+          success={{ percent: allRows.length === 0 ? 0 : Math.round((ready / allRows.length) * 100) }}
           showInfo={false}
           size="small"
           strokeColor="var(--ant-color-warning)"
         />
       </div>
       {view === "board" ? (
-        loading && products.length === 0 ? null : whoseRows.length === 0 ? (
+        loading && products.length === 0 ? null : allRows.length === 0 ? (
           <EmptyState
             description={
               products.length === 0
                 ? open
                   ? `Nhóm “${open.name}” chưa có sản phẩm nào`
                   : "Chưa có sản phẩm nào"
-                : "Bạn chưa thêm sản phẩm nào. Chọn “Cả đội” để xem của mọi người."
+                : "Không có sản phẩm nào khớp"
             }
             action={
               products.length === 0 &&
@@ -803,12 +799,11 @@ export default function Products() {
                         ? open
                           ? `Nhóm “${open.name}” chưa có sản phẩm nào`
                           : "Chưa có sản phẩm nào"
-                        : whose === "mine" && mineCount === 0
-                          ? "Bạn chưa thêm sản phẩm nào. Chọn “Cả đội” để xem của mọi người."
-                          : "Không có sản phẩm nào khớp"
+                        : "Không có sản phẩm nào khớp"
                     }
                     action={
-                      products.length === 0 && (
+                      products.length === 0 &&
+                      canAdd && (
                         <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
                           Nhập sản phẩm đầu tiên
                         </Button>

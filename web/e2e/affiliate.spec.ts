@@ -560,10 +560,6 @@ test("Nhập file: a preview first, and a teammate's product is added again with
   await expect(dialog.getByText("1 sản phẩm trùng với người khác được thêm riêng cho bạn")).toBeVisible();
   await dialog.getByRole("button", { name: "Huỷ" }).click();
   await expect(dialog).toBeHidden();
-  await page
-    .getByLabel("Của ai")
-    .getByText(/Cả đội/)
-    .click();
   const rows = page.getByRole("row", { name: /Gối của Bình/ });
   await expect(rows).toHaveCount(2);
   await expect(rows.filter({ hasText: "Người thêm: Trần Bình" })).toHaveCount(1);
