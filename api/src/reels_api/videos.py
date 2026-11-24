@@ -1049,6 +1049,21 @@ def title_motion_payload(scene: Scene) -> dict | None:
         "pending": bool(made.get("pending")),
         "has_classic": bool(made.get("classic")),
         "labels": made["title"].get("labels", []),
+        # Per slot: its own photo's address (None while it follows its scene's photo) and the scene it was told to
+        # take from (None: the scene in the same place below the title).
+        "slots": [
+            {
+                "photo_url": (
+                    f"/api/title-motion/{scene.id}/slots/{index}/photo?v={_version(slot['image_key'])}"
+                    if slot.get("image_key")
+                    else None
+                ),
+                "from_scene": slot.get("from_scene"),
+            }
+            for index, slot in enumerate(
+                [*(made["title"].get("slots") or []), *([{}] * made["title"]["count"])][: made["title"]["count"]]
+            )
+        ],
     }
 
 

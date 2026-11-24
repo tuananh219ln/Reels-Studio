@@ -58,13 +58,44 @@ export function findGooglePhotos(keywords: string[]): Promise<GoogleSearch> {
   });
 }
 
+// A slot of a title's "Tiêu đề động" the extension sends to instead of its scene, until it expires (the member is
+// off to find a photo for it) or a scene is searched for.
+const CELL_TARGET_MS = 10 * 60 * 1000;
+let cellTarget: { sceneId: number; index: number; until: number } | null = null;
+
 /** The scene "Gửi ảnh vào Reels Studio" on an image's right-click menu sends to. */
 export function setGoogleTarget(sceneId: number, label: string): void {
+  cellTarget = null;
   window.postMessage({ source: FROM_PAGE, type: "target", target: { sceneId, label } }, window.location.origin);
 }
 
-/** A photo sent with "Gửi ảnh vào Reels Studio" to one of this page's scenes. */
-export function useSentImage(sceneId: number, onImage: (url: string) => void): void {
+/** The same, for one slot of the title scene `sceneId`: photos sent from now on go to that slot, for 10 minutes. */
+export function setGoogleCellTarget(sceneId: number, index: number, label: string): void {
+  window.postMessage({ source: FROM_PAGE, type: "target", target: { sceneId, label } }, window.location.origin);
+  cellTarget = { sceneId, index, until: Date.now() + CELL_TARGET_MS };
+}
+
+/** The slot of the title scene `sceneId` that sent photos go to now, or null: they go to the scene. */
+export function googleCellTarget(sceneId: number): number | null {
+  if (cellTarget && cellTarget.sceneId === sceneId && cellTarget.until > Date.now()) {
+    return cellTarget.index;
+  }
+  return null;
+}
+
+export function clearGoogleCellTarget(): void {
+  cellTarget = null;
+}
+
+/**
+ * A photo sent with "Gửi ảnh vào Reels Studio" to one of this page's scenes. With `forCell` it is the title's slot
+ * that receives it (and `onImage` gets the slot's number); otherwise only photos not meant for a slot arrive.
+ */
+export function useSentImage(
+  sceneId: number,
+  onImage: (url: string, cell: number | null) => void,
+  forCell = false,
+): void {
   const latest = useRef(onImage);
   useEffect(() => {
     latest.current = onImage;
@@ -74,11 +105,14 @@ export function useSentImage(sceneId: number, onImage: (url: string) => void): v
       const data = event.data;
       if (event.source === window && data?.source === FROM_EXTENSION && data.type === "send-image") {
         if (data.sceneId === sceneId && typeof data.url === "string") {
-          latest.current(data.url);
+          const cell = googleCellTarget(sceneId);
+          if ((cell !== null) === forCell) {
+            latest.current(data.url, cell);
+          }
         }
       }
     };
     window.addEventListener("message", listen);
     return () => window.removeEventListener("message", listen);
-  }, [sceneId]);
+  }, [sceneId, forCell]);
 }

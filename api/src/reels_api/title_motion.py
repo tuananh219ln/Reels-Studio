@@ -595,6 +595,26 @@ def set_slot_photo(
     return payload
 
 
+def remove_slot_photo(db: DbSession, storage: DirectoryStorage, scene_id: int, index: int) -> dict:
+    """ "Xóa ảnh" of a slot: it follows its scene's photo again from the next build."""
+    from . import routes_videos
+
+    video, scene = lock_scene(db, scene_id)
+    ensure_unlocked(db, video)
+    made = scene.motion or {}
+    info = made.get("title")
+    if not scene.is_title or not info:
+        raise invalid("Cảnh tiêu đề chưa có tiêu đề động")
+    if not 0 <= index < info["count"]:
+        raise invalid("Tiêu đề không có ô này")
+    slots = [dict(slot) for slot in info.get("slots") or []]
+    old = slots[index].pop("image_key", None) if index < len(slots) else None
+    scene.motion = {**made, "title": {**info, "slots": slots}}
+    payload = routes_videos._saved(db, video)
+    storage.delete(old)
+    return payload
+
+
 def set_mode(db: DbSession, storage: DirectoryStorage, scene_id: int, mode: str) -> dict:
     """Cổ điển / Động: the title scene shows the photo or clip it had, or the motion clip already rendered. No job."""
     from . import routes_videos
