@@ -2,6 +2,7 @@
 the title scene's motion job with the switch Cổ điển / Động (a fake HyperFrames CLI on PATH, as in test_motion)."""
 
 import json
+import math
 from types import SimpleNamespace
 
 import pytest
@@ -469,3 +470,26 @@ def test_the_layout_a_member_asked_for_is_offered_again_on_a_rebuild():
     assert title_motion_payload(older)["requested"] == "auto"
     assert title_motion.choose_layout("", "TRỨNG GÀ KẾT HỢP VỚI 7 LÁ", 7, "strip") == "strip"
     assert title_motion.choose_layout("", "TRỨNG GÀ KẾT HỢP VỚI 7 LÁ", 7, "ring") == "ring"
+
+
+@pytest.mark.parametrize("n", [5, 6, 8, 9])
+def test_the_ring_bubbles_are_big_and_touch_neither_each_other_nor_the_main_dish(n):
+    boxes = title_motion.ring_boxes(n, 790)
+    hx, hy, hw, _ = boxes[0]
+    leaves = boxes[1:]
+    assert min(w for _, _, w, _ in leaves) >= (200 if n == 9 else 240)
+    for x, y, w, _ in leaves:
+        assert math.hypot(x + w / 2 - hx - hw / 2, y + w / 2 - hy - hw / 2) >= (w + hw) / 2 + 8
+        assert x >= 60 and x + w <= 1020 and y >= 790 and y + w <= 1680
+    for i, (x, y, w, _) in enumerate(leaves):
+        for x2, y2, _, _ in leaves[i + 1 :]:
+            assert math.hypot(x - x2, y - y2) >= w + 8
+
+
+def test_a_ring_name_can_wrap_and_drops_what_the_main_dish_already_says():
+    scene = Scene(text="Trứng gà + lá ngải cứu")
+    assert (
+        title_motion.label_of(scene, True) == "LÁ NGẢI CỨU" and title_motion.label_of(scene) == "TRỨNG GÀ + LÁ NGẢI CỨU"
+    )
+    markup = title_motion.build_html("ring", ["TRỨNG"] + ["LÁ NGẢI CỨU"] * 7, atlas_for("ring", 8), "X", 790)
+    assert "white-space:nowrap" not in markup

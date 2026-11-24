@@ -36,7 +36,6 @@ GAP = 30  # between two slots, across and down
 TITLE_GAP = 40  # between the hook box and the first row
 SPRITE_SCALE = 2  # the atlas is cut at twice the slots' size so the photos stay sharp
 AREA = (SIDE_MARGIN, 640, 1080 - SIDE_MARGIN, SAFE_BOTTOM)  # x0, y0, x1, y1: under the hook box, above the caption zone
-RING = (540, 1040, 300, 190, 360)  # centre x, centre y, radius, bubble, main dish (at scale 1)
 MAX_LABEL = 22
 COMBINED = re.compile(r"\+\s*\d+|kết hợp với\s*\d+", re.IGNORECASE)
 # Words a health hook must not use (spec section 3): found ones are reported, never silently removed.
@@ -77,14 +76,6 @@ def choose_layout(content_type: str, title: str, n: int, requested: str = "auto"
 
 
 # --- Geometry ---
-
-
-def ring_scale(top: int) -> tuple[int, float]:
-    """The height under `top`, and how much the ring's usual sizes grow or shrink to fill it (the half of the height
-    or of the width left, whichever is smaller, over the ring's reach of 395 px)."""
-    height = AREA[3] - top
-    reach = RING[2] + RING[3] / 2
-    return height, min(1.25, (min((AREA[2] - AREA[0]) / 2, height / 2) - 6) / reach)
 
 
 def hook_bottom(video: Video, scene: Scene) -> int:
@@ -133,18 +124,24 @@ def strip_height(n: int, top: int = AREA[1]) -> int:
 
 
 def ring_boxes(n: int, top: int = AREA[1]) -> list[tuple[int, int, int, int]]:
-    height, k = ring_scale(top)
-    cx, _, radius, bubble, hero = RING
-    cy = top + height // 2
-    radius, bubble, hero = round(radius * k), round(bubble * k), round(hero * k)
-    boxes = [(cx - hero // 2, cy - hero // 2, hero, hero)]
+    """The main dish in the middle and the others round it, as big as the room allows: the ring reaches the side
+    margins (or the room's half height), the main dish is 70 % of that reach, and a bubble is the biggest that
+    neither touches the main dish nor its neighbours."""
+    height = AREA[3] - top
+    cx, cy = 540, top + height // 2
+    reach = min((AREA[2] - AREA[0]) / 2, height / 2) - 4
     leaves = n - 1
+    hero = round(0.7 * reach)
+    near = math.sin(math.pi / leaves)
+    bubble = round(min(reach - hero / 2 - 14, (2 * near * reach - 12) / (1 + near), 300))
+    radius = reach - bubble / 2
+    boxes = [(cx - hero // 2, cy - hero // 2, hero, hero)]
     for k in range(leaves):
         angle = -math.pi / 2 + 2 * math.pi * k / leaves
         boxes.append(
             (
-                int(cx + radius * math.cos(angle) - bubble / 2),
-                int(cy + radius * math.sin(angle) - bubble / 2),
+                round(cx + radius * math.cos(angle) - bubble / 2),
+                round(cy + radius * math.sin(angle) - bubble / 2),
                 bubble,
                 bubble,
             )
@@ -205,7 +202,7 @@ CSS = """
 .it:after{content:"";position:absolute;left:0;top:0;right:0;bottom:0;border:6px solid #fff;border-radius:inherit}
 .ph{position:absolute;left:0;top:0;right:0;bottom:0;background-color:#3f4a37;background-repeat:no-repeat}
 .badge{position:absolute;left:18px;top:16px;width:72px;height:72px;border-radius:50%;background:#FF3B30;color:#fff;font-weight:900;font-size:44px;line-height:70px;text-align:center;box-shadow:0 4px 0 rgba(0,0,0,.3);z-index:2}
-.name{position:absolute;left:0;bottom:0;width:100%;padding:40px 8px 20px;box-sizing:border-box;text-align:center;white-space:nowrap;font-weight:900;font-size:46px;line-height:1.05;color:#fff;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.78));text-shadow:0 3px 0 rgba(0,0,0,.5)}
+.name{position:absolute;left:0;bottom:0;width:100%;padding:40px 8px 20px;box-sizing:border-box;text-align:center;font-weight:900;font-size:46px;line-height:1.05;color:#fff;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.78));text-shadow:0 3px 0 rgba(0,0,0,.5)}
 .hid .ph{filter:blur(8px) brightness(.5);transform:scale(1.12)}
 .hid .badge{background:#FFD60A;color:#111}
 .qm{position:absolute;left:0;width:100%;text-align:center;font-weight:900;line-height:1;color:#FFD60A;text-shadow:0 8px 0 rgba(0,0,0,.45);z-index:2}
@@ -246,9 +243,17 @@ def fit_name(label: str, width: int, size: int) -> int:
     return max(20, min(size, int((width - 28) / (0.7 * max(len(label), 1)))))
 
 
+def fit_round_name(label: str, width: int, size: int) -> int:
+    """The font size for a name of up to two lines inside a round slot (its bottom is narrow, so only 80 % of the
+    width is used): the longest line is the longest word or half the name."""
+    longest = max([len(word) for word in label.split()] + [math.ceil(len(label) / 2) if " " in label else len(label)])
+    return max(18, min(size, int((width * 0.7 - 8) / (0.75 * max(longest, 1)))))
+
+
 def _card(
-    i, label, box, radius, hidden, atlas, hidden_label, *, name_size=46, badge=True, qsize=200, warn=False, fit=False
-):
+    i, label, box, radius, hidden, atlas, hidden_label, *, name_size=46, badge=True, qsize=200, warn=False, fit=False,
+    ring=False,
+):  # fmt: skip
     x, y, w, h = box
     k = scale_of(h) if fit else 1.0
     inner = f'<div class="ph" style="{_photo(atlas, i)}"></div>'
@@ -267,8 +272,14 @@ def _card(
     else:
         if warn:
             inner += '<div class="x"></div>'
-        size = fit_name(label, w, min(48, round(40 * k))) if fit else name_size
-        inner += f'<div class="name" style="font-size:{size}px">{H.escape(label)}</div>'
+        if ring:
+            size = fit_round_name(label, w, round(w * 0.15))
+            style = f"font-size:{size}px;padding:{size}px {round(w * 0.15)}px {round(w * 0.17)}px"
+        elif fit:
+            style = f"font-size:{fit_name(label, w, min(48, round(40 * k)))}px;white-space:nowrap"
+        else:
+            style = f"font-size:{name_size}px"
+        inner += f'<div class="name" style="{style}">{H.escape(label)}</div>'
     return (
         f'<div class="it s{i}{" hid" if hidden else ""}" style="left:{x}px;top:{y}px;width:{w}px;height:{h}px;'
         f'border-radius:{radius}px">{inner}</div>'
@@ -292,11 +303,10 @@ def build_html(layout: str, labels: list[str], atlas: dict, hidden_label: str, t
             )  # fmt: skip
     elif layout == "ring":
         for i, box in enumerate(ring_boxes(n, top)):
-            hero = i == 0
             parts.append(
                 _card(
                     i, labels[i], box, box[2] // 2, i == n - 1, atlas, hidden_label,
-                    name_size=44 if hero else 30, badge=False, qsize=120,
+                    badge=False, qsize=round(box[2] * 0.6), ring=True,
                 )
             )  # fmt: skip
     else:
@@ -332,11 +342,14 @@ def build_html(layout: str, labels: list[str], atlas: dict, hidden_label: str, t
 # --- The slots' photos ---
 
 
-def label_of(scene: Scene) -> str:
-    """A dish's name for its slot: the scene's first line without markup, cut at the first dash or colon."""
+def label_of(scene: Scene, after_plus: bool = False) -> str:
+    """A dish's name for its slot: the scene's first line without markup, cut at the first dash or colon. With
+    `after_plus` ("TRỨNG + LÁ LỐT" round the main dish), only what follows the last "+"."""
     line = (scene.text or "").replace("*", "").strip().split("\n")[0]
     line = re.sub(r"^\s*(\d+\s*[.):\-–]\s*|[-–•]\s*)", "", line)
     line = re.split(r"\s[-–—]\s|\s*[:,;]\s", line)[0].strip().upper()
+    if after_plus and line.rsplit("+", 1)[-1].strip():
+        line = line.rsplit("+", 1)[-1].strip()
     return line if len(line) <= MAX_LABEL else line[: MAX_LABEL - 1].rstrip() + "…"
 
 
@@ -547,7 +560,9 @@ def build(
     given = [
         (slot.get("label") or (labels[i] if labels else "")).strip().upper()[:MAX_LABEL] for i, slot in enumerate(slots)
     ]
-    names = [label or label_of(s) for label, s in zip(given, listed, strict=True)]
+    names = [
+        label or label_of(s, layout == "ring" and i > 0) for i, (label, s) in enumerate(zip(given, listed, strict=True))
+    ]
     if not all(names):
         raise invalid("Có cảnh liệt kê chưa có chữ để làm tên món")
     scene.text_x, scene.text_y = HOOK_CENTRE
