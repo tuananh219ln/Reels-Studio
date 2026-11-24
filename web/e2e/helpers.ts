@@ -152,9 +152,3 @@ export async function closeImportExport(page: Page) {
   await page.keyboard.press("Escape");
   await expect(page.getByRole("link", { name: "Xuất CSV" })).toBeHidden();
 }
-
-/** Affiliate › Sản phẩm opens on the board; the table (rows, ticks, filters by stage) is one click away and stays chosen. */
-export async function showProductTable(page: Page) {
-  await page.getByLabel("Cách xem sản phẩm").getByText("Bảng").click();
-  await expect(page.getByTestId("product-board")).toHaveCount(0);
-}

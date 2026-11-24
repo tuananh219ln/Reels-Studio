@@ -89,9 +89,9 @@ let chosenView: "board" | "table" | null = null; // kept when the browser refuse
 function readView(): "board" | "table" {
   if (chosenView) return chosenView;
   try {
-    return window.localStorage.getItem(VIEW_KEY) === "table" ? "table" : "board";
+    return window.localStorage.getItem(VIEW_KEY) === "board" ? "board" : "table";
   } catch {
-    return "board";
+    return "table";
   }
 }
 function writeView(next: "board" | "table") {
@@ -147,8 +147,8 @@ export default function Products() {
   // "Nhập / Xuất" opens these two; "Chưa có link" narrows the list to what Custom Link still has to convert.
   const [customLink, setCustomLink] = useState<"export" | "import" | null>(null);
   const [noLink, setNoLink] = useState(false);
-  // The board is the default; the member's choice of the table is remembered in this browser.
-  const view = useSyncExternalStore(subscribeView, readView, () => "board" as const);
+  // The table is the default; the member's choice of the board is remembered in this browser.
+  const view = useSyncExternalStore(subscribeView, readView, () => "table" as const);
   const [expanded, setExpanded] = useState<Lane[]>([]);
   const query = useMemo(() => {
     const params = new URLSearchParams();
