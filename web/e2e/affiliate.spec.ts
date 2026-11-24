@@ -8,6 +8,7 @@ import {
   loginAsSeed,
   openPanel,
   resetDatabase,
+  showProductTable,
 } from "./helpers";
 
 // Issue #47. Shopee is the fake one (api/scripts/fake_services.py), which knows this App ID and Secret.
@@ -96,6 +97,7 @@ test("a new script finds Shopee products with the writer's account, and one is c
 
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await showProductTable(page);
   const row = page.getByRole("row", { name: /Sữa hạt canxi loại 1/ });
   await expect(row).toContainText("Đã duyệt");
   await expect(row).toContainText("Tìm qua API");
@@ -143,6 +145,7 @@ test("a pasted Shopee link is filled in by the worker and can be approved", asyn
   await addShopeeAccount(page);
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await showProductTable(page);
   await page.getByRole("button", { name: "Thêm sản phẩm" }).click();
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
@@ -475,10 +478,13 @@ test("Sản phẩm: my groups first, who added each product, and stars or sales 
 
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await showProductTable(page);
   // My groups first, each with the Pages that post it.
-  const groups = page.getByRole("navigation", { name: "Nhóm chủ đề" });
+  await page.getByLabel("Lọc theo nhóm").click();
+  const groups = page.locator(".ant-select-dropdown:visible");
   await expect(groups).toContainText("Nhóm của tôi");
-  await expect(groups.getByRole("button", { name: /Sức khỏe/ })).toContainText("Trang Dưỡng Sinh");
+  await expect(groups.locator(".ant-select-item-option", { hasText: "Sức khỏe" })).toContainText("Trang Dưỡng Sinh");
+  await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: "Thêm sản phẩm" }).click();
   const adding = page.getByRole("dialog", { name: "Thêm sản phẩm" });
@@ -540,6 +546,7 @@ test("Nhập file: a preview first, and a teammate's product is added again with
 
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await showProductTable(page);
   await importExportItem(page, /^Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");

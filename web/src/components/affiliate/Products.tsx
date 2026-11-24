@@ -9,15 +9,19 @@ import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
 import { useUrlChoice, useUrlId, useUrlPage } from "@/lib/urlState";
 import {
+  AppstoreOutlined,
+  BarsOutlined,
   CheckOutlined,
   DeleteOutlined,
   DownOutlined,
+  DownloadOutlined,
   FacebookFilled,
   LoadingOutlined,
   PlusOutlined,
   SearchOutlined,
   ShoppingOutlined,
   SwapOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import {
   App,
@@ -29,6 +33,7 @@ import {
   Flex,
   Input,
   Popconfirm,
+  Progress,
   Segmented,
   Space,
   Table,
@@ -37,7 +42,7 @@ import {
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import AddProductDrawer, { type AddMode } from "./AddProductDrawer";
 import CustomLinkExport from "./CustomLinkExport";
 import CustomLinkImport from "./CustomLinkImport";
@@ -60,6 +65,48 @@ const STAGES: { value: Stage; label: string }[] = [
   { value: "waiting", label: "Chờ duyệt" },
   { value: "approved", label: "Đã duyệt" },
 ];
+
+/** The four steps a product goes through, one column each on the board: drafts short on stars or sales, drafts ready to
+ * approve, approved Shopee products with no affiliate link yet (what Custom Link converts), and ready to use. */
+type Lane = "fill" | "waiting" | "link" | "ready";
+
+function laneOf(product: AffiliateProduct): Lane {
+  if (product.status !== "approved") return product.short_on_counts ? "fill" : "waiting";
+  return product.platform === "shopee" && !product.url ? "link" : "ready";
+}
+
+const LANES: { value: Lane; title: string; hint: string }[] = [
+  { value: "fill", title: "1 · Cần điền", hint: "Điền sao, lượt bán ngay trên thẻ rồi duyệt" },
+  { value: "waiting", title: "2 · Chờ duyệt", hint: "Đạt tiêu chí, chờ một người duyệt" },
+  { value: "link", title: "3 · Cần link", hint: "Đã duyệt nhưng chưa có link affiliate" },
+  { value: "ready", title: "4 · Sẵn sàng", hint: "Dùng được trong video và bộ bình luận" },
+];
+const LANE_CARDS = 5; // cards a column shows before "Xem thêm"
+
+const VIEW_KEY = "affiliate-products-view";
+const viewListeners = new Set<() => void>();
+let chosenView: "board" | "table" | null = null; // kept when the browser refuses storage
+function readView(): "board" | "table" {
+  if (chosenView) return chosenView;
+  try {
+    return window.localStorage.getItem(VIEW_KEY) === "table" ? "table" : "board";
+  } catch {
+    return "board";
+  }
+}
+function writeView(next: "board" | "table") {
+  chosenView = next;
+  try {
+    window.localStorage.setItem(VIEW_KEY, next);
+  } catch {
+    // Not remembered across visits; the choice still holds for this one.
+  }
+  viewListeners.forEach((listener) => listener());
+}
+function subscribeView(listener: () => void) {
+  viewListeners.add(listener);
+  return () => void viewListeners.delete(listener);
+}
 
 /** The product list by topic group (the groups on the left, mine first, each with the Pages that post it), best
  * expected commission first. */
@@ -100,8 +147,9 @@ export default function Products() {
   // "Nhập / Xuất" opens these two; "Chưa có link" narrows the list to what Custom Link still has to convert.
   const [customLink, setCustomLink] = useState<"export" | "import" | null>(null);
   const [noLink, setNoLink] = useState(false);
-  const [othersOpen, setOthersOpen] = useState(false);
-
+  // The board is the default; the member's choice of the table is remembered in this browser.
+  const view = useSyncExternalStore(subscribeView, readView, () => "board" as const);
+  const [expanded, setExpanded] = useState<Lane[]>([]);
   const query = useMemo(() => {
     const params = new URLSearchParams();
     const values: [string, string | undefined][] = [
@@ -176,11 +224,15 @@ export default function Products() {
   const selected = ticked.filter((id) => listed.has(id));
 
   async function approveSelected() {
+    await approveIds(selected);
+  }
+
+  async function approveIds(ids: number[]) {
     try {
       const { approved, skipped } = await api<{ approved: number; skipped: number }>(
         "/affiliate-products/approve",
         "POST",
-        { product_ids: selected },
+        { product_ids: ids },
       );
       const note = skipped ? `; ${skipped} sản phẩm chưa đạt tiêu chí nên vẫn là nháp` : "";
       (skipped ? message.warning : message.success)(`Đã duyệt ${approved} sản phẩm${note}`);
@@ -352,267 +404,413 @@ export default function Products() {
     },
   ];
 
-  /** One group on the left: its name on one line, its product count beside it, and the Pages that post it below. */
-  function group(id: number | undefined, name: string, count: number) {
-    const chosen = topicId === id;
-    const pages = id === undefined ? [] : pagesOf(id);
-    const pageNames = pages.map((page) =>
-      page.mine ? page.name : `${page.name} (${page.owner_name ?? "chưa có chủ"})`,
-    );
-    return (
-      <button
-        key={id ?? "all"}
-        type="button"
-        aria-pressed={chosen}
-        onClick={() => {
-          setFilters({ ...filters, topicId: id });
-          setTicked([]);
-        }}
-        style={{
-          display: "block",
-          width: "100%",
-          padding: "7px 10px",
-          border: 0,
-          borderRadius: 8,
-          textAlign: "left",
-          cursor: "pointer",
-          background: chosen ? "var(--ant-color-primary-bg)" : "transparent",
-        }}
-      >
-        <Flex justify="space-between" align="baseline" gap={8}>
-          <Typography.Text
-            strong={chosen}
-            ellipsis={{ tooltip: name }}
-            style={{ flex: 1, minWidth: 0, color: chosen ? "var(--ant-color-primary)" : undefined }}
+  const myTopics = options.topics.filter((topic) => topic.mine);
+  const otherTopics = options.topics.filter((topic) => !topic.mine);
+  const topicOption = (topic: AffiliateOptions["topics"][number]) => ({
+    value: topic.id,
+    label: topic.name,
+    count: topic.product_count,
+    pages: pagesOf(topic.id).map((page) => page.name),
+  });
+  const topicOptions = [
+    ...(myTopics.length > 0 ? [{ label: "Nhóm của tôi", options: myTopics.map(topicOption) }] : []),
+    ...(otherTopics.length > 0
+      ? [{ label: myTopics.length > 0 ? "Nhóm khác" : "Các nhóm", options: otherTopics.map(topicOption) }]
+      : []),
+  ];
+  const importExport = [
+    {
+      key: "file",
+      icon: <UploadOutlined />,
+      label: "Nhập file (Lấy link hàng loạt)",
+      onClick: () => setAdding("file"),
+    },
+    {
+      key: "csv",
+      icon: <DownloadOutlined />,
+      label: <a href={`/api/affiliate-products/export.csv?${exportQuery}`}>Xuất CSV</a>,
+    },
+  ];
+
+  const lanes = Object.fromEntries(LANES.map(({ value }) => [value, [] as AffiliateProduct[]])) as Record<
+    Lane,
+    AffiliateProduct[]
+  >;
+  for (const product of whoseRows) lanes[laneOf(product)].push(product);
+  const mineToLink = lanes.link.filter((product) => product.created_by_id === me.id).length;
+  const needsGroup = "Chọn một nhóm chủ đề ở trên trước";
+
+  /** The button at the head of a column: the one bulk step that column has. */
+  function laneAction(lane: Lane) {
+    if (lane === "waiting" && lanes.waiting.length > 0) {
+      return (
+        <Button
+          icon={<CheckOutlined />}
+          block
+          onClick={() => void approveIds(lanes.waiting.slice(0, 500).map((product) => product.id))}
+        >
+          Duyệt tất cả ({lanes.waiting.length})
+        </Button>
+      );
+    }
+    if (lane === "link" && lanes.link.length > 0) {
+      return (
+        <Flex vertical gap={6}>
+          <Tooltip
+            title={topicId === undefined ? needsGroup : mineToLink === 0 ? "Không có món nào của bạn" : undefined}
           >
-            {name}
-          </Typography.Text>
-          <Typography.Text type="secondary" style={{ whiteSpace: "nowrap", fontSize: 12 }}>
-            {count}
-          </Typography.Text>
+            <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              block
+              disabled={topicId === undefined || mineToLink === 0}
+              onClick={() => setCustomLink("export")}
+            >
+              Xuất file Custom Link ({mineToLink})
+            </Button>
+          </Tooltip>
+          <Tooltip title={topicId === undefined ? needsGroup : undefined}>
+            <Button
+              icon={<UploadOutlined />}
+              block
+              disabled={topicId === undefined}
+              onClick={() => setCustomLink("import")}
+            >
+              Nhập kết quả Shopee
+            </Button>
+          </Tooltip>
         </Flex>
-        {id !== undefined && (
-          <Typography.Text
-            type="secondary"
-            ellipsis={{ tooltip: pageNames.join(", ") }}
-            style={{ display: "block", fontSize: 12, marginTop: 1 }}
-          >
-            {pages.length === 0 ? (
-              "Chưa Page nào đăng"
+      );
+    }
+    return null;
+  }
+
+  function card(product: AffiliateProduct, lane: Lane) {
+    return (
+      <Card key={product.id} size="small" styles={{ body: { padding: 8 } }} data-testid="product-card">
+        <Flex gap={8} align="flex-start">
+          <Avatar
+            shape="square"
+            size={36}
+            src={product.image_url ?? undefined}
+            icon={<ShoppingOutlined />}
+            style={{ flex: "none" }}
+          />
+          <Flex vertical gap={2} style={{ minWidth: 0, flex: 1 }}>
+            <a
+              href={product.url ?? product.page_url ?? undefined}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                fontWeight: 600,
+                fontSize: 13,
+                wordBreak: "break-word",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {product.name}
+            </a>
+            {product.lookup === "pending" ? (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                <LoadingOutlined /> Đang lấy thông tin từ Shopee…
+              </Typography.Text>
             ) : (
-              <>
-                <FacebookFilled /> {pageNames.join(", ")}
-              </>
+              <Typography.Text style={{ fontSize: 12 }}>
+                <Typography.Text strong type="success">
+                  {product.expected_commission.toLocaleString("vi-VN")}đ/đơn
+                </Typography.Text>{" "}
+                <Typography.Text type="secondary">
+                  · {product.rating} / {product.sold.toLocaleString("vi-VN")}
+                </Typography.Text>
+              </Typography.Text>
             )}
-          </Typography.Text>
+            {product.lookup === "failed" && (
+              <Typography.Text type="danger" style={{ fontSize: 12 }}>
+                {product.lookup_error}
+              </Typography.Text>
+            )}
+            {product.problems.map((problem) => (
+              <Typography.Text key={problem} type="warning" style={{ fontSize: 12 }}>
+                {problem}
+              </Typography.Text>
+            ))}
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {product.shop_name || "—"}
+              {product.created_by_id !== me.id && ` · ${product.created_by}`}
+              {topicId === undefined && ` · ${product.topic}`}
+            </Typography.Text>
+          </Flex>
+        </Flex>
+        {lane === "fill" && needsQuickFill(product) && (
+          <div style={{ marginTop: 6 }}>
+            <QuickFill product={product} options={options} onSaved={() => reload(true)} />
+          </div>
         )}
-      </button>
+        <div style={{ marginTop: 6 }}>
+          <ProductActions product={product} onEdit={setTarget} onChanged={() => reload(true)} compact />
+        </div>
+      </Card>
     );
   }
 
-  const myTopics = options.topics.filter((topic) => topic.mine);
-  const otherTopics = options.topics.filter((topic) => !topic.mine);
-  const total = options.topics.reduce((sum, topic) => sum + topic.product_count, 0);
-
-  // The groups of others fold away, unless there is nothing else to show or the open group is one of them.
-  const othersShown = othersOpen || myTopics.length === 0 || otherTopics.some((topic) => topic.id === topicId);
-  const importExport = [
-    { key: "file", icon: <SwapOutlined />, label: "Nhập file (Lấy link hàng loạt)", onClick: () => setAdding("file") },
-    {
-      key: "converted",
-      label: "Nhập link đã chuyển đổi",
-      disabled: topicId === undefined,
-      title: topicId === undefined ? "Chọn một nhóm chủ đề ở bên trái trước" : undefined,
-      onClick: () => setCustomLink("import"),
-    },
-    { type: "divider" as const },
-    { key: "csv", label: <a href={`/api/affiliate-products/export.csv?${exportQuery}`}>Xuất CSV</a> },
-    {
-      key: "custom",
-      label: "Xuất file Custom Link",
-      disabled: topicId === undefined,
-      title: topicId === undefined ? "Chọn một nhóm chủ đề ở bên trái trước" : undefined,
-      onClick: () => setCustomLink("export"),
-    },
-  ];
-  const figures = [
-    { label: "sản phẩm", value: whoseRows.length, warn: false },
-    { label: "đã duyệt", value: stageCounts.approved, warn: false },
-    { label: "chưa có link", value: withoutLink, warn: withoutLink > 0 },
-  ];
+  const ready = lanes.ready.length;
+  const board = (
+    <div
+      data-testid="product-board"
+      style={{
+        display: "grid",
+        gap: 12,
+        gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+        alignItems: "start",
+      }}
+    >
+      {LANES.map(({ value, title, hint }) => {
+        const items = lanes[value];
+        const all = expanded.includes(value);
+        const shownItems = all ? items : items.slice(0, LANE_CARDS);
+        const attention = value === "link" && items.length > 0;
+        return (
+          <Card
+            key={value}
+            size="small"
+            data-testid={`lane-${value}`}
+            style={attention ? { borderColor: "var(--ant-color-warning)" } : undefined}
+            styles={{ body: { padding: 10 } }}
+          >
+            <Flex vertical gap={8}>
+              <Flex justify="space-between" align="center">
+                <Typography.Text strong>{title}</Typography.Text>
+                <Tag
+                  bordered={false}
+                  color={items.length === 0 ? undefined : value === "ready" ? "success" : "warning"}
+                  style={{ margin: 0 }}
+                >
+                  {items.length}
+                </Tag>
+              </Flex>
+              {laneAction(value)}
+              {items.length === 0 ? (
+                <Typography.Text type="secondary" style={{ textAlign: "center", padding: "12px 0" }}>
+                  {value === "ready" ? "Chưa có sản phẩm nào" : "✓ Đã sạch"}
+                </Typography.Text>
+              ) : (
+                <>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {hint}
+                  </Typography.Text>
+                  {shownItems.map((product) => card(product, value))}
+                  {items.length > LANE_CARDS && (
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={() => setExpanded(all ? expanded.filter((x) => x !== value) : [...expanded, value])}
+                    >
+                      {all ? "Thu gọn" : `Xem thêm ${items.length - LANE_CARDS} món`}
+                    </Button>
+                  )}
+                </>
+              )}
+            </Flex>
+          </Card>
+        );
+      })}
+    </div>
+  );
 
   return (
-    <Flex gap={16} align="flex-start" wrap>
-      <Card
-        size="small"
-        // A fixed width, and min-width 0: a long Page name on one line would otherwise stretch the column.
-        style={{ flex: "0 0 240px", width: 240, minWidth: 0, maxWidth: "100%" }}
-        styles={{ body: { padding: 6, overflow: "hidden" } }}
-      >
-        <nav aria-label="Nhóm chủ đề">
-          {group(undefined, "Tất cả nhóm", total)}
-          {myTopics.length > 0 && (
-            <Typography.Text type="secondary" style={{ display: "block", fontSize: 12, padding: "8px 10px 2px" }}>
-              Nhóm của tôi
-            </Typography.Text>
+    <Flex vertical gap={12}>
+      <Flex wrap gap={8} align="center">
+        <FilterSelect<number>
+          aria-label="Lọc theo nhóm"
+          data-testid="product-group"
+          placeholder="Tất cả nhóm"
+          value={topicId}
+          onChange={(value) => {
+            setFilters({ ...filters, topicId: value ?? undefined });
+            setTicked([]);
+          }}
+          options={topicOptions}
+          optionRender={(option) => (
+            <Flex justify="space-between" gap={8}>
+              <span>
+                {option.label}
+                {(option.data.pages as string[] | undefined)?.length ? (
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {" "}
+                    <FacebookFilled /> {(option.data.pages as string[]).join(", ")}
+                  </Typography.Text>
+                ) : null}
+              </span>
+              <Typography.Text type="secondary">{option.data.count as number}</Typography.Text>
+            </Flex>
           )}
-          {myTopics.map((topic) => group(topic.id, topic.name, topic.product_count))}
-          {myTopics.length > 0 && otherTopics.length > 0 && (
-            <button
-              type="button"
-              aria-expanded={othersShown}
-              onClick={() => setOthersOpen(!othersOpen)}
-              style={{
-                display: "block",
-                width: "100%",
-                border: 0,
-                background: "transparent",
-                textAlign: "left",
-                cursor: "pointer",
-                padding: "8px 10px 2px",
-                fontSize: 12,
-                color: "var(--ant-color-text-secondary)",
-              }}
-            >
-              {othersShown ? "▾" : "▸"} Nhóm khác ({otherTopics.length})
-            </button>
-          )}
-          {othersShown && otherTopics.map((topic) => group(topic.id, topic.name, topic.product_count))}
-        </nav>
-      </Card>
-      <div style={{ flex: "1 1 520px", minWidth: 0 }}>
-        <Flex wrap gap={12} justify="space-between" align="center" style={{ marginBottom: 12 }}>
-          <Flex vertical gap={0}>
-            <Typography.Text strong style={{ fontSize: 16 }} data-testid="product-group">
-              {open ? open.name : "Tất cả nhóm"}
-            </Typography.Text>
-            {open && (
-              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                {pagesOf(open.id).length > 0
-                  ? `Dùng cho video của ${pagesOf(open.id).length} Page`
-                  : "Chưa Page nào đăng nhóm này"}
-              </Typography.Text>
-            )}
-          </Flex>
-          <Space wrap>
-            <Dropdown menu={{ items: importExport }} trigger={["click"]}>
-              <Button icon={<SwapOutlined />}>
-                Nhập / Xuất <DownOutlined />
-              </Button>
-            </Dropdown>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
-              Thêm sản phẩm
-            </Button>
-          </Space>
-        </Flex>
-        <Flex gap={12} style={{ marginBottom: 12 }} data-testid="product-figures">
-          {figures.map(({ label, value, warn }) => (
-            <Card key={label} size="small" style={{ flex: 1 }} styles={{ body: { padding: "8px 12px" } }}>
-              <Typography.Text
-                strong
-                style={{ fontSize: 20, display: "block", lineHeight: 1.2 }}
-                type={warn ? "warning" : undefined}
-              >
-                {value.toLocaleString("vi-VN")}
-              </Typography.Text>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {label}
-              </Typography.Text>
-            </Card>
-          ))}
-        </Flex>
-        <Flex wrap gap={12} align="center" style={{ marginBottom: 12 }}>
-          <Input
-            aria-label="Tìm theo sản phẩm hoặc shop"
-            prefix={<SearchOutlined />}
-            placeholder="Tìm theo sản phẩm hoặc shop…"
-            allowClear
-            value={q}
-            onChange={(event) => setFilters({ ...filters, q: event.target.value })}
-            style={{ flex: "1 1 200px", maxWidth: 320 }}
-          />
+          style={{ width: 340, maxWidth: "100%", fontWeight: 600 }}
+        />
+        {open && (
+          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+            {pagesOf(open.id).length > 0
+              ? `Dùng cho video của ${pagesOf(open.id).length} Page`
+              : "Chưa Page nào đăng nhóm này"}
+          </Typography.Text>
+        )}
+        <Space wrap style={{ marginLeft: "auto" }}>
           <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={products.length} mineLabel="Tôi thêm" />
-          <FilterSelect
-            aria-label="Lọc theo nền tảng"
-            placeholder="Mọi nền tảng"
-            value={platform}
-            onChange={(value) => setFilters({ ...filters, platform: value })}
-            options={options.platforms}
-            style={{ width: 160 }}
+          <Segmented<"board" | "table">
+            aria-label="Cách xem sản phẩm"
+            value={view}
+            onChange={writeView}
+            options={[
+              { value: "board", label: "Quy trình", icon: <AppstoreOutlined /> },
+              { value: "table", label: "Bảng", icon: <BarsOutlined /> },
+            ]}
           />
+          <Dropdown menu={{ items: importExport }} trigger={["click"]}>
+            <Button icon={<SwapOutlined />}>
+              Nhập / Xuất <DownOutlined />
+            </Button>
+          </Dropdown>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
+            Thêm sản phẩm
+          </Button>
+        </Space>
+      </Flex>
+      <Flex wrap gap={12} align="center">
+        <Input
+          aria-label="Tìm theo sản phẩm hoặc shop"
+          prefix={<SearchOutlined />}
+          placeholder="Tìm theo sản phẩm hoặc shop…"
+          allowClear
+          value={q}
+          onChange={(event) => setFilters({ ...filters, q: event.target.value })}
+          style={{ flex: "1 1 200px", maxWidth: 320 }}
+        />
+        <FilterSelect
+          aria-label="Lọc theo nền tảng"
+          placeholder="Mọi nền tảng"
+          value={platform}
+          onChange={(value) => setFilters({ ...filters, platform: value })}
+          options={options.platforms}
+          style={{ width: 160 }}
+        />
+        {view === "table" && (
           <Checkbox checked={noLink} onChange={(event) => setNoLink(event.target.checked)}>
             Chưa có link ({withoutLink})
           </Checkbox>
-        </Flex>
-        <div aria-label="Lọc theo trạng thái" role="group" style={{ marginBottom: 12 }}>
-          {/* A filter, so it looks like one, not like a second row of the page's tabs. */}
-          <Segmented<Stage>
-            value={stage}
-            onChange={setStage}
-            options={STAGES.map(({ value, label }) => ({ value, label: `${label} (${stageCounts[value]})` }))}
-          />
-        </div>
-        {selected.length > 0 && (
-          <Flex gap={12} align="center" wrap style={{ marginBottom: 12 }} data-testid="product-selection">
-            <Typography.Text>Đã chọn {selected.length} sản phẩm</Typography.Text>
-            <Button icon={<CheckOutlined />} onClick={() => void approveSelected()}>
-              Duyệt đã chọn
-            </Button>
-            <Popconfirm
-              title={`Xoá ${selected.length} sản phẩm đã chọn?`}
-              description="Các sản phẩm này cũng được gỡ khỏi các video đang gắn."
-              okText="Xoá"
-              cancelText="Huỷ"
-              okButtonProps={{ danger: true }}
-              onConfirm={deleteSelected}
-            >
-              <Button danger icon={<DeleteOutlined />}>
-                Xoá đã chọn
-              </Button>
-            </Popconfirm>
-            <Button type="link" onClick={() => setTicked([])}>
-              Bỏ chọn
-            </Button>
-          </Flex>
         )}
-        <Card styles={{ body: { padding: 0 } }}>
-          <Table<AffiliateProduct>
-            rowKey="id"
-            rowSelection={{
-              selectedRowKeys: selected,
-              onChange: (keys) => setTicked(keys as number[]),
-              getCheckboxProps: (product) => ({ "aria-label": `Chọn ${product.name}` }),
-            }}
-            columns={columns}
-            dataSource={shown}
-            loading={loading}
-            pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
-            scroll={{ x: 1150 }}
-            locale={{
-              emptyText: (
-                <EmptyState
-                  description={
-                    products.length === 0
-                      ? open
-                        ? `Nhóm “${open.name}” chưa có sản phẩm nào`
-                        : "Chưa có sản phẩm nào"
-                      : whose === "mine" && mineCount === 0
-                        ? "Bạn chưa thêm sản phẩm nào. Chọn “Cả đội” để xem của mọi người."
-                        : "Không có sản phẩm nào khớp"
-                  }
-                  action={
-                    products.length === 0 && (
-                      <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
-                        Nhập sản phẩm đầu tiên
-                      </Button>
-                    )
-                  }
-                />
-              ),
-            }}
-          />
-        </Card>
+      </Flex>
+      <div data-testid="product-progress">
+        <Flex justify="space-between" gap={8} wrap>
+          <Typography.Text strong>
+            {ready} / {whoseRows.length} sẵn sàng dùng trong bình luận
+          </Typography.Text>
+          <Typography.Text type={lanes.link.length > 0 ? "warning" : "secondary"}>
+            {lanes.link.length > 0 ? `còn ${lanes.link.length} món chưa có link` : "mọi món đã duyệt đều có link"}
+          </Typography.Text>
+        </Flex>
+        <Progress
+          percent={whoseRows.length === 0 ? 0 : Math.round(((ready + lanes.link.length) / whoseRows.length) * 100)}
+          success={{ percent: whoseRows.length === 0 ? 0 : Math.round((ready / whoseRows.length) * 100) }}
+          showInfo={false}
+          size="small"
+          strokeColor="var(--ant-color-warning)"
+        />
       </div>
+      {view === "board" ? (
+        loading && products.length === 0 ? null : whoseRows.length === 0 ? (
+          <EmptyState
+            description={
+              products.length === 0
+                ? open
+                  ? `Nhóm “${open.name}” chưa có sản phẩm nào`
+                  : "Chưa có sản phẩm nào"
+                : "Bạn chưa thêm sản phẩm nào. Chọn “Cả đội” để xem của mọi người."
+            }
+            action={
+              products.length === 0 && (
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
+                  Nhập sản phẩm đầu tiên
+                </Button>
+              )
+            }
+          />
+        ) : (
+          board
+        )
+      ) : (
+        <>
+          <div aria-label="Lọc theo trạng thái" role="group">
+            {/* A filter, so it looks like one, not like a second row of the page's tabs. */}
+            <Segmented<Stage>
+              value={stage}
+              onChange={setStage}
+              options={STAGES.map(({ value, label }) => ({ value, label: `${label} (${stageCounts[value]})` }))}
+            />
+          </div>
+          {selected.length > 0 && (
+            <Flex gap={12} align="center" wrap data-testid="product-selection">
+              <Typography.Text>Đã chọn {selected.length} sản phẩm</Typography.Text>
+              <Button icon={<CheckOutlined />} onClick={() => void approveSelected()}>
+                Duyệt đã chọn
+              </Button>
+              <Popconfirm
+                title={`Xoá ${selected.length} sản phẩm đã chọn?`}
+                description="Các sản phẩm này cũng được gỡ khỏi các video đang gắn."
+                okText="Xoá"
+                cancelText="Huỷ"
+                okButtonProps={{ danger: true }}
+                onConfirm={deleteSelected}
+              >
+                <Button danger icon={<DeleteOutlined />}>
+                  Xoá đã chọn
+                </Button>
+              </Popconfirm>
+              <Button type="link" onClick={() => setTicked([])}>
+                Bỏ chọn
+              </Button>
+            </Flex>
+          )}
+          <Card styles={{ body: { padding: 0 } }}>
+            <Table<AffiliateProduct>
+              rowKey="id"
+              rowSelection={{
+                selectedRowKeys: selected,
+                onChange: (keys) => setTicked(keys as number[]),
+                getCheckboxProps: (product) => ({ "aria-label": `Chọn ${product.name}` }),
+              }}
+              columns={columns}
+              dataSource={shown}
+              loading={loading}
+              pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
+              scroll={{ x: 1150 }}
+              locale={{
+                emptyText: (
+                  <EmptyState
+                    description={
+                      products.length === 0
+                        ? open
+                          ? `Nhóm “${open.name}” chưa có sản phẩm nào`
+                          : "Chưa có sản phẩm nào"
+                        : whose === "mine" && mineCount === 0
+                          ? "Bạn chưa thêm sản phẩm nào. Chọn “Cả đội” để xem của mọi người."
+                          : "Không có sản phẩm nào khớp"
+                    }
+                    action={
+                      products.length === 0 && (
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
+                          Nhập sản phẩm đầu tiên
+                        </Button>
+                      )
+                    }
+                  />
+                ),
+              }}
+            />
+          </Card>
+        </>
+      )}
       <CustomLinkExport
         open={customLink === "export"}
         onClose={() => setCustomLink(null)}

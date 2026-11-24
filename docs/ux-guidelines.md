@@ -1016,24 +1016,28 @@ steps open the status card or the products block on its tab, the QC chip its pop
     Shopee suggestions and pasted links, attached products), then "Bình luận" (pinned comment, "Bình luận
     thêm"), then "Bài đăng": each post with its link state and its comment's actions; the list reloads when
     it closes;
-  - "Sản phẩm": the topic groups on the left ("Tất cả nhóm", then "Nhóm của tôi", the groups of the Pages the member
-    owns and uses, and "Nhóm khác", folded behind its own line unless it is the only list or holds the open group),
-    each with its name on one line, how many products it holds beside it (never wrapped) and the Pages that post it
-    as one grey line below (a teammate's Page with its owner's name). On the right the open group's name and "Dùng
-    cho video của N Page", then "Nhập / Xuất ▾" and "Thêm sản phẩm". The menu holds "Nhập file (Lấy link hàng loạt)",
-    "Nhập link đã chuyển đổi" (a modal: Shopee's result file, CSV or Excel, previewed row by row as "Sẽ gắn link", "Của
-    đồng đội" or "Lỗi" before "Gắn link cho N sản phẩm"), "Xuất CSV" and "Xuất file Custom Link" (a modal: the group's
-    approved products I added with no link yet as Shopee's Custom Link Excel, "Gồm cả món đã có link"); the two Custom
-    Link items need a group open, which has exactly one active Page, see
-    [decision](decisions/2026-11-24-custom-link-excel.md). Under it three figures of the list as filtered by "Tôi thêm /
-    Cả đội": products, approved, and "chưa có link" (yellow when above 0). Then search by name or shop, "Tôi thêm / Cả
-    đội", platform and a "Chưa có link (N)" tick; tabs "Tất cả", "Cần điền sao, lượt bán", "Chờ duyệt", "Đã duyệt" with
-    counts. Products ranked by expected commission per order, each row with its picture (a placeholder without one), its
-    name in bold on two lines at most, shop and type, its platform tag ("Tìm qua API" for those Shopee's search
-    found), its group when all groups show, "Người thêm: <tên>" ("bạn" for the member's own; its tooltip says that
-    saved link goes in the comment of a Page without its own Shopee account) and how many videos carry it; then rating
-    and sales, commission per order with its rate and price, status, and "Link" ("Có link" with a copy button, or yellow
-    "Chưa có link"). The actions are an icon for "Sửa", "Duyệt" / "Bỏ duyệt" and an icon for "Xoá".
+  - "Sản phẩm": a product goes through four steps, so the screen is that path (decision
+    [2026-11-25-products-board](decisions/2026-11-25-products-board.md)). On top, a group select (grouped "Nhóm của
+    tôi" and "Nhóm khác", each option with its Pages and product count; typing searches), "Dùng cho video của N
+    Page", then "Tôi thêm / Cả đội", "Quy trình / Bảng" (the member's choice is kept in the browser; the board is the
+    default), "Nhập / Xuất ▾" ("Nhập file (Lấy link hàng loạt)" and "Xuất CSV") and "Thêm sản phẩm". Under it the search,
+    the platform filter and a progress line ("38 / 50 sẵn sàng dùng trong bình luận", "còn 12 món chưa có link") with a
+    bar. **Board:** four columns, each with its count and a hint: "1 · Cần điền" (drafts short on stars or sales, filled
+    in on the card itself), "2 · Chờ duyệt" (with "Duyệt tất cả (N)"), "3 · Cần link" (approved Shopee products with no
+    affiliate link, outlined in yellow, with "Xuất file Custom Link (N)", the group's approved products I added, and
+    "Nhập kết quả Shopee"; both need a group chosen, which has exactly one active Page, see
+    [decision](decisions/2026-11-24-custom-link-excel.md); the import is a modal of Shopee's result file, CSV or Excel,
+    previewed row by row as "Sẽ gắn link", "Của đồng đội" or "Lỗi" before "Gắn link cho N sản phẩm") and "4 · Sẵn
+    sàng". A column shows 5 cards, then "Xem thêm N món"; an empty one says "✓ Đã sạch". A card has the picture (a
+    placeholder without one), the name in bold on two lines, commission per order with rating and sales, problems in
+    yellow, shop (with who added it when a teammate did, and the group when all groups show) and the row actions
+    ("Sửa" as an icon, "Duyệt" / "Bỏ duyệt", "Xoá" as an icon). **Table** ("Bảng"): tabs "Tất cả", "Cần điền sao, lượt
+    bán", "Chờ duyệt", "Đã duyệt" with counts and a "Chưa có link (N)" tick, products ranked by expected commission per
+    order, each row with its picture, name in bold on two lines, shop and type, its platform tag ("Tìm qua API" for
+    those Shopee's search found), its group when all groups show, "Người thêm: <tên>" ("bạn" for the member's own; its
+    tooltip says that saved link goes in the comment of a Page without its own Shopee account) and how many videos
+    carry it; rating and sales, commission per order with its rate and price, status and "Link" ("Có link" with a copy
+    button, or yellow "Chưa có link"), with the same row actions.
     "Thêm sản phẩm" opens a drawer: "Nhập vào" by Page (into the group it posts; a Page without a group cannot be
     picked) or by group (the open group to start with), then two tabs, "Dán link Shopee" (one link per line, up to
     50; the rest is read from Shopee, so it needs a Shopee account with App ID somewhere in the team and says so when

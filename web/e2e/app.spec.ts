@@ -14,6 +14,7 @@ import {
   openAccountMenu,
   resetDatabase,
   row,
+  showProductTable,
 } from "./helpers";
 
 test.beforeEach(() => resetDatabase());
@@ -609,6 +610,7 @@ test("Affiliate Shopee: add a product, see why it cannot be approved, fix it and
   await expect(page.getByText("Chưa có video nào đã đăng")).toBeVisible();
 
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await showProductTable(page);
   await page.getByRole("button", { name: "Thêm sản phẩm" }).click();
   const adding = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   // The seeded team has no Shopee App ID, so a pasted link cannot be read and the drawer says so.
@@ -647,16 +649,14 @@ test("Affiliate Shopee: add a product, see why it cannot be approved, fix it and
   await expect(page.getByText("Không có sản phẩm nào khớp")).toBeVisible();
   await expect(await exportCsvLink(page)).toHaveAttribute("href", /status=draft/);
   await closeImportExport(page);
-  await page
-    .getByRole("navigation", { name: "Nhóm chủ đề" })
-    .getByRole("button", { name: /Sức khỏe/ })
-    .click();
+  await chooseOption(page, page.getByLabel("Lọc theo nhóm"), "Sức khỏe");
   await expect(page.getByTestId("product-group")).toHaveText("Sức khỏe");
   await expect(await exportCsvLink(page)).toHaveAttribute("href", /topic_id=\d+/);
   await closeImportExport(page);
   await stages.getByText("Tất cả (1)").click();
   await page.getByRole("tab", { name: "Video đã đăng" }).click();
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await showProductTable(page);
   await expect(product).toBeVisible();
 
   const csv = await exportCsvLink(page);
@@ -669,6 +669,7 @@ test("Affiliate Shopee: import the file of Shopee Affiliate's Lấy link hàng l
   await loginAsSeed(page);
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await showProductTable(page);
   await importExportItem(page, /^Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
@@ -734,6 +735,7 @@ test("Affiliate: several products are ticked, then deleted or approved at once",
   await loginAsSeed(page);
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await showProductTable(page);
   await importRows(page, line(11, "Hạt cải"), line(12, "Hạt dền"), line(13, "Hạt mồng tơi"));
 
   await page.getByRole("checkbox", { name: "Chọn Hạt cải" }).check();
@@ -1054,6 +1056,7 @@ test("a list's search, filters and tab are in the address, so a reload shows the
   // A tab: Affiliate opens on the one in its address, with that tab's own search.
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await showProductTable(page);
   await expect(page).toHaveURL(/[?&]tab=products/);
   await page.getByLabel("Tìm theo sản phẩm hoặc shop", { exact: true }).fill("hạt giống");
   await page.reload();
