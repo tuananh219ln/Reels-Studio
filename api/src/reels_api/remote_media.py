@@ -11,6 +11,7 @@ the video from TikTok's own servers; only tiktok.com links go that way.
 
 import http.client
 import ipaddress
+import re
 import socket
 import time
 import urllib.error
@@ -38,8 +39,21 @@ NOT_MEDIA = (
 )
 
 
+# Why a link failed, as a short code the assistant can branch on (add_links reports it next to the message).
+NOT_PUBLIC = "not_public"  # the host wants a sign-in or refuses us: share the file publicly, or use another link
+UNREACHABLE = "expired_or_unreachable"  # gone, expired or not answering: ask for a fresh link
+TOO_LARGE = "too_large"  # over the photo or clip limit
+NOT_A_FILE = "not_media"  # an address that is not a photo or clip: another link, not the same one again
+BLOCKED_HOST = "blocked_host"  # points inside our network
+INVALID_LINK = "invalid_link"  # not even an http(s) address
+
+
 class RemoteMediaError(Exception):
-    """The message is shown to members."""
+    """The message is shown to members; `reason` is one of the codes above."""
+
+    def __init__(self, message: str, reason: str = UNREACHABLE) -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -115,14 +129,14 @@ def check_url(url: str) -> str:
     """The link, trimmed, when it is an http(s) address worth trying; otherwise a member-facing error."""
     url = url.strip()
     if not url:
-        raise RemoteMediaError("Hãy dán link ảnh hoặc video")
+        raise RemoteMediaError("Hãy dán link ảnh hoặc video", INVALID_LINK)
     if len(url) > MAX_URL_LENGTH:
-        raise RemoteMediaError("Link quá dài")
+        raise RemoteMediaError("Link quá dài", INVALID_LINK)
     parts = urllib.parse.urlsplit(url)
     if parts.scheme not in ("http", "https") or not parts.hostname:
-        raise RemoteMediaError("Link phải bắt đầu bằng http:// hoặc https://")
+        raise RemoteMediaError("Link phải bắt đầu bằng http:// hoặc https://", INVALID_LINK)
     if parts.username or parts.password:
-        raise RemoteMediaError("Link không được chứa tên đăng nhập hay mật khẩu")
+        raise RemoteMediaError("Link không được chứa tên đăng nhập hay mật khẩu", INVALID_LINK)
     return url
 
 
@@ -139,7 +153,7 @@ def _check_host(parts: urllib.parse.SplitResult) -> None:
     except (OSError, UnicodeError):
         raise RemoteMediaError("Không tìm thấy trang này, hãy kiểm tra link rồi thử lại") from None
     if not all(is_public(info[4][0]) for info in infos):
-        raise RemoteMediaError("Link trỏ vào địa chỉ nội bộ, không tải được")
+        raise RemoteMediaError("Link trỏ vào địa chỉ nội bộ, không tải được", BLOCKED_HOST)
 
 
 def _fetch(
@@ -152,12 +166,12 @@ def _fetch(
         with _opener().open(request, timeout=TIMEOUT_SECONDS) as response, open(target, "wb") as file:
             length = response.headers.get("Content-Length", "")
             if length.isdigit() and int(length) > max_bytes:
-                raise RemoteMediaError(too_big)
+                raise RemoteMediaError(too_big, TOO_LARGE)
             copied = 0
             while chunk := response.read(256 * 1024):
                 copied += len(chunk)
                 if copied > max_bytes:
-                    raise RemoteMediaError(too_big)
+                    raise RemoteMediaError(too_big, TOO_LARGE)
                 file.write(chunk)
                 if time.monotonic() > deadline:
                     raise RemoteMediaError("Trang này phản hồi quá chậm, hãy thử lại hoặc tải về rồi tải lên")
@@ -165,18 +179,19 @@ def _fetch(
         raise
     except urllib.error.HTTPError as err:
         raise RemoteMediaError(
-            f"Trang này từ chối tải (HTTP {err.code}): hãy sao chép ảnh rồi dán, hoặc tải về rồi tải lên"
+            f"Trang này từ chối tải (HTTP {err.code}): hãy sao chép ảnh rồi dán, hoặc tải về rồi tải lên",
+            NOT_PUBLIC if err.code in (401, 403) else UNREACHABLE,
         ) from None
     except (OSError, http.client.HTTPException) as err:
         if isinstance(getattr(err, "reason", None), _BlockedAddress) or isinstance(err, _BlockedAddress):
-            raise RemoteMediaError("Link trỏ vào địa chỉ nội bộ, không tải được") from None
+            raise RemoteMediaError("Link trỏ vào địa chỉ nội bộ, không tải được", BLOCKED_HOST) from None
         raise RemoteMediaError("Không tải được từ link này, hãy kiểm tra link rồi thử lại") from None
 
 
 def download_tiktok(url: str, folder: Path) -> Path:
     """A public TikTok video as a file in `folder`, the largest one TikTok offers, H.264 before HEVC at a size."""
     if "/photo/" in urllib.parse.urlsplit(url).path:
-        raise RemoteMediaError("Đây là bài ảnh TikTok: hãy mở ảnh, sao chép ảnh rồi dán vào cảnh")
+        raise RemoteMediaError("Đây là bài ảnh TikTok: hãy mở ảnh, sao chép ảnh rồi dán vào cảnh", NOT_A_FILE)
     return _download_with_ytdlp(
         url,
         folder,
@@ -207,14 +222,14 @@ def _download_with_ytdlp(url: str, folder: Path, max_bytes: int, too_big: str, n
             # Read without downloading first: a profile or a search page lists many videos and is refused.
             info = tool.extract_info(url, download=False, process=False)
             if info is None or info.get("_type") in ("playlist", "multi_video") or "entries" in info:
-                raise RemoteMediaError(not_one)
+                raise RemoteMediaError(not_one, NOT_A_FILE)
             tool.process_ie_result(info, download=True)
     except yt_dlp.utils.DownloadError:
         raise RemoteMediaError(failed) from None
     files = [path for path in folder.glob("linked.*") if path.suffix not in (".part", ".ytdl")]
     if not files:
         # yt-dlp skips a file over max_filesize without an error.
-        raise RemoteMediaError(too_big)
+        raise RemoteMediaError(too_big, TOO_LARGE)
     return files[0]
 
 
@@ -237,7 +252,7 @@ def download_sample(url: str, folder: Path) -> Path:
     host = parts.hostname or ""
     if is_tiktok(host) or is_youtube(host):
         if "/photo/" in parts.path:
-            raise RemoteMediaError("Đây là bài ảnh TikTok, không phải video")
+            raise RemoteMediaError("Đây là bài ảnh TikTok, không phải video", NOT_A_FILE)
         return _download_with_ytdlp(
             url,
             folder,
@@ -258,12 +273,51 @@ def download_sample(url: str, folder: Path) -> Path:
     return target
 
 
+DRIVE_HOST = "drive.google.com"
+DRIVE_DOWNLOAD_HOST = "drive.usercontent.google.com"
+DRIVE_ID = re.compile(r"[A-Za-z0-9_-]{10,}")
+DRIVE_FILE_PATH = re.compile(r"/file/(?:u/\d+/)?d/([^/]+)")
+DRIVE_FOLDER_PATH = re.compile(r"/(?:drive/(?:u/\d+/)?)?folders/")
+GOOGLE_DOC_PATHS = ("/document/", "/spreadsheets/", "/presentation/", "/forms/")
+ONE_FILE_ONLY = "Hãy chia sẻ riêng từng file ảnh hoặc video (không dùng link thư mục hay tài liệu Google)"
+DRIVE_NOT_PUBLIC = (
+    "Link Google Drive này chưa chia sẻ công khai hoặc file quá lớn để tải thẳng: hãy đặt chia sẻ "
+    "“Bất kỳ ai có đường liên kết” rồi thử lại, hoặc tải file lên bằng trình duyệt"
+)
+
+
+def normalize_link(url: str) -> str:
+    """The address to download: a Google Drive file's link (a "view" page, `open?id=`, `uc?id=`) becomes its
+    direct-download address, since the page itself is HTML. Any other link comes back unchanged; a Drive folder or a
+    Google document is refused, as one link is one file."""
+    parts = urllib.parse.urlsplit(url)
+    host = (parts.hostname or "").lower()
+    if host == "docs.google.com" and parts.path.startswith(GOOGLE_DOC_PATHS):
+        raise RemoteMediaError(ONE_FILE_ONLY, NOT_A_FILE)
+    if host != DRIVE_HOST:
+        return url
+    if DRIVE_FOLDER_PATH.match(parts.path):
+        raise RemoteMediaError(ONE_FILE_ONLY, NOT_A_FILE)
+    query = urllib.parse.parse_qs(parts.query)
+    found = DRIVE_FILE_PATH.match(parts.path)
+    file_id = found.group(1) if found else (query.get("id") or [""])[0] if parts.path in ("/open", "/uc") else ""
+    if not DRIVE_ID.fullmatch(file_id):
+        return url
+    direct = {"id": file_id, "export": "download"}
+    if key := (query.get("resourcekey") or [""])[0]:
+        direct["resourcekey"] = key
+    return f"https://{DRIVE_DOWNLOAD_HOST}/download?" + urllib.parse.urlencode(direct)
+
+
 def download(url: str, folder: Path) -> Media:
-    """What the link holds, within the upload limits: a photo (jpg, png, webp) or a clip saved in `folder`."""
+    """What the link holds, within the upload limits: a photo (jpg, png, webp) or a clip saved in `folder`. A Google
+    Drive file's link is fetched through its direct-download address (`normalize_link`)."""
     url = check_url(url)
+    url = normalize_link(url)
     parts = urllib.parse.urlsplit(url)
     if is_tiktok(parts.hostname or ""):
         return Media(clip=download_tiktok(url, folder))
+    via_drive = parts.hostname == DRIVE_DOWNLOAD_HOST
     _check_host(parts)
     target = folder / "link"
     _fetch(url, target)
@@ -272,12 +326,14 @@ def download(url: str, folder: Path) -> Media:
     if looks_like_clip(head):
         return Media(clip=target)
     if target.stat().st_size > MAX_IMAGE_BYTES:
-        raise RemoteMediaError("Ảnh quá 15 MB, hãy chọn ảnh nhỏ hơn")
+        raise RemoteMediaError("Ảnh quá 15 MB, hãy chọn ảnh nhỏ hơn", TOO_LARGE)
     data = target.read_bytes()
     try:
         return Media(photo=(data, image_extension(data)))
     except UploadRejected:
-        raise RemoteMediaError(NOT_MEDIA) from None
+        if via_drive:
+            raise RemoteMediaError(DRIVE_NOT_PUBLIC, NOT_PUBLIC) from None
+        raise RemoteMediaError(NOT_MEDIA, NOT_A_FILE) from None
 
 
 MUSIC_TOO_BIG = "File nhạc quá 20 MB, hãy chọn file nhỏ hơn"
