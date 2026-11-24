@@ -1827,3 +1827,10 @@ Under "Cả đội" the groups are listed under the member who made each, one sm
 "Looper · 2", "Chưa có người tạo · 1" for a group nobody is known to have made): the member's own first, then the others by
 name. "Của tôi" stays one list.
 
+### "Hướng dẫn" on a screen (2026-11-25)
+
+A "Hướng dẫn" button (a question mark) in the header of a screen opens a drawer with that screen's guides. With more than one
+a switch at the top picks it (Affiliate has "màn Affiliate" and "gắn link affiliate hàng loạt bằng Custom Link"). A guide is
+read like a document of Kho kiến thức: a text column of at most 760 px and, with three or more headings, a sticky "Trên
+trang này" outline. The first screen to have it is Affiliate.
+

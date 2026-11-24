@@ -93,3 +93,14 @@ all of them pass.
 Content rules (approved food bank rows only, non-blocking banned-word warning) are owned by
 [content.md](content.md). Pre-render checks, one job at a time, and locking are owned by
 [architecture.md](architecture.md#video-pipeline); retention by [deployment.md](deployment.md).
+
+## A guide for a screen ("Hướng dẫn")
+
+Each screen that needs explaining has guides for its members: Markdown files in `api/src/reels_api/guides/`, shipped with
+the api and read through `GET /api/guides?screen=<screen>` ([decision](decisions/2026-11-25-in-app-guides.md)). A file opens
+with `<!-- screen: affiliate -->`, its title is its first heading ("Hướng dẫn: …") and the files of a screen are listed by
+file name. The screen puts `<GuideButton screen="affiliate" />` in its `PageHeader` actions. A pull request that changes a
+feature changes its guide in the same pull request, so the guide never says what the screen no longer does. Guides are
+written in Vietnamese, for the team; the guides of a group's own documents ("Tài liệu" of Kho kiến thức) are another thing,
+kept in the database and edited by the group.
+

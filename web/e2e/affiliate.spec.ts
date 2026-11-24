@@ -566,3 +566,13 @@ test("Nhập file: a preview first, and a teammate's product is added again with
   await expect(rows.filter({ hasText: "Người thêm: bạn" })).toHaveCount(1);
   await expect(page.getByRole("row", { name: /Nồi của An/ })).toContainText("Người thêm: bạn");
 });
+
+test("Affiliate has a Hướng dẫn: the screen's guides open in a drawer, one at a time", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.goto("/affiliate");
+  await page.getByRole("button", { name: "Hướng dẫn" }).click();
+  const drawer = page.getByRole("dialog", { name: "Hướng dẫn" });
+  await expect(drawer.getByRole("heading", { name: "Hướng dẫn: màn Affiliate" })).toBeVisible();
+  await drawer.getByText("gắn link affiliate hàng loạt").click();
+  await expect(drawer.getByRole("heading", { name: /Custom Link của Shopee/ })).toBeVisible();
+});

@@ -56,7 +56,7 @@ service:
    photo and links), approved ones by default and only those the member added (`whose="all"` adds
    teammates', each row saying `created_by` and `mine`); `video_id` puts the products of the video's topic
    group first.
-   Shopee's "Custom Link" by Excel has three tools ([guide](guides/custom-link.md)):
+   Shopee's "Custom Link" by Excel has three tools ([guide](../api/src/reels_api/guides/custom-link.md)):
    `list_custom_link_products` (a group's approved products the member added that still lack an affiliate
    link: the product pages and the `sub_id1` code of the Page the orders are measured to; `fanpage_id` when the
    group has several Pages), `preview_custom_link_import` (the pasted result file of Shopee, row by row, nothing

@@ -1,3 +1,4 @@
+<!-- screen: affiliate -->
 # Hướng dẫn: gắn link affiliate hàng loạt bằng Custom Link của Shopee
 
 Dành cho thành viên team. Shopee chưa cấp Open API cho tài khoản, nên app không tự đổi link sản phẩm thành link

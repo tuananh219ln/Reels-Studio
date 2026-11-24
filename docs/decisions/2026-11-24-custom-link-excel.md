@@ -45,5 +45,5 @@ The assistant gets the same steps as three tools (`routes_custom_link.export_lin
 with the web, so the rules cannot differ): `list_custom_link_products` (read: the product pages and `sub_id1`),
 `preview_custom_link_import` (read: the pasted CSV, row by row) and `import_custom_link_result` (write, so it needs the
 connection's write scope). It does not call Shopee: the member uploads the file. The write tool says it replaces saved links and
-is to be called only after the preview and the member's agreement. A usage guide for members is `docs/guides/custom-link.md`.
+is to be called only after the preview and the member's agreement. A usage guide for members is `api/src/reels_api/guides/custom-link.md` (shown in the app by "Hướng dẫn").
 
