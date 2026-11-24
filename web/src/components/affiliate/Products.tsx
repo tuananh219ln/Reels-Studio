@@ -21,6 +21,7 @@ import { App, Button, Card, Flex, Input, Popconfirm, Segmented, Space, Table, Ta
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AddProductDrawer, { type AddMode } from "./AddProductDrawer";
+import CustomLinkExport from "./CustomLinkExport";
 import PlacesChip from "./PlacesChip";
 import ProductModal from "./ProductModal";
 import QuickFill, { needsQuickFill } from "./QuickFill";
@@ -387,6 +388,7 @@ export default function Products() {
             <Button icon={<DownloadOutlined />} href={`/api/affiliate-products/export.csv?${exportQuery}`}>
               Xuất CSV
             </Button>
+            <CustomLinkExport topicId={topicId} topicName={open?.name} />
             <Button icon={<UploadOutlined />} onClick={() => setAdding("file")}>
               Nhập file
             </Button>

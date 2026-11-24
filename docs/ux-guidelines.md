@@ -1018,7 +1018,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
   - "Sản phẩm": the topic groups on the left ("Tất cả nhóm", then "Nhóm của tôi", the groups of the Pages the member
     owns and uses, and "Nhóm khác"), each with how many products it holds and the Pages that post it (one by name,
     several as a logo and "+n" named on hover, gold when a teammate's is among them). On the right the open group's
-    name, "Dùng cho video của N Page", "Xuất CSV", "Nhập file" and "Thêm sản phẩm"; "Tôi thêm / Cả đội" (by who added
+    name, "Dùng cho video của N Page", "Xuất CSV", "Xuất file Custom Link" (a modal: the group's approved products I added with no link yet as Shopee's Custom Link Excel, "Gồm cả món đã có link"; needs a group open, which has exactly one active Page, see [decision](decisions/2026-11-24-custom-link-excel.md)), "Nhập file" and "Thêm sản phẩm"; "Tôi thêm / Cả đội" (by who added
     the product), search by name or shop and platform; tabs "Tất cả", "Cần điền sao, lượt bán", "Chờ duyệt", "Đã
     duyệt" with counts. Products ranked by expected commission per order, each with its platform tag ("Tìm qua API"
     for those Shopee's search found), its group when all groups show, "Người thêm: <tên>" ("bạn" for the member's
