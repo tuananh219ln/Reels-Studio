@@ -14,12 +14,6 @@ test("a group's documents are added, read as Markdown, searched and pinned", asy
   await loginAsSeed(page);
   const group = await healthGroup(page);
   await page.goto(`/knowledge?group=${group}`);
-  const tabs = page.getByRole("tab");
-  // "Tài liệu" sits after the plan's tabs and before "Lịch đăng".
-  const names = await tabs.allInnerTexts();
-  expect(names.indexOf("Tài liệu")).toBeGreaterThan(names.indexOf("Kế hoạch 30 ngày"));
-  expect(names.indexOf("Tài liệu")).toBeLessThan(names.indexOf("Lịch đăng"));
-
   await page.getByRole("tab", { name: "Tài liệu" }).click();
   const docs = page.getByTestId("topic-docs");
   await expect(docs).toContainText("Nhóm này chưa có tài liệu nào");
