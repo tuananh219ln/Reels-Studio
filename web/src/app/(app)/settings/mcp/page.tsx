@@ -104,8 +104,18 @@ export default function ChatGptPage() {
                 style={{ marginBottom: 16 }}
               />
             )}
+            {consent.scopes.includes("reels:publish") && (
+              <Alert
+                type="warning"
+                showIcon
+                title="Quyền đăng bài lên Page"
+                description={`${consent.app} còn được đăng ngay hoặc hẹn giờ một Bài viết lên Fanpage của bạn, và bỏ hẹn bài đã hẹn. Bài đăng là bài thật trên Facebook, không đăng trên Page của người khác.`}
+                style={{ marginBottom: 16 }}
+              />
+            )}
             <Typography.Paragraph>
-              Kết nối không được đăng bài, xóa video hoặc thay đổi tài khoản và API key. Quyền hết hạn sau tối đa 30
+              Kết nối không được xóa video hoặc thay đổi tài khoản và API key
+              {consent.scopes.includes("reels:publish") ? "" : ", và không được đăng bài"}. Quyền hết hạn sau tối đa 30
               ngày và mất hiệu lực khi phiên đăng nhập này bị thu hồi.
             </Typography.Paragraph>
             {/* A native form follows the OAuth redirect without exposing credentials to client-side code. */}
@@ -192,7 +202,13 @@ export default function ChatGptPage() {
                       <Typography.Text strong>
                         {row.app}, kết nối #{row.id}
                       </Typography.Text>{" "}
-                      <Tag>{row.scopes.includes("reels:write") ? "Đọc và sửa" : "Chỉ đọc"}</Tag>
+                      <Tag>
+                        {row.scopes.includes("reels:publish")
+                          ? "Đọc, sửa và đăng bài"
+                          : row.scopes.includes("reels:write")
+                            ? "Đọc và sửa"
+                            : "Chỉ đọc"}
+                      </Tag>
                       <Typography.Text type="secondary" style={{ display: "block" }}>
                         Hết hạn {formatDateTime(row.expires_at)}
                       </Typography.Text>

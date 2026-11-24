@@ -17,7 +17,7 @@ from .models import McpConnection, Session, User
 from .security import hash_session_token, new_session_token
 from .sessions import now
 
-SCOPES = {"reels:read", "reels:write"}
+SCOPES = {"reels:read", "reels:write", "reels:publish"}
 ACCESS_LIFETIME = timedelta(hours=1)
 CONNECTION_LIFETIME = timedelta(days=30)
 # The callbacks of the AI apps a member may connect; no arbitrary redirect hosts or fetches. Issuer identification

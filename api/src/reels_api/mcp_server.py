@@ -34,6 +34,8 @@ from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 
 from . import (
     article_plans,
+    article_posts,
+    articles,
     auto_approve,
     brands,
     clips,
@@ -51,6 +53,7 @@ from . import (
 )
 from . import routes_affiliate as affiliate_routes
 from . import routes_article_plans as article_plans_routes
+from . import routes_articles as article_routes
 from . import routes_comments as comment_routes
 from . import routes_layers as layer_routes
 from . import routes_media as media_routes
@@ -422,6 +425,10 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             "trong Chrome của người dùng), rồi competitor_stats và competitor_top_videos, phân tích theo "
             "analysis_prompt; số liệu tổng lấy từ competitor_stats, không tự cộng; xong thì lưu bằng "
             "competitor_report_save. "
+            'Bài viết (ảnh hoặc chữ đăng lên Page): "Tạo Bài viết" với caption bạn tự viết và tối đa 5 hashtag, gắn '
+            'ảnh bằng "Gắn ảnh cho Bài viết" (ảnh kho miễn phí hoặc link người dùng đưa) hoặc "Tạo thẻ chữ", đọc lại '
+            'bài và sửa mọi mục blocking của checks. "Đăng hoặc hẹn giờ Bài viết" đăng THẬT lên Page: chỉ gọi khi '
+            "người dùng yêu cầu rõ sau khi họ đã xem caption và ảnh; cần quyền đăng bài, chưa có thì nhờ họ kết nối lại. "
             "Job chạy bất đồng bộ: đọc lại video để xem trạng thái, không tự gửi lại yêu cầu. "
             "Link video mở trong Reels Studio và cần đăng nhập. " + CLIP_RULES + " " + QUALITY
         ),
@@ -441,7 +448,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     )
 
-    def invoke(operation, write: bool = False):
+    def invoke(operation, write: bool = False, publish: bool = False):
         access = get_access_token()
         if access is None:
             raise ToolError("Kết nối đã hết hạn, hãy kết nối lại")
@@ -454,6 +461,10 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                 CALLING_APP.set(app_of(registered(connection.client.redirect_uri)[0]))
                 if write and "reels:write" not in connection.scopes.split():
                     raise ToolError("Kết nối chỉ có quyền đọc, hãy cấp thêm quyền sửa")
+                if publish and "reels:publish" not in connection.scopes.split():
+                    raise ToolError(
+                        "Kết nối chưa có quyền đăng bài lên Page, hãy kết nối lại và cấp thêm quyền đăng bài"
+                    )
                 payload = operation(db, me)
                 return payload
         except ApiError as err:
@@ -469,7 +480,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             log.error("MCP operation failed")
             raise ToolError("Không xử lý được yêu cầu, hãy mở Reels Studio để kiểm tra") from None
 
-    def tool(title: str, read: bool, external: bool = False, images: bool = False):
+    def tool(title: str, read: bool, external: bool = False, images: bool = False, publish: bool = False):
         # A tool that answers with pictures has no structured output: FastMCP has no schema for its Image.
         return mcp.tool(
             title=title,
@@ -478,7 +489,14 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                 readOnlyHint=read, destructiveHint=not read, idempotentHint=read, openWorldHint=external
             ),
             meta={
-                "securitySchemes": [{"type": "oauth2", "scopes": ["reels:read"] + ([] if read else ["reels:write"])}]
+                "securitySchemes": [
+                    {
+                        "type": "oauth2",
+                        "scopes": ["reels:read"]
+                        + ([] if read else ["reels:write"])
+                        + (["reels:publish"] if publish else []),
+                    }
+                ]
             },
         )
 
@@ -2130,6 +2148,217 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         """Bài Facebook đã lên và số liệu: lượt xem, tiếp cận, chia sẻ, bình luận, thả cảm xúc, thời gian xem, so
         với trung vị 48 giờ của Page. Dùng để chọn video thắng (nhân bản) và viết báo cáo."""
         return await run_in_threadpool(invoke, lambda db, me: _post_stats(db, me, fanpage_id, days, sort, mine, limit))
+
+    # --- Articles ("Bài viết"): the web's own routes, so the same checks, locks and jobs apply (decisions 2026-11-24) ---
+
+    def article_link(payload: dict) -> dict:
+        return {**payload, "editor_url": resource.removesuffix("/api/mcp") + f"/articles/{payload['id']}"}
+
+    def article_compact(payload: dict) -> dict:
+        """What the assistant needs after an edit: the content, the photos' ids, the checks and the posts."""
+        keep = (
+            "id", "knowledge_topic_id", "group_name", "kind", "topic", "caption", "hashtags", "pinned_comment",
+            "image_aspect", "status", "status_label", "publish_error", "retry", "post_text", "checks", "busy",
+        )  # fmt: skip
+        return article_link(
+            {key: payload[key] for key in keep if key in payload}
+            | {
+                "images": [
+                    {
+                        key: image.get(key)
+                        for key in ("id", "position", "source", "source_label", "credit", "logo_enabled")
+                    }
+                    for image in payload["images"]
+                ],
+                "posts": [
+                    {
+                        key: post.get(key)
+                        for key in ("id", "fanpage_id", "fanpage", "status_label", "scheduled_at", "url")
+                    }
+                    | {"status": post["status"]}
+                    for post in payload["posts"]
+                ],
+            }
+        )
+
+    @tool("Tìm Bài viết", read=True)
+    async def list_articles(
+        kind: Annotated[str | None, Field(description="Lọc theo dạng bài (mã trong kết quả `kinds`)")] = None,
+        topic_id: Annotated[int | None, Field(description="Lọc theo nhóm chủ đề")] = None,
+        offset: Annotated[int, Field(ge=0)] = 0,
+        limit: Annotated[int, Field(ge=1, le=50)] = 20,
+    ) -> dict:
+        """Bài viết (ảnh hoặc chữ đăng lên Page), mới nhất trước: id, hook, trạng thái (Nháp, Chờ đăng, Đã hẹn giờ,
+        Đã đăng, Đăng lỗi…), giờ hẹn và Page. Cũng trả dạng bài, màu thẻ chữ và quy tắc để tạo bài."""
+
+        def operation(db, me):
+            found = article_routes.list_articles(topic_id, kind, me, db)
+            rows = found["articles"]
+            return {
+                "articles": [
+                    article_link(
+                        {
+                            "id": row["id"],
+                            "hook": row["hook"],
+                            "kind": row["kind"],
+                            "group_name": row["group_name"],
+                            "status": row["status"],
+                            "status_label": row["status_label"],
+                            "images": len(row["images"]),
+                            "posts": [
+                                {k: post[k] for k in ("id", "fanpage", "status_label", "scheduled_at", "url")}
+                                for post in row["posts"]
+                            ],
+                        }
+                    )
+                    for row in rows[offset : offset + limit]
+                ],
+                "total": len(rows),
+                "kinds": found["kinds"],
+                "card_presets": [
+                    {k: v for k, v in c.items() if k in ("value", "label")} for c in found["card_presets"]
+                ],
+                "max_hashtags": found["max_hashtags"],
+            }
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Đọc Bài viết", read=True)
+    async def get_article(article_id: int) -> dict:
+        """Một Bài viết đầy đủ: caption, hashtag, ảnh (id), kiểm tra trước khi đăng (`checks.blocking` phải trống mới
+        đăng được), các lần đăng và lỗi."""
+        return await run_in_threadpool(
+            invoke, lambda db, me: article_compact(article_posts.payload(db, article_routes._article(db, article_id)))
+        )
+
+    @tool("Tạo Bài viết", read=False)
+    async def create_article(
+        knowledge_topic_id: Annotated[int, Field(description="Nhóm chủ đề của bài")],
+        caption: Annotated[str, Field(max_length=articles.MAX_CAPTION_LENGTH)],
+        hashtags: Annotated[list[str], Field(max_length=articles.MAX_HASHTAGS)] = [],  # noqa: B006  (never mutated)
+        kind: str = "kien_thuc",
+        topic: Annotated[str, Field(max_length=articles.MAX_TOPIC_LENGTH)] = "",
+    ) -> dict:
+        """Tạo bài nháp (chưa đăng) với caption bạn tự viết, tối đa 5 hashtag. Dòng đầu của caption là hook. Không tốn
+        phí AI của nhóm. Rồi gắn ảnh hoặc thẻ chữ; chỉ đăng khi người dùng yêu cầu rõ."""
+
+        def operation(db, me):
+            made = article_routes.create_article(
+                article_routes.NewArticleBody(knowledge_topic_id=knowledge_topic_id, kind=kind, topic=topic), me, db
+            )
+            patch = article_routes.ArticlePatchBody(caption=caption, hashtags=hashtags)
+            return article_compact(article_routes.patch_article(made["id"], patch, me, db))
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Sửa Bài viết", read=False)
+    async def update_article(
+        article_id: int,
+        caption: Annotated[str | None, Field(max_length=articles.MAX_CAPTION_LENGTH)] = None,
+        hashtags: Annotated[list[str] | None, Field(max_length=articles.MAX_HASHTAGS)] = None,
+        topic: Annotated[str | None, Field(max_length=articles.MAX_TOPIC_LENGTH)] = None,
+        kind: str | None = None,
+        image_aspect: Annotated[Literal["1:1", "4:5", "1.91:1"] | None, Field(description="Tỉ lệ ảnh")] = None,
+        pinned_comment: Annotated[str | None, Field(max_length=articles.MAX_PINNED_LENGTH)] = None,
+    ) -> dict:
+        """Sửa bài chưa đăng: chỉ trường nào gửi mới đổi. Bài đang có việc chờ hoặc chạy thì chưa sửa được."""
+        body = article_routes.ArticlePatchBody(
+            caption=caption, hashtags=hashtags, topic=topic, kind=kind, image_aspect=image_aspect,
+            pinned_comment=pinned_comment,
+        )  # fmt: skip
+        return await run_in_threadpool(
+            invoke, lambda db, me: article_compact(article_routes.patch_article(article_id, body, me, db)), write=True
+        )
+
+    @tool("Gắn ảnh cho Bài viết", read=False, external=True)
+    async def add_article_image(
+        article_id: int,
+        url: Annotated[
+            str | None,
+            Field(max_length=2000, description="Link ảnh (kết quả “Tìm ảnh kho miễn phí” hoặc link người dùng đưa)"),
+        ] = None,
+        media_id: Annotated[int | None, Field(description="Hoặc id ảnh trong kho tư liệu")] = None,
+    ) -> dict:
+        """Thêm một ảnh (tối đa 10) từ link hoặc từ kho tư liệu; đúng một trong hai. Ảnh từ trang stock thường có
+        watermark: xem kết quả `notice`. Chỉ dùng link người dùng đưa hoặc ảnh kho miễn phí. Ảnh gắn sau cùng, đổi thứ
+        tự trên web."""
+        if (url is None) == (media_id is None):
+            raise ToolError("Gửi đúng một trong url hoặc media_id")
+
+        def operation(db, me):
+            storage = get_storage()
+            if media_id is not None:
+                return article_compact(
+                    article_routes.image_from_library(
+                        article_id, article_routes.LibraryBody(media_id=media_id), me, db, storage
+                    )
+                )
+            payload = article_routes.image_from_url(article_id, article_routes.LinkBody(url=url), me, db, storage)
+            return article_compact(payload) | ({"notice": payload["notice"]} if "notice" in payload else {})
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Tạo thẻ chữ cho Bài viết", read=False)
+    async def add_article_text_card(
+        article_id: int,
+        preset: Annotated[str, Field(description="Màu thẻ: cam, xanh_la, kem hoặc dem")] = articles.DEFAULT_CARD_PRESET,
+    ) -> dict:
+        """“Thẻ chữ”: ảnh 4:5 màu trơn ghi dòng đầu của caption (tối đa 200 ký tự), thêm vào bài."""
+
+        def operation(db, me):
+            body = article_routes.TextCardBody(preset=preset)
+            return article_compact(article_routes.make_text_card(article_id, body, me, db, get_storage()))
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Đăng hoặc hẹn giờ Bài viết", read=False, external=True, publish=True)
+    async def publish_article(
+        article_id: int,
+        fanpage_id: Annotated[int, Field(description="Page của bạn (xem “Đọc Page và hàng chờ”)")],
+        scheduled_at: Annotated[
+            datetime | None,
+            Field(
+                description="Giờ hẹn kèm múi giờ (ví dụ 2026-11-25T19:00:00+07:00), sau ít nhất 15 phút và trong 29 ngày; bỏ trống = đăng ngay"
+            ),
+        ] = None,
+        confirm: Annotated[
+            bool, Field(description="true khi người dùng đã đọc cảnh báo trùng nội dung và vẫn muốn đăng")
+        ] = False,
+    ) -> dict:
+        """Như nút “Đăng”: đăng THẬT lên Page, ngay hoặc hẹn giờ. Chỉ gọi khi người dùng yêu cầu rõ, sau khi họ đã xem
+        caption và ảnh. Có cảnh báo (nội dung đã có trên Page khác, gần reel hẹn giờ) thì báo người dùng, chỉ gửi lại
+        với confirm=true khi họ đồng ý. Việc đăng chạy nền: đọc lại bài để xem trạng thái."""
+        body = article_routes.PublishBody(fanpage_id=fanpage_id, scheduled_at=scheduled_at, confirm=confirm)
+        return await run_in_threadpool(
+            invoke,
+            lambda db, me: article_compact(article_routes.publish(article_id, body, me, db)),
+            write=True,
+            publish=True,
+        )
+
+    @tool("Bỏ hẹn giờ Bài viết", read=False, external=True, publish=True)
+    async def unschedule_article(article_id: int) -> dict:
+        """Như “Hủy đăng” / “Gỡ bài”: huỷ lần đăng đang chờ hoặc đã hẹn giờ của bài (bài quay về nháp, nội dung còn
+        nguyên). Chỉ gỡ được bài đã hẹn hoặc đang chờ; bài đã lên Page thì cũng bị gỡ khỏi Page, nên chỉ làm khi
+        người dùng yêu cầu rõ."""
+
+        def operation(db, me):
+            open_post = next(
+                (p for p in article_posts.posts_of(db, article_id) if p.status in article_routes.OPEN_POSTS), None
+            )
+            if open_post is None:
+                raise ToolError("Bài này không có lần đăng nào đang chờ hoặc đã hẹn")
+            return article_compact(article_routes.take_down(open_post.id, me, db))
+
+        return await run_in_threadpool(invoke, operation, write=True, publish=True)
+
+    @tool("Xoá Bài viết", read=False)
+    async def delete_article(article_id: int) -> dict:
+        """Xoá bài nháp và ảnh của nó (chỉ người tạo bài). Bài đang chờ đăng, đã hẹn giờ hoặc đã đăng thì không xoá
+        được: bỏ hẹn hoặc gỡ bài trước. Chỉ xoá khi người dùng yêu cầu rõ."""
+        return await run_in_threadpool(
+            invoke, lambda db, me: article_routes.delete_article(article_id, me, db, get_storage()), write=True
+        )
 
     @tool("Xem job", read=True)
     async def list_jobs(
