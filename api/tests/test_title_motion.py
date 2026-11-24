@@ -461,6 +461,17 @@ def test_the_sprite_is_cut_at_twice_the_slots_size():
     assert sheet.size == (atlas["width"] * 2, atlas["height"] * 2)
 
 
+def test_the_layout_a_member_asked_for_is_offered_again_on_a_rebuild():
+    from reels_api.videos import title_motion_payload
+
+    scene = Scene(is_title=True, motion={"title": {"layout": "strip", "requested": "strip", "count": 7}})
+    assert title_motion_payload(scene)["requested"] == "strip"
+    older = Scene(is_title=True, motion={"title": {"layout": "grid", "count": 4}})  # built before the choice existed
+    assert title_motion_payload(older)["requested"] == "auto"
+    assert title_motion.choose_layout("", "TRỨNG GÀ KẾT HỢP VỚI 7 LÁ", 7, "strip") == "strip"
+    assert title_motion.choose_layout("", "TRỨNG GÀ KẾT HỢP VỚI 7 LÁ", 7, "ring") == "ring"
+
+
 @pytest.mark.parametrize("n", [5, 6, 8, 9])
 def test_the_ring_bubbles_are_big_and_touch_neither_each_other_nor_the_main_dish(n):
     boxes = title_motion.ring_boxes(n, 790)

@@ -555,6 +555,7 @@ def build(
     ]
     if labels and n != len(labels):
         raise invalid(f"Video chỉ có {n} cảnh liệt kê, không đủ cho {len(labels)} tên món")
+    requested = layout  # what the member asked for ("auto" or a layout): a rebuild offers it again
     layout = choose_layout(video.content_type or "", scene.text or "", n, layout)
     given = [
         (slot.get("label") or (labels[i] if labels else "")).strip().upper()[:MAX_LABEL] for i, slot in enumerate(slots)
@@ -593,7 +594,15 @@ def build(
     db.flush()
     for sound, start, volume in sounds(layout, n):
         scene.sounds.append(SceneSound(sound=sound, start=start, volume=volume))
-    info = {"layout": layout, "labels": names, "hidden_label": hidden, "count": n, "slots": slots, "top": top}
+    info = {
+        "layout": layout,
+        "requested": requested,
+        "labels": names,
+        "hidden_label": hidden,
+        "count": n,
+        "slots": slots,
+        "top": top,
+    }
     # The Page's "Kiểu tiêu đề": a title built for the first time shows its classic photo or clip when the channel
     # says so (motion.attach); the member switches to "Động" on the video. A rebuild keeps what the member chose.
     brand = brands.brand_of(db, video)
