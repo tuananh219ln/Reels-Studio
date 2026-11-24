@@ -801,6 +801,16 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         caption: str | None = None,
         hashtags: list[str] | None = None,
         pinned_survey: str | None = None,
+        name: Annotated[
+            str | None,
+            Field(
+                max_length=200,
+                description=(
+                    "Tên nội bộ hiển thị trong danh sách, không ảnh hưởng video đã render; "
+                    "chuỗi rỗng xóa tên (danh sách hiện lại tiêu đề)"
+                ),
+            ),
+        ] = None,
     ) -> dict:
         """Lưu các trường được truyền vào; chuỗi rỗng hoặc danh sách rỗng xóa nội dung trường. Không đăng bài.
         Bình luận ghim luôn là: tiêu đề, rồi các cảnh mỗi cảnh một dòng "1. tên cảnh" (app tự đánh số theo thứ tự
@@ -812,6 +822,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                     "caption": caption,
                     "hashtags": hashtags,
                     "pinned_survey": pinned_survey,
+                    "name": name,
                 }.items()
                 if value is not None
             }
@@ -2089,7 +2100,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             Field(description="Page sẽ đăng: bản copy mang logo của kênh gắn với Page này (bật “Gắn logo”)"),
         ] = None,
     ) -> dict:
-        """Bản copy y hệt video (kịch bản, cảnh, lớp, âm thanh, sản phẩm, file), tên "… (copy)", người tạo là bạn;
+        """Bản copy y hệt video (kịch bản, cảnh, lớp, âm thanh, sản phẩm, file), tên "… (bản N)", người tạo là bạn;
         không gọi AI, không copy MP4: render lại trước khi đăng. Caption và bình luận giữ nguyên như video gốc."""
 
         def operation(db, me):

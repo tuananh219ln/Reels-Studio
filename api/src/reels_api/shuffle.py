@@ -12,7 +12,7 @@ from itertools import permutations
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
-from .duplicate import MAX_NAME_LENGTH, copy_video
+from .duplicate import copy_video, with_suffix
 from .errors import ApiError
 from .models import Scene, Video
 from .script_rules import plain_title
@@ -251,8 +251,7 @@ def make_copies(
     copies: list[Video] = []
     try:
         for index, order in enumerate(orders, start=made + 1):
-            suffix = f" (xáo {index})"
-            draft, copied = copy_video(db, storage, source, user_id, base[: MAX_NAME_LENGTH - len(suffix)] + suffix)
+            draft, copied = copy_video(db, storage, source, user_id, with_suffix(base, f" (xáo {index})"))
             copies.append(draft)
             by_source = {scene.id: copied[scene.id] for scene in scenes}
             for scene in [title, *scenes]:

@@ -4,6 +4,7 @@ import CompetitorSource from "@/components/video/CompetitorSource";
 
 import { COLORS } from "@/app/theme";
 import { useMe } from "@/components/MeContext";
+import VideoNameEditor from "@/components/VideoNameEditor";
 import { EditorContext } from "@/components/video/AutoSaveField";
 import MoveGroupDrawer from "@/components/video/MoveGroupDrawer";
 import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars";
@@ -185,6 +186,10 @@ export default function VideoPage() {
   /** Every video the api sends goes through here, so new scenes get their open/closed state. */
   // The video as last received, for `receiveOwn` to compare with.
   const last = useRef<VideoDetail | null>(null);
+  const shownName = video ? video.name || video.title || video.topic : null;
+  useEffect(() => {
+    if (shownName) document.title = shownName;
+  }, [shownName]);
   const receive = useCallback((next: VideoDetail) => {
     const draft = !next.mp4 && !next.publication;
     last.current = next;
@@ -453,7 +458,7 @@ export default function VideoPage() {
     }
   }
 
-  /** "Nhân bản y hệt": an exact copy named "… (copy)", no AI call; it opens so the member renders it. */
+  /** "Nhân bản y hệt": an exact copy named "… (bản N)", no AI call; it opens so the member renders it. */
   async function duplicate() {
     try {
       const copy = await api<VideoDetail>(`/videos/${id}/duplicate`, "POST");
@@ -615,14 +620,20 @@ export default function VideoPage() {
               <ArrowLeftOutlined /> Danh sách video
             </Link>
             {/* At least 300 px: on a phone it takes a row of its own rather than squeezing to a few letters. */}
-            <Typography.Title
-              level={4}
-              ellipsis={{ tooltip: video.name || video.title || video.topic }}
-              style={{ margin: 0, fontWeight: 600, flex: "1 1 300px", minWidth: 0 }}
-              data-testid="video-title"
-            >
-              {video.name || video.title || video.topic}
-            </Typography.Title>
+            <div style={{ flex: "1 1 300px", minWidth: 0 }}>
+              <Typography.Text type="secondary" style={{ fontSize: 12, display: "block" }}>
+                Tên video
+              </Typography.Text>
+              <VideoNameEditor
+                videoId={video.id}
+                name={video.name}
+                title={video.title || video.topic}
+                maxWidth={720}
+                large
+                alwaysShowButton
+                onSaved={receive}
+              />
+            </div>
             <Flex gap={10} align="center" wrap style={{ flex: "none" }}>
               {folded && (
                 <FoldedStatus

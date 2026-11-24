@@ -1264,8 +1264,17 @@ def title_of(video: Video, title: Scene | None) -> str:
 
 
 def video_name(video: Video, title: Scene | None) -> str:
-    """How lists name a video: its own name ("… (copy)"), else its title scene's text, else its topic."""
+    """How lists name a video: its own name ("… (bản 2)"), else its title scene's text, else its topic."""
     return video.name or title_of(video, title) or video.topic
+
+
+# What "Nhân bản" and "Nhân bản xáo cảnh" add to a name: "(copy)" (older copies), "(bản N)", "(xáo N)".
+NAME_SUFFIX = re.compile(r"(\s*\((?:copy|bản \d+|xáo \d+)\))+\s*$", re.IGNORECASE)
+
+
+def base_name(name: str | None) -> str:
+    """The name without the copy suffixes at its end, so a copy of a copy carries one suffix, not a pile."""
+    return NAME_SUFFIX.sub("", name or "").strip()
 
 
 def _plain_title(text: str | None) -> str:

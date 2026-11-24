@@ -4053,3 +4053,18 @@ test("Thẻ: a card uploaded over a scene, resized, cut into parts shown as they
   await page.getByRole("dialog").getByRole("button", { name: "Xoá" }).click();
   await expect(panel.getByRole("button", { name: "Tải ảnh thẻ" })).toBeVisible();
 });
+
+test("a video is renamed in place and the new name is kept", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "xương khớp sau 50 tuổi");
+  await page.getByRole("button", { name: "Đổi tên video" }).click();
+  const box = page.getByRole("textbox", { name: "Tên video" });
+  await box.fill("Tên mới (copy) (copy)");
+  await page.getByRole("button", { name: "Bỏ (copy)" }).click();
+  await expect(box).toHaveValue("Tên mới");
+  await box.press("Enter");
+  await expect(page.getByTestId("video-title")).toHaveText("Tên mới");
+  await page.reload();
+  await expect(page.getByTestId("video-title")).toHaveText("Tên mới");
+});
