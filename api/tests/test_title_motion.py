@@ -461,6 +461,16 @@ def test_the_sprite_is_cut_at_twice_the_slots_size():
     assert sheet.size == (atlas["width"] * 2, atlas["height"] * 2)
 
 
+def test_a_long_name_in_a_strip_row_shrinks_to_stay_on_one_line():
+    labels = ["TRỨNG + CHÙM NGÂY NON XÀO TỎI"] + ["RAU"] * 6
+    markup = title_motion.build_html("strip", labels, atlas_for("strip", 7), "X", 790)
+    rows = [row for row in markup.split("<div style=")[1:] if "font-weight:900;font-size:" in row]
+    sizes = [int(row.split("font-size:")[1].split("px")[0]) for row in rows]
+    photo_w = atlas_for("strip", 7)["sizes"][0][0]
+    assert sizes[0] < sizes[1] and "white-space:nowrap" in rows[0]
+    assert sizes[0] * 0.7 * len("1. " + labels[0]) <= 960 - photo_w - 44 + 28
+
+
 def test_the_layout_a_member_asked_for_is_offered_again_on_a_rebuild():
     from reels_api.videos import title_motion_payload
 
