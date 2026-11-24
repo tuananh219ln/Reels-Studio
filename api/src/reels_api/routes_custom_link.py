@@ -4,15 +4,21 @@ page per row, `Sub_id1` = the Page, so an order names its Page: affiliate_rounds
 there once and brings the result back."""
 
 import io
+import re
+import unicodedata
+import zipfile
+from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import Response
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
+from . import affiliate
 from .db import get_db
 from .models import AffiliateProduct, Fanpage, KnowledgeTopic, Session
+from .routes_affiliate import MAX_URL_LENGTH, _clear_approval
 from .routes_videos import invalid
 from .sessions import current_member
 
@@ -21,6 +27,13 @@ router = APIRouter(prefix="/api/affiliate-products/custom-link")
 # Shopee's template: one header row, in this order.
 EXPORT_HEADERS = ("Liên kết gốc", "Sub_id1", "Sub_id2", "Sub_id3", "Sub_id4", "Sub_id5")
 MAX_LINKS = 10_000  # what Shopee takes in one upload
+MAX_FILE_BYTES = 5_000_000
+# What a header of the original-link column may say (Shopee's template: "Liên kết gốc").
+ORIGINAL_HEADERS = ("liên kết gốc", "link gốc", "original link", "original url")
+# Where a converted link points: Shopee's short link hosts.
+SHORT_HOSTS = ("shopee.vn", "shope.ee", "shp.ee")
+# A product page names its shop and item: ".../product/{shop}/{item}" or "...-i.{shop}.{item}".
+ITEM_IN_URL = re.compile(r"(?:/product/|-i\.)(\d+)[/.](\d+)")
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
@@ -75,3 +88,160 @@ def export_file(
     workbook.save(out)
     headers = {"Content-Disposition": f'attachment; filename="custom-link-nhom-{topic_id}.xlsx"'}
     return Response(out.getvalue(), media_type=XLSX, headers=headers)
+
+
+def page_key(url: str) -> str:
+    """A product page as one string: the shop and item when the address names them (so a tracking tail or a slug does
+    not matter), else the address without scheme, query, fragment and trailing slash."""
+    parts = urlsplit(url.strip())
+    found = ITEM_IN_URL.search(parts.path)
+    if found:
+        return f"item:{found.group(1)}.{found.group(2)}"
+    return f"{parts.netloc.lower().removeprefix('www.')}{parts.path.rstrip('/')}".lower()
+
+
+def _is_short_link(value: object) -> bool:
+    if not isinstance(value, str) or any(char.isspace() for char in value.strip()):
+        return False
+    try:
+        parts = urlsplit(value.strip())
+    except ValueError:
+        return False
+    host = parts.netloc.lower()
+    return parts.scheme in ("http", "https") and any(host == name or host.endswith(f".{name}") for name in SHORT_HOSTS)
+
+
+def _header(cell: object) -> str:
+    return " ".join(unicodedata.normalize("NFC", str(cell or "")).lower().split())
+
+
+def parsed_file(data: bytes) -> list[tuple[int, str, str | None]]:
+    """The file's rows as (row number, original link, converted link or None). The original is the column headed like
+    Shopee's template ("Liên kết gốc"); the converted link is the other cell of the row that is a Shopee link, so the
+    result file's own column name does not have to be known."""
+    if len(data) > MAX_FILE_BYTES:
+        raise invalid("File quá lớn, hãy chia nhỏ")
+    try:
+        sheet = load_workbook(io.BytesIO(data), read_only=True, data_only=True).worksheets[0]
+        table = list(sheet.iter_rows(values_only=True))
+    except (zipfile.BadZipFile, KeyError, ValueError, IndexError, OSError):
+        raise invalid("File không đọc được: cần file Excel (.xlsx) Shopee trả về sau khi chuyển đổi") from None
+    if not table:
+        raise invalid("File trống")
+    headers = [_header(cell) for cell in table[0]]
+    original = next((index for index, name in enumerate(headers) if name in ORIGINAL_HEADERS), None)
+    if original is None:
+        shown = ", ".join(name for name in headers if name) or "không có tiêu đề"
+        raise invalid(f"Không thấy cột “Liên kết gốc” (các cột có: {shown}). Hãy dùng file Shopee trả về")
+    rows = []
+    for number, row in enumerate(table[1:], start=2):
+        cells = list(row)
+        link = cells[original] if original < len(cells) else None
+        if not isinstance(link, str) or not link.strip():
+            continue
+        converted = next(
+            (str(cell).strip() for index, cell in enumerate(cells) if index != original and _is_short_link(cell)), None
+        )
+        rows.append((number, link.strip(), converted))
+    if not rows:
+        raise invalid("File không có dòng nào")
+    if len(rows) > MAX_LINKS:
+        raise invalid(f"Mỗi lần nhập tối đa {MAX_LINKS} link")
+    return rows
+
+
+def _matched(db: DbSession, topic_id: int, user_id: int, rows: list[tuple[int, str, str | None]]) -> list[dict]:
+    """Each row with what the import would do: "ok" (a product I added in this group), "others" (only a teammate's has
+    this page: their link stays), or an error. A teammate's product is never written, whatever the file says."""
+    products = list(
+        db.scalars(
+            select(AffiliateProduct).where(
+                AffiliateProduct.knowledge_topic_id == topic_id, AffiliateProduct.page_url.is_not(None)
+            )
+        )
+    )
+    mine: dict[str, list[AffiliateProduct]] = {}
+    theirs: dict[str, AffiliateProduct] = {}
+    for product in products:
+        key = page_key(product.page_url)
+        if product.created_by_id == user_id:
+            mine.setdefault(key, []).append(product)
+        else:
+            theirs.setdefault(key, product)
+    result = []
+    seen: set[str] = set()
+    for number, link, converted in rows:
+        key = page_key(link)
+        row = {"row": number, "original": link, "link": converted, "state": "error", "message": "", "ids": []}
+        if key in seen:
+            row["message"] = "Link gốc trùng với một dòng phía trên"
+        elif converted is None:
+            row["message"] = "Link chuyển đổi trống hoặc không phải link Shopee (Shopee có thể đã báo lỗi dòng này)"
+        elif len(converted) > MAX_URL_LENGTH:
+            row["message"] = f"Link chuyển đổi dài quá {MAX_URL_LENGTH} ký tự"
+        elif key in mine:
+            row["state"], row["ids"] = "ok", [product.id for product in mine[key]]
+            row["name"] = mine[key][0].name
+        elif key in theirs:
+            owner = theirs[key].created_by.name
+            row["state"], row["name"] = "others", theirs[key].name
+            row["message"] = f"Sản phẩm của {owner}, link của họ được giữ nguyên"
+        else:
+            row["message"] = "Link gốc không khớp sản phẩm nào của bạn trong nhóm này"
+        if row["state"] != "error":
+            seen.add(key)  # a failed row does not hide a later good one of the same page
+        result.append(row)
+    return result
+
+
+def _summary(rows: list[dict]) -> dict:
+    return {
+        "rows": rows,
+        "ok": sum(row["state"] == "ok" for row in rows),
+        "others": sum(row["state"] == "others" for row in rows),
+        "errors": sum(row["state"] == "error" for row in rows),
+    }
+
+
+async def _read(file: UploadFile, topic_id: int, me: Session, db: DbSession) -> list[dict]:
+    if db.get(KnowledgeTopic, topic_id) is None:
+        raise invalid("Nhóm chủ đề không còn tồn tại")
+    data = await file.read(MAX_FILE_BYTES + 1)
+    return _matched(db, topic_id, me.user_id, parsed_file(data))
+
+
+@router.post("/import/preview")
+async def preview_import(
+    knowledge_topic_id: int = Form(),
+    file: UploadFile = File(),
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """What "Nhập" would do with Shopee's result file, row by row; writes nothing."""
+    return _summary(await _read(file, knowledge_topic_id, me, db))
+
+
+@router.post("/import")
+async def import_file(
+    knowledge_topic_id: int = Form(),
+    file: UploadFile = File(),
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """Puts each converted link on the matching product I added in the group: an approved one stays approved unless it
+    no longer meets the rules, and comments already written under live posts are asked to follow the new link."""
+    rows = await _read(file, knowledge_topic_id, me, db)
+    changed: list[int] = []
+    for row in rows:
+        if row["state"] != "ok":
+            continue
+        for product in db.scalars(select(AffiliateProduct).where(AffiliateProduct.id.in_(row["ids"]))):
+            if product.url == row["link"]:
+                continue
+            product.url = row["link"]
+            if product.status == "approved" and affiliate.problems(product):
+                _clear_approval(product)
+            changed.append(product.id)
+    affiliate.ask_comment_refresh(db, changed, forget_links=True)
+    db.commit()
+    return {**_summary(rows), "linked": len(changed)}

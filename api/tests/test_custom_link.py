@@ -4,11 +4,13 @@ import io
 
 import pytest
 from conftest import first_topic, login, make_user
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
 from reels_api.models import AffiliateProduct, Fanpage, KnowledgeTopic
 
 EXPORT = "/api/affiliate-products/custom-link/export.xlsx"
+PREVIEW = "/api/affiliate-products/custom-link/import/preview"
+IMPORT = "/api/affiliate-products/custom-link/import"
 HEADERS = ["Liên kết gốc", "Sub_id1", "Sub_id2", "Sub_id3", "Sub_id4", "Sub_id5"]
 
 
@@ -149,3 +151,93 @@ def test_more_than_the_shopee_limit_is_refused(an, db, me, monkeypatch):
 
 def test_a_visitor_is_sent_to_login(client, db):
     assert client.get(EXPORT, params={"topic_id": first_topic(db).id}).status_code == 401
+
+
+def result_file(*rows, header=("Liên kết gốc", "Sub_id1", "Liên kết đã chuyển đổi")) -> bytes:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(list(header))
+    for row in rows:
+        sheet.append(list(row))
+    out = io.BytesIO()
+    workbook.save(out)
+    return out.getvalue()
+
+
+def send(an, db, url, data, topic=None):
+    files = {"file": ("ket-qua.xlsx", data, XLSX)}
+    return an.post(url, data={"knowledge_topic_id": (topic or first_topic(db)).id}, files=files)
+
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+SHORT = "https://s.shopee.vn/AbC"
+
+
+def test_preview_matches_by_shop_and_item_and_writes_nothing(an, db, me):
+    topic = first_topic(db)
+    mine = product(db, me, topic, 1)
+    data = result_file(("https://shopee.vn/ten-san-pham-i.1.1?sp_atk=xyz", "p1", SHORT))
+    got = send(an, db, PREVIEW, data).json()
+    assert (got["ok"], got["others"], got["errors"]) == (1, 0, 0)
+    assert got["rows"][0]["ids"] == [mine.id]
+    db.refresh(mine)
+    assert mine.url is None
+
+
+def test_import_puts_the_link_on_my_product_and_keeps_its_approval(an, db, me):
+    topic = first_topic(db)
+    mine = product(db, me, topic, 1)
+    got = send(an, db, IMPORT, result_file((mine.page_url, "p1", SHORT)))
+    assert got.status_code == 200, got.text
+    assert got.json()["linked"] == 1
+    db.refresh(mine)
+    assert (mine.url, mine.status) == (SHORT, "approved")
+
+
+def test_a_teammates_product_keeps_its_link_and_is_listed_as_others(an, db, me):
+    topic = first_topic(db)
+    other = make_user(db, email="binh@doi.vn", name="Bình")
+    theirs = product(db, other, topic, 2, url="https://s.shopee.vn/theirs")
+    got = send(an, db, IMPORT, result_file((theirs.page_url, "p1", SHORT))).json()
+    assert (got["ok"], got["others"], got["linked"]) == (0, 1, 0)
+    assert "Bình" in got["rows"][0]["message"]
+    db.refresh(theirs)
+    assert theirs.url == "https://s.shopee.vn/theirs"
+
+
+def test_each_bad_row_says_why(an, db, me):
+    topic = first_topic(db)
+    mine = product(db, me, topic, 1)
+    data = result_file(
+        ("https://shopee.vn/product/9/9", "p1", SHORT),
+        (mine.page_url, "p1", None),
+        (mine.page_url, "p1", "not a link"),
+    )
+    got = send(an, db, PREVIEW, data).json()
+    assert got["errors"] == 3
+    assert "không khớp" in got["rows"][0]["message"]
+    assert "Link chuyển đổi trống" in got["rows"][1]["message"]
+    assert "Link chuyển đổi trống" in got["rows"][2]["message"]
+
+
+def test_a_page_listed_twice_takes_the_first_row_only(an, db, me):
+    topic = first_topic(db)
+    mine = product(db, me, topic, 1)
+    got = send(
+        an, db, IMPORT, result_file((mine.page_url, "p1", SHORT), (mine.page_url, "p1", "https://s.shopee.vn/2"))
+    )
+    body = got.json()
+    assert (body["linked"], body["errors"]) == (1, 1)
+    assert "trùng" in body["rows"][1]["message"]
+    db.refresh(mine)
+    assert mine.url == SHORT
+
+
+def test_a_file_that_is_not_excel_or_lacks_the_original_column_is_refused(an, db, me):
+    refused = send(an, db, PREVIEW, b"khong phai excel")
+    assert refused.status_code == 422
+    assert "file Excel" in refused.json()["message"]
+    wrong = send(an, db, PREVIEW, result_file(("a", "b"), header=("Tên", "Giá")))
+    assert wrong.status_code == 422
+    assert "Liên kết gốc" in wrong.json()["message"]
+    assert "tên, giá" in wrong.json()["message"]
