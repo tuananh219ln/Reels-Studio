@@ -47,7 +47,7 @@ DEFAULTS: dict = {
     "title_style": "same",  # the title scene is drawn like the other scenes
     "box_color": "auto",  # the style's own box (or outline, without a box); or "#RRGGBB"
     "accent_color": "auto",  # marked words keep a colour apart from the text; or "#RRGGBB"
-    "box_opacity": "auto",  # the style's own; or solid, soft (88%), clear (70%), none (outlined)
+    "box_opacity": "auto",  # the style's own; or solid, soft (88%), clear (70%), faint (45%), none (outlined)
     # The title scene's own look, like the five above; "same" follows the scenes (or title_style "yellow").
     "title_text_style": "same",
     "title_text_color": "auto",
