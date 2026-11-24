@@ -484,19 +484,29 @@ def music_level_expression(timeline: Timeline, levels: list[str | None]) -> str 
     return "*".join(parts) or None
 
 
+SFX_LIMIT = 0.5  # the sound-effects bus peaks at -6 dBFS, so overlapping effects (the title's ting) do not clip
+
+
 def _sound_chains(sounds: list[SoundInput], samples: int) -> list[str]:
-    """Each effect made by its source filter, at its level, delayed to its second and as long as the video, then
-    added to the mix at full level as the narration is (amerge + pan, see above)."""
-    chains, previous = [], "base"
+    """Each effect made by its source filter, at its level, delayed to its second and as long as the video. The
+    effects are added together (amerge + pan, see above), held under SFX_LIMIT by a limiter, and only then added to
+    the mix at full level as the narration is."""
+    chains, bus = [], ""
     for index, item in enumerate(sounds):
         delay = round(item.start * 1000)
         chains.append(
             f"{SOUNDS[item.sound].source},aformat=sample_rates={AUDIO_RATE}:channel_layouts=stereo,"
             f"volume={item.gain:.4f},adelay={delay}|{delay},apad,atrim=end_sample={samples}[fx{index}]"
         )
-        label = "aout" if index == len(sounds) - 1 else f"mix{index}"
-        chains.append(f"[{previous}][fx{index}]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[{label}]")
-        previous = label
+        if index == 0:
+            bus = "fx0"
+            continue
+        label = f"sum{index}"
+        chains.append(f"[{bus}][fx{index}]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[{label}]")
+        bus = label
+    if sounds:
+        chains.append(f"[{bus}]alimiter=limit={SFX_LIMIT}:level=disabled[sfx]")
+        chains.append("[base][sfx]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[aout]")
     return chains
 
 

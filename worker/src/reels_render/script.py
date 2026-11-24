@@ -341,6 +341,7 @@ def _parse_sounds(value: object, label: str) -> tuple[SceneSound, ...]:
                 sound=_parse_preset(item.get("sound"), "sound", SOUNDS, where),
                 start=float(_number(item.get("start", 0), "start", where, 0, 1e6)),
                 volume=_parse_preset(item.get("volume", "normal"), "volume", SOUND_VOLUMES, where),
+                gain_db=float(_number(item.get("gain_db", 0), "gain_db", where, -24, 12)),
             )
         )
     return tuple(sounds)

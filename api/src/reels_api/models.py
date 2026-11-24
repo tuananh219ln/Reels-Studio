@@ -492,6 +492,10 @@ class SceneSound(Base):
     sound: Mapped[str] = mapped_column(String(24))
     start: Mapped[float] = mapped_column(Float, default=0)  # seconds into the scene
     volume: Mapped[str] = mapped_column(String(8), default="normal")
+    # "manual": a member put it there; "auto_title_reveal": the title motion's ting for slot `slot_index`
+    # (title_motion.sync_title_sfx owns those rows).
+    origin: Mapped[str] = mapped_column(String(20), default="manual", server_default="manual")
+    slot_index: Mapped[int | None] = mapped_column(Integer)
 
     scene: Mapped[Scene] = relationship(back_populates="sounds")
 

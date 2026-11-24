@@ -32,8 +32,10 @@ def test_a_sound_is_mixed_in_at_its_second_and_level_without_changing_the_length
     assert f"{SOUNDS['ding'].source}" in graph and f"{SOUNDS['whoosh'].source}" in graph
     assert "volume=1.6000,adelay=2500|2500,apad,atrim=end_sample=288000[fx0]" in graph
     assert "adelay=250|250" in graph
-    # Each sound is added to the mix at full level, as the narration is.
-    assert "[mix0][fx1]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[aout]" in graph
+    # The effects are added together, limited at -6 dBFS, then added to the mix at full level, as the narration is.
+    assert "[fx0][fx1]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[sum1]" in graph
+    assert "[sum1]alimiter=limit=0.5:level=disabled[sfx]" in graph
+    assert "[base][sfx]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[aout]" in graph
 
 
 def test_without_sounds_the_audio_is_the_one_from_before():
@@ -72,7 +74,16 @@ def test_the_script_takes_sounds_and_a_music_level(tmp_path):
     data["scenes"][0] |= {"sounds": [{"sound": "pop", "start": 0.5, "volume": "loud"}], "music_level": "off"}
     (only,) = load_script(write_script(tmp_path, data)).scenes
     assert ([(s.sound, s.start, s.volume) for s in only.sounds], only.music_level) == ([("pop", 0.5, "loud")], "off")
-    for bad in ({"sound": "laugh"}, {"sound": "pop", "volume": "max"}, {"sound": "pop", "start": -1}):
+    assert only.sounds[0].gain_db == 0  # a sound without "gain_db" plays at its level
+    data["scenes"][0]["sounds"] = [{"sound": "ding", "start": 0.1, "volume": "soft", "gain_db": -3}]
+    (quiet,) = load_script(write_script(tmp_path, data)).scenes
+    assert quiet.sounds[0].gain_db == -3
+    for bad in (
+        {"sound": "laugh"},
+        {"sound": "pop", "volume": "max"},
+        {"sound": "pop", "start": -1},
+        {"sound": "pop", "gain_db": "loud"},
+    ):
         data["scenes"][0]["sounds"] = [bad]
         with pytest.raises(InputError, match="Cảnh 1, âm 1"):
             load_script(write_script(tmp_path, data))
@@ -94,3 +105,26 @@ def test_a_boom_is_heard_at_its_second_and_a_scene_without_music_is_quiet(tmp_pa
     assert mean_volume(output, 1.4, 1.2) < -60
     with_music = mean_volume(output, 4.4, 0.3)
     assert mean_volume(output, 3.5, 0.3) > with_music + 3
+
+
+def peak_volume(media):
+    import re
+    import subprocess
+
+    result = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-nostats", "-i", str(media), "-vn", "-af", "volumedetect", "-f", "null", "-"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+    )
+    return float(re.search(r"max_volume: (-?[\d.]+) dB", result.stderr).group(1))
+
+
+@needs_ffmpeg
+def test_overlapping_effects_are_held_under_the_limiter(tmp_path):
+    make_image(tmp_path / "a.jpg", (1080, 1920))
+    booms = [{"sound": "boom", "start": 0.1 * i, "volume": "loud"} for i in range(6)]
+    data = {"title": scene("TIÊU ĐỀ", 2, sounds=booms), "scenes": [scene("", 2)]}
+    output = render_video(load_script(write_script(tmp_path, data)), tmp_path / "out.mp4")
+    assert peak_volume(output) <= -5.5

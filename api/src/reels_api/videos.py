@@ -556,13 +556,26 @@ def layer_payload(layer: SceneLayer, case: str = "upper", video: Video | None = 
     }
 
 
+AUTO_TITLE_REVEAL = "auto_title_reveal"  # SceneSound.origin of the title motion's ting (title_motion.sync_title_sfx)
+TING_GAIN_DB = -3.0  # the render plays each of those 3 dB under their "soft" level, so seven in a row do not pile up
+
+
 def sound_fields(sound: SceneSound) -> dict:
     """A sound effect as the render script reads it (reels_render.sounds.SceneSound)."""
-    return {"sound": sound.sound, "start": sound.start, "volume": sound.volume}
+    fields = {"sound": sound.sound, "start": sound.start, "volume": sound.volume}
+    if sound.origin == AUTO_TITLE_REVEAL:
+        fields["gain_db"] = TING_GAIN_DB
+    return fields
 
 
 def sound_payload(sound: SceneSound) -> dict:
-    return {"id": sound.id, **sound_fields(sound), "url": f"/api/sounds/library/{sound.sound}.mp3"}
+    return {
+        "id": sound.id,
+        **sound_fields(sound),
+        "origin": sound.origin,
+        "slot_index": sound.slot_index,
+        "url": f"/api/sounds/library/{sound.sound}.mp3",
+    }
 
 
 def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> str:
@@ -1050,6 +1063,7 @@ def title_motion_payload(scene: Scene) -> dict | None:
         "pending": bool(made.get("pending")),
         "has_classic": bool(made.get("classic")),
         "labels": made["title"].get("labels", []),
+        "reveal_times": made["title"].get("reveal_times"),
         # Per slot: its own photo's address (None while it follows its scene's photo) and the scene it was told to
         # take from (None: the scene in the same place below the title).
         "slots": [

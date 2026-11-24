@@ -566,7 +566,14 @@ def patch_video(
             changes = video_options.clean(rest)
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
+        sfx = video_options.effective(video)["title_sfx"]
         video.options = video_options.effective(video) | changes
+        if video_options.effective(video)["title_sfx"] != sfx:
+            from . import title_motion
+
+            title, _ = split_scenes(db, video)
+            if title is not None:
+                title_motion.sync_title_sfx(video, title)
     if video_options.voice_pause(video) != pause:
         title, scenes = split_scenes(db, video)
         follow_narration(video, [scene for scene in (title, *scenes) if scene is not None])
@@ -1249,6 +1256,12 @@ def patch_scene(
             raise invalid("Số giây không hợp lệ")
         scene.seconds = round(body.seconds, 2)
         scene.seconds_auto = False
+        if scene.is_title:
+            from . import motion as motion_module
+            from . import title_motion
+
+            if motion_module.shows_motion(scene):
+                title_motion.sync_title_sfx(video, scene)  # a ting past the new end goes
     if body.seconds_auto is not None:
         scene.seconds_auto = body.seconds_auto
     if "keywords" in fields and body.keywords is not None:

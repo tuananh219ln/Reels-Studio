@@ -6,7 +6,8 @@ The members write nothing: the layout comes from the number of listed scenes and
 (`choose_layout`), each slot shows the photo (or the clip's frame) of its own scene, and the markup is built here
 (`build_html`). The slot photos are packed into one JPEG atlas that the markup shows as assets/photo.jpg, so the
 render core, the HyperFrames job and the render machines need nothing new. The hook text stays the title scene's own
-text box (drawn from second 0, at `HOOK_CENTRE`), and the title scene's sounds are replaced by `sounds()`.
+text box (drawn from second 0, at `HOOK_CENTRE`), and the title scene's sounds follow the slots (`sync_title_sfx`: one
+soft ting as each slot pops in, nothing else).
 
 The photo or clip the title scene showed is kept (`motion["classic"]`), so `set_mode` switches Cổ điển / Động without
 a new render.
@@ -21,11 +22,11 @@ from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import brands, clips, motion, outro
+from . import brands, clips, motion, outro, video_options
 from .errors import ApiError
 from .models import Scene, SceneSound, TopicPlanItem, Video
 from .storage import DirectoryStorage
-from .videos import ensure_unlocked, lock_scene, new_key, refresh_thumbnail, split_scenes
+from .videos import AUTO_TITLE_REVEAL, ensure_unlocked, lock_scene, new_key, refresh_thumbnail, split_scenes
 
 LAYOUTS = ("grid", "ring", "strip", "warn")
 TITLE_SECONDS = 3.0
@@ -177,19 +178,82 @@ def timing(n: int) -> tuple[list[float], float]:
     return starts, round(starts[-1] + 0.55, 2)
 
 
-def sounds(layout: str, n: int) -> list[tuple[str, float, str]]:
-    """The title scene's sounds (spec section 6): (sound, second, volume)."""
-    starts, _ = timing(n)
-    out = [("whoosh", 0.0, "soft")]
-    hide = layout != "warn"
-    for i, t in enumerate(starts):
-        if hide and i == n - 1:
-            out.append(("rise", max(0.0, round(t - 0.25, 2)), "normal"))
-        elif n >= 6 and i % 2 == 1:
-            continue  # many dishes: a ding on every other one keeps the sound thin
-        else:
-            out.append(("wrong" if layout == "warn" else "ding", t, "soft"))
-    return out
+TING = "ding"
+MIN_GAP = 0.15  # seconds between two ting; a slot closer to the one before has none
+# A GSAP line that pops a slot in: tl.from(".s3",{scale:0,opacity:0,...},0.7). Lines with `repeat` (the "?" shake) and
+# `tl.to` / `tl.fromTo` (the background zoom) are not slots.
+REVEAL_LINE = re.compile(r"tl\.from\(\s*[\"']\.s(\d+)[\"']\s*,\s*\{([^}]*)\}\s*,\s*([\d.]+)\s*\)")
+
+
+def parse_reveal_times(markup: str) -> list[float]:
+    """When each slot pops in, read from the motion's GSAP script (for a title whose build did not store them); [] when
+    no slot is found. Slot numbers are the `.sN` classes, so the list is in slot order."""
+    found: dict[int, float] = {}
+    for match in REVEAL_LINE.finditer(markup or ""):
+        slot, vars_, start = int(match.group(1)), match.group(2), float(match.group(3))
+        if "repeat" in vars_ or not re.search(r"\b(scale|opacity)\s*:", vars_):
+            continue
+        found.setdefault(slot, start)
+    return [found[slot] for slot in sorted(found)]
+
+
+def sync_title_sfx(
+    video: Video, scene: Scene, times: list[float] | None = None, seconds: float | None = None
+) -> list[str]:
+    """The title scene's sounds follow its motion ("Âm thanh tiêu đề động", the video's `title_sfx`): one soft ting at
+    the second each slot pops in and nothing else. "manual" leaves the sounds alone, "off" leaves none. The times are
+    the build's own (`times`, else stored with the motion, else read from its script); when none can be found the
+    member's sounds stay and a warning says so. Returns warnings. A title without a motion title is left alone."""
+    made = scene.motion or {}
+    info = made.get("title")
+    if not scene.is_title or not (info or times):
+        return []
+    mode = video_options.effective(video)["title_sfx"]
+    if mode == "manual":
+        return []
+    for old in [sound for sound in scene.sounds if sound.origin == AUTO_TITLE_REVEAL]:
+        scene.sounds.remove(old)
+    if mode == "off":
+        for old in list(scene.sounds):
+            scene.sounds.remove(old)
+        return []
+    if times is None:
+        times = (info or {}).get("reveal_times") or parse_reveal_times(made.get("html") or "")
+    if not times:
+        return ["title_sfx_unsynced: không đọc được giây hiện của các ô, tiêu đề động không có tiếng ting"]
+    for old in list(scene.sounds):  # the member's own sounds: the title has only the ting
+        scene.sounds.remove(old)
+    limit = (scene.seconds if seconds is None else seconds) - 0.1
+    last = -math.inf
+    for slot, start in enumerate(times):
+        if start >= limit or start - last < MIN_GAP:
+            continue
+        scene.sounds.append(
+            SceneSound(sound=TING, start=start, volume="soft", origin=AUTO_TITLE_REVEAL, slot_index=slot)
+        )
+        last = start
+    return []
+
+
+def resync(db: DbSession, video_id: int) -> tuple[dict, list[str]]:
+    """Runs `sync_title_sfx` on the video's title scene on request (the assistant's "Đồng bộ âm tiêu đề động"); a
+    video set to "manual" is left as it is. Returns the video's payload and the warnings."""
+    from . import routes_videos
+    from .videos import lock_video
+
+    video = lock_video(db, video_id)
+    ensure_unlocked(db, video)
+    title, _ = split_scenes(db, video)
+    if title is None or not (title.motion or {}).get("title"):
+        raise invalid("Video chưa có tiêu đề động")
+    warnings = sync_title_sfx(video, title)
+    return routes_videos._saved(db, video), warnings
+
+
+def hand_edited(video: Video, scene: Scene) -> None:
+    """A member added, changed or removed a sound of a title motion's scene: from now on the sounds are theirs."""
+    if scene.is_title and (scene.motion or {}).get("title") and video_options.effective(video)["title_sfx"] != "manual":
+        video.options = video_options.effective(video) | {"title_sfx": "manual"}
 
 
 # --- Markup ---
@@ -591,11 +655,7 @@ def build(
     number = n - 1 if layout == "ring" else n
     hidden = (hidden_label or f"SỐ {number} ÍT AI NGỜ").strip().upper()[:30]
     markup = build_html(layout, names, atlas, hidden, top)
-    for old in list(scene.sounds):
-        db.delete(old)
-    db.flush()
-    for sound, start, volume in sounds(layout, n):
-        scene.sounds.append(SceneSound(sound=sound, start=start, volume=volume))
+    reveal_times, _ = timing(n)
     info = {
         "layout": layout,
         "requested": requested,
@@ -604,7 +664,9 @@ def build(
         "count": n,
         "slots": slots,
         "top": top,
+        "reveal_times": reveal_times,
     }
+    sfx_warnings = sync_title_sfx(video, scene, reveal_times, TITLE_SECONDS)
     # The Page's "Kiểu tiêu đề": a title built for the first time shows its classic photo or clip when the channel
     # says so (motion.attach); the member switches to "Động" on the video. A rebuild keeps what the member chose.
     brand = brands.brand_of(db, video)
@@ -613,7 +675,7 @@ def build(
     payload = motion.request(
         db, storage, scene_id, markup, TITLE_SECONDS, me, atlas=(pack(images, atlas), "jpg"), title=info
     )
-    return payload, hook_warnings(scene)
+    return payload, hook_warnings(scene) + sfx_warnings
 
 
 def set_slot_photo(
