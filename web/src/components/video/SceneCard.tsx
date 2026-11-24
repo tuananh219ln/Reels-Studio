@@ -71,6 +71,7 @@ import ImageEditModal from "./ImageEditModal";
 import ImageProviderMenu from "./ImageProviderMenu";
 import MediaEditor from "./MediaEditor";
 import PhotoFrameField from "./PhotoFrameField";
+import TitleMotionField from "./TitleMotionField";
 import HalfPhotoPanel, { InsetOverlapWarning } from "./HalfPhotoPanel";
 import { isHalf } from "./preview/layers";
 import { photoLayer } from "./videoModes";
@@ -1427,6 +1428,7 @@ export function ScenePicture({
         </Flex>
       )}
       {!editor.readOnly && <PhotoFrameField scene={scene} disabled={off} />}
+      <TitleMotionField scene={scene} disabled={off} />
       {scene.image_credit && (
         // A stock photo whose licence asks for credit (Wikimedia CC BY/BY-SA): the post must carry the line.
         <Flex wrap align="center" gap={4} data-testid="image-credit">

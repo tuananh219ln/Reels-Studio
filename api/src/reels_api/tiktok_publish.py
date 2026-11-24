@@ -16,6 +16,7 @@ from . import tiktok, tiktok_connections
 from .models import Job, KnowledgeTopic, Publication, Video
 from .sessions import now
 from .storage import DirectoryStorage
+from .videos import motion_cover_second
 
 log = logging.getLogger(__name__)
 
@@ -98,6 +99,7 @@ def _start(db: DbSession, token: str, video: Video, post: Publication, storage: 
                 json.dumps({"privacy_level_options": info.privacy_level_options}),
             )
         topic = db.get(KnowledgeTopic, video.knowledge_topic_id)
+        cover = motion_cover_second(db, video)
         post_info = {
             "title": tiktok.post_title(video.caption, topic.name if topic else None),
             "privacy_level": level,
@@ -107,6 +109,9 @@ def _start(db: DbSession, token: str, video: Video, post: Publication, storage: 
             # Every video of the app is made with AI: TikTok asks for the label, and labelled posts are not held back.
             "is_aigc": True,
         }
+        if cover is not None:
+            # A motion title's first frame is nearly empty: the cover is its settled frame (videos.title_poster_second).
+            post_info["video_cover_timestamp_ms"] = round(cover * 1000)
         upload = tiktok.init_direct(token, post_info, size, chunk, chunks)
     else:
         # A draft carries no caption: the member finishes it in TikTok's app (caption, cart, AI label).

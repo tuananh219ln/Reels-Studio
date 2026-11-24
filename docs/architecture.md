@@ -392,6 +392,38 @@ the video as before: HyperFrames never renders the whole video, and Remotion is 
   the rendered length), and every outro scene after it copies the kept clip, at once when it is made or in the next
   round. A scene whose outro render failed is not queued again; "Thử lại" on its job does it. Members edit or delete
   the scene like any other; a scene whose motion an assistant rewrites is no longer an outro.
+- **"Tiêu đề động"** ([title_motion.py](../api/src/reels_api/title_motion.py), `POST /api/title-motion/{scene_id}`,
+  the owner's spec "Tiêu đề động 3 giây", phase 1 for the "Sức khỏe" groups): the title scene becomes a 3 s motion scene where
+  the photos of the listed scenes (content scenes without the outro and a closing call to action; a clip gives its
+  frame at `video_start`) pop in one by one, the last hidden behind "?". The layout is chosen from the number of
+  listed scenes and the video's "Loại nội dung" (`grid` 2–6, `strip` 7–10, `ring` for "X + N" titles with 5–9 dishes,
+  `warn` for "tránh"; `layout`, `labels`, `hidden_label` and `count` in the body override it). The slot photos are
+  cut to their box and packed into one JPEG atlas that the markup shows as `assets/photo.jpg`, so HyperFrames, the
+  render machines and the render core are unchanged. The hook stays the scene's own text box, moved to (540, 400);
+  the scene's sounds are replaced by `title_motion.sounds` (Vút, Ting per dish, Dâng lên before the "?", Sai rồi on
+  `warn`); content scenes get none. `scenes.motion` carries `title` (layout, labels, count) and `classic` (the photo
+  or clip the scene showed, kept by `motion.attach`), so `POST /api/title-motion/{scene_id}/mode` (`classic` or
+  `motion`) switches without a render. The scene payload's `title_motion` says layout, count, `mode`, `ready`,
+  `pending`. Words the hook must not use (chữa, khỏi bệnh, hơn cả thuốc, thần dược, giải độc cực mạnh, kéo dài tuổi
+  thọ, 100%) come back as `warnings`. The hook (`hook_lines`, its narration `hook_voice` with the numbers in words) is written when the title is empty or the body has
+  `write_hook`: "LO [nỗi lo]? / ĂN N [món] NÀY", "[món chính] + N LOẠI / SỐ N ÍT AI BIẾT" or "[nỗi lo] / TRÁNH N MÓN NÀY",
+  the worry being the plan idea's `pain_group` and the dishes' word found in the video's topic (`noun_of`). Each slot is cut around the dish (`subject_centre`: the sharp, colourful part of the photo, a heuristic, no object
+  detector) unless a member set `focus`. `slots` ("Ảnh các ô": `from_scene`, `label`, `focus` per slot, kept in
+  `motion.title.slots` and reused by a rebuild) take a slot's photo from another scene, rename it or aim its crop; the
+  web panel renames and takes a photo of its own for a slot from an upload, a pasted photo or link, the library or
+  Google Ảnh (`POST /api/title-motion/{scene_id}/slots/{index}/photo`, `photo-link`, `photo-library`: kept in the
+  slot's `image_key`, shown from the next build; `GET` the same path serves it for the slot's thumbnail, `DELETE`
+  removes it so the slot follows its scene again). The payload's `title_motion.slots` lists, per slot, `photo_url` and
+  `from_scene`. The Chrome extension's photos go to the slot last searched from (`googleExtension.ts`, ten minutes). The Page's default (`brands.title_style`, migration 0122, "Kiểu tiêu đề video của Page" beside the logo switch
+  on Cài đặt › Page): "classic" makes a title built for the first time keep showing its own photo or clip
+  (`motion.attach`), the member switching to Động on the video; a rebuild keeps the member's choice. The slots start 40 px under the hook's text box (`hook_bottom`, `top_for`: 640 for two lines, lower for a taller
+  hook, never below 1000) and fill what is left down to y 1680 (`SAFE_BOTTOM`), between 60 px side margins with 30 px gaps: tiles are never taller than wide, a grid that cannot fill the height is centred, the details (badge, name, "?") scale with the tile and a long name shrinks to one line; the ring's bubbles take the biggest size that touches neither the main dish nor each other (names wrap to two lines, "X + " dropped); the slots' atlas is cut at 2× the tile size; a changed hook needs "Dựng lại tiêu đề". The thumbnail (`videos.refresh_thumbnail`), the card's poster and the Facebook cover of a motion
+  title come from its settled frame at 2.6 s (`videos.title_poster_second`), not from frame 0, which is nearly empty. The same second is the cover on TikTok (`video_cover_timestamp_ms`, direct posts only: a draft carries no
+  `post_info`), Instagram (`thumb_offset`) and YouTube (`thumbnails.set` after the upload, which YouTube allows on verified
+  channels only: a refusal is logged and the upload stands); `videos.motion_cover_second` is None for any other title,
+  which keeps each platform's own pick.
+  Not checked
+  yet: video 259 against the owner's sample ([decision](decisions/2026-11-23-title-motion.md)).
 
 ### Scene Video Clips
 

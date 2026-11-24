@@ -133,15 +133,34 @@ body {
 
 .scene-body {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: fit-content(510px) minmax(260px, 1fr);
   gap: 16px;
   align-items: start;
 }
 
-@container (max-width: 700px) {
+@container (max-width: 820px) {
   .scene-body {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* The motion title's slot names wrap onto as many rows as fit, so the picture's column stays narrow. */
+.title-cells {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 6px 12px;
+}
+
+.title-cells__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.title-cells__item .ant-input {
+  min-width: 0;
+  width: 100%;
 }
 
 @container (max-width: 440px) {

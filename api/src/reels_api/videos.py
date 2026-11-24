@@ -629,13 +629,36 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
-def scene_still(storage: DirectoryStorage, scene: Scene) -> Path | Image.Image | None:
-    """What the scene's first frame is drawn from: the clip's frame at its start time, or the photo."""
+# A "Tiêu đề động" (title_motion.py) pops its slots in from 0.1 s to 1.7 s and has settled by 2.4 s, so its first frame
+# is nearly empty: the thumbnail and the Facebook cover show this second instead.
+TITLE_POSTER_SECOND = 2.6
+
+
+def title_poster_second(scene: Scene) -> float | None:
+    """The second of the scene's motion title where every slot is in place; None for a scene that is not one (or
+    whose clip is not the motion any more), which stands for itself at its first frame."""
+    made = scene.motion
+    if not (scene.is_title and made and made.get("title") and made.get("clip_key") == scene.video_key):
+        return None
+    return round(max(0.0, min(TITLE_POSTER_SECOND, (scene.seconds or 3.0) - 0.2)), 2)
+
+
+def motion_cover_second(db: DbSession, video: Video) -> float | None:
+    """Where a platform's cover is taken in the MP4 when the video's title is a motion title (`title_poster_second`);
+    None for any other title, which keeps the platform's own pick (or the first frame)."""
+    title, _ = split_scenes(db, video)
+    return title_poster_second(title) if title is not None else None
+
+
+def scene_still(storage: DirectoryStorage, scene: Scene, poster: bool = False) -> Path | Image.Image | None:
+    """What the scene's first frame is drawn from: the clip's frame at its start time, or the photo. With `poster`
+    (the thumbnail) a motion title is drawn from its settled frame."""
     if scene.video_key:
         if not storage.exists(scene.video_key):
             return None
         try:
-            frame = frame_at(storage.path(scene.video_key), scene.video_start)
+            second = title_poster_second(scene) if poster else None
+            frame = frame_at(storage.path(scene.video_key), scene.video_start if second is None else second)
         except ClipError:
             return None
         if blurred := blur_of(scene):
@@ -651,7 +674,7 @@ def scene_still(storage: DirectoryStorage, scene: Scene) -> Path | Image.Image |
 def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, title: Scene | None) -> None:
     """The thumbnail is the title scene's preview; it follows every change of that photo, clip or text."""
     old = video.thumbnail_key
-    still = scene_still(storage, title) if title is not None else None
+    still = scene_still(storage, title, poster=True) if title is not None else None
     if still is None:
         video.thumbnail_key = None
     else:
@@ -1011,6 +1034,39 @@ def motion_payload(scene: Scene) -> dict | None:
     return {"html": motion["html"], "seconds": motion["seconds"], "pending": bool(motion.get("pending"))}
 
 
+def title_motion_payload(scene: Scene) -> dict | None:
+    """The title scene's "Tiêu đề động" (title_motion.py): its layout, how many dishes, whether the scene shows it
+    (`mode`) and whether its clip is made (`ready`) or being made (`pending`); None for a scene without one."""
+    made = scene.motion
+    if not scene.is_title or not made or not made.get("title"):
+        return None
+    shown = bool(made.get("clip_key") and made["clip_key"] == scene.video_key)
+    return {
+        "layout": made["title"]["layout"],
+        "count": made["title"]["count"],
+        "mode": "motion" if shown or made.get("pending") else "classic",
+        "ready": bool(made.get("clip_key")) and not made.get("pending"),
+        "pending": bool(made.get("pending")),
+        "has_classic": bool(made.get("classic")),
+        "labels": made["title"].get("labels", []),
+        # Per slot: its own photo's address (None while it follows its scene's photo) and the scene it was told to
+        # take from (None: the scene in the same place below the title).
+        "slots": [
+            {
+                "photo_url": (
+                    f"/api/title-motion/{scene.id}/slots/{index}/photo?v={_version(slot['image_key'])}"
+                    if slot.get("image_key")
+                    else None
+                ),
+                "from_scene": slot.get("from_scene"),
+            }
+            for index, slot in enumerate(
+                [*(made["title"].get("slots") or []), *([{}] * made["title"]["count"])][: made["title"]["count"]]
+            )
+        ],
+    }
+
+
 def photo_credit(scene: Scene) -> dict | None:
     """The credit the scene's shown photo asks for, without its url; None for no photo, a clip, or a photo that needs
     none. Kept only while the photo it was noted for is still the scene's (any other photo ends it)."""
@@ -1111,6 +1167,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | Non
         "voice_id": scene.voice_id,  # its own voice; None: the video's
         # A "Cảnh động" (motion.py): its markup and seconds while the scene shows its clip or it is being made.
         "motion": motion_payload(scene),
+        "title_motion": title_motion_payload(scene),
         "blocking": [issue.message for issue in checks.blocking if issue.scene_id == scene.id],
         "warnings": [issue.message for issue in checks.warnings if issue.scene_id == scene.id],
         # The same, each with the field it is about, so the page can offer the fix beside it ("Lặp clip").

@@ -346,6 +346,18 @@ export type SceneData = {
   voice_id: string | null;
   /** A "Cảnh động" an assistant wrote (HTML + GSAP, rendered by HyperFrames into this scene's clip); null: none. */
   motion: { html: string; seconds: number; pending: boolean } | null;
+  /** The title scene's "Tiêu đề động": its layout, number of dishes, what the scene shows now and whether it is made. */
+  title_motion: {
+    layout: "grid" | "ring" | "strip" | "warn";
+    count: number;
+    mode: "motion" | "classic";
+    ready: boolean;
+    pending: boolean;
+    has_classic: boolean;
+    labels: string[];
+    /** One per slot: its own photo (null while it follows its scene's photo) and the scene it is told to take from. */
+    slots?: { photo_url: string | null; from_scene: number | null }[];
+  } | null;
   blocking: string[];
   warnings: string[];
   /** The same reasons, each with the field it is about ("video", "keywords", "text"…), so a fix can sit beside it;
@@ -724,7 +736,14 @@ export type Fanpage = {
   /** Its "Bộ bình luận": on or off, how many sets, how many the worker may choose now, how many go under a reel. */
   aff_sets: { enabled: boolean; sets: number; usable: number; per_post: number };
   /** The Page's brand ("Kênh") and its logo, laid on the videos made for it; null until a logo is added. */
-  brand: { id: number; name: string; logo_badge_url: string | null; logo_default_on: boolean; owner_id: number } | null;
+  brand: {
+    id: number;
+    name: string;
+    logo_badge_url: string | null;
+    logo_default_on: boolean;
+    title_style: "classic" | "motion" | null;
+    owner_id: number;
+  } | null;
   /** The worker's last check of the token (api fanpages.check). */
   check: {
     checked_at: string | null;
