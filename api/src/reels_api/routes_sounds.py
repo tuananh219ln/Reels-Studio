@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session as DbSession
 from reels_render.errors import RenderError
 from reels_render.sounds import SOUND_VOLUMES, SOUNDS, make_sound
 
+from . import title_motion
 from .db import get_db
 from .errors import ApiError
 from .models import SceneSound, Session
@@ -82,9 +83,10 @@ def add_sound(body: NewSoundBody, me: Session = Depends(current_member), db: DbS
     ensure_unlocked(db, video)
     if "sound" not in body.model_fields_set:
         raise invalid("Âm thanh không hợp lệ: hãy chọn một âm")
-    row = SceneSound(scene_id=scene.id, sound="", start=0, volume="normal")
+    row = SceneSound(scene_id=scene.id, sound="", start=0, volume="normal", origin="manual")
     _apply(row, body)
     db.add(row)
+    title_motion.hand_edited(video, scene)
     return _saved(db, video)
 
 
@@ -95,6 +97,8 @@ def patch_sound(
     video, row = _sound(db, sound_id)
     ensure_unlocked(db, video)
     _apply(row, body)
+    title_motion.hand_edited(video, row.scene)
+    row.origin, row.slot_index = "manual", None
     return _saved(db, video)
 
 
@@ -102,6 +106,7 @@ def patch_sound(
 def delete_sound(sound_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     video, row = _sound(db, sound_id)
     ensure_unlocked(db, video)
+    title_motion.hand_edited(video, row.scene)
     db.delete(row)
     return _saved(db, video)
 

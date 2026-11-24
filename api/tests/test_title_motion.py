@@ -13,7 +13,7 @@ from worker_helpers import add_user, committed, job_row  # noqa: F401  (committe
 
 from reels_api import jobs, motion, title_motion
 from reels_api.errors import ApiError
-from reels_api.models import Job, Scene, Video
+from reels_api.models import Job, Scene, SceneSound, Video
 
 
 def atlas_for(layout, n):
@@ -89,17 +89,123 @@ def test_timing_pops_the_first_dish_at_a_tenth_of_a_second_and_the_last_shakes_a
     assert starts[0] == 0.1 and starts[-1] <= 1.4
 
 
-def test_sounds_ding_each_dish_and_rise_before_the_hidden_one():
-    assert title_motion.sounds("grid", 4) == [
-        ("whoosh", 0.0, "soft"),
-        ("ding", 0.1, "soft"),
-        ("ding", 0.45, "soft"),
-        ("ding", 0.8, "soft"),
-        ("rise", 0.9, "normal"),
+def title_scene(n=7, seconds=3.0, sounds=(), markup="", **title):
+    """A title scene with a motion title of `n` slots, in memory (sync_title_sfx needs no database)."""
+    info = {"layout": "ring", "count": n, "reveal_times": title_motion.timing(n)[0], **title}
+    scene = Scene(is_title=True, seconds=seconds, motion={"title": info, "html": markup}, sounds=list(sounds))
+    return scene, Video(options={})
+
+
+def heard(scene):
+    return [(s.sound, s.start, s.volume, s.origin, s.slot_index) for s in scene.sounds]
+
+
+def test_a_ring_of_seven_gets_one_soft_ting_per_slot_and_no_other_sound():
+    scene, video = title_scene(7)
+    scene.sounds += [
+        SceneSound(sound="whoosh", start=0, volume="soft", origin="manual"),
+        SceneSound(sound="rise", start=1.05, origin="manual"),
     ]
-    many = title_motion.sounds("grid", 6)
-    assert [s[0] for s in many].count("ding") == 3 and [s[0] for s in many].count("rise") == 1
-    assert {name for name, _, _ in title_motion.sounds("warn", 4)} == {"whoosh", "wrong"}
+    assert title_motion.sync_title_sfx(video, scene) == []
+    expected = [0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.3]
+    assert heard(scene) == [("ding", t, "soft", "auto_title_reveal", i) for i, t in enumerate(expected)]
+
+
+def test_every_slot_of_other_counts_gets_its_ting_at_the_time_it_pops_in():
+    scene, video = title_scene(5)
+    title_motion.sync_title_sfx(video, scene)
+    assert [s.start for s in scene.sounds] == title_motion.timing(5)[0] and len(scene.sounds) == 5
+
+
+def test_a_ting_in_the_last_tenth_of_the_scene_or_after_it_is_dropped():
+    scene, video = title_scene(7, seconds=1.0)
+    title_motion.sync_title_sfx(video, scene)
+    assert [s.start for s in scene.sounds] == [0.1, 0.3, 0.5, 0.7]
+    assert [s.slot_index for s in scene.sounds] == [0, 1, 2, 3]
+
+
+def test_slots_closer_than_the_minimum_gap_have_no_ting():
+    scene, video = title_scene(4, reveal_times=[0.1, 0.2, 0.3, 0.5])
+    title_motion.sync_title_sfx(video, scene)
+    assert [(s.start, s.slot_index) for s in scene.sounds] == [(0.1, 0), (0.3, 2), (0.5, 3)]  # 0.2 is 0.1 s after 0.1
+
+
+def test_ten_dishes_pop_in_faster_than_the_gap_so_some_have_no_ting():
+    scene, video = title_scene(10)
+    title_motion.sync_title_sfx(video, scene)
+    starts = [s.start for s in scene.sounds]
+    assert 1 < len(starts) < 10 and all(b - a >= title_motion.MIN_GAP for a, b in zip(starts, starts[1:]))
+
+
+def test_the_times_come_from_the_script_when_the_build_stored_none():
+    markup = (
+        'tl.fromTo(".bg",{scale:1.15},{scale:1,duration:3,ease:"none"},0);\n'
+        'tl.from(".s0",{scale:0.6,opacity:0,duration:.33,ease:"back.out(1.8)"},0.1);\n'
+        'tl.from(".s1",{scale:0,opacity:0,duration:.33},0.45);\n'
+        'tl.from(".s2",{y:40,duration:.33},0.8);\n'  # neither scale nor opacity: not a pop-in
+        'tl.to(".s1",{rotation:4,duration:.08,yoyo:true,repeat:7},1.7);'
+    )
+    assert title_motion.parse_reveal_times(markup) == [0.1, 0.45]
+    scene, video = title_scene(3, markup=markup)
+    del scene.motion["title"]["reveal_times"]
+    title_motion.sync_title_sfx(video, scene)
+    assert [(s.start, s.slot_index) for s in scene.sounds] == [(0.1, 0), (0.45, 1)]
+
+
+def test_a_script_that_cannot_be_read_gives_no_ting_a_warning_and_keeps_the_members_sounds():
+    scene, video = title_scene(
+        3, markup="<div>tự viết</div>", sounds=[SceneSound(sound="pop", start=0.2, origin="manual")]
+    )
+    del scene.motion["title"]["reveal_times"]
+    scene.sounds.append(SceneSound(sound="ding", start=0.1, origin="auto_title_reveal", slot_index=0))
+    warnings = title_motion.sync_title_sfx(video, scene)
+    assert len(warnings) == 1 and warnings[0].startswith("title_sfx_unsynced")
+    assert [(s.sound, s.origin) for s in scene.sounds] == [("pop", "manual")]
+
+
+def test_manual_leaves_the_sounds_alone_and_off_leaves_none():
+    scene, video = title_scene(7, sounds=[SceneSound(sound="whoosh", start=0)])
+    video.options = {"title_sfx": "manual"}
+    title_motion.sync_title_sfx(video, scene)
+    assert [s.sound for s in scene.sounds] == ["whoosh"]
+    video.options = {"title_sfx": "reveal_ting"}
+    title_motion.sync_title_sfx(video, scene)
+    video.options = {"title_sfx": "off"}
+    title_motion.sync_title_sfx(video, scene)
+    assert scene.sounds == []
+
+
+def test_a_content_scene_or_a_title_without_motion_keeps_its_sounds():
+    scene = Scene(is_title=False, seconds=3, motion={"title": {"count": 3}}, sounds=[SceneSound(sound="pop", start=0)])
+    title_motion.sync_title_sfx(Video(options={}), scene)
+    plain = Scene(is_title=True, seconds=3, sounds=[SceneSound(sound="pop", start=0)])
+    title_motion.sync_title_sfx(Video(options={}), plain)
+    assert [s.sound for s in scene.sounds] == ["pop"] and [s.sound for s in plain.sounds] == ["pop"]
+
+
+def test_a_hand_edit_of_the_title_sounds_switches_to_manual_and_a_later_sync_keeps_them():
+    scene, video = title_scene(7)
+    title_motion.sync_title_sfx(video, scene)
+    title_motion.hand_edited(video, scene)
+    assert video.options["title_sfx"] == "manual"
+    scene.sounds.append(SceneSound(sound="whoosh", start=0))
+    title_motion.sync_title_sfx(video, scene)
+    assert len(scene.sounds) == 8
+    content = Scene(is_title=False, seconds=3)
+    other = Video(options={})
+    title_motion.hand_edited(other, content)
+    assert other.options == {}
+
+
+def test_the_render_script_plays_a_ting_three_decibels_under_its_level_and_other_sounds_as_they_are():
+    from reels_api.videos import sound_fields
+
+    assert sound_fields(SceneSound(sound="ding", start=0.1, volume="soft", origin="auto_title_reveal")) == {
+        "sound": "ding", "start": 0.1, "volume": "soft", "gain_db": -3.0,
+    }  # fmt: skip
+    assert sound_fields(SceneSound(sound="ding", start=1, volume="soft", origin="manual")) == {
+        "sound": "ding", "start": 1, "volume": "soft",
+    }  # fmt: skip
 
 
 def test_a_dishs_name_is_the_first_line_without_markup_numbers_or_the_explanation():
@@ -183,8 +289,11 @@ def test_the_title_scene_gets_its_motion_clip_keeps_its_photo_and_its_sounds(com
         assert made["classic"]["image_key"] == photo and storage.exists(photo)  # "Cổ điển" keeps its photo
         assert made["title"]["layout"] == "grid" and made["title"]["count"] == 4 and made["seconds"] == 3.0
         assert (title.text_x, title.text_y) == (540, 400)
-        assert [(s.sound, s.start) for s in title.sounds][0] == ("whoosh", 0.0)
-        assert [s.sound for s in title.sounds].count("rise") == 1
+        assert [(s.sound, s.start, s.volume, s.origin, s.slot_index) for s in title.sounds] == [
+            ("ding", start, "soft", "auto_title_reveal", slot)
+            for slot, start in enumerate(made["title"]["reveal_times"])
+        ]
+        assert [s.start for s in title.sounds] == title_motion.timing(4)[0]
     report = json.loads(fake_hyperframes.read_text(encoding="utf-8"))
     assert "photo.jpg" in report["assets"] and 'class="qm"' in report["html"]
 

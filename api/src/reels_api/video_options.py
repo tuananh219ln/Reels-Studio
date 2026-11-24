@@ -28,6 +28,8 @@ from . import config
 from .models import KnowledgeTopic, Scene, UserVideoDefaults, Video
 from .tts import MAX_SPEED, MAX_VOICE_ID_LENGTH, MIN_SPEED, SPEED_STEP, is_vieneu
 
+TITLE_SFX = ("reveal_ting", "manual", "off")
+
 DEFAULTS_KEY = "video_defaults"  # the team's defaults before 2026-11-09 (migration 0067): kept, never read
 
 DEFAULTS: dict = {
@@ -67,6 +69,9 @@ DEFAULTS: dict = {
     "title_text_position": None,
     # "Nghỉ sau lời đọc": the pause after each scene's narration when its seconds follow it ("Tự khớp lời đọc").
     "voice_pause": VOICE_TAIL,
+    # The title motion's sounds: "reveal_ting" a soft ding as each slot pops in (title_motion.sync_title_sfx), "manual"
+    # the member's own sounds are left alone, "off" the title scene has none.
+    "title_sfx": "reveal_ting",
 }
 # The pauses offered, in seconds; the shortest is the one every video had before the choice existed.
 VOICE_PAUSES = (VOICE_TAIL, 0.7, 1.0)
@@ -116,6 +121,7 @@ CHOICES = {
     "title_text_size": TEXT_SIZE_NAMES,
     "text_case": TEXT_CASES,
     "title_text_case": TEXT_CASES,
+    "title_sfx": TITLE_SFX,
 }
 
 
@@ -142,6 +148,7 @@ LABELS = {
     "title_text_case": "Dạng chữ tiêu đề",
     "ducking": "Nhỏ nhạc khi có giọng",
     "voice_pause": "Nghỉ sau lời đọc",
+    "title_sfx": "Âm thanh tiêu đề động",
     "voice_enabled": "Giọng đọc",
 }
 
@@ -328,7 +335,9 @@ def look_signature(video: Video) -> dict | None:
     narration signature); None while all are the defaults, so MP4s rendered before they existed stay current."""
     values = effective(video)
     # The pause after narration changes the seconds, which the fingerprint holds already.
-    changed = {name: values[name] for name in DEFAULTS if name not in ("voice_id", "voice_speed", "voice_pause")}
+    # The title's sounds are in the scenes' sounds, which the fingerprint holds already.
+    skipped = ("voice_id", "voice_speed", "voice_pause", "title_sfx")
+    changed = {name: values[name] for name in DEFAULTS if name not in skipped}
     if changed == {name: DEFAULTS[name] for name in changed}:
         return None
     for name in (*LATER_LOOK_FIELDS, "text_position", "title_text_position"):

@@ -207,9 +207,8 @@ def render_video(
             # Each sound effect from its second of the scene, unless that is past the scene's end.
             for sound in scene.sounds:
                 if scene_start / FPS + sound.start < scene_end:
-                    sounds.append(
-                        SoundInput(sound.sound, scene_start / FPS + sound.start, SOUND_VOLUMES[sound.volume].gain)
-                    )
+                    gain = SOUND_VOLUMES[sound.volume].gain * 10 ** (sound.gain_db / 20)
+                    sounds.append(SoundInput(sound.sound, scene_start / FPS + sound.start, gain))
             scene_start += timeline.scene_frames[index]
             voice = scene.voice.resolve() if scene.voice is not None else None
             inputs.append(

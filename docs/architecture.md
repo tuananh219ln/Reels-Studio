@@ -400,8 +400,14 @@ the video as before: HyperFrames never renders the whole video, and Remotion is 
   `warn` for "tránh"; `layout`, `labels`, `hidden_label` and `count` in the body override it). The slot photos are
   cut to their box and packed into one JPEG atlas that the markup shows as `assets/photo.jpg`, so HyperFrames, the
   render machines and the render core are unchanged. The hook stays the scene's own text box, moved to (540, 400);
-  the scene's sounds are replaced by `title_motion.sounds` (Vút, Ting per dish, Dâng lên before the "?", Sai rồi on
-  `warn`); content scenes get none. `scenes.motion` carries `title` (layout, labels, count) and `classic` (the photo
+  the scene's sounds follow the slots (`title_motion.sync_title_sfx`, the video option `title_sfx`): `reveal_ting`
+  (default) is one soft `ding` at each slot's pop-in second (`scenes.motion.title.reveal_times`, else read from the
+  script's `tl.from(".sN", {scale|opacity…}, t)` lines; no whoosh, rise or other sound; a ting closer than 0.15 s to the
+  one before, or in the last 0.1 s of the scene, is skipped; the render plays each 3 dB under "Nhỏ", `gain_db`),
+  `manual` leaves the scene's sounds alone, `off` leaves none. The rows carry `origin` (`manual` or
+  `auto_title_reveal`) and `slot_index`; adding, changing or removing a sound of the title scene by hand switches the
+  video to `manual`. Content scenes are not touched. `scenes.motion` carries `title` (layout, labels, count,
+  `reveal_times`) and `classic` (the photo
   or clip the scene showed, kept by `motion.attach`), so `POST /api/title-motion/{scene_id}/mode` (`classic` or
   `motion`) switches without a render. The scene payload's `title_motion` says layout, count, `mode`, `ready`,
   `pending`. Words the hook must not use (chữa, khỏi bệnh, hơn cả thuốc, thần dược, giải độc cực mạnh, kéo dài tuổi

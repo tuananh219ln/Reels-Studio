@@ -178,7 +178,16 @@ def _compact_scene(scene: dict) -> dict:
             for layer in scene["layers"]
         ]
     if scene.get("sounds"):
-        row["sounds"] = [{key: sound.get(key) for key in ("id", "sound")} for sound in scene["sounds"]]
+        row["sounds"] = [
+            {
+                key: sound.get(key)
+                for key in ("id", "sound", "start", "origin", "slot_index")
+                if sound.get(key) is not None
+            }
+            for sound in scene["sounds"]
+        ]
+    if (made := scene.get("title_motion")) and made.get("reveal_times"):
+        row["title_motion"] = {key: made.get(key) for key in ("layout", "count", "reveal_times")}
     for key in ("blocking", "warnings"):
         if scene.get(key):
             row[key] = scene[key]
@@ -1082,6 +1091,19 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
         return await run_in_threadpool(invoke, operation, write=True)
 
+    @tool("Đồng bộ âm tiêu đề động", read=False)
+    async def sync_title_sfx(video_id: int) -> dict:
+        """Chạy lại việc đặt tiếng ting theo từng ô của tiêu đề động (mỗi ô hiện ra một tiếng ting nhỏ, không âm nào
+        khác ở cảnh tiêu đề). Chỉ có tác dụng khi "title_sfx" của video là reveal_ting hoặc off; video đang để manual
+        thì giữ nguyên âm của bạn (đổi bằng "Thiết lập video"). Cảnh báo title_sfx_unsynced nghĩa là không đọc được giây
+        hiện của các ô."""
+
+        def operation(db, me):
+            video, warnings = title_motion.resync(db, video_id)
+            return {**changed(video), "warnings": warnings}
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
     @tool("Đổi kiểu tiêu đề", read=False)
     async def set_title_style(scene_id: int, mode: Literal["classic", "motion"]) -> dict:
         """Đổi cảnh tiêu đề giữa kiểu Cổ điển (ảnh hoặc clip cũ) và Động (tiêu đề động đã dựng), không cần render lại."""
@@ -1697,6 +1719,14 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         title_text_size: Annotated[str | None, one_of("title_text_size")] = None,
         text_case: Annotated[str | None, one_of("text_case")] = None,
         title_text_case: Annotated[str | None, one_of("title_text_case")] = None,
+        title_sfx: Annotated[
+            str | None,
+            Field(
+                description="Âm thanh của tiêu đề động: reveal_ting (một tiếng ting nhỏ khi mỗi ô hiện ra, bỏ các âm "
+                "khác của cảnh tiêu đề), manual (giữ âm bạn tự đặt), off (cảnh tiêu đề không có âm). Đổi sang "
+                "reveal_ting hay off thì áp ngay vào cảnh tiêu đề"
+            ),
+        ] = None,
         text_position: Annotated[
             list[int] | None, Field(description="Tâm hộp chữ các cảnh [x, y] trong khung 1080×1920")
         ] = None,
@@ -1745,6 +1775,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             title_text_size=title_text_size,
             text_case=text_case,
             title_text_case=title_text_case,
+            title_sfx=title_sfx,
             text_position=text_position,
             title_text_position=title_text_position,
         )
