@@ -134,7 +134,12 @@ export default function VideoNameEditor({
   return (
     <Flex align="center" gap={4} style={{ minWidth: 0 }}>
       {href ? (
-        <Link prefetch={false} href={href} onClick={(event) => event.stopPropagation()} style={{ minWidth: 0 }}>
+        <Link
+          prefetch={false}
+          href={href}
+          onClick={(event) => event.stopPropagation()}
+          style={{ display: "block", flex: 1, minWidth: 0 }}
+        >
           {text}
         </Link>
       ) : (
