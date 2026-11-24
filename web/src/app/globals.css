@@ -727,11 +727,11 @@ body {
 /* The pencil beside a video's name (VideoNameEditor): it shows, and takes clicks, while the name is hovered or the
  * pencil has keyboard focus; an unseen pencil never catches a click meant for its row. Always there on touch screens
  * and where the page asks for it. */
-.name-edit-btn:not(.always) {
+.name-edit-btn:not(.always, .armed) {
   opacity: 0;
   pointer-events: none;
 }
-.name-edit-host:hover .name-edit-btn,
+.name-edit-btn.armed,
 .name-edit-btn:focus-visible {
   opacity: 1;
   pointer-events: auto;

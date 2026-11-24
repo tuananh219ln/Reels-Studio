@@ -45,6 +45,8 @@ export default function VideoNameEditor({
   const setOpen = (next: boolean) => (onEditingChange ? onEditingChange(next) : setOwnEditing(next));
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
+  // The pencil takes clicks only after the pointer has been over the name itself (see globals.css).
+  const [armed, setArmed] = useState(false);
   // What was just saved, shown at once until the parent sends the saved video; `undefined`: nothing pending.
   const [pending, setPending] = useState<string | null | undefined>(undefined);
   const shown = (pending === undefined ? name : pending) || title;
@@ -132,9 +134,21 @@ export default function VideoNameEditor({
     </Typography.Paragraph>
   );
   return (
-    <Flex align="center" gap={4} className="name-edit-host" style={{ minWidth: 0 }}>
+    <Flex
+      align="center"
+      gap={4}
+      className="name-edit-host"
+      style={{ minWidth: 0 }}
+      onMouseLeave={() => setArmed(false)}
+    >
       {href ? (
-        <Link prefetch={false} href={href} onClick={(event) => event.stopPropagation()} style={{ minWidth: 0 }}>
+        <Link
+          prefetch={false}
+          href={href}
+          onClick={(event) => event.stopPropagation()}
+          onMouseEnter={() => setArmed(true)}
+          style={{ minWidth: 0 }}
+        >
           {text}
         </Link>
       ) : (
@@ -147,7 +161,7 @@ export default function VideoNameEditor({
             size="small"
             icon={<EditOutlined />}
             aria-label="Đổi tên video"
-            className={alwaysShowButton ? "name-edit-btn always" : "name-edit-btn"}
+            className={`name-edit-btn${alwaysShowButton ? " always" : ""}${armed ? " armed" : ""}`}
             onClick={() => setOpen(true)}
           />
         </Tooltip>
