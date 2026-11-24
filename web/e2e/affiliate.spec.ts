@@ -1,5 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addUser, chooseOption, connectFacebook, login, loginAsSeed, openPanel, resetDatabase } from "./helpers";
+import {
+  addUser,
+  chooseOption,
+  connectFacebook,
+  importExportItem,
+  login,
+  loginAsSeed,
+  openPanel,
+  resetDatabase,
+} from "./helpers";
 
 // Issue #47. Shopee is the fake one (api/scripts/fake_services.py), which knows this App ID and Secret.
 const APP_ID = "1000001";
@@ -531,7 +540,7 @@ test("Nhập file: a preview first, and a teammate's product is added again with
 
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
-  await page.getByRole("button", { name: "Nhập file" }).click();
+  await importExportItem(page, /^Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   await dialog.locator('input[type="file"]').setInputFiles({

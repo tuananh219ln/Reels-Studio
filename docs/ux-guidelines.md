@@ -1017,28 +1017,36 @@ steps open the status card or the products block on its tab, the QC chip its pop
     thêm"), then "Bài đăng": each post with its link state and its comment's actions; the list reloads when
     it closes;
   - "Sản phẩm": the topic groups on the left ("Tất cả nhóm", then "Nhóm của tôi", the groups of the Pages the member
-    owns and uses, and "Nhóm khác"), each with how many products it holds and the Pages that post it (one by name,
-    several as a logo and "+n" named on hover, gold when a teammate's is among them). On the right the open group's
-    name, "Dùng cho video của N Page", "Xuất CSV", "Xuất file Custom Link" (a modal: the group's approved products I added with no link yet as Shopee's Custom Link Excel, "Gồm cả món đã có link"; needs a group open, which has exactly one active Page, see [decision](decisions/2026-11-24-custom-link-excel.md)), "Nhập link đã chuyển đổi" (a modal: Shopee's result Excel, previewed row by row as "Sẽ gắn link", "Của đồng đội" or "Lỗi" before "Gắn link cho N sản phẩm"), "Nhập file" and "Thêm sản phẩm"; "Tôi thêm / Cả đội" (by who added
-    the product), search by name or shop and platform; tabs "Tất cả", "Cần điền sao, lượt bán", "Chờ duyệt", "Đã
-    duyệt" with counts. Products ranked by expected commission per order, each with its platform tag ("Tìm qua API"
-    for those Shopee's search found), its group when all groups show, "Người thêm: <tên>" ("bạn" for the member's
-    own; its tooltip says that saved link goes in the comment of a Page without its own Shopee account) and how many
-    videos carry it, shop and type, rating and sales, commission per order with its rate and price, and status.
+    owns and uses, and "Nhóm khác", folded behind its own line unless it is the only list or holds the open group),
+    each with its name on one line, how many products it holds beside it (never wrapped) and the Pages that post it
+    as one grey line below (a teammate's Page with its owner's name). On the right the open group's name and "Dùng
+    cho video của N Page", then "Nhập / Xuất ▾" and "Thêm sản phẩm". The menu holds "Nhập file (Lấy link hàng loạt)",
+    "Nhập link đã chuyển đổi" (a modal: Shopee's result file, CSV or Excel, previewed row by row as "Sẽ gắn link", "Của
+    đồng đội" or "Lỗi" before "Gắn link cho N sản phẩm"), "Xuất CSV" and "Xuất file Custom Link" (a modal: the group's
+    approved products I added with no link yet as Shopee's Custom Link Excel, "Gồm cả món đã có link"); the two Custom
+    Link items need a group open, which has exactly one active Page, see
+    [decision](decisions/2026-11-24-custom-link-excel.md). Under it three figures of the list as filtered by "Tôi thêm /
+    Cả đội": products, approved, and "chưa có link" (yellow when above 0). Then search by name or shop, "Tôi thêm / Cả
+    đội", platform and a "Chưa có link (N)" tick; tabs "Tất cả", "Cần điền sao, lượt bán", "Chờ duyệt", "Đã duyệt" with
+    counts. Products ranked by expected commission per order, each row with its picture (a placeholder without one), its
+    name in bold on two lines at most, shop and type, its platform tag ("Tìm qua API" for those Shopee's search
+    found), its group when all groups show, "Người thêm: <tên>" ("bạn" for the member's own; its tooltip says that
+    saved link goes in the comment of a Page without its own Shopee account) and how many videos carry it; then rating
+    and sales, commission per order with its rate and price, status, and "Link" ("Có link" with a copy button, or yellow
+    "Chưa có link"). The actions are an icon for "Sửa", "Duyệt" / "Bỏ duyệt" and an icon for "Xoá".
     "Thêm sản phẩm" opens a drawer: "Nhập vào" by Page (into the group it posts; a Page without a group cannot be
     picked) or by group (the open group to start with), then two tabs, "Dán link Shopee" (one link per line, up to
     50; the rest is read from Shopee, so it needs a Shopee account with App ID somewhere in the team and says so when
     there is none) and "Nhập file" (Shopee Affiliate's "Lấy link hàng loạt" CSV dropped in, previewed before anything
     is written: new, mine (updated), the same as a teammate's (still added, as my own row with my link; theirs is
     untouched and named by row) and rows in error; without an App ID the drawer says stars, sales and shop type are
-    still to fill in); "Nhập file" on the toolbar opens that tab. "Nhập tay" at the bottom opens the full form ("Nhập tay sản phẩm",
+    still to fill in); "Nhập file" in the "Nhập / Xuất" menu opens that tab. "Nhập tay" at the bottom opens the full form ("Nhập tay sản phẩm",
     platform first; the link is optional for TikTok Shop). A row being read shows "Đang lấy thông tin từ
     Shopee…" and the list follows it every 3 seconds; one that could not be read shows why in red, with
     a "Lấy lại thông tin" button. A Shopee draft whose stars or sales are under the rule links its Shopee
     page and takes shop type, stars and sales on the row itself ("Lưu"; the same save as "Sửa"), so it can
     be approved without opening "Sửa" for each one: empty for one nobody has read (a row of the file, or
-    a link, with no App ID in the team, which it says), else holding what the product has. "Sửa", "Xoá", "Duyệt", "Bỏ duyệt",
-    "Xuất CSV". Rows ticked in their checkbox (only those the filters show) can be approved together with
+    a link, with no App ID in the team, which it says), else holding what the product has. "Sửa", "Xoá", "Duyệt", "Bỏ duyệt". Rows ticked in their checkbox (only those the filters show) can be approved together with
     "Duyệt đã chọn" (those not meeting the rules stay drafts and are counted in the message), deleted
     together with "Xoá đã chọn", after a confirmation, or cleared with "Bỏ chọn". A row that fails the rules shows why,
     in yellow;

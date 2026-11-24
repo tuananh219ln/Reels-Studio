@@ -1,7 +1,7 @@
 "use client";
 import { errorMessage, upload } from "@/lib/api";
 import { UploadOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Flex, Modal, Table, Tag, Tooltip, Typography, Upload } from "antd";
+import { Alert, App, Button, Flex, Modal, Table, Tag, Typography, Upload } from "antd";
 import { useState } from "react";
 
 type Row = {
@@ -22,15 +22,24 @@ const STATE: Record<Row["state"], { label: string; color: string }> = {
 
 /** "Nhập link đã chuyển đổi": the Excel Shopee's Custom Link page gives back, previewed before anything is written
  * (docs/decisions/2026-11-24-custom-link-excel.md). */
-export default function CustomLinkImport({ topicId, onDone }: { topicId?: number; onDone: () => void }) {
+export default function CustomLinkImport({
+  open,
+  onClose,
+  topicId,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  topicId?: number;
+  onDone: () => void;
+}) {
   const { message } = App.useApp();
-  const [opened, setOpened] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
 
   function close() {
-    setOpened(false);
+    onClose();
     setFile(null);
     setPreview(null);
   }
@@ -74,14 +83,9 @@ export default function CustomLinkImport({ topicId, onDone }: { topicId?: number
 
   return (
     <>
-      <Tooltip title={topicId === undefined ? "Chọn một nhóm chủ đề ở bên trái trước" : undefined}>
-        <Button icon={<UploadOutlined />} disabled={topicId === undefined} onClick={() => setOpened(true)}>
-          Nhập link đã chuyển đổi
-        </Button>
-      </Tooltip>
       <Modal
         title="Nhập link đã chuyển đổi"
-        open={opened}
+        open={open}
         width={820}
         onCancel={close}
         onOk={confirm}

@@ -1,14 +1,22 @@
 "use client";
 import { errorMessage } from "@/lib/api";
-import { DownloadOutlined } from "@ant-design/icons";
-import { App, Button, Checkbox, Flex, Modal, Tooltip, Typography } from "antd";
+import { App, Checkbox, Flex, Modal, Typography } from "antd";
 import { useState } from "react";
 
 /** "Xuất file Custom Link": the group's approved products as the Excel file Shopee's Custom Link page takes
- * (docs/decisions/2026-11-24-custom-link-excel.md). The group is the one open on the left. */
-export default function CustomLinkExport({ topicId, topicName }: { topicId?: number; topicName?: string }) {
+ * (docs/decisions/2026-11-24-custom-link-excel.md). The group is the one open on the left; "Nhập / Xuất" opens it. */
+export default function CustomLinkExport({
+  open,
+  onClose,
+  topicId,
+  topicName,
+}: {
+  open: boolean;
+  onClose: () => void;
+  topicId?: number;
+  topicName?: string;
+}) {
   const { message } = App.useApp();
-  const [opened, setOpened] = useState(false);
   const [includeLinked, setIncludeLinked] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -30,7 +38,7 @@ export default function CustomLinkExport({ topicId, topicName }: { topicId?: num
       link.download = `custom-link-nhom-${topicId}.xlsx`;
       link.click();
       URL.revokeObjectURL(url);
-      setOpened(false);
+      onClose();
     } catch (err) {
       message.error(errorMessage(err));
     } finally {
@@ -39,34 +47,27 @@ export default function CustomLinkExport({ topicId, topicName }: { topicId?: num
   }
 
   return (
-    <>
-      <Tooltip title={topicId === undefined ? "Chọn một nhóm chủ đề ở bên trái trước" : undefined}>
-        <Button icon={<DownloadOutlined />} disabled={topicId === undefined} onClick={() => setOpened(true)}>
-          Xuất file Custom Link
-        </Button>
-      </Tooltip>
-      <Modal
-        title="Xuất file Custom Link"
-        open={opened}
-        onCancel={() => setOpened(false)}
-        onOk={download}
-        okText="Tải file Excel"
-        cancelText="Đóng"
-        confirmLoading={busy}
-      >
-        <Flex vertical gap={12}>
-          <Typography.Text>
-            Nhóm “{topicName}”: các sản phẩm đã duyệt do bạn thêm, chưa có link affiliate. Tải file lên Shopee Affiliate
-            › Custom Link, rồi nhập file kết quả về bằng “Nhập link đã chuyển đổi”.
-          </Typography.Text>
-          <Checkbox checked={includeLinked} onChange={(event) => setIncludeLinked(event.target.checked)}>
-            Gồm cả món đã có link
-          </Checkbox>
-          <Typography.Text type="secondary">
-            Mỗi dòng gắn Sub_id1 là Page của nhóm, nên đơn chỉ đo được tới Page, không biết từ video nào.
-          </Typography.Text>
-        </Flex>
-      </Modal>
-    </>
+    <Modal
+      title="Xuất file Custom Link"
+      open={open}
+      onCancel={onClose}
+      onOk={download}
+      okText="Tải file Excel"
+      cancelText="Đóng"
+      confirmLoading={busy}
+    >
+      <Flex vertical gap={12}>
+        <Typography.Text>
+          Nhóm “{topicName}”: các sản phẩm đã duyệt do bạn thêm, chưa có link affiliate. Tải file lên Shopee Affiliate ›
+          Custom Link, rồi nhập file kết quả về bằng “Nhập link đã chuyển đổi”.
+        </Typography.Text>
+        <Checkbox checked={includeLinked} onChange={(event) => setIncludeLinked(event.target.checked)}>
+          Gồm cả món đã có link
+        </Checkbox>
+        <Typography.Text type="secondary">
+          Mỗi dòng gắn Sub_id1 là Page của nhóm, nên đơn chỉ đo được tới Page, không biết từ video nào.
+        </Typography.Text>
+      </Flex>
+    </Modal>
   );
 }

@@ -5,7 +5,7 @@ import ProductModal from "@/components/affiliate/ProductModal";
 import QuickFill, { needsQuickFill } from "@/components/affiliate/QuickFill";
 import { api, errorMessage, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
 import { CheckOutlined, DeleteOutlined, EditOutlined, ReloadOutlined } from "@ant-design/icons";
-import { App, Button, Flex, Popconfirm, Spin } from "antd";
+import { App, Button, Flex, Popconfirm, Spin, Tooltip } from "antd";
 import { useState } from "react";
 
 type Props = {
@@ -13,10 +13,12 @@ type Props = {
   productId?: number;
   name?: string;
   editLabel?: string;
+  /** The table row's form: Sửa as an icon, everything on one line. */
+  compact?: boolean;
   onEdit?: (product: AffiliateProduct) => void;
   onChanged: () => void | Promise<void>;
 };
-export default function ProductActions({ product, productId, name, onChanged, editLabel, onEdit }: Props) {
+export default function ProductActions({ product, productId, name, onChanged, editLabel, onEdit, compact }: Props) {
   const { me } = useMe();
   const { message } = App.useApp();
   const [open, setOpen] = useState(false);
@@ -76,16 +78,18 @@ export default function ProductActions({ product, productId, name, onChanged, ed
     }
   }
   const controls = row && (
-    <Flex wrap gap={4}>
-      <Button
-        size="small"
-        aria-label={editLabel ?? `Sửa ${row.name}`}
-        icon={<EditOutlined />}
-        disabled={busy}
-        onClick={() => void edit()}
-      >
-        Sửa thông tin
-      </Button>
+    <Flex wrap={!compact} gap={4} align="center">
+      <Tooltip title={compact ? "Sửa thông tin" : undefined}>
+        <Button
+          size="small"
+          aria-label={editLabel ?? `Sửa ${row.name}`}
+          icon={<EditOutlined />}
+          disabled={busy}
+          onClick={() => void edit()}
+        >
+          {compact ? null : "Sửa thông tin"}
+        </Button>
+      </Tooltip>
       <Button
         size="small"
         icon={<CheckOutlined />}

@@ -11,19 +11,36 @@ import { useUrlChoice, useUrlId, useUrlPage } from "@/lib/urlState";
 import {
   CheckOutlined,
   DeleteOutlined,
-  DownloadOutlined,
+  DownOutlined,
+  FacebookFilled,
   LoadingOutlined,
   PlusOutlined,
   SearchOutlined,
-  UploadOutlined,
+  ShoppingOutlined,
+  SwapOutlined,
 } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Popconfirm, Segmented, Space, Table, Tag, Tooltip, Typography } from "antd";
+import {
+  App,
+  Avatar,
+  Button,
+  Card,
+  Checkbox,
+  Dropdown,
+  Flex,
+  Input,
+  Popconfirm,
+  Segmented,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AddProductDrawer, { type AddMode } from "./AddProductDrawer";
 import CustomLinkExport from "./CustomLinkExport";
 import CustomLinkImport from "./CustomLinkImport";
-import PlacesChip from "./PlacesChip";
 import ProductModal from "./ProductModal";
 import QuickFill, { needsQuickFill } from "./QuickFill";
 
@@ -80,6 +97,10 @@ export default function Products() {
   const [stage, setStage] = useUrlChoice<Stage>("stage", "all", ["fill", "waiting", "approved"]);
   // The rows ticked for "Xoá đã chọn"; only the ones still listed count, so a filter never deletes hidden rows.
   const [ticked, setTicked] = useState<number[]>([]);
+  // "Nhập / Xuất" opens these two; "Chưa có link" narrows the list to what Custom Link still has to convert.
+  const [customLink, setCustomLink] = useState<"export" | "import" | null>(null);
+  const [noLink, setNoLink] = useState(false);
+  const [othersOpen, setOthersOpen] = useState(false);
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
@@ -141,7 +162,9 @@ export default function Products() {
       value === "all" ? whoseRows.length : whoseRows.filter((product) => stageOf(product) === value).length,
     ]),
   ) as Record<Stage, number>;
-  const shown = stage === "all" ? whoseRows : whoseRows.filter((product) => stageOf(product) === stage);
+  const staged = stage === "all" ? whoseRows : whoseRows.filter((product) => stageOf(product) === stage);
+  const shown = noLink ? staged.filter((product) => !product.url) : staged;
+  const withoutLink = whoseRows.filter((product) => !product.url).length;
   // "Xuất CSV" follows the group, platform and search, and the stage as far as the api knows it (draft or approved).
   const exportQuery = [query, stage === "approved" ? "status=approved" : stage === "all" ? "" : "status=draft"]
     .filter(Boolean)
@@ -185,62 +208,69 @@ export default function Products() {
     {
       title: "Sản phẩm",
       key: "name",
-      width: 380,
+      width: 420,
       render: (_, product) => {
         const link = product.url ?? product.page_url ?? undefined;
         return (
-          <Flex vertical gap={2}>
-            <a href={link} target="_blank" rel="noreferrer" style={{ wordBreak: "break-word" }}>
-              {product.name}
-            </a>
-            {product.lookup === "pending" && (
-              <Typography.Text type="secondary">
-                <LoadingOutlined /> Đang lấy thông tin từ Shopee…
-              </Typography.Text>
-            )}
-            {product.lookup === "failed" && <Typography.Text type="danger">{product.lookup_error}</Typography.Text>}
-            <Space size={4} wrap>
-              <Tag>{product.platform_label}</Tag>
-              {product.from_shopee_api && <Tag>Tìm qua API</Tag>}
-              {topicId === undefined && <Typography.Text type="secondary">{product.topic}</Typography.Text>}
-            </Space>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              <Tooltip title="Link lưu sẵn của sản phẩm được dùng trong bình luận khi Page đăng bài chưa có tài khoản Shopee dùng được.">
-                <span>Người thêm: {product.created_by_id === me.id ? "bạn" : product.created_by}</span>
-              </Tooltip>
-              {product.video_count > 0 && `, ${product.video_count} video`}
-            </Typography.Text>
-            {product.url ? (
-              <Typography.Text
-                copyable={{ text: product.url, tooltips: ["Sao chép link", "Đã sao chép"] }}
-                type="secondary"
+          <Flex gap={10} align="flex-start">
+            <Avatar
+              shape="square"
+              size={44}
+              src={product.image_url ?? undefined}
+              icon={<ShoppingOutlined />}
+              style={{ flex: "none" }}
+            />
+            <Flex vertical gap={2} style={{ minWidth: 0 }}>
+              <a
+                href={link}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  wordBreak: "break-word",
+                  fontWeight: 600,
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }}
               >
-                Link
+                {product.name}
+              </a>
+              {product.lookup === "pending" && (
+                <Typography.Text type="secondary">
+                  <LoadingOutlined /> Đang lấy thông tin từ Shopee…
+                </Typography.Text>
+              )}
+              {product.lookup === "failed" && <Typography.Text type="danger">{product.lookup_error}</Typography.Text>}
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {[product.shop_name, product.shop_type_label].filter(Boolean).join(" · ") || "—"}
               </Typography.Text>
-            ) : (
-              product.platform === "shopee" && (
-                <Typography.Text type="secondary">Link riêng theo tài khoản Shopee của từng Fanpage</Typography.Text>
-              )
-            )}
+              <Space size={4} wrap>
+                <Tag bordered={false} style={{ margin: 0 }}>
+                  {product.platform_label}
+                </Tag>
+                {product.from_shopee_api && (
+                  <Tag bordered={false} style={{ margin: 0 }}>
+                    Tìm qua API
+                  </Tag>
+                )}
+                {topicId === undefined && <Typography.Text type="secondary">{product.topic}</Typography.Text>}
+              </Space>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                <Tooltip title="Link lưu sẵn của sản phẩm được dùng trong bình luận khi Page đăng bài chưa có tài khoản Shopee dùng được.">
+                  <span>Người thêm: {product.created_by_id === me.id ? "bạn" : product.created_by}</span>
+                </Tooltip>
+                {product.video_count > 0 && `, ${product.video_count} video`}
+              </Typography.Text>
+            </Flex>
           </Flex>
         );
       },
     },
     {
-      title: "Shop",
-      key: "shop",
-      width: 200,
-      render: (_, product) => (
-        <Flex vertical gap={2}>
-          <span>{product.shop_name || "—"}</span>
-          <Typography.Text type="secondary">{product.shop_type_label}</Typography.Text>
-        </Flex>
-      ),
-    },
-    {
       title: "Sao / đã bán",
       key: "trust",
-      width: 120,
+      width: 110,
       render: (_, product) =>
         product.lookup === "pending" ? "—" : `${product.rating} / ${product.sold.toLocaleString("vi-VN")}`,
     },
@@ -260,7 +290,7 @@ export default function Products() {
     {
       title: "Trạng thái",
       key: "status",
-      width: 260,
+      width: 240,
       render: (_, product) =>
         product.lookup === "pending" ? (
           <StatusText tone="idle">Đang lấy thông tin</StatusText>
@@ -268,7 +298,7 @@ export default function Products() {
           <Flex vertical gap={2} align="flex-start">
             <StatusText tone="success">Đã duyệt</StatusText>
             {product.checked_at && (
-              <Typography.Text type="secondary">
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 {product.checked_by}, {formatDateTime(product.checked_at)}
               </Typography.Text>
             )}
@@ -291,17 +321,44 @@ export default function Products() {
         ),
     },
     {
-      title: "Thao tác",
+      title: "Link",
+      key: "link",
+      width: 130,
+      render: (_, product) =>
+        product.url ? (
+          <Space size={4}>
+            <Tag color="success" bordered={false} style={{ margin: 0 }}>
+              Có link
+            </Tag>
+            <Typography.Text copyable={{ text: product.url, tooltips: ["Sao chép link", "Đã sao chép"] }} />
+          </Space>
+        ) : product.platform === "shopee" ? (
+          <Tooltip title="Chưa có link lưu sẵn. Page có tài khoản Shopee riêng tự tạo link; còn lại dùng “Xuất file Custom Link” để chuyển đổi hàng loạt.">
+            <Tag color="warning" bordered={false} style={{ margin: 0 }}>
+              Chưa có link
+            </Tag>
+          </Tooltip>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      title: "",
       key: "actions",
-      width: 230,
-      render: (_, product) => <ProductActions product={product} onEdit={setTarget} onChanged={() => reload(true)} />,
+      width: 190,
+      render: (_, product) => (
+        <ProductActions product={product} onEdit={setTarget} onChanged={() => reload(true)} compact />
+      ),
     },
   ];
 
-  /** One group on the left: its name, how many products it holds, and the Pages that post it. */
+  /** One group on the left: its name on one line, its product count beside it, and the Pages that post it below. */
   function group(id: number | undefined, name: string, count: number) {
     const chosen = topicId === id;
     const pages = id === undefined ? [] : pagesOf(id);
+    const pageNames = pages.map((page) =>
+      page.mine ? page.name : `${page.name} (${page.owner_name ?? "chưa có chủ"})`,
+    );
     return (
       <button
         key={id ?? "all"}
@@ -314,7 +371,7 @@ export default function Products() {
         style={{
           display: "block",
           width: "100%",
-          padding: "8px 10px",
+          padding: "7px 10px",
           border: 0,
           borderRadius: 8,
           textAlign: "left",
@@ -322,28 +379,32 @@ export default function Products() {
           background: chosen ? "var(--ant-color-primary-bg)" : "transparent",
         }}
       >
-        <Flex justify="space-between" gap={8}>
-          <Typography.Text strong={chosen} style={{ color: chosen ? "var(--ant-color-primary)" : undefined }}>
+        <Flex justify="space-between" align="baseline" gap={8}>
+          <Typography.Text
+            strong={chosen}
+            ellipsis={{ tooltip: name }}
+            style={{ flex: 1, minWidth: 0, color: chosen ? "var(--ant-color-primary)" : undefined }}
+          >
             {name}
           </Typography.Text>
-          <Typography.Text type="secondary">{count}</Typography.Text>
+          <Typography.Text type="secondary" style={{ whiteSpace: "nowrap", fontSize: 12 }}>
+            {count}
+          </Typography.Text>
         </Flex>
         {id !== undefined && (
-          <div style={{ marginTop: 2 }}>
+          <Typography.Text
+            type="secondary"
+            ellipsis={{ tooltip: pageNames.join(", ") }}
+            style={{ display: "block", fontSize: 12, marginTop: 1 }}
+          >
             {pages.length === 0 ? (
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                Chưa Page nào đăng
-              </Typography.Text>
+              "Chưa Page nào đăng"
             ) : (
-              <PlacesChip
-                places={pages.map((page) => ({
-                  platform: "facebook",
-                  name: page.name,
-                  owner: page.mine ? null : (page.owner_name ?? "chưa có chủ"),
-                }))}
-              />
+              <>
+                <FacebookFilled /> {pageNames.join(", ")}
+              </>
             )}
-          </div>
+          </Typography.Text>
         )}
       </button>
     );
@@ -352,6 +413,33 @@ export default function Products() {
   const myTopics = options.topics.filter((topic) => topic.mine);
   const otherTopics = options.topics.filter((topic) => !topic.mine);
   const total = options.topics.reduce((sum, topic) => sum + topic.product_count, 0);
+
+  // The groups of others fold away, unless there is nothing else to show or the open group is one of them.
+  const othersShown = othersOpen || myTopics.length === 0 || otherTopics.some((topic) => topic.id === topicId);
+  const importExport = [
+    { key: "file", icon: <SwapOutlined />, label: "Nhập file (Lấy link hàng loạt)", onClick: () => setAdding("file") },
+    {
+      key: "converted",
+      label: "Nhập link đã chuyển đổi",
+      disabled: topicId === undefined,
+      title: topicId === undefined ? "Chọn một nhóm chủ đề ở bên trái trước" : undefined,
+      onClick: () => setCustomLink("import"),
+    },
+    { type: "divider" as const },
+    { key: "csv", label: <a href={`/api/affiliate-products/export.csv?${exportQuery}`}>Xuất CSV</a> },
+    {
+      key: "custom",
+      label: "Xuất file Custom Link",
+      disabled: topicId === undefined,
+      title: topicId === undefined ? "Chọn một nhóm chủ đề ở bên trái trước" : undefined,
+      onClick: () => setCustomLink("export"),
+    },
+  ];
+  const figures = [
+    { label: "sản phẩm", value: whoseRows.length, warn: false },
+    { label: "đã duyệt", value: stageCounts.approved, warn: false },
+    { label: "chưa có link", value: withoutLink, warn: withoutLink > 0 },
+  ];
 
   return (
     <Flex gap={16} align="flex-start" wrap>
@@ -365,11 +453,26 @@ export default function Products() {
           )}
           {myTopics.map((topic) => group(topic.id, topic.name, topic.product_count))}
           {myTopics.length > 0 && otherTopics.length > 0 && (
-            <Typography.Text type="secondary" style={{ display: "block", fontSize: 12, padding: "8px 10px 2px" }}>
-              Nhóm khác
-            </Typography.Text>
+            <button
+              type="button"
+              aria-expanded={othersShown}
+              onClick={() => setOthersOpen(!othersOpen)}
+              style={{
+                display: "block",
+                width: "100%",
+                border: 0,
+                background: "transparent",
+                textAlign: "left",
+                cursor: "pointer",
+                padding: "8px 10px 2px",
+                fontSize: 12,
+                color: "var(--ant-color-text-secondary)",
+              }}
+            >
+              {othersShown ? "▾" : "▸"} Nhóm khác ({otherTopics.length})
+            </button>
           )}
-          {otherTopics.map((topic) => group(topic.id, topic.name, topic.product_count))}
+          {othersShown && otherTopics.map((topic) => group(topic.id, topic.name, topic.product_count))}
         </nav>
       </Card>
       <div style={{ flex: "1 1 520px", minWidth: 0 }}>
@@ -387,20 +490,33 @@ export default function Products() {
             )}
           </Flex>
           <Space wrap>
-            <Button icon={<DownloadOutlined />} href={`/api/affiliate-products/export.csv?${exportQuery}`}>
-              Xuất CSV
-            </Button>
-            <CustomLinkExport topicId={topicId} topicName={open?.name} />
-            <CustomLinkImport topicId={topicId} onDone={() => reload(true)} />
-            <Button icon={<UploadOutlined />} onClick={() => setAdding("file")}>
-              Nhập file
-            </Button>
+            <Dropdown menu={{ items: importExport }} trigger={["click"]}>
+              <Button icon={<SwapOutlined />}>
+                Nhập / Xuất <DownOutlined />
+              </Button>
+            </Dropdown>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
               Thêm sản phẩm
             </Button>
           </Space>
         </Flex>
-        <Flex wrap gap={12} align="center">
+        <Flex gap={12} style={{ marginBottom: 12 }} data-testid="product-figures">
+          {figures.map(({ label, value, warn }) => (
+            <Card key={label} size="small" style={{ flex: 1 }} styles={{ body: { padding: "8px 12px" } }}>
+              <Typography.Text
+                strong
+                style={{ fontSize: 20, display: "block", lineHeight: 1.2 }}
+                type={warn ? "warning" : undefined}
+              >
+                {value.toLocaleString("vi-VN")}
+              </Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {label}
+              </Typography.Text>
+            </Card>
+          ))}
+        </Flex>
+        <Flex wrap gap={12} align="center" style={{ marginBottom: 12 }}>
           <Input
             aria-label="Tìm theo sản phẩm hoặc shop"
             prefix={<SearchOutlined />}
@@ -419,8 +535,11 @@ export default function Products() {
             options={options.platforms}
             style={{ width: 160 }}
           />
+          <Checkbox checked={noLink} onChange={(event) => setNoLink(event.target.checked)}>
+            Chưa có link ({withoutLink})
+          </Checkbox>
         </Flex>
-        <div aria-label="Lọc theo trạng thái" role="group">
+        <div aria-label="Lọc theo trạng thái" role="group" style={{ marginBottom: 12 }}>
           {/* A filter, so it looks like one, not like a second row of the page's tabs. */}
           <Segmented<Stage>
             value={stage}
@@ -463,7 +582,7 @@ export default function Products() {
             dataSource={shown}
             loading={loading}
             pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
-            scroll={{ x: 1400 }}
+            scroll={{ x: 1150 }}
             locale={{
               emptyText: (
                 <EmptyState
@@ -489,6 +608,18 @@ export default function Products() {
           />
         </Card>
       </div>
+      <CustomLinkExport
+        open={customLink === "export"}
+        onClose={() => setCustomLink(null)}
+        topicId={topicId}
+        topicName={open?.name}
+      />
+      <CustomLinkImport
+        open={customLink === "import"}
+        onClose={() => setCustomLink(null)}
+        topicId={topicId}
+        onDone={() => reload(true)}
+      />
       <AddProductDrawer
         mode={adding}
         options={options}
