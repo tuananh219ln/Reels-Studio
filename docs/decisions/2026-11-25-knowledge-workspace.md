@@ -4,10 +4,11 @@ Asked by the owner ("cần update UI màn này, đột phá hơn").
 
 - **Groups in a column on the left**, not a band of pills over the page, so the group below has the whole height and a
   group's state is seen without opening it (a dot: green with all five steps, amber with one missing).
-- **The orange warning is a checklist.** "Sẵn sàng tạo video: n / 5 bước" lists what the group lacks (a Page, a script
-  prompt, a document, a 30-day plan, an approved product), each with the button that does it. The five steps are the
-  owner's call to change. `GET /api/knowledge` sends `readiness` (`pages`, `docs`, `products`, `plan_started`) per group;
-  the script prompt is already in the payload.
+- **The orange warning is a checklist that folds.** "Sẵn sàng tạo video" lists **required** steps (a Page that posts the
+  group, a script prompt) and **nice to have** ones (a document, a 30-day plan, an approved product); only the required
+  ones decide the dot and whether the card starts open (the owner's rule, same day). Each missing step has the button
+  that does it. `GET /api/knowledge` sends `readiness` (`pages`, `docs`, `products`, `plan_started`) per group; the
+  script prompt is already in the payload.
 - **The eight tabs keep their names and the "Video" start** (so links and tests keep working) but follow the work:
   Video, plans, Lịch đăng | Tư liệu, Tài liệu, Prompt | Cài đặt nhóm, with a thin line between the three parts. Grouping
   them under four section headers was not done: it would hide tabs a member opens often behind a second click.

@@ -23,7 +23,6 @@ import {
   ConfigProvider,
   Dropdown,
   Flex,
-  Progress,
   Segmented,
   Input,
   Row,
@@ -175,14 +174,14 @@ function Knowledge() {
             )}
             {listed.map((topic) => {
               const active = topic.id === current?.id;
-              const { done, total } = readySteps(topic);
+              const missing = missingRequired(topic);
               return (
                 <button
                   key={topic.id}
                   type="button"
                   aria-current={active ? "true" : undefined}
                   onClick={() => choose(topic.id)}
-                  title={topic.script_prompt ? `Sẵn sàng ${done}/${total} bước` : "Chưa có prompt"}
+                  title={missing.length === 0 ? "Sẵn sàng tạo video" : `Còn thiếu: ${missing.join(", ")}`}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -206,7 +205,7 @@ function Knowledge() {
                       height: 8,
                       borderRadius: "50%",
                       flex: "none",
-                      background: done === total ? token.colorSuccess : token.colorWarning,
+                      background: missing.length === 0 ? token.colorSuccess : token.colorWarning,
                     }}
                   />
                   <span
@@ -279,17 +278,13 @@ function Knowledge() {
   );
 }
 
-/** The steps a group needs before it can make and post videos: a Page that posts it, a script prompt, a document of how
- * it is run, a 30-day plan and an approved product. */
-function readySteps(topic: KnowledgeTopic) {
-  const steps = [
-    topic.readiness.pages > 0,
-    Boolean(topic.script_prompt),
-    topic.readiness.docs > 0,
-    topic.readiness.plan_started,
-    topic.readiness.products > 0,
+/** What a group must have to make and post videos: a Page that posts it and a script prompt (the owner's rule,
+ * 2026-11-25). A document, a 30-day plan and an approved product are only worth having. */
+function missingRequired(topic: KnowledgeTopic): string[] {
+  return [
+    ...(topic.readiness.pages > 0 ? [] : ["Page đăng nhóm"]),
+    ...(topic.script_prompt ? [] : ["prompt viết kịch bản"]),
   ];
-  return { done: steps.filter(Boolean).length, total: steps.length };
 }
 
 /** A tab that starts a group (the work, the knowledge, the settings): a thin line before it, its name unchanged. */
@@ -309,9 +304,10 @@ function GroupStart({ children }: { children: React.ReactNode }) {
 function Readiness({ topic, open }: { topic: KnowledgeTopic; open: (tab: string) => void }) {
   const { token } = theme.useToken();
   const { readiness } = topic;
-  const steps: { key: string; done: boolean; text: string; action: React.ReactNode }[] = [
+  const steps: { key: string; required: boolean; done: boolean; text: string; action: React.ReactNode }[] = [
     {
       key: "pages",
+      required: true,
       done: readiness.pages > 0,
       text: readiness.pages > 0 ? `Có ${readiness.pages} Page đăng nhóm này` : "Chưa có Page nào đăng nhóm này",
       action: (
@@ -322,6 +318,7 @@ function Readiness({ topic, open }: { topic: KnowledgeTopic; open: (tab: string)
     },
     {
       key: "prompt",
+      required: true,
       done: Boolean(topic.script_prompt),
       text: topic.script_prompt
         ? "Đã có prompt viết kịch bản"
@@ -334,6 +331,7 @@ function Readiness({ topic, open }: { topic: KnowledgeTopic; open: (tab: string)
     },
     {
       key: "docs",
+      required: false,
       done: readiness.docs > 0,
       text: readiness.docs > 0 ? `Có ${readiness.docs} tài liệu vận hành` : "Chưa có tài liệu vận hành",
       action: (
@@ -344,6 +342,7 @@ function Readiness({ topic, open }: { topic: KnowledgeTopic; open: (tab: string)
     },
     {
       key: "plan",
+      required: false,
       done: readiness.plan_started,
       text: readiness.plan_started ? "Đã lập kế hoạch 30 ngày" : "Chưa lập kế hoạch 30 ngày",
       action: (
@@ -354,6 +353,7 @@ function Readiness({ topic, open }: { topic: KnowledgeTopic; open: (tab: string)
     },
     {
       key: "products",
+      required: false,
       done: readiness.products > 0,
       text:
         readiness.products > 0
@@ -366,14 +366,27 @@ function Readiness({ topic, open }: { topic: KnowledgeTopic; open: (tab: string)
       ),
     },
   ];
-  const done = steps.filter((step) => step.done).length;
-  if (done === steps.length) {
-    return (
-      <Typography.Text type="success" data-testid="group-ready">
-        <CheckCircleFilled /> Sẵn sàng tạo video ({done}/{steps.length} bước)
+  const required = steps.filter((step) => step.required);
+  const optional = steps.filter((step) => !step.required);
+  const requiredMissing = required.filter((step) => !step.done).length;
+  const optionalMissing = optional.filter((step) => !step.done);
+  // Open while a required step is missing; else one line the member may unfold. A pick of the member's stays.
+  const [pick, setPick] = useState<boolean | null>(null);
+  const expanded = pick ?? requiredMissing > 0;
+  const allDone = requiredMissing === 0 && optionalMissing.length === 0;
+  const row = (step: (typeof steps)[number]) => (
+    <Flex key={step.key} gap={8} align="center">
+      {step.done ? (
+        <CheckCircleFilled style={{ color: token.colorSuccess }} />
+      ) : (
+        <ExclamationCircleOutlined style={{ color: step.required ? token.colorWarning : token.colorTextTertiary }} />
+      )}
+      <Typography.Text type={step.done ? "secondary" : undefined} style={{ flex: 1 }}>
+        {step.text}
       </Typography.Text>
-    );
-  }
+      {!step.done && step.action}
+    </Flex>
+  );
   return (
     <Flex
       vertical
@@ -383,32 +396,65 @@ function Readiness({ topic, open }: { topic: KnowledgeTopic; open: (tab: string)
         border: `1px solid ${token.colorBorderSecondary}`,
         borderRadius: token.borderRadiusLG,
         background: token.colorFillQuaternary,
-        padding: "10px 14px",
+        padding: "8px 14px",
       }}
     >
-      <Flex justify="space-between" gap={8} wrap>
-        <Typography.Text strong>
-          Sẵn sàng tạo video: {done} / {steps.length} bước
-        </Typography.Text>
-        <Typography.Text type="secondary">còn {steps.length - done} việc</Typography.Text>
-      </Flex>
-      <Progress percent={Math.round((done / steps.length) * 100)} showInfo={false} size="small" status="active" />
-      {steps.map((step) => (
-        <Flex key={step.key} gap={8} align="center">
-          {step.done ? (
-            <CheckCircleFilled style={{ color: token.colorSuccess }} />
+      <Flex
+        component="button"
+        justify="space-between"
+        align="center"
+        gap={8}
+        aria-expanded={expanded}
+        onClick={() => setPick(!expanded)}
+        style={{
+          border: 0,
+          background: "transparent",
+          padding: 0,
+          font: "inherit",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <Typography.Text strong type={requiredMissing > 0 ? undefined : "success"}>
+          {requiredMissing === 0 ? (
+            <CheckCircleFilled />
           ) : (
             <ExclamationCircleOutlined style={{ color: token.colorWarning }} />
-          )}
-          <Typography.Text type={step.done ? "secondary" : undefined} style={{ flex: 1 }}>
-            {step.text}
+          )}{" "}
+          {requiredMissing === 0
+            ? "Sẵn sàng tạo video"
+            : `Chưa sẵn sàng: thiếu ${required.filter((step) => !step.done).length}/${required.length} mục bắt buộc`}
+        </Typography.Text>
+        <Typography.Text type="secondary">
+          {allDone
+            ? "đủ cả"
+            : optionalMissing.length > 0
+              ? `nên có thêm: ${optionalMissing.map((step) => OPTIONAL_NAMES[step.key]).join(", ")}`
+              : ""}{" "}
+          {expanded ? "▴" : "▾"}
+        </Typography.Text>
+      </Flex>
+      {expanded && (
+        <>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Bắt buộc
           </Typography.Text>
-          {!step.done && step.action}
-        </Flex>
-      ))}
+          {required.map(row)}
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Nên có
+          </Typography.Text>
+          {optional.map(row)}
+        </>
+      )}
     </Flex>
   );
 }
+
+const OPTIONAL_NAMES: Record<string, string> = {
+  docs: "tài liệu",
+  plan: "kế hoạch 30 ngày",
+  products: "sản phẩm affiliate",
+};
 
 /** The number beside "Của tôi" and "Cả đội": a small grey count, not part of the label's words. */
 function ScopeCount({ n }: { n: number }) {

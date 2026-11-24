@@ -1774,12 +1774,15 @@ Replaces the groups bar of 2026-11-14 ([decision](decisions/2026-11-25-knowledge
 
 - **The groups are a column on the left** (240 px; above the group on a phone): the "Của tôi (n) / Cả đội (m)" switch,
   one line per group (a dot, its name on one line, its video count) and the add-group field with the history button.
-  The dot is green when the group has all five steps below, amber while it lacks one (the line's tooltip says how many).
-- **"Sẵn sàng tạo video: n / 5 bước"** under the group's name replaces the orange sentence: a progress bar and five
-  steps, each with the button that does it: a Page that posts the group ("Quản lý kênh"), the script prompt ("Thêm
-  prompt", the Prompt tab; without it the card still says the group cannot make videos with AI on the web), a document
-  ("Thêm tài liệu"), a 30-day plan ("Lập kế hoạch") and an approved affiliate product ("Mở Affiliate", on this group).
-  With all five it is one green line. The api sends the counts as `readiness` of each group.
+  The dot is green when the group has the two required steps below.
+- **"Sẵn sàng tạo video"** under the group's name replaces the orange sentence, as one line that folds: with a required
+  step missing it is open ("Chưa sẵn sàng: thiếu 1/2 mục bắt buộc") and lists **Bắt buộc**: a Page that posts the group
+  ("Quản lý kênh") and the script prompt ("Thêm prompt", the Prompt tab; the card still says the group cannot make videos
+  with AI on the web), then **Nên có**: a document ("Thêm tài liệu"), a 30-day plan ("Lập kế hoạch") and an approved
+  affiliate product ("Mở Affiliate", on this group). With the two required done it is one green line, "Sẵn sàng tạo
+  video", with "nên có thêm: …" on the right, which a click unfolds (the member's choice holds until the page
+  reloads). The dot of a group in the column is green only when both required steps are done, amber otherwise (the line's
+  tooltip says what is missing). The api sends the counts as `readiness` of each group.
 - **Tabs in the order of the work**, a thin line between the three parts: "Video (N)", "Kế hoạch 30 ngày", "Backlog",
   "Lịch đăng" | "Tư liệu", "Tài liệu", "Prompt" | "Cài đặt nhóm". The group still opens on "Video".
 - **"Tài liệu":** the list has "📌 Ghim" first, then the rest (a title and "<mục> · <người sửa>, <lúc>"); the reader keeps
