@@ -410,9 +410,11 @@ the video as before: HyperFrames never renders the whole video, and Remotion is 
   the worry being the plan idea's `pain_group` and the dishes' word found in the video's topic (`noun_of`). Each slot is cut around the dish (`subject_centre`: the sharp, colourful part of the photo, a heuristic, no object
   detector) unless a member set `focus`. `slots` ("Ảnh các ô": `from_scene`, `label`, `focus` per slot, kept in
   `motion.title.slots` and reused by a rebuild) take a slot's photo from another scene, rename it or aim its crop; the
-  web panel renames and takes a photo of its own for a slot from an upload or a link
-  (`POST /api/title-motion/{scene_id}/slots/{index}/photo`, `photo-link`, `photo-library`: kept in the slot's
-  `image_key`, shown from the next build). The Page's default (`brands.title_style`, migration 0122, "Kiểu tiêu đề video của Page" beside the logo switch
+  web panel renames and takes a photo of its own for a slot from an upload, a pasted photo or link, the library or
+  Google Ảnh (`POST /api/title-motion/{scene_id}/slots/{index}/photo`, `photo-link`, `photo-library`: kept in the
+  slot's `image_key`, shown from the next build; `GET` the same path serves it for the slot's thumbnail, `DELETE`
+  removes it so the slot follows its scene again). The payload's `title_motion.slots` lists, per slot, `photo_url` and
+  `from_scene`. The Chrome extension's photos go to the slot last searched from (`googleExtension.ts`, ten minutes). The Page's default (`brands.title_style`, migration 0122, "Kiểu tiêu đề video của Page" beside the logo switch
   on Cài đặt › Page): "classic" makes a title built for the first time keep showing its own photo or clip
   (`motion.attach`), the member switching to Động on the video; a rebuild keeps the member's choice. The slots start 40 px under the hook's text box (`hook_bottom`, `top_for`: 640 for two lines, lower for a taller
   hook, never below 1000) and fill what is left down to y 1680 (`SAFE_BOTTOM`), between 60 px side margins with 30 px gaps: tiles are never taller than wide, a grid that cannot fill the height is centred, the details (badge, name, "?") scale with the tile and a long name shrinks to one line; the slots' atlas is cut at 2× the tile size; a changed hook needs "Dựng lại tiêu đề". The thumbnail (`videos.refresh_thumbnail`), the card's poster and the Facebook cover of a motion

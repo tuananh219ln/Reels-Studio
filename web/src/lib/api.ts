@@ -355,6 +355,8 @@ export type SceneData = {
     pending: boolean;
     has_classic: boolean;
     labels: string[];
+    /** One per slot: its own photo (null while it follows its scene's photo) and the scene it is told to take from. */
+    slots?: { photo_url: string | null; from_scene: number | null }[];
   } | null;
   blocking: string[];
   warnings: string[];
