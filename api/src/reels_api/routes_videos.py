@@ -70,6 +70,7 @@ from .models import (
     Publication,
     Scene,
     Session,
+    TopicDoc,
     TopicPlanItem,
     User,
     Video,
@@ -2540,6 +2541,24 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
     mine = my_topic_ids(db, user_id)
     last = edit_log.last_edits(db, edit_log.TOPIC)
     makers = dict(db.execute(select(User.id, User.name)).all())
+    # What each group has towards "Sẵn sàng tạo video": active Pages that post it, documents, approved products.
+    pages = dict(
+        db.execute(
+            select(Fanpage.knowledge_topic_id, func.count())
+            .where(Fanpage.active.is_(True), Fanpage.knowledge_topic_id.is_not(None))
+            .group_by(Fanpage.knowledge_topic_id)
+        ).all()
+    )
+    docs = dict(
+        db.execute(select(TopicDoc.knowledge_topic_id, func.count()).group_by(TopicDoc.knowledge_topic_id)).all()
+    )
+    products = dict(
+        db.execute(
+            select(AffiliateProduct.knowledge_topic_id, func.count())
+            .where(AffiliateProduct.status == "approved")
+            .group_by(AffiliateProduct.knowledge_topic_id)
+        ).all()
+    )
     return {
         "topics": [
             {
@@ -2578,6 +2597,12 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 # "Tư liệu": the folder of the team's library the group's view shows; None: none linked yet.
                 "media_folder": topic.media_folder,
                 "video_count": counts.get(topic.id, 0),
+                "readiness": {
+                    "pages": pages.get(topic.id, 0),
+                    "docs": docs.get(topic.id, 0),
+                    "products": products.get(topic.id, 0),
+                    "plan_started": topic.plan_start_date is not None,
+                },
                 # A group of a Page the member owns: listed first where a group is picked.
                 "mine": topic.id in mine,
                 # "Sửa lần cuối" under the group's name; None until its first logged change.

@@ -1767,3 +1767,22 @@ The same cell and merged columns as the Video list: a thumbnail and a title on u
 The bar over a group is flat on the page, no card: a round switch "Của tôi / Cả đội" (an icon and a grey count each, and "N nhóm" beside it), the add-group box as a filled pill with a round tick button and the history button on the right, and the groups as pills under them: a quiet grey fill, the chosen one white with a brand outline and a soft shadow, each ending in its video count (amber when the group has no prompt).
 
 On every list of videos and on a video's page, the platform icons beside "Đã đăng" open that platform's post in a new tab when the post has a link (the newest live Facebook reel, or the link recorded for TikTok, YouTube Shorts or Instagram); their tooltip then reads "Mở bài trên <nền tảng>", else "Đã đăng <nền tảng>". The api sends the links as `posted_links` next to `posted_on`. A TikTok post that is only a draft in its owner's inbox (the worker's auto-post in "draft" mode) is still listed in `posted_on`, but `posted_states` says `{"tiktok": "draft"}` and its icon has a dashed outline and an amber dot, with the tooltip "TikTok: bản nháp trong hộp thư, mở TikTok để đăng" (2026-11-23); before, it looked like a public post. A YouTube upload that is still private is not in `posted_on` at all, as before. A click on an icon does not open the row.
+
+### Kho kiến thức: the groups in a column, "Sẵn sàng tạo video", tabs by the work, and the document reader (2026-11-25)
+
+Replaces the groups bar of 2026-11-14 ([decision](decisions/2026-11-25-knowledge-workspace.md)).
+
+- **The groups are a column on the left** (240 px; above the group on a phone): the "Của tôi (n) / Cả đội (m)" switch,
+  one line per group (a dot, its name on one line, its video count) and the add-group field with the history button.
+  The dot is green when the group has all five steps below, amber while it lacks one (the line's tooltip says how many).
+- **"Sẵn sàng tạo video: n / 5 bước"** under the group's name replaces the orange sentence: a progress bar and five
+  steps, each with the button that does it: a Page that posts the group ("Quản lý kênh"), the script prompt ("Thêm
+  prompt", the Prompt tab; without it the card still says the group cannot make videos with AI on the web), a document
+  ("Thêm tài liệu"), a 30-day plan ("Lập kế hoạch") and an approved affiliate product ("Mở Affiliate", on this group).
+  With all five it is one green line. The api sends the counts as `readiness` of each group.
+- **Tabs in the order of the work**, a thin line between the three parts: "Video (N)", "Kế hoạch 30 ngày", "Backlog",
+  "Lịch đăng" | "Tư liệu", "Tài liệu", "Prompt" | "Cài đặt nhóm". The group still opens on "Video".
+- **"Tài liệu":** the list has "📌 Ghim" first, then the rest (a title and "<mục> · <người sửa>, <lúc>"); the reader keeps
+  its text in a column of at most 760 px, with "Sao chép" (the Markdown to the clipboard), and, for a document with
+  three or more headings, "Trên trang này", a sticky outline whose entries scroll to the heading.
+

@@ -3,6 +3,7 @@
 import EmptyState from "@/components/EmptyState";
 import { api, errorMessage, formatDateTime, type TopicDoc } from "@/lib/api";
 import {
+  CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
@@ -22,7 +23,6 @@ import {
   Segmented,
   Select,
   Spin,
-  Tag,
   Tooltip,
   Typography,
   theme,
@@ -34,6 +34,52 @@ import remarkGfm from "remark-gfm";
 type Listing = { sections: { key: string; label: string }[]; docs: TopicDoc[] };
 type Draft = { id: number | null; section: string; name: string; body: string; pinned: boolean };
 const NEW_DOC: Draft = { id: null, section: "template", name: "", body: "", pinned: false };
+
+type Heading = { id: string; level: number; text: string };
+
+/** An anchor for a heading: its words without accents, joined by dashes (the same for the outline and the heading). */
+function anchorOf(text: string): string {
+  const plain = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+  return `doc-${plain.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+}
+
+/** The "#", "##" and "###" headings of a Markdown text, outside code fences, for "Trên trang này". */
+function outlineOf(body: string): Heading[] {
+  const found: Heading[] = [];
+  let fenced = false;
+  for (const line of body.split("\n")) {
+    if (line.trimStart().startsWith("```")) {
+      fenced = !fenced;
+      continue;
+    }
+    const match = !fenced && /^(#{1,3})\s+(.+?)\s*#*\s*$/.exec(line);
+    if (match) {
+      const text = match[2].replace(/[*_`]/g, "");
+      found.push({ id: anchorOf(text), level: match[1].length, text });
+    }
+  }
+  return found;
+}
+
+function textOf(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  if (node && typeof node === "object" && "props" in node)
+    return textOf((node as { props: { children?: React.ReactNode } }).props.children);
+  return "";
+}
+
+/** Headings that carry the anchor "Trên trang này" jumps to. */
+const headingAnchors = {
+  h1: ({ children }: { children?: React.ReactNode }) => <h1 id={anchorOf(textOf(children))}>{children}</h1>,
+  h2: ({ children }: { children?: React.ReactNode }) => <h2 id={anchorOf(textOf(children))}>{children}</h2>,
+  h3: ({ children }: { children?: React.ReactNode }) => <h3 id={anchorOf(textOf(children))}>{children}</h3>,
+};
 
 /** "Tài liệu" in Kho kiến thức: the Markdown documents of one topic group (job, templates, plans, prompts, reports),
  * with search, pins and who changed each last. The copy here is the master: assistants read it through MCP
@@ -87,6 +133,17 @@ export default function TopicDocs({
   }, [openId, message]);
 
   const docs = (listing?.docs ?? []).filter((doc) => section === "all" || doc.section === section);
+  const pinnedCount = docs.filter((doc) => doc.pinned).length;
+  const outline = open ? outlineOf(open.body ?? "") : [];
+
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      message.success("Đã sao chép nội dung tài liệu");
+    } catch {
+      message.error("Trình duyệt không cho sao chép, hãy bôi đen và sao chép tay");
+    }
+  }
 
   async function save() {
     if (!draft) return;
@@ -148,8 +205,8 @@ export default function TopicDocs({
   return (
     <Flex vertical gap={12} data-testid="topic-docs">
       <Typography.Text type="secondary">
-        Bản chính của tài liệu vận hành nhóm nằm ở đây; file ở máy chỉ là bản nháp. Job dựng đọc luật qua MCP (“Liệt kê
-        tài liệu của nhóm”, “Đọc tài liệu của nhóm”) thay vì chép vào thân job.
+        Bản chính của tài liệu vận hành nhóm; job dựng đọc qua MCP (“Liệt kê tài liệu của nhóm”, “Đọc tài liệu của
+        nhóm”), không chép vào thân job.
       </Typography.Text>
       <Flex wrap gap={8} justify="space-between">
         <Flex wrap gap={8}>
@@ -195,102 +252,150 @@ export default function TopicDocs({
         )}
       </Flex>
       <Flex gap={16} wrap align="flex-start">
-        <Flex vertical gap={6} style={{ width: 340, maxWidth: "100%" }} data-testid="doc-list">
+        <Flex vertical gap={4} style={{ width: 300, maxWidth: "100%" }} data-testid="doc-list">
           {docs.length === 0 && (
             <EmptyState
               description={listing.docs.length ? "Không có tài liệu nào khớp" : "Nhóm này chưa có tài liệu nào"}
             />
           )}
-          {docs.map((doc) => (
-            <Flex
-              key={doc.id}
-              gap={8}
-              align="flex-start"
-              data-testid="doc-row"
-              onClick={() => setOpenId(doc.id)}
-              style={{
-                cursor: "pointer",
-                padding: "8px 10px",
-                borderRadius: token.borderRadius,
-                border: `1px solid ${openId === doc.id ? token.colorPrimary : token.colorBorderSecondary}`,
-              }}
-            >
-              <Tooltip title={doc.pinned ? "Bỏ ghim" : "Ghim lên đầu"}>
-                <Button
-                  size="small"
-                  type="text"
-                  aria-label={doc.pinned ? "Bỏ ghim" : "Ghim"}
-                  disabled={!canEdit}
-                  icon={doc.pinned ? <PushpinFilled style={{ color: token.colorWarning }} /> : <PushpinOutlined />}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void togglePin(doc);
-                  }}
-                />
-              </Tooltip>
-              <Flex vertical style={{ minWidth: 0, flex: 1 }}>
-                <Typography.Text strong ellipsis>
-                  {doc.title}
-                </Typography.Text>
-                <Typography.Text type="secondary" ellipsis style={{ fontSize: 12 }}>
-                  {doc.name}
-                </Typography.Text>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {doc.updated_by ?? "—"}, {formatDateTime(doc.updated_at)}
-                </Typography.Text>
-              </Flex>
-              <Tag style={{ marginInlineEnd: 0 }}>{doc.section_label}</Tag>
-            </Flex>
-          ))}
+          {[
+            { title: "Ghim", rows: docs.filter((doc) => doc.pinned) },
+            { title: pinnedCount > 0 ? "Khác" : "", rows: docs.filter((doc) => !doc.pinned) },
+          ].map(
+            ({ title, rows }) =>
+              rows.length > 0 && (
+                <Flex vertical gap={4} key={title || "all"}>
+                  {title && (
+                    <Typography.Text type="secondary" style={{ fontSize: 12, padding: "4px 4px 0" }}>
+                      {title === "Ghim" ? "📌 Ghim" : title}
+                    </Typography.Text>
+                  )}
+                  {rows.map((doc) => (
+                    <Flex
+                      key={doc.id}
+                      gap={6}
+                      align="flex-start"
+                      data-testid="doc-row"
+                      onClick={() => setOpenId(doc.id)}
+                      style={{
+                        cursor: "pointer",
+                        padding: "7px 8px",
+                        borderRadius: token.borderRadius,
+                        background: openId === doc.id ? token.colorPrimaryBg : "transparent",
+                      }}
+                    >
+                      <Tooltip title={doc.pinned ? "Bỏ ghim" : "Ghim lên đầu"}>
+                        <Button
+                          size="small"
+                          type="text"
+                          aria-label={doc.pinned ? "Bỏ ghim" : "Ghim"}
+                          disabled={!canEdit}
+                          icon={
+                            doc.pinned ? <PushpinFilled style={{ color: token.colorWarning }} /> : <PushpinOutlined />
+                          }
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void togglePin(doc);
+                          }}
+                        />
+                      </Tooltip>
+                      <Flex vertical style={{ minWidth: 0, flex: 1 }}>
+                        <Typography.Text strong ellipsis={{ tooltip: doc.title }}>
+                          {doc.title}
+                        </Typography.Text>
+                        <Typography.Text type="secondary" ellipsis style={{ fontSize: 12 }}>
+                          {doc.section_label} · {doc.updated_by ?? "—"}, {formatDateTime(doc.updated_at)}
+                        </Typography.Text>
+                      </Flex>
+                    </Flex>
+                  ))}
+                </Flex>
+              ),
+          )}
         </Flex>
         <div style={{ flex: 1, minWidth: 280 }} data-testid="doc-reader">
           {open ? (
-            <Flex vertical gap={8}>
-              <Flex justify="space-between" align="center" gap={8} wrap>
-                <Typography.Text type="secondary">
-                  {open.section_label} · {open.name} · sửa lần cuối {open.updated_by ?? "—"},{" "}
-                  {formatDateTime(open.updated_at)}
-                </Typography.Text>
-                {canEdit && (
+            <Flex gap={16} align="flex-start" wrap>
+              <Flex vertical gap={8} style={{ flex: "1 1 420px", minWidth: 0, maxWidth: 760 }}>
+                <Flex justify="space-between" align="center" gap={8} wrap>
+                  <Typography.Text type="secondary">
+                    {open.section_label} · {open.name} · sửa lần cuối {open.updated_by ?? "—"},{" "}
+                    {formatDateTime(open.updated_at)}
+                  </Typography.Text>
                   <Flex gap={8}>
-                    <Button
-                      icon={<EditOutlined />}
-                      onClick={() =>
-                        setDraft({
-                          id: open.id,
-                          section: open.section,
-                          name: open.name,
-                          body: open.body ?? "",
-                          pinned: open.pinned,
-                        })
-                      }
-                    >
-                      Sửa
+                    <Button icon={<CopyOutlined />} onClick={() => void copy(open.body ?? "")}>
+                      Sao chép
                     </Button>
-                    <Popconfirm
-                      title="Xoá tài liệu này?"
-                      okText="Xoá"
-                      cancelText="Không"
-                      onConfirm={() => remove(open)}
-                    >
-                      <Button danger icon={<DeleteOutlined />}>
-                        Xoá
-                      </Button>
-                    </Popconfirm>
+                    {canEdit && (
+                      <>
+                        <Button
+                          icon={<EditOutlined />}
+                          onClick={() =>
+                            setDraft({
+                              id: open.id,
+                              section: open.section,
+                              name: open.name,
+                              body: open.body ?? "",
+                              pinned: open.pinned,
+                            })
+                          }
+                        >
+                          Sửa
+                        </Button>
+                        <Popconfirm
+                          title="Xoá tài liệu này?"
+                          okText="Xoá"
+                          cancelText="Không"
+                          onConfirm={() => remove(open)}
+                        >
+                          <Button danger icon={<DeleteOutlined />}>
+                            Xoá
+                          </Button>
+                        </Popconfirm>
+                      </>
+                    )}
                   </Flex>
-                )}
+                </Flex>
+                <div
+                  className="doc-markdown"
+                  style={{
+                    padding: "4px 20px 16px",
+                    border: `1px solid ${token.colorBorderSecondary}`,
+                    borderRadius: token.borderRadiusLG,
+                    overflowX: "auto",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  <Markdown remarkPlugins={[remarkGfm]} components={headingAnchors}>
+                    {open.body ?? ""}
+                  </Markdown>
+                </div>
               </Flex>
-              <div
-                className="doc-markdown"
-                style={{
-                  padding: "4px 16px 12px",
-                  border: `1px solid ${token.colorBorderSecondary}`,
-                  borderRadius: token.borderRadiusLG,
-                  overflowX: "auto",
-                }}
-              >
-                <Markdown remarkPlugins={[remarkGfm]}>{open.body ?? ""}</Markdown>
-              </div>
+              {outline.length >= 3 && (
+                <nav
+                  aria-label="Trên trang này"
+                  style={{ flex: "0 0 180px", position: "sticky", top: 16, maxHeight: "70vh", overflowY: "auto" }}
+                >
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    Trên trang này
+                  </Typography.Text>
+                  <Flex vertical gap={2} style={{ marginTop: 4 }}>
+                    {outline.map((heading) => (
+                      <a
+                        key={heading.id}
+                        href={`#${heading.id}`}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          document.getElementById(heading.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }}
+                        style={{ fontSize: 12, paddingInlineStart: (heading.level - 1) * 10, color: "inherit" }}
+                      >
+                        {heading.text}
+                      </a>
+                    ))}
+                  </Flex>
+                </nav>
+              )}
             </Flex>
           ) : (
             <EmptyState description="Chọn một tài liệu để xem" />

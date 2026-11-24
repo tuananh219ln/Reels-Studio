@@ -684,6 +684,8 @@ export type KnowledgeTopic = {
   /** "Tư liệu": the folder of the team's "Kho tư liệu" the group shows (with its subfolders); null: none linked. */
   media_folder: string | null;
   video_count: number;
+  /** What the group has towards "Sẵn sàng tạo video": active Pages that post it, documents, approved products, a plan. */
+  readiness: { pages: number; docs: number; products: number; plan_started: boolean };
   /** A group of a Page the signed-in member owns and uses ("của tôi"): listed first where a group is picked. */
   mine: boolean;
   /** Its latest logged change ("… sửa … lúc …" under its name); null until the first one. */

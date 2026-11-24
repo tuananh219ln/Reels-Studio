@@ -4,9 +4,11 @@ import StatusText, { toneOf } from "@/components/StatusText";
 import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import {
+  CheckCircleFilled,
   CheckOutlined,
   DeleteOutlined,
   EditOutlined,
+  ExclamationCircleOutlined,
   HistoryOutlined,
   MoreOutlined,
   PlusOutlined,
@@ -21,6 +23,7 @@ import {
   ConfigProvider,
   Dropdown,
   Flex,
+  Progress,
   Segmented,
   Input,
   Row,
@@ -127,45 +130,99 @@ function Knowledge() {
         title="Kho kiến thức"
         description="Mỗi nhóm chủ đề có video, prompt, từ cấm và kế hoạch 30 ngày riêng. Nhóm được chọn khi tạo video; bản nhân bản dùng nhóm của video gốc."
       />
-      {/* The groups sit above the group, so its table has the whole width: the filter and the actions to add a group on
-          one line, the groups as chips under them. */}
-      <Flex vertical gap={12} style={{ marginBottom: 16 }}>
-        <Flex wrap gap={12} align="center" justify="space-between">
-          <Flex wrap gap={12} align="center">
-            <Segmented<"mine" | "all">
-              shape="round"
-              aria-label="Lọc nhóm"
-              value={scope}
-              onChange={changeScope}
-              options={[
-                {
-                  value: "mine",
-                  label: (
-                    <Flex gap={6} align="center" style={{ padding: "0 4px" }}>
-                      <UserOutlined aria-hidden />
-                      Của tôi <ScopeCount n={data.topics.filter(isMine).length} />
-                    </Flex>
-                  ),
-                },
-                {
-                  value: "all",
-                  label: (
-                    <Flex gap={6} align="center" style={{ padding: "0 4px" }}>
-                      <TeamOutlined aria-hidden />
-                      Cả đội <ScopeCount n={data.topics.length} />
-                    </Flex>
-                  ),
-                },
-              ]}
-            />
-            <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-              {listed.length} nhóm
-            </Typography.Text>
+      {/* A group is a workspace: the groups in a column on the left (above the group on a phone), each with a dot that
+          says whether it still lacks something, and the group itself, with its checklist, on the right. */}
+      <Flex gap={16} align="flex-start" wrap>
+        <Flex
+          vertical
+          gap={12}
+          component="aside"
+          aria-label="Nhóm chủ đề"
+          style={{ flex: "0 0 240px", width: 240, maxWidth: "100%" }}
+        >
+          <Segmented<"mine" | "all">
+            block
+            shape="round"
+            aria-label="Lọc nhóm"
+            value={scope}
+            onChange={changeScope}
+            options={[
+              {
+                value: "mine",
+                label: (
+                  <Flex gap={6} align="center" justify="center" style={{ padding: "0 4px" }}>
+                    <UserOutlined aria-hidden />
+                    Của tôi <ScopeCount n={data.topics.filter(isMine).length} />
+                  </Flex>
+                ),
+              },
+              {
+                value: "all",
+                label: (
+                  <Flex gap={6} align="center" justify="center" style={{ padding: "0 4px" }}>
+                    <TeamOutlined aria-hidden />
+                    Cả đội <ScopeCount n={data.topics.length} />
+                  </Flex>
+                ),
+              },
+            ]}
+          />
+          <Flex vertical gap={2} data-testid="topic-list">
+            {listed.length === 0 && (
+              <Typography.Text type="secondary">
+                Bạn chưa có nhóm nào. Chọn “Cả đội” để xem các nhóm của mọi người, hoặc thêm một nhóm mới.
+              </Typography.Text>
+            )}
+            {listed.map((topic) => {
+              const active = topic.id === current?.id;
+              const { done, total } = readySteps(topic);
+              return (
+                <button
+                  key={topic.id}
+                  type="button"
+                  aria-current={active ? "true" : undefined}
+                  onClick={() => choose(topic.id)}
+                  title={topic.script_prompt ? `Sẵn sàng ${done}/${total} bước` : "Chưa có prompt"}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    width: "100%",
+                    border: 0,
+                    borderRadius: token.borderRadius,
+                    font: "inherit",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    padding: "7px 10px",
+                    background: active ? token.colorPrimaryBg : "transparent",
+                    color: active ? token.colorPrimaryText : token.colorText,
+                    fontWeight: active ? 600 : 400,
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      flex: "none",
+                      background: done === total ? token.colorSuccess : token.colorWarning,
+                    }}
+                  />
+                  <span
+                    style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  >
+                    {topic.name}
+                  </span>
+                  <span style={{ fontSize: 12, color: token.colorTextTertiary }}>{topic.video_count}</span>
+                </button>
+              );
+            })}
           </Flex>
           <Flex gap={6} align="center">
             <Input
               variant="filled"
-              style={{ width: 200, borderRadius: 999 }}
+              style={{ flex: 1, minWidth: 0, borderRadius: 999 }}
               aria-label="Tên nhóm chủ đề mới"
               placeholder="Nhóm mới…"
               prefix={<PlusOutlined style={{ color: token.colorTextTertiary }} />}
@@ -204,64 +261,7 @@ function Knowledge() {
             />
           </Flex>
         </Flex>
-        <Flex wrap gap={8} data-testid="topic-list">
-          {listed.length === 0 && (
-            <Typography.Text type="secondary">
-              Bạn chưa có nhóm nào. Chọn “Cả đội” để xem các nhóm của mọi người, hoặc thêm một nhóm mới.
-            </Typography.Text>
-          )}
-          {listed.map((topic) => {
-            const active = topic.id === current?.id;
-            return (
-              <button
-                key={topic.id}
-                type="button"
-                aria-current={active ? "true" : undefined}
-                onClick={() => choose(topic.id)}
-                title={topic.script_prompt ? undefined : "Chưa có prompt"}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  border: `1px solid ${active ? token.colorPrimary : "transparent"}`,
-                  borderRadius: 999,
-                  font: "inherit",
-                  cursor: "pointer",
-                  padding: "6px 8px 6px 14px",
-                  whiteSpace: "nowrap",
-                  background: active ? token.colorBgContainer : token.colorFillTertiary,
-                  boxShadow: active ? `0 1px 6px ${token.colorPrimaryBorder}` : "none",
-                  color: active ? token.colorPrimaryText : token.colorText,
-                  fontWeight: active ? 600 : 500,
-                  transition: "background .15s, box-shadow .15s",
-                }}
-              >
-                {topic.name}
-                <span
-                  style={{
-                    minWidth: 24,
-                    padding: "0 7px",
-                    borderRadius: 999,
-                    textAlign: "center",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    background: active ? token.colorPrimary : token.colorBgContainer,
-                    color: active
-                      ? token.colorWhite
-                      : topic.script_prompt
-                        ? token.colorTextSecondary
-                        : token.colorWarning,
-                  }}
-                >
-                  {topic.video_count}
-                </span>
-              </button>
-            );
-          })}
-        </Flex>
-      </Flex>
-      <Row gutter={[16, 16]} align="top">
-        <Col xs={24}>
+        <div style={{ flex: "1 1 560px", minWidth: 0 }}>
           {current === null ? (
             <Card>
               <EmptyState description="Chưa có nhóm chủ đề nào. Thêm một nhóm ở bên trái." />
@@ -273,9 +273,140 @@ function Knowledge() {
               </div>
             ))
           )}
-        </Col>
-      </Row>
+        </div>
+      </Flex>
     </>
+  );
+}
+
+/** The steps a group needs before it can make and post videos: a Page that posts it, a script prompt, a document of how
+ * it is run, a 30-day plan and an approved product. */
+function readySteps(topic: KnowledgeTopic) {
+  const steps = [
+    topic.readiness.pages > 0,
+    Boolean(topic.script_prompt),
+    topic.readiness.docs > 0,
+    topic.readiness.plan_started,
+    topic.readiness.products > 0,
+  ];
+  return { done: steps.filter(Boolean).length, total: steps.length };
+}
+
+/** A tab that starts a group (the work, the knowledge, the settings): a thin line before it, its name unchanged. */
+function GroupStart({ children }: { children: React.ReactNode }) {
+  const { token } = theme.useToken();
+  return (
+    <span
+      style={{ borderInlineStart: `1px solid ${token.colorBorder}`, paddingInlineStart: 14, marginInlineStart: -4 }}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** "Sẵn sàng tạo video": what the group still lacks, each with the button that does it. It folds to one line once the
+ * group has everything. */
+function Readiness({ topic, open }: { topic: KnowledgeTopic; open: (tab: string) => void }) {
+  const { token } = theme.useToken();
+  const { readiness } = topic;
+  const steps: { key: string; done: boolean; text: string; action: React.ReactNode }[] = [
+    {
+      key: "pages",
+      done: readiness.pages > 0,
+      text: readiness.pages > 0 ? `Có ${readiness.pages} Page đăng nhóm này` : "Chưa có Page nào đăng nhóm này",
+      action: (
+        <Button size="small" href="/fanpages">
+          Quản lý kênh
+        </Button>
+      ),
+    },
+    {
+      key: "prompt",
+      done: Boolean(topic.script_prompt),
+      text: topic.script_prompt
+        ? "Đã có prompt viết kịch bản"
+        : "Nhóm chưa có prompt viết kịch bản nên chưa tạo được video bằng AI trên web (vẫn tạo được qua MCP hoặc tự viết kịch bản)",
+      action: (
+        <Button size="small" onClick={() => open("prompts")}>
+          Thêm prompt
+        </Button>
+      ),
+    },
+    {
+      key: "docs",
+      done: readiness.docs > 0,
+      text: readiness.docs > 0 ? `Có ${readiness.docs} tài liệu vận hành` : "Chưa có tài liệu vận hành",
+      action: (
+        <Button size="small" onClick={() => open("docs")}>
+          Thêm tài liệu
+        </Button>
+      ),
+    },
+    {
+      key: "plan",
+      done: readiness.plan_started,
+      text: readiness.plan_started ? "Đã lập kế hoạch 30 ngày" : "Chưa lập kế hoạch 30 ngày",
+      action: (
+        <Button size="small" onClick={() => open("plan")}>
+          Lập kế hoạch
+        </Button>
+      ),
+    },
+    {
+      key: "products",
+      done: readiness.products > 0,
+      text:
+        readiness.products > 0
+          ? `Có ${readiness.products} sản phẩm affiliate đã duyệt`
+          : "Chưa có sản phẩm affiliate đã duyệt",
+      action: (
+        <Button size="small" href={`/affiliate?tab=products&group=${topic.id}`}>
+          Mở Affiliate
+        </Button>
+      ),
+    },
+  ];
+  const done = steps.filter((step) => step.done).length;
+  if (done === steps.length) {
+    return (
+      <Typography.Text type="success" data-testid="group-ready">
+        <CheckCircleFilled /> Sẵn sàng tạo video ({done}/{steps.length} bước)
+      </Typography.Text>
+    );
+  }
+  return (
+    <Flex
+      vertical
+      gap={6}
+      data-testid="group-ready"
+      style={{
+        border: `1px solid ${token.colorBorderSecondary}`,
+        borderRadius: token.borderRadiusLG,
+        background: token.colorFillQuaternary,
+        padding: "10px 14px",
+      }}
+    >
+      <Flex justify="space-between" gap={8} wrap>
+        <Typography.Text strong>
+          Sẵn sàng tạo video: {done} / {steps.length} bước
+        </Typography.Text>
+        <Typography.Text type="secondary">còn {steps.length - done} việc</Typography.Text>
+      </Flex>
+      <Progress percent={Math.round((done / steps.length) * 100)} showInfo={false} size="small" status="active" />
+      {steps.map((step) => (
+        <Flex key={step.key} gap={8} align="center">
+          {step.done ? (
+            <CheckCircleFilled style={{ color: token.colorSuccess }} />
+          ) : (
+            <ExclamationCircleOutlined style={{ color: token.colorWarning }} />
+          )}
+          <Typography.Text type={step.done ? "secondary" : undefined} style={{ flex: 1 }}>
+            {step.text}
+          </Typography.Text>
+          {!step.done && step.action}
+        </Flex>
+      ))}
+    </Flex>
   );
 }
 
@@ -492,12 +623,6 @@ function TopicBody({
         summary={
           <>
             {topic.video_count} video, {edited} prompt đã sửa
-            {!topic.script_prompt && (
-              <Typography.Text type="warning">
-                , chưa có prompt viết kịch bản nên chưa tạo được video bằng AI trên web (vẫn tạo được qua MCP hoặc tự
-                viết kịch bản)
-              </Typography.Text>
-            )}
             {locked && (
               <Typography.Text data-testid="group-locked">
                 , chỉ {topic.owner ?? "người tạo nhóm"} sửa được nhóm này
@@ -523,6 +648,13 @@ function TopicBody({
           </>
         }
       />
+      <Readiness
+        topic={topic}
+        open={(key) => {
+          if (visible) keepOnlyInAddress({ group: String(topic.id) });
+          setTab(key);
+        }}
+      />
       <Tabs
         activeKey={tab}
         onChange={(next) => {
@@ -536,10 +668,21 @@ function TopicBody({
             label: `Video (${topic.video_count})`,
             children: <TopicVideos topicId={topic.id} canCreate={Boolean(topic.script_prompt)} visible={visible} />,
           },
+          ...planTabs,
+          {
+            key: "schedule",
+            label: "Lịch đăng",
+            children: <TopicSchedule topicId={topic.id} visible={visible && tab === "schedule"} />,
+          },
           {
             key: "media",
-            label: "Tư liệu",
+            label: <GroupStart>Tư liệu</GroupStart>,
             children: <TopicMedia topic={topic} update={update} locked={locked} />,
+          },
+          {
+            key: "docs",
+            label: "Tài liệu",
+            children: <TopicDocs topicId={topic.id} canEdit={!locked} visible={visible && tab === "docs"} />,
           },
           {
             key: "prompts",
@@ -548,7 +691,7 @@ function TopicBody({
           },
           {
             key: "words",
-            label: "Cài đặt nhóm",
+            label: <GroupStart>Cài đặt nhóm</GroupStart>,
             children: readOnly(
               <Flex vertical gap={24}>
                 <section aria-labelledby={`script-${topic.id}`}>
@@ -616,17 +759,6 @@ function TopicBody({
                 </section>
               </Flex>,
             ),
-          },
-          ...planTabs,
-          {
-            key: "docs",
-            label: "Tài liệu",
-            children: <TopicDocs topicId={topic.id} canEdit={!locked} visible={visible && tab === "docs"} />,
-          },
-          {
-            key: "schedule",
-            label: "Lịch đăng",
-            children: <TopicSchedule topicId={topic.id} visible={visible && tab === "schedule"} />,
           },
         ]}
       />
