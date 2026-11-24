@@ -1043,6 +1043,7 @@ def title_motion_payload(scene: Scene) -> dict | None:
     shown = bool(made.get("clip_key") and made["clip_key"] == scene.video_key)
     return {
         "layout": made["title"]["layout"],
+        "requested": made["title"].get("requested", "auto"),
         "count": made["title"]["count"],
         "mode": "motion" if shown or made.get("pending") else "classic",
         "ready": bool(made.get("clip_key")) and not made.get("pending"),
