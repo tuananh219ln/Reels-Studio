@@ -461,6 +461,27 @@ def test_the_sprite_is_cut_at_twice_the_slots_size():
     assert sheet.size == (atlas["width"] * 2, atlas["height"] * 2)
 
 
+def test_a_long_name_in_a_strip_row_shrinks_to_stay_on_one_line():
+    labels = ["TRỨNG + CHÙM NGÂY NON XÀO TỎI"] + ["RAU"] * 6
+    markup = title_motion.build_html("strip", labels, atlas_for("strip", 7), "X", 790)
+    rows = [row for row in markup.split("<div style=")[1:] if "font-weight:900;font-size:" in row]
+    sizes = [int(row.split("font-size:")[1].split("px")[0]) for row in rows]
+    photo_w = atlas_for("strip", 7)["sizes"][0][0]
+    assert sizes[0] < sizes[1] and "white-space:nowrap" in rows[0]
+    assert sizes[0] * 0.7 * len("1. " + labels[0]) <= 960 - photo_w - 44 + 28
+
+
+def test_the_layout_a_member_asked_for_is_offered_again_on_a_rebuild():
+    from reels_api.videos import title_motion_payload
+
+    scene = Scene(is_title=True, motion={"title": {"layout": "strip", "requested": "strip", "count": 7}})
+    assert title_motion_payload(scene)["requested"] == "strip"
+    older = Scene(is_title=True, motion={"title": {"layout": "grid", "count": 4}})  # built before the choice existed
+    assert title_motion_payload(older)["requested"] == "auto"
+    assert title_motion.choose_layout("", "TRỨNG GÀ KẾT HỢP VỚI 7 LÁ", 7, "strip") == "strip"
+    assert title_motion.choose_layout("", "TRỨNG GÀ KẾT HỢP VỚI 7 LÁ", 7, "ring") == "ring"
+
+
 @pytest.mark.parametrize("n", [5, 6, 8, 9])
 def test_the_ring_bubbles_are_big_and_touch_neither_each_other_nor_the_main_dish(n):
     boxes = title_motion.ring_boxes(n, 790)

@@ -349,6 +349,8 @@ export type SceneData = {
   /** The title scene's "Tiêu đề động": its layout, number of dishes, what the scene shows now and whether it is made. */
   title_motion: {
     layout: "grid" | "ring" | "strip" | "warn";
+    /** What was asked for when it was built: "auto" (the app chooses) or a layout; offered again on a rebuild. */
+    requested?: "auto" | "grid" | "ring" | "strip" | "warn";
     count: number;
     mode: "motion" | "classic";
     ready: boolean;
