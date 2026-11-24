@@ -718,7 +718,7 @@ test("video list: status and creator filters, grid or list view remembered", asy
   page.on("pageerror", (e) => console.log("DEBUGERR", String(e).slice(0, 400)));
   page.on("console", (m) => { if (m.type() === "error") console.log("DEBUGCON", m.text().slice(0, 400)); });
   page.on("framenavigated", (f) => console.log("DEBUGNAV", f.url()));
-  await page.evaluate(() => { for (const t of ["mousedown", "mouseup", "click"]) document.addEventListener(t, (e) => { const el = e.target as HTMLElement; console.error("DEBUGEV " + t + " " + el.tagName + " " + String(el.className).slice(0, 60) + " inRow=" + Boolean(el.closest("tr")) + " inside=" + Boolean(el.closest("a, button, input, .ant-select")) + " prevented=" + e.defaultPrevented); }, true); });
+  await page.evaluate(() => { for (const t of ["mousedown", "mouseup", "click"]) document.addEventListener(t, (e) => { const el = e.target as HTMLElement; console.error("DEBUGEV " + t + " " + el.tagName + " " + String(el.className).slice(0, 60) + " inRow=" + Boolean(el.closest("tr")) + " inside=" + Boolean(el.closest("a, button, input, .ant-select")) + " prevented=" + e.defaultPrevented + " btn=" + (el.closest("button")?.getAttribute("aria-label") ?? el.closest("button")?.textContent) + " rect=" + JSON.stringify(el.closest("button")?.getBoundingClientRect()) + " xy=" + (e as MouseEvent).clientX + "," + (e as MouseEvent).clientY); }, true); });
   await page.getByTestId("video-row").first().click();
   await page.waitForTimeout(3000);
   console.log("DEBUGURL", page.url(), await page.title());
