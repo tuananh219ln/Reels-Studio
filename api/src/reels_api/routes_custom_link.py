@@ -42,9 +42,9 @@ TEMPLATE = Path(__file__).with_name("custom_link_template.xlsx")
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
-def group_page(db: DbSession, topic_id: int) -> Fanpage:
-    """The one Page that posts the group. An order carries only that Page, so with two the orders of the other would
-    be counted on the first: refused rather than measured wrong."""
+def group_page(db: DbSession, topic_id: int, fanpage_id: int | None = None) -> Fanpage:
+    """The Page the file's orders are measured to: the group's only Page, or, when several post it, the one chosen. An
+    order carries one Page, and a product has one link, so the orders of the others are not measured to them."""
     if db.get(KnowledgeTopic, topic_id) is None:
         raise invalid("Nhóm chủ đề không còn tồn tại")
     pages = list(
@@ -54,22 +54,28 @@ def group_page(db: DbSession, topic_id: int) -> Fanpage:
     )
     if not pages:
         raise invalid("Nhóm này chưa có Page nào đăng, nên chưa biết gắn đơn về Page nào")
-    if len(pages) > 1:
-        names = ", ".join(page.name for page in pages)
-        raise invalid(f"Nhóm này có {len(pages)} Page đăng ({names}): đơn chỉ đo được về một Page, hãy tách nhóm")
-    return pages[0]
+    if fanpage_id is None:
+        if len(pages) > 1:
+            names = ", ".join(page.name for page in pages)
+            raise invalid(f"Nhóm này có {len(pages)} Page đăng ({names}): hãy chọn Page để gắn đơn về")
+        return pages[0]
+    chosen = next((page for page in pages if page.id == fanpage_id), None)
+    if chosen is None:
+        raise invalid("Page này không đăng nhóm này")
+    return chosen
 
 
 @router.get("/export.xlsx")
 def export_file(
     topic_id: int,
     include_linked: bool = False,
+    fanpage_id: int | None = None,
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
 ) -> Response:
     """The group's approved products I added, with a product page, as Shopee's Custom Link file. Without
     `include_linked` only the ones with no affiliate link yet; a teammate's are left out, as their link is theirs."""
-    page = group_page(db, topic_id)
+    page = group_page(db, topic_id, fanpage_id)
     query = select(AffiliateProduct.page_url).where(
         AffiliateProduct.knowledge_topic_id == topic_id,
         AffiliateProduct.created_by_id == me.user_id,

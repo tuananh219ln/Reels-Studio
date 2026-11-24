@@ -821,6 +821,7 @@ export default function Products() {
         onClose={() => setCustomLink(null)}
         topicId={topicId}
         topicName={open?.name}
+        pages={topicId === undefined ? [] : pagesOf(topicId).map((page) => ({ id: page.id, name: page.name }))}
       />
       <CustomLinkImport
         open={customLink === "import"}

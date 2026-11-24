@@ -684,6 +684,8 @@ export type KnowledgeTopic = {
   /** "Tư liệu": the folder of the team's "Kho tư liệu" the group shows (with its subfolders); null: none linked. */
   media_folder: string | null;
   video_count: number;
+  /** The active Pages that post the group; with two or more, the group's screen can be read for one of them. */
+  page_list: { id: number; name: string }[];
   /** What the group has towards "Sẵn sàng tạo video": active Pages that post it, documents, approved products, a plan. */
   readiness: { pages: number; docs: number; products: number; plan_started: boolean };
   /** A group of a Page the signed-in member owns and uses ("của tôi"): listed first where a group is picked. */
@@ -1815,6 +1817,7 @@ export type AffiliateRevenue = {
     video_id: number | null;
     title: string | null;
     fanpage: string | null;
+    fanpage_id: number | null;
     orders: number;
     commission: number;
   }[];

@@ -122,15 +122,39 @@ def test_a_group_without_a_page_is_refused(an, db, me):
     assert "chưa có Page" in response.json()["message"]
 
 
-def test_a_group_with_two_pages_is_refused_rather_than_measured_wrong(an, db, me):
+def test_a_group_with_two_pages_asks_which_one_and_uses_the_chosen(an, db, me):
+    topic = first_topic(db)
+    a = page(db, topic, "Page A")
+    b = page(db, topic, "Page B")
+    page(db, topic, "Page C", active=False)
+    product(db, me, topic, 1)
+    asked = an.get(EXPORT, params={"topic_id": topic.id})
+    assert asked.status_code == 422
+    assert "chọn Page" in asked.json()["message"]
+    got = rows(an.get(EXPORT, params={"topic_id": topic.id, "fanpage_id": b.id}))
+    assert got[1][1] == f"p{b.id}"
+    assert a.id != b.id
+
+
+def test_a_page_that_does_not_post_the_group_is_refused(an, db, me):
     topic = first_topic(db)
     page(db, topic, "Page A")
     page(db, topic, "Page B")
-    page(db, topic, "Page C", active=False)
+    elsewhere = KnowledgeTopic(name="Nhóm khác", created_by_id=me.id)
+    db.add(elsewhere)
+    db.commit()
+    stranger = page(db, elsewhere, "Page lạ")
     product(db, me, topic, 1)
-    response = an.get(EXPORT, params={"topic_id": topic.id})
+    response = an.get(EXPORT, params={"topic_id": topic.id, "fanpage_id": stranger.id})
     assert response.status_code == 422
-    assert "2 Page" in response.json()["message"]
+    assert "không đăng nhóm này" in response.json()["message"]
+
+
+def test_one_page_is_used_without_being_asked(an, db, me):
+    topic = first_topic(db)
+    only = page(db, topic, "Page A")
+    product(db, me, topic, 1)
+    assert rows(an.get(EXPORT, params={"topic_id": topic.id}))[1][1] == f"p{only.id}"
 
 
 def test_nothing_to_export_is_said(an, db, me):

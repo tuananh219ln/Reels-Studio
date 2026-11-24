@@ -41,7 +41,14 @@ import {
 import type { MenuProps } from "antd";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { api, errorMessage, type EditTemplates, type Knowledge, type KnowledgeTopic } from "@/lib/api";
+import {
+  api,
+  errorMessage,
+  type AffiliateRevenue,
+  type EditTemplates,
+  type Knowledge,
+  type KnowledgeTopic,
+} from "@/lib/api";
 import { useStoredChoice } from "@/lib/storedChoice";
 import { useLeaveGuard } from "@/lib/unsaved";
 import { keepOnlyInAddress, useUrlChoiceIf, useUrlId } from "@/lib/urlState";
@@ -373,6 +380,79 @@ function missingRequired(topic: KnowledgeTopic): string[] {
     ...(topic.readiness.pages > 0 ? [] : ["Page đăng nhóm"]),
     ...(topic.script_prompt ? [] : ["prompt viết kịch bản"]),
   ];
+}
+
+/** A group several Pages post: "Page" picks one to read the group for (its videos, its calendar, its orders, its
+ * comment sets); "Tất cả Page" is the whole group. One Page's orders are those whose links carry its code. */
+function PageScope({
+  topic,
+  chosen,
+  onChoose,
+}: {
+  topic: KnowledgeTopic;
+  chosen: number | null;
+  onChoose: (id: number | null) => void;
+}) {
+  const { token } = theme.useToken();
+  const [revenue, setRevenue] = useState<AffiliateRevenue | null>(null);
+  useEffect(() => {
+    if (chosen === null) return;
+    let live = true;
+    api<AffiliateRevenue>(`/affiliate-accounts/revenue?days=30&fanpage_id=${chosen}`).then(
+      (found) => live && setRevenue(found),
+      () => live && setRevenue(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [chosen]);
+  const page = topic.page_list.find((one) => one.id === chosen);
+  return (
+    <Flex vertical gap={8} data-testid="page-scope">
+      <Flex gap={12} align="center" wrap>
+        <Typography.Text type="secondary">Page</Typography.Text>
+        <Segmented<number>
+          aria-label="Xem nhóm theo Page"
+          value={chosen ?? 0}
+          onChange={(value) => onChoose(value === 0 ? null : value)}
+          options={[
+            { value: 0, label: "Tất cả Page" },
+            ...topic.page_list.map((one) => ({ value: one.id, label: one.name })),
+          ]}
+        />
+      </Flex>
+      {page && (
+        <Flex
+          gap={16}
+          align="center"
+          wrap
+          style={{
+            border: `1px solid ${token.colorBorderSecondary}`,
+            borderRadius: token.borderRadiusLG,
+            padding: "8px 14px",
+          }}
+        >
+          <Typography.Text strong>{page.name}</Typography.Text>
+          <Typography.Text type="secondary">
+            {revenue === null
+              ? "Đơn 30 ngày: —"
+              : `Đơn 30 ngày: ${revenue.orders} đơn, ${revenue.commission.toLocaleString("vi-VN")}đ hoa hồng`}
+          </Typography.Text>
+          <Tooltip title="Đơn chỉ gắn về Page khi link mang mã của Page. Link lưu sẵn của sản phẩm mang mã của một Page, nên đơn của Page kia có thể không hiện ở đây.">
+            <Typography.Text type="secondary">ⓘ</Typography.Text>
+          </Tooltip>
+          <Flex gap={8} style={{ marginInlineStart: "auto" }}>
+            <Button size="small" href={`/affiliate?tab=sets&page=${page.id}`}>
+              Bộ bình luận của Page
+            </Button>
+            <Button size="small" href={`/fanpages/${page.id}?tab=schedule`}>
+              Lịch đăng của Page
+            </Button>
+          </Flex>
+        </Flex>
+      )}
+    </Flex>
+  );
 }
 
 /** A tab that starts a group (the work, the knowledge, the settings): a thin line before it, its name unchanged. */
@@ -719,6 +799,11 @@ function TopicBody({
   visible: boolean;
 }) {
   const [chosenTab, setTab] = useUrlChoiceIf<string>(visible, "tab", "videos");
+  // A group several Pages post can be read for one of them; the choice is in the address and kept across its tabs.
+  const [pageParam, setPageParam] = useUrlChoiceIf<string | null>(visible, "page", null);
+  const chosenPage = topic.page_list.find((one) => String(one.id) === pageParam) ?? null;
+  const keepGroup = () =>
+    keepOnlyInAddress({ group: String(topic.id), ...(chosenPage ? { page: String(chosenPage.id) } : {}) });
   // "Mẫu dựng" moved into "Cài đặt nhóm" (2026-11-10): an old link to it opens that tab.
   const tab = chosenTab === "templates" ? "words" : chosenTab;
   const { token } = theme.useToken();
@@ -793,28 +878,47 @@ function TopicBody({
       <Readiness
         topic={topic}
         open={(key) => {
-          if (visible) keepOnlyInAddress({ group: String(topic.id) });
+          if (visible) keepGroup();
           setTab(key);
         }}
       />
+      {topic.page_list.length >= 2 && (
+        <PageScope
+          topic={topic}
+          chosen={chosenPage?.id ?? null}
+          onChoose={(id) => {
+            if (visible) keepGroup();
+            setPageParam(id === null ? null : String(id));
+          }}
+        />
+      )}
       <Tabs
         activeKey={tab}
         onChange={(next) => {
           // A tab's list starts without the last tab's filters.
-          if (visible) keepOnlyInAddress({ group: String(topic.id) });
+          if (visible) keepGroup();
           setTab(next);
         }}
         items={[
           {
             key: "videos",
             label: `Video (${topic.video_count})`,
-            children: <TopicVideos topicId={topic.id} canCreate={Boolean(topic.script_prompt)} visible={visible} />,
+            children: (
+              <TopicVideos
+                topicId={topic.id}
+                fanpageId={chosenPage?.id}
+                canCreate={Boolean(topic.script_prompt)}
+                visible={visible}
+              />
+            ),
           },
           ...planTabs,
           {
             key: "schedule",
             label: "Lịch đăng",
-            children: <TopicSchedule topicId={topic.id} visible={visible && tab === "schedule"} />,
+            children: (
+              <TopicSchedule topicId={topic.id} fanpageId={chosenPage?.id} visible={visible && tab === "schedule"} />
+            ),
           },
           {
             key: "media",

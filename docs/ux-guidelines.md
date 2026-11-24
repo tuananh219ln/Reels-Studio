@@ -1804,3 +1804,13 @@ makes a group of the member's, named "<tên> (bản sao)" ("(bản sao 2)"…), 
 folder; any member may copy any group, and the copy opens. The line under the name keeps "chỉ <người tạo> sửa được nhóm
 này" and the last change, in grey, a click on which still opens the history.
 
+#### A group several Pages post: read it for one Page (2026-11-25)
+
+With two or more active Pages posting a group, a line "Page: Tất cả Page | <Page> | <Page>" sits under the checklist (the
+Page is in the address as `page`, and stays across the tabs). A Page chosen keeps to that Page: the "Video" tab lists
+only the videos posted on, or waiting in the queue of, it (`GET /api/videos?fanpage_id=`), "Lịch đăng" only its link (the
+calendar itself stays on the Page, [decision](decisions/2026-11-24-winner-gate-docs.md)), and a strip under the line shows its
+orders of the last 30 days (`GET /api/affiliate-accounts/revenue?fanpage_id=`, the member's own orders whose sub id names
+the Page) with "Bộ bình luận của Page" and "Lịch đăng của Page". The group's api payload lists its Pages as `page_list`.
+In Affiliate › Sản phẩm, "Xuất file Custom Link" for such a group asks which Page the file is for.
+
