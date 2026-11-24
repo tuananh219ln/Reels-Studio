@@ -147,7 +147,17 @@ function Knowledge() {
       />
       {/* A group is a workspace: the groups in a column on the left (above the group on a phone), each with a dot that
           says whether it still lacks something, and the group itself, with its checklist, on the right. */}
-      <Flex gap={16} align="flex-start" wrap>
+      {/* One card: the group column is its left edge, the group the rest. */}
+      <Flex
+        align="stretch"
+        wrap
+        style={{
+          background: token.colorBgContainer,
+          border: `1px solid ${token.colorBorderSecondary}`,
+          borderRadius: token.borderRadiusLG,
+          overflow: "hidden",
+        }}
+      >
         <Flex
           vertical
           gap={folded ? 6 : 12}
@@ -157,18 +167,35 @@ function Knowledge() {
             flex: folded ? "0 0 60px" : "0 0 256px",
             width: folded ? 60 : 256,
             maxWidth: "100%",
-            // The column is a card like the group beside it, folded or not.
-            background: token.colorBgContainer,
-            border: `1px solid ${token.colorBorderSecondary}`,
-            borderRadius: token.borderRadiusLG,
+            background: token.colorFillQuaternary,
+            borderInlineEnd: `1px solid ${token.colorBorderSecondary}`,
             padding: folded ? "10px 0" : 12,
           }}
         >
-          <Flex justify={folded ? "center" : "space-between"} align="center">
+          <Flex justify={folded ? "center" : "space-between"} align="center" gap={4}>
             {!folded && (
-              <Typography.Text strong style={{ paddingInlineStart: 4 }}>
+              <Typography.Text strong style={{ flex: 1, paddingInlineStart: 4 }}>
                 Nhóm
               </Typography.Text>
+            )}
+            {!folded && (
+              <EditHistory
+                entityType="knowledge_topic"
+                field="name"
+                title="Nhóm chủ đề"
+                kind="value"
+                trigger={(open) => (
+                  <Tooltip title="Nhóm đã tạo, đổi tên, xoá">
+                    <Button
+                      size="small"
+                      type="text"
+                      aria-label="Lịch sử nhóm chủ đề"
+                      icon={<HistoryOutlined />}
+                      onClick={open}
+                    />
+                  </Tooltip>
+                )}
+              />
             )}
             <Tooltip title={folded ? "Mở rộng danh sách nhóm" : "Thu gọn danh sách nhóm"}>
               <Button
@@ -307,47 +334,34 @@ function Knowledge() {
             })}
           </Flex>
           {!folded && (
-            <Flex gap={6} align="center">
-              <Input
-                variant="filled"
-                style={{ flex: 1, minWidth: 0, borderRadius: 999 }}
-                aria-label="Tên nhóm chủ đề mới"
-                placeholder="Nhóm mới…"
-                prefix={<PlusOutlined style={{ color: token.colorTextTertiary }} />}
-                maxLength={100}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                onPressEnter={() => name.trim() && add()}
-              />
-              <Tooltip title="Thêm nhóm">
-                <Button
-                  shape="circle"
-                  type="primary"
-                  aria-label="Thêm nhóm"
-                  icon={<CheckOutlined />}
-                  loading={busy}
-                  disabled={!name.trim()}
-                  onClick={add}
-                />
-              </Tooltip>
-              <EditHistory
-                entityType="knowledge_topic"
-                field="name"
-                title="Nhóm chủ đề"
-                kind="value"
-                trigger={(open) => (
-                  <Tooltip title="Nhóm đã tạo, đổi tên, xoá">
+            <Input
+              // A quiet dashed field at the foot of the list; the tick shows once there is a name.
+              style={{ borderStyle: "dashed", background: "transparent" }}
+              aria-label="Tên nhóm chủ đề mới"
+              placeholder="Thêm nhóm mới…"
+              prefix={<PlusOutlined style={{ color: token.colorTextTertiary }} />}
+              suffix={
+                name.trim() ? (
+                  <Tooltip title="Thêm nhóm">
                     <Button
+                      size="small"
+                      type="primary"
                       shape="circle"
-                      type="text"
-                      aria-label="Lịch sử nhóm chủ đề"
-                      icon={<HistoryOutlined />}
-                      onClick={open}
+                      aria-label="Thêm nhóm"
+                      icon={<CheckOutlined />}
+                      loading={busy}
+                      onClick={add}
                     />
                   </Tooltip>
-                )}
-              />
-            </Flex>
+                ) : (
+                  <span />
+                )
+              }
+              maxLength={100}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              onPressEnter={() => name.trim() && add()}
+            />
           )}
         </Flex>
         <div style={{ flex: "1 1 560px", minWidth: 0 }}>
@@ -816,7 +830,6 @@ function TopicBody({
     keepOnlyInAddress({ group: String(topic.id), ...(chosenPage ? { page: String(chosenPage.id) } : {}) });
   // "Mẫu dựng" moved into "Cài đặt nhóm" (2026-11-10): an old link to it opens that tab.
   const tab = chosenTab === "templates" ? "words" : chosenTab;
-  const { token } = theme.useToken();
   const { me } = useMe();
   const path = `/knowledge/topics/${topic.id}`;
   // "Cho cả đội sửa" off and the group not mine: its prompts, words and templates are only read here.
@@ -836,17 +849,7 @@ function TopicBody({
 
   // Not a Card itself: the cards inside are found by their own title.
   return (
-    <Flex
-      vertical
-      gap={4}
-      data-topic={topic.name}
-      style={{
-        background: token.colorBgContainer,
-        border: `1px solid ${token.colorBorderSecondary}`,
-        borderRadius: token.borderRadiusLG,
-        padding: "16px 20px 20px",
-      }}
-    >
+    <Flex vertical gap={4} data-topic={topic.name} style={{ padding: "16px 20px 20px" }}>
       <TopicHeader
         topic={topic}
         path={path}
