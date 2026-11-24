@@ -307,13 +307,15 @@ def build_html(layout: str, labels: list[str], atlas: dict, hidden_label: str, t
             hidden = i >= n - 2
             y = y0 + i * (h + 14)
             photo_w = atlas["sizes"][i][0]
+            room = x1 - x0 - photo_w - 24 - 20  # what is left of the row for "7. NAME"
+            size = fit_name(f"{i + 1}. {'?' if hidden else label}", room + 28, min(56, int(h * 0.55)))
             parts.append(
                 f'<div class="it s{i}{" hid" if hidden else ""}" style="left:{x0}px;top:{y}px;width:{x1 - x0}px;'
                 f'height:{h}px;border-radius:{h // 2}px;background:rgba(255,248,236,.95)">'
                 f'<div class="ph" style="right:auto;width:{photo_w}px;border-radius:{h // 2}px 0 0 {h // 2}px;'
                 f'{_photo(atlas, i)}"></div>'
                 f'<div style="position:absolute;left:{photo_w + 24}px;top:0;height:{h}px;line-height:{h}px;'
-                f'font-weight:900;font-size:{min(56, int(h * 0.55))}px;color:#1F2937">'
+                f'font-weight:900;font-size:{size}px;white-space:nowrap;color:#1F2937">'
                 f'<span style="color:#FF3B30">{i + 1}.</span> {"?" if hidden else H.escape(label)}</div></div>'
             )
     for i, t in enumerate(starts):
