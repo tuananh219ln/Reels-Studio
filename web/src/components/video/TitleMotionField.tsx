@@ -109,12 +109,11 @@ export default function TitleMotionField({ scene, disabled }: { scene: SceneData
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Tên các ô (sửa rồi bấm “Dựng lại tiêu đề”)
           </Typography.Text>
-          <Flex gap={4} wrap>
+          <div className="title-cells">
             {made.labels.map((label, index) => (
-              <Flex key={index} gap={2} align="center">
+              <div key={index} className="title-cells__item">
                 <Input
                   size="small"
-                  style={{ width: 130 }}
                   maxLength={22}
                   aria-label={`Tên ô ${index + 1}`}
                   value={edited[index] ?? label}
@@ -160,9 +159,9 @@ export default function TitleMotionField({ scene, disabled }: { scene: SceneData
                     Ảnh
                   </Button>
                 </Popover>
-              </Flex>
+              </div>
             ))}
-          </Flex>
+          </div>
         </Flex>
       )}
       {warnings.map((line) => (
