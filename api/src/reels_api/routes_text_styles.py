@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/settings/text-styles")
 KEY = "text_box_styles"
 MAX_NAME_LENGTH = 40
 MAX_STYLES = 40
-OPACITIES = ("solid", "soft", "clear", "none")  # "none": no background, outlined letters
+OPACITIES = ("solid", "soft", "clear", "faint", "none")  # "none": no background, outlined letters
 
 
 class StyleBody(BaseModel):

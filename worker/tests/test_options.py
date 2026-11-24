@@ -323,6 +323,8 @@ def test_a_team_box_style_draws_its_own_colours_and_opacity():
     assert palette_for("box", "#FFFFFF", "#1D4ED8", "auto", "solid") == Palette("#1D4ED8", "#FFFFFF", "#FFD60A")
     assert palette_for("box", "#FFFFFF", "#1D4ED8", "auto", "soft").box == (29, 78, 216, 224)
     assert palette_for("box", "#FFFFFF", "#111111", "#FF7A00", "clear").box == (17, 17, 17, 178)
+    # "Rất trong": 45% of the box colour, so a black one dims only the photo behind the text.
+    assert palette_for("box", "#FFFFFF", "#111111", "auto", "faint").box == (17, 17, 17, 115)
     # An opacity of its own applies to the older boxes too; "auto" keeps theirs (Tối stays 88%).
     assert palette_for("dark").box == (17, 17, 17, 224)
     assert palette_for("dark", box_opacity="solid").box == (17, 17, 17, 255)

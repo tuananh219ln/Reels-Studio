@@ -777,14 +777,14 @@ steps open the status card or the products block on its tab, the QC chip its pop
     colours changed since), a chosen "Đang dùng" card drawn in its colours with "Màu riêng, chưa có trong kiểu chung
     của đội." (or "Kiểu có sẵn của app, …") and "Lưu thành kiểu của đội" under the cards, opening "Thêm kiểu hộp chữ"
     on those colours, then the team's own box styles, then a "Thêm kiểu" card with a dashed "+" preview, opening "Thêm kiểu hộp chữ" (Tên kiểu, Màu nền
-    hộp, Độ trong của hộp: Đặc, Hơi trong, Trong, Không nền; Màu chữ; Màu chữ đánh dấu, with a live sample and the
+    hộp, Độ trong của hộp: Đặc, Hơi trong, Trong, Rất trong, Không nền; Màu chữ; Màu chữ đánh dấu, with a live sample and the
     readability warnings); a new style is picked at once; under the cards the picked style's name with
     "Sửa kiểu" and "Xoá kiểu" (confirmed: "Video đã dùng kiểu này vẫn giữ màu của nó."); the styles are
     shared by the whole team and a video keeps a copy of the colours, so editing or deleting a style
     never changes a video; then three colour rows, Màu chữ, Màu chữ đánh dấu and Màu nền hộp (Màu viền chữ for
     Không hộp), each with Theo kiểu, eight swatches (Trắng, Đen, Vàng, Đỏ, Cam, Xanh lá, Xanh dương,
     Hồng) and "Tuỳ chỉnh" opening a colour picker; a faint pair is allowed with a warning under the
-    rows ("Chữ khó đọc trên nền hộp này. …"); Độ trong của hộp (Theo kiểu, Đặc, Hơi trong, Trong, Không nền) while
+    rows ("Chữ khó đọc trên nền hộp này. …"); Độ trong của hộp (Theo kiểu, Đặc, Hơi trong, Trong, Rất trong, Không nền) while
     the style has a box, Không nền turning the box colour row into Màu viền chữ; these rows change only the video (or the defaults), not the team style, whose card
     is then no longer marked; picking Không hộp puts the box colour and opacity back to Theo kiểu;
     Phụ đề theo giọng đọc: Tắt, Từng cụm, Từng từ, greyed out while narration is off); and a line linking
@@ -1445,7 +1445,7 @@ relied on (samples in the PR that added them).
   photo can look soft at it).
 - **Text box:** a team box style ("box": its box colour, opacity, text and keyword colours, copied
   into the video; with nothing chosen it is the yellow box) or Không hộp. Opacity: Đặc 100%, Hơi
-  trong 88%, Trong 70%, Không nền (drawn exactly as Không hộp, the box colour as the outline's). The older presets below are no longer offered on the page and stay only so
+  trong 88%, Trong 70%, Rất trong 45%, Không nền (drawn exactly as Không hộp, the box colour as the outline's). The older presets below are no longer offered on the page and stay only so
   videos made with them render as before: Vàng (the default above), Trắng (white box, black text, red keywords), Tối (near-black
   box at 88%, white text, yellow keywords), Đỏ (`#E10600` box, white text, yellow keywords), Không
   hộp (white letters with a black outline 9% of the font size, yellow keywords). **Colours:** the

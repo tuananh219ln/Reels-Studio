@@ -56,7 +56,7 @@ ALTERNATE_ACCENTS = {
 FALLBACK_ACCENTS = (RED_COLOR, BOX_COLOR, "#FFFFFF", TEXT_COLOR)
 # How much of the photo shows through a box (options.BOX_OPACITIES); "auto" keeps the style's own, and "none"
 # (no background) draws the letters outlined as without a box, the box colour becoming the outline's.
-BOX_ALPHAS = {"solid": 255, "soft": 224, "clear": 178}
+BOX_ALPHAS = {"solid": 255, "soft": 224, "clear": 178, "faint": 115}
 OUTLINE_RATIO = 0.09  # of the font size, for letters without a box
 DARK_LETTERS = 0.05  # relative luminance under which outlined letters get a white outline
 MIN_ACCENT_CONTRAST = 3.0  # marked words against their box (or outline)
