@@ -38,3 +38,12 @@ from an Excel file (up to 10,000 links; header `Liên kết gốc, Sub_id1 … S
   original was already a short link. The import reads CSV or `.xlsx` (by the file's first bytes), takes the columns by
   those names, and shows Shopee's own failure reason on a failed row. A file without `Liên kết gốc` is refused,
   naming the columns it has. Failed rows of a real bigger file (what Shopee says for a bad link) are still unseen.
+
+## MCP (2026-11-25)
+
+The assistant gets the same steps as three tools (`routes_custom_link.export_links`, `matched_file` and `apply_rows` are shared
+with the web, so the rules cannot differ): `list_custom_link_products` (read: the product pages and `sub_id1`),
+`preview_custom_link_import` (read: the pasted CSV, row by row) and `import_custom_link_result` (write, so it needs the
+connection's write scope). It does not call Shopee: the member uploads the file. The write tool says it replaces saved links and
+is to be called only after the preview and the member's agreement. A usage guide for members is `docs/guides/custom-link.md`.
+

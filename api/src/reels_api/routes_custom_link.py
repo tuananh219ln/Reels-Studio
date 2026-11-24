@@ -65,20 +65,15 @@ def group_page(db: DbSession, topic_id: int, fanpage_id: int | None = None) -> F
     return chosen
 
 
-@router.get("/export.xlsx")
-def export_file(
-    topic_id: int,
-    include_linked: bool = False,
-    fanpage_id: int | None = None,
-    me: Session = Depends(current_member),
-    db: DbSession = Depends(get_db),
-) -> Response:
-    """The group's approved products I added, with a product page, as Shopee's Custom Link file. Without
+def export_links(
+    db: DbSession, user_id: int, topic_id: int, include_linked: bool = False, fanpage_id: int | None = None
+) -> tuple[Fanpage, list[str]]:
+    """The Page the orders go to and the product pages of the group's approved products I added, one each. Without
     `include_linked` only the ones with no affiliate link yet; a teammate's are left out, as their link is theirs."""
     page = group_page(db, topic_id, fanpage_id)
     query = select(AffiliateProduct.page_url).where(
         AffiliateProduct.knowledge_topic_id == topic_id,
-        AffiliateProduct.created_by_id == me.user_id,
+        AffiliateProduct.created_by_id == user_id,
         AffiliateProduct.status == "approved",
         AffiliateProduct.page_url.is_not(None),
         AffiliateProduct.page_url != "",
@@ -90,6 +85,19 @@ def export_file(
         raise invalid("Không có sản phẩm nào cần xuất: cần sản phẩm đã duyệt, của bạn, có link sản phẩm")
     if len(links) > MAX_LINKS:
         raise invalid(f"Shopee nhận tối đa {MAX_LINKS} link mỗi lần, nhóm này có {len(links)}")
+    return page, links
+
+
+@router.get("/export.xlsx")
+def export_file(
+    topic_id: int,
+    include_linked: bool = False,
+    fanpage_id: int | None = None,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> Response:
+    """The group's approved products I added, with a product page, as Shopee's Custom Link file."""
+    page, links = export_links(db, me.user_id, topic_id, include_linked, fanpage_id)
     workbook = load_workbook(TEMPLATE)
     sheet = workbook.worksheets[0]
     for link in links:
@@ -246,11 +254,34 @@ def _summary(rows: list[dict]) -> dict:
     }
 
 
-async def _read(file: UploadFile, topic_id: int, me: Session, db: DbSession) -> list[dict]:
+def matched_file(db: DbSession, topic_id: int, user_id: int, data: bytes) -> list[dict]:
+    """The rows of Shopee's result file (CSV or Excel bytes) with what an import would do with each."""
     if db.get(KnowledgeTopic, topic_id) is None:
         raise invalid("Nhóm chủ đề không còn tồn tại")
-    data = await file.read(MAX_FILE_BYTES + 1)
-    return _matched(db, topic_id, me.user_id, parsed_file(data))
+    return _matched(db, topic_id, user_id, parsed_file(data))
+
+
+def apply_rows(db: DbSession, rows: list[dict]) -> dict:
+    """Puts each converted link on the matching product I added in the group: an approved one stays approved unless it
+    no longer meets the rules, and comments already written under live posts are asked to follow the new link."""
+    changed: list[int] = []
+    for row in rows:
+        if row["state"] != "ok":
+            continue
+        for product in db.scalars(select(AffiliateProduct).where(AffiliateProduct.id.in_(row["ids"]))):
+            if product.url == row["link"]:
+                continue
+            product.url = row["link"]
+            if product.status == "approved" and affiliate.problems(product):
+                _clear_approval(product)
+            changed.append(product.id)
+    affiliate.ask_comment_refresh(db, changed, forget_links=True)
+    db.commit()
+    return {**_summary(rows), "linked": len(changed)}
+
+
+async def _read(file: UploadFile, topic_id: int, me: Session, db: DbSession) -> list[dict]:
+    return matched_file(db, topic_id, me.user_id, await file.read(MAX_FILE_BYTES + 1))
 
 
 @router.post("/import/preview")
@@ -271,20 +302,5 @@ async def import_file(
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
 ) -> dict:
-    """Puts each converted link on the matching product I added in the group: an approved one stays approved unless it
-    no longer meets the rules, and comments already written under live posts are asked to follow the new link."""
-    rows = await _read(file, knowledge_topic_id, me, db)
-    changed: list[int] = []
-    for row in rows:
-        if row["state"] != "ok":
-            continue
-        for product in db.scalars(select(AffiliateProduct).where(AffiliateProduct.id.in_(row["ids"]))):
-            if product.url == row["link"]:
-                continue
-            product.url = row["link"]
-            if product.status == "approved" and affiliate.problems(product):
-                _clear_approval(product)
-            changed.append(product.id)
-    affiliate.ask_comment_refresh(db, changed, forget_links=True)
-    db.commit()
-    return {**_summary(rows), "linked": len(changed)}
+    """Puts each converted link on the matching product I added in the group."""
+    return apply_rows(db, await _read(file, knowledge_topic_id, me, db))
