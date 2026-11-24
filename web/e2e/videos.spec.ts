@@ -715,6 +715,8 @@ test("video list: status and creator filters, grid or list view remembered", asy
   await expect(page.locator(".ant-select").filter({ has: page.getByLabel("Lọc theo nhóm chủ đề") })).toContainText(
     "Sức khỏe",
   );
+  await page.evaluate(() => { for (const t of ["click"]) document.addEventListener(t, (e) => { const el = e.target as HTMLElement; const a = el.closest("a"); console.error("DEBUGEV " + t + " " + el.tagName + " " + String(el.className).slice(0, 40) + " a=" + a?.getAttribute("href") + " btn=" + el.closest("button")?.getAttribute("aria-label") + " xy=" + (e as MouseEvent).clientX + "," + (e as MouseEvent).clientY + " prevented=" + e.defaultPrevented); }, true); });
+  page.on("framenavigated", (f) => console.log("DEBUGNAV", f.url()));
   await page.getByTestId("video-row").first().click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
   await page.goto("/videos");
