@@ -982,7 +982,7 @@ export type VideoOptions = {
   box_color: string;
   /** The *marked* words' colour: "auto" or "#RRGGBB". */
   accent_color: string;
-  box_opacity: "auto" | "solid" | "soft" | "clear" | "none";
+  box_opacity: "auto" | "solid" | "soft" | "clear" | "faint" | "none";
   /** The title scene's own look, like the five above; "same" follows the scenes (or title_style "yellow"). */
   title_text_style: "same" | VideoOptions["text_style"];
   title_text_color: string;
@@ -1011,7 +1011,7 @@ export type TextBoxStyle = {
   id: string;
   name: string;
   box_color: string;
-  box_opacity: "solid" | "soft" | "clear" | "none";
+  box_opacity: "solid" | "soft" | "clear" | "faint" | "none";
   text_color: string;
   accent_color: string;
 };
