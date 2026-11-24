@@ -1814,3 +1814,12 @@ orders of the last 30 days (`GET /api/affiliate-accounts/revenue?fanpage_id=`, t
 the Page) with "Bộ bình luận của Page" and "Lịch đăng của Page". The group's api payload lists its Pages as `page_list`.
 In Affiliate › Sản phẩm, "Xuất file Custom Link" for such a group asks which Page the file is for.
 
+#### The group column as one card with the group (2026-11-25)
+
+The column and the group are one card, the column its left edge (a line between them). The column has a header ("Nhóm",
+the history of the groups, "‹" to fold), "Của tôi n / Cả đội m" as underlined tabs like the group's own, a row per group
+and a dashed "Thêm nhóm mới…" field (its tick shows once a name is typed). A row is the group's tile (two initials and a
+status dot, green when it can make videos, amber while it lacks a required step), its name on up to two lines, and a grey
+line "<n> video · <m> Page" (amber "<n> video · thiếu <prompt viết kịch bản | Page đăng nhóm>" while it lacks one). Folded,
+the tiles alone remain, each with the same dot and a tooltip.
+

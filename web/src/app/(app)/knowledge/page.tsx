@@ -17,7 +17,6 @@ import {
   PlusOutlined,
   RightOutlined,
   TeamOutlined,
-  UserOutlined,
 } from "@ant-design/icons";
 import {
   App,
@@ -208,35 +207,35 @@ function Knowledge() {
             </Tooltip>
           </Flex>
           {!folded && (
-            <Segmented<"mine" | "all">
-              block
-              shape="round"
-              aria-label="Lọc nhóm"
-              value={scope}
-              onChange={changeScope}
-              options={[
-                {
-                  value: "mine",
-                  label: (
-                    <Flex gap={6} align="center" justify="center" style={{ padding: "0 4px" }}>
-                      <UserOutlined aria-hidden />
-                      Của tôi <ScopeCount n={data.topics.filter(isMine).length} />
-                    </Flex>
-                  ),
-                },
-                {
-                  value: "all",
-                  label: (
-                    <Flex gap={6} align="center" justify="center" style={{ padding: "0 4px" }}>
-                      <TeamOutlined aria-hidden />
-                      Cả đội <ScopeCount n={data.topics.length} />
-                    </Flex>
-                  ),
-                },
-              ]}
-            />
+            // The same underlined tabs as the group's own, not a second kind of switch.
+            <div aria-label="Lọc nhóm" role="group">
+              <Tabs
+                size="small"
+                activeKey={scope}
+                onChange={(key) => changeScope(key as "mine" | "all")}
+                tabBarStyle={{ margin: 0 }}
+                items={[
+                  {
+                    key: "mine",
+                    label: (
+                      <span>
+                        Của tôi <ScopeCount n={data.topics.filter(isMine).length} />
+                      </span>
+                    ),
+                  },
+                  {
+                    key: "all",
+                    label: (
+                      <span>
+                        Cả đội <ScopeCount n={data.topics.length} />
+                      </span>
+                    ),
+                  },
+                ]}
+              />
+            </div>
           )}
-          <Flex vertical gap={2} data-testid="topic-list">
+          <Flex vertical gap={folded ? 8 : 4} data-testid="topic-list">
             {listed.length === 0 && (
               <Typography.Text type="secondary">
                 Bạn chưa có nhóm nào. Chọn “Cả đội” để xem các nhóm của mọi người, hoặc thêm một nhóm mới.
@@ -245,6 +244,7 @@ function Knowledge() {
             {listed.map((topic) => {
               const active = topic.id === current?.id;
               const missing = missingRequired(topic);
+              const tile = <GroupTile topic={topic} active={active} missing={missing.length > 0} />;
               if (folded) {
                 return (
                   <Tooltip
@@ -257,39 +257,14 @@ function Knowledge() {
                       aria-label={topic.name}
                       aria-current={active ? "true" : undefined}
                       onClick={() => choose(topic.id)}
-                      style={{
-                        position: "relative",
-                        width: 38,
-                        height: 38,
-                        margin: "0 auto",
-                        borderRadius: token.borderRadius,
-                        border: `1px solid ${active ? token.colorPrimaryBorder : "transparent"}`,
-                        background: active ? token.colorPrimaryBg : token.colorFillQuaternary,
-                        color: active ? token.colorPrimaryText : token.colorTextSecondary,
-                        font: "inherit",
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
+                      style={{ border: 0, background: "transparent", padding: 0, margin: "0 auto", cursor: "pointer" }}
                     >
-                      {initials(topic.name)}
-                      <span
-                        aria-hidden
-                        style={{
-                          position: "absolute",
-                          top: -3,
-                          right: -3,
-                          width: 10,
-                          height: 10,
-                          borderRadius: "50%",
-                          border: `2px solid ${token.colorBgContainer}`,
-                          background: missing.length === 0 ? token.colorSuccess : token.colorWarning,
-                        }}
-                      />
+                      {tile}
                     </button>
                   </Tooltip>
                 );
               }
+              const pages = topic.page_list.length;
               return (
                 <button
                   key={topic.id}
@@ -300,35 +275,45 @@ function Knowledge() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 8,
+                    gap: 10,
                     width: "100%",
                     border: 0,
                     borderRadius: token.borderRadius,
                     font: "inherit",
                     textAlign: "left",
                     cursor: "pointer",
-                    padding: "7px 10px",
+                    padding: "8px 10px",
                     background: active ? token.colorPrimaryBg : "transparent",
-                    color: active ? token.colorPrimaryText : token.colorText,
-                    fontWeight: active ? 600 : 400,
+                    color: token.colorText,
                   }}
                 >
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      flex: "none",
-                      background: missing.length === 0 ? token.colorSuccess : token.colorWarning,
-                    }}
-                  />
-                  <span
-                    style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                  >
-                    {topic.name}
+                  {tile}
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        fontWeight: active ? 600 : 500,
+                        color: active ? token.colorPrimaryText : undefined,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {topic.name}
+                    </span>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        color: missing.length === 0 ? token.colorTextTertiary : token.colorWarningText,
+                      }}
+                    >
+                      {missing.length === 0
+                        ? `${topic.video_count} video · ${pages} Page`
+                        : `${topic.video_count} video · thiếu ${missing[0]}`}
+                    </span>
                   </span>
-                  <span style={{ fontSize: 12, color: token.colorTextTertiary }}>{topic.video_count}</span>
                 </button>
               );
             })}
@@ -385,6 +370,46 @@ function Knowledge() {
         </div>
       </Flex>
     </>
+  );
+}
+
+/** A group's tile: its two initials and a dot that is green when it can make videos and amber while it cannot. The same
+ * tile is the folded column and the start of each row of the open one. */
+function GroupTile({ topic, active, missing }: { topic: KnowledgeTopic; active: boolean; missing: boolean }) {
+  const { token } = theme.useToken();
+  return (
+    <span
+      style={{
+        position: "relative",
+        flex: "none",
+        width: 36,
+        height: 36,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: token.borderRadius,
+        border: `1px solid ${active ? token.colorPrimaryBorder : "transparent"}`,
+        background: active ? token.colorBgContainer : token.colorFillSecondary,
+        color: active ? token.colorPrimaryText : token.colorTextSecondary,
+        fontSize: 13,
+        fontWeight: 600,
+      }}
+    >
+      {initials(topic.name)}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: -3,
+          right: -3,
+          width: 10,
+          height: 10,
+          borderRadius: "50%",
+          border: `2px solid ${token.colorBgContainer}`,
+          background: missing ? token.colorWarning : token.colorSuccess,
+        }}
+      />
+    </span>
   );
 }
 
