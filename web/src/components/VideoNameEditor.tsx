@@ -154,18 +154,21 @@ export default function VideoNameEditor({
       ) : (
         text
       )}
-      <span {...own} style={{ flex: "none" }}>
-        <Tooltip title="Đổi tên">
-          <Button
-            type="text"
-            size="small"
-            icon={<EditOutlined />}
-            aria-label="Đổi tên video"
-            className={`name-edit-btn${alwaysShowButton ? " always" : ""}${armed ? " armed" : ""}`}
-            onClick={() => setOpen(true)}
-          />
-        </Tooltip>
-      </span>
+      <Tooltip title="Đổi tên">
+        <Button
+          type="text"
+          size="small"
+          icon={<EditOutlined />}
+          aria-label="Đổi tên video"
+          className={`name-edit-btn${alwaysShowButton ? " always" : ""}${armed ? " armed" : ""}`}
+          style={{ flex: "none" }}
+          onKeyDown={own.onKeyDown}
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen(true);
+          }}
+        />
+      </Tooltip>
     </Flex>
   );
 }
