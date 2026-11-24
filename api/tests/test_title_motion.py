@@ -66,7 +66,7 @@ def test_slots_stay_inside_the_area_below_the_hook_box():
     for layout, n in [("grid", 2), ("grid", 3), ("grid", 5), ("grid", 6), ("ring", 8), ("ring", 5)]:
         boxes = title_motion.grid_boxes(n) if layout == "grid" else title_motion.ring_boxes(n)
         for x, y, w, h in boxes:
-            assert y >= 640 and y + h <= 1440 and x >= 0 and x + w <= 1080, (layout, n, (x, y, w, h))
+            assert y >= 640 and y + h <= 1680 and x >= 60 and x + w <= 1020, (layout, n, (x, y, w, h))
 
 
 def test_the_last_dish_is_hidden_behind_a_question_mark_with_its_line_when_the_slot_is_tall_enough():
@@ -397,9 +397,9 @@ def test_a_taller_hook_pushes_every_layout_down_and_shrinks_it_to_fit(top):
         )
         if boxes:
             for x, y, w, h in boxes:
-                assert y >= top and y + h <= 1440 and x >= 0 and x + w <= 1080, (layout, n, top, (x, y, w, h))
+                assert y >= top and y + h <= 1680 and x >= 60 and x + w <= 1020, (layout, n, top, (x, y, w, h))
         else:
-            assert top + n * sizes[0][1] + 14 * (n - 1) <= 1440
+            assert top + n * sizes[0][1] + 14 * (n - 1) <= 1680
         markup = title_motion.build_html(layout, ["A"] * n, {**atlas_for(layout, n), "sizes": sizes}, "X", top)
         assert motion.check_markup(markup)
 
@@ -415,3 +415,46 @@ def test_the_hook_box_of_four_lines_ends_lower_than_two_lines():
     two = title_motion.hook_bottom(video, Scene(text="LO ĐƯỜNG HUYẾT?\nĂN 4 TRÁI NÀY"))
     four = title_motion.hook_bottom(video, Scene(text="4 TRÁI CÂY ÍT NGỌT\nHỖ TRỢ ĐƯỜNG\nHUYẾT ĐỪNG BỎ\nQUA"))
     assert four > two and four + 40 > 640 + 40
+
+
+@pytest.mark.parametrize("n", [2, 3, 4, 5, 6])
+def test_the_grid_fills_down_to_the_safe_bottom_without_touching_the_hook_box(n):
+    for top in (640, 790, 1000):
+        boxes = title_motion.grid_boxes(n, top)
+        assert min(y for _, y, _, _ in boxes) >= top
+        assert all(w >= h for _, _, w, h in boxes)  # never taller than wide
+        bottom = max(y + h for _, y, _, h in boxes)
+        # it reaches the safe bottom, unless a tile hit its width (as tall as wide) and the grid is centred instead
+        assert bottom <= 1680 and (bottom >= 1670 or boxes[-1][3] == boxes[-1][2]), (n, top, bottom)
+        assert all(boxes[i][2:] == boxes[i + 1][2:] for i in range(1, len(boxes) - 1))
+
+
+def test_six_dishes_under_a_four_line_hook_fill_the_room_like_the_approved_sample():
+    boxes = title_motion.grid_boxes(6, 790)
+    assert boxes[0] == (60, 790, 465, 276) and boxes[1][0] == 555
+    assert [y for _, y, _, _ in boxes[::2]] == [790, 1096, 1402] and boxes[-1][1] + boxes[-1][3] == 1678
+
+
+def test_a_fifth_dish_is_centred_on_the_last_row():
+    x, _, w, _ = title_motion.grid_boxes(5, 790)[4]
+    assert abs(x + w / 2 - 540) <= 1
+
+
+def test_the_details_of_a_tall_slot_grow_and_a_long_name_still_fits_on_one_line():
+    labels = ["COMBO TẮC GỪNG + NGHỆ"] + ["B"] * 5
+    markup = title_motion.build_html("grid", labels, atlas_for("grid", 6), "X", 790)
+    assert "width:84px;height:84px;font-size:52px;line-height:82px" in markup
+    assert "border-radius:38px" in markup and "font-size:240px" in markup
+    size = int(markup.split("COMBO")[0].rsplit("font-size:", 1)[1].split("px")[0])
+    assert size < 48 and size * 0.7 * len(labels[0]) <= 465
+
+
+def test_the_sprite_is_cut_at_twice_the_slots_size():
+    from PIL import Image
+
+    atlas = atlas_for("grid", 6)
+    images = [Image.new("RGB", (w * 2, h * 2), "red") for w, h in atlas["sizes"]]
+    import io
+
+    sheet = Image.open(io.BytesIO(title_motion.pack(images, atlas)))
+    assert sheet.size == (atlas["width"] * 2, atlas["height"] * 2)
