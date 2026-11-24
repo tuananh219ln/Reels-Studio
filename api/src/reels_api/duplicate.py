@@ -3,6 +3,7 @@ music, products), with no LLM call. Only its name in the app differs ("… (copy
 copy is rendered before it is posted (docs/decisions/2026-11-14-duplicate-video.md)."""
 
 import copy
+import re
 from pathlib import PurePosixPath
 
 from sqlalchemy import select
@@ -10,9 +11,8 @@ from sqlalchemy.orm import Session as DbSession
 
 from .models import Scene, SceneLayer, SceneSound, Video, VideoAffiliateProduct
 from .storage import DirectoryStorage
-from .videos import new_key, split_scenes, video_name
+from .videos import base_name, new_key, split_scenes, video_name
 
-COPY_SUFFIX = " (copy)"
 MAX_NAME_LENGTH = 200
 
 # What belongs to the source alone, or to its MP4: left to their defaults on the copy.
@@ -40,8 +40,19 @@ _VIDEO_SKIP = {
 }
 
 
-def copy_name(source_name: str) -> str:
-    return source_name[: MAX_NAME_LENGTH - len(COPY_SUFFIX)] + COPY_SUFFIX
+def with_suffix(source_name: str, suffix: str) -> str:
+    """The source's name without any copy suffix, plus the one `suffix`; the name is cut so the result fits."""
+    return base_name(source_name)[: MAX_NAME_LENGTH - len(suffix)].rstrip() + suffix
+
+
+def copy_name(db: DbSession, source_name: str) -> str:
+    """ "… (bản N)": N is one past the highest "(bản N)" any video already has on the same base name."""
+    base = base_name(source_name)
+    pattern = re.compile(rf"^{re.escape(base)} \(bản (\d+)\)$", re.IGNORECASE)
+    like = base.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    names = db.scalars(select(Video.name).where(Video.name.ilike(f"{like}%", escape="\\")))
+    found = [int(match.group(1)) for name in names if name and (match := pattern.match(name))]
+    return with_suffix(source_name, f" (bản {max(found, default=0) + 1})")
 
 
 class _Files:
@@ -82,7 +93,7 @@ def _with_files(values: dict, files: _Files) -> dict:
 
 def duplicate_video(db: DbSession, storage: DirectoryStorage, source: Video, user_id: int) -> Video:
     title, _ = split_scenes(db, source)
-    return copy_video(db, storage, source, user_id, copy_name(video_name(source, title)))[0]
+    return copy_video(db, storage, source, user_id, copy_name(db, video_name(source, title)))[0]
 
 
 def copy_video(

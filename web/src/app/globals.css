@@ -723,3 +723,19 @@ body {
   position: relative;
   z-index: 1;
 }
+
+/* The pencil beside a video's name (VideoNameEditor): shown when its row or card is hovered or it has focus, always
+ * on touch screens and where the page asks for it. */
+.name-edit-btn:not(.always) {
+  opacity: 0;
+}
+.ant-table-row:hover .name-edit-btn,
+.stretch-host:hover .name-edit-btn,
+.name-edit-btn:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .name-edit-btn {
+    opacity: 1 !important;
+  }
+}

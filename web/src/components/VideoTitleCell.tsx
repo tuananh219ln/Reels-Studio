@@ -14,31 +14,36 @@ export default function VideoTitleCell({
   thumbnailUrl,
   sub,
   maxWidth = 520,
+  editor,
 }: {
   id: number;
   title: string;
   thumbnailUrl: string | null;
   sub?: ReactNode;
   maxWidth?: number;
+  /** A VideoNameEditor to show in place of the title link. */
+  editor?: ReactNode;
 }) {
   return (
     <Flex align="center" gap={12} style={{ minWidth: 0 }}>
       <VideoThumbnail name={title} url={thumbnailUrl} width={36} />
       <Flex vertical style={{ minWidth: 0, flex: 1 }}>
-        <Link
-          prefetch={false}
-          href={`/videos/${id}`}
-          onClick={(event) => event.stopPropagation()}
-          style={{ display: "block", maxWidth: "100%" }}
-        >
-          <Typography.Paragraph
-            strong
-            ellipsis={{ rows: 2, tooltip: title }}
-            style={{ margin: 0, maxWidth: `min(${maxWidth}px, 100%)` }}
+        {editor ?? (
+          <Link
+            prefetch={false}
+            href={`/videos/${id}`}
+            onClick={(event) => event.stopPropagation()}
+            style={{ display: "block", maxWidth: "100%" }}
           >
-            {title}
-          </Typography.Paragraph>
-        </Link>
+            <Typography.Paragraph
+              strong
+              ellipsis={{ rows: 2, tooltip: title }}
+              style={{ margin: 0, maxWidth: `min(${maxWidth}px, 100%)` }}
+            >
+              {title}
+            </Typography.Paragraph>
+          </Link>
+        )}
         {sub && (
           <Typography.Text type="secondary" ellipsis style={{ maxWidth: `min(${maxWidth}px, 100%)`, fontSize: 12 }}>
             {sub}

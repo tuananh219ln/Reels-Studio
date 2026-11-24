@@ -103,7 +103,7 @@ def test_a_teammates_video_is_copied_into_another_group_with_the_target_pages_lo
     db.expire_all()
     copy = db.get(Video, result["id"])
     assert result["editor_url"].endswith(f"/videos/{copy.id}")
-    assert copy.name.endswith(" (copy)") and copy.created_by_id == me.id
+    assert copy.name.endswith(" (bản 1)") and copy.created_by_id == me.id
     assert copy.knowledge_topic_id == group.id and source.knowledge_topic_id != group.id
     assert copy.mp4_key is None and copy.rendered_signature is None
     assert (copy.options["brand_id"], copy.options["logo_enabled"]) == (mine.id, True)

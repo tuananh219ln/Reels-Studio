@@ -54,7 +54,7 @@ from . import (
 )
 from .claude import GeneratedScript
 from .db import get_db
-from .duplicate import duplicate_video
+from .duplicate import MAX_NAME_LENGTH, duplicate_video
 from .errors import ApiError
 from .models import (
     AffiliateProduct,
@@ -181,6 +181,7 @@ class NewVideoBody(BaseModel):
 
 
 class VideoPatchBody(BaseModel):
+    name: str | None = None  # "Tên video" in the lists; "" or null: back to the title's text. Metadata only.
     caption: str | None = None
     hashtags: list[str] | None = None
     affiliates: list[str] | None = None
@@ -319,7 +320,7 @@ def list_videos(
     db: DbSession = Depends(get_db),
     knowledge_topic_id: int | None = None,
 ) -> list[dict]:
-    """Every video, newest first; `q` searches the topic and the title, `knowledge_topic_id` keeps one topic group's
+    """Every video, newest first; `q` searches the name, the topic and the title, `knowledge_topic_id` keeps one topic group's
     (its "Video" tab in Kho kiến thức)."""
     query = select(Video).order_by(Video.created_at.desc(), Video.id.desc())
     if knowledge_topic_id is not None:
@@ -329,7 +330,13 @@ def list_videos(
         pattern = f"%{unicodedata.normalize('NFC', literal)}%"
         plain = func.replace(func.replace(Scene.text, "*", ""), "\n", " ")
         title_match = select(Scene.video_id).where(Scene.is_title, plain.ilike(pattern, escape="\\"))
-        query = query.where(or_(Video.topic.ilike(pattern, escape="\\"), Video.id.in_(title_match)))
+        query = query.where(
+            or_(
+                Video.topic.ilike(pattern, escape="\\"),
+                Video.name.ilike(pattern, escape="\\"),
+                Video.id.in_(title_match),
+            )
+        )
     family = made_from(db)
     videos = db.scalars(query).all()
     extras = list_extras(db, videos)
@@ -507,6 +514,11 @@ def patch_video(
     ensure_unlocked(db, video)
     fields = body.model_fields_set
     comments = video.pinned_survey, list(video.extra_comments)
+    if "name" in fields:
+        name = " ".join(unicodedata.normalize("NFC", body.name or "").split())
+        if len(name) > MAX_NAME_LENGTH:
+            raise invalid(f"Tên video tối đa {MAX_NAME_LENGTH} ký tự")
+        video.name = name or None
     if "caption" in fields and body.caption is not None:
         video.caption = _clean_text(body.caption, MAX_LONG_TEXT_LENGTH, "Caption").strip()
     if "pinned_survey" in fields and body.pinned_survey is not None:

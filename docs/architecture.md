@@ -1173,8 +1173,14 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
   the video's row, its scenes, layers, sounds and affiliate products, and every file they point at (photos, clips,
   narration, music, thumbnail, a motion scene's files) into the new video's own folder, with no LLM call and no job
   (`duplicate.py`). The MP4 is not copied, so the copy is rendered before it is posted. Its `videos.name` is the
-  source's name plus " (copy)": lists show `name`, else the title scene's text, else the topic (`videos.video_name`);
+  source's name without any copy suffix plus " (bản N)" (N one past the highest on that base name; `videos.base_name` cuts
+  trailing "(copy)", "(bản N)" and "(xáo N)", so copies of copies carry one suffix): lists show `name`, else the title scene's text, else the topic (`videos.video_name`);
   the title scene, drawn on the video, is unchanged.
+- **Renaming ([decision](decisions/2026-11-24-rename-video.md)):** `PATCH /api/videos/{id}` takes `name` (trimmed, at
+  most 200 characters, else 422; `""` or `null` clears it so lists show the title again). It is metadata only: the
+  MP4, `mp4_outdated`, posts and the queue are untouched, and a posted video can be renamed. `GET /api/videos?q=`
+  searches `name`, `topic` and the title. `python -m reels_api clean-video-names [--apply]` is the one-off cleanup of
+  piled-up suffixes (a dry run unless `--apply`; run by hand).
 - **Shuffled copies ("Nhân bản xáo cảnh", [decision](decisions/2026-11-17-shuffle-copies.md)):** `routes_shuffle.py`
   and `shuffle.py`, no LLM call and no job. `POST /api/shuffle/videos/{id}/preview` (`count` 1–20, `lock_last`) draws
   orders of the content scenes (the title scene stays first; `lock_last` keeps the last one and

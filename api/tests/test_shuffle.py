@@ -162,7 +162,7 @@ def test_later_copies_take_other_orders_and_a_copy_of_a_copy_counts_from_the_fir
     assert sorted(tuple(by_source[i] for i in order) for order in from_copy["orders"]) == sorted(map(tuple, first[3:]))
     made = an.post(f"/api/shuffle/videos/{copy_id}/copies", json={"orders": from_copy["orders"][:1]}).json()
     assert db.get(Video, made["videos"][0]["id"]).shuffled_from_id == video.id
-    assert made["videos"][0]["name"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (xáo 1) (xáo 4)"
+    assert made["videos"][0]["name"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (xáo 4)"
 
 
 def test_scenes_without_numbers_keep_their_text(an, db, me, storage):

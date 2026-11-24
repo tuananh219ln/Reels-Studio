@@ -23,10 +23,13 @@ import ApproveVideoButton from "./ApproveVideoButton";
 export default function VideoActions({
   video,
   onChanged,
+  onRename,
 }: {
   video: Pick<VideoRow, "id" | "title" | "topic"> &
     Partial<Pick<VideoRow, "name" | "plan_day" | "post_stage" | "queue" | "suggested_post_at">>;
   onChanged?: () => void | Promise<void>;
+  /** Adds "Đổi tên" first in the menu, opening the name editor of the row. */
+  onRename?: () => void;
 }) {
   const { me } = useMe();
   const { message, modal } = App.useApp();
@@ -71,7 +74,7 @@ export default function VideoActions({
       },
     });
   }
-  /** "Nhân bản y hệt": an exact copy named "… (copy)", no AI call; it opens so the member renders it. */
+  /** "Nhân bản y hệt": an exact copy named "… (bản N)", no AI call; it opens so the member renders it. */
   async function duplicate() {
     try {
       const copy = await api<VideoDetail>(`/videos/${video.id}/duplicate`, "POST");
@@ -92,6 +95,7 @@ export default function VideoActions({
     const mine = detail.created_by_id === me.id;
     const posting = Boolean(detail.mp4) || Boolean(detail.active_job ?? detail.failed_job);
     return [
+      ...(onRename ? [{ key: "rename", label: "Đổi tên", onClick: onRename }] : []),
       {
         key: "open",
         label: (
