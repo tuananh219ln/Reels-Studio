@@ -1775,6 +1775,8 @@ Replaces the groups bar of 2026-11-14 ([decision](decisions/2026-11-25-knowledge
 - **The groups are a column on the left** (240 px; above the group on a phone): the "Của tôi (n) / Cả đội (m)" switch,
   one line per group (a dot, its name on one line, its video count) and the add-group field with the history button.
   The dot is green when the group has the two required steps below.
+  A «‹» button folds the column to a 56 px strip (the choice is kept in the browser): one square per group with its
+  first two initials and the status dot, the name, video count and what is missing in a tooltip; «›» opens it again.
 - **"Sẵn sàng tạo video"** under the group's name replaces the orange sentence, as one line that folds: with a required
   step missing it is open ("Chưa sẵn sàng: thiếu 1/2 mục bắt buộc") and lists **Bắt buộc**: a Page that posts the group
   ("Quản lý kênh") and the script prompt ("Thêm prompt", the Prompt tab; the card still says the group cannot make videos

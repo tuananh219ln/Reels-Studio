@@ -10,8 +10,10 @@ import {
   EditOutlined,
   ExclamationCircleOutlined,
   HistoryOutlined,
+  LeftOutlined,
   MoreOutlined,
   PlusOutlined,
+  RightOutlined,
   TeamOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -76,6 +78,9 @@ function Knowledge() {
   // The group list stays in view beside the group only when they sit side by side; stacked on a phone it scrolls away.
   // "Của tôi" (the groups of the member's Pages and the ones the member made) until "Cả đội" is chosen; it stays on this browser.
   const [scope, changeScope] = useStoredChoice<"mine" | "all">("knowledge-scope", "mine");
+  // The group column folds to a narrow strip (a dot and two letters per group); kept on this browser.
+  const [rail, setRail] = useStoredChoice<"open" | "folded">("knowledge-rail", "open");
+  const folded = rail === "folded";
 
   useEffect(() => {
     api<Knowledge>("/knowledge")
@@ -137,35 +142,53 @@ function Knowledge() {
           gap={12}
           component="aside"
           aria-label="Nhóm chủ đề"
-          style={{ flex: "0 0 240px", width: 240, maxWidth: "100%" }}
+          style={{ flex: folded ? "0 0 56px" : "0 0 240px", width: folded ? 56 : 240, maxWidth: "100%" }}
         >
-          <Segmented<"mine" | "all">
-            block
-            shape="round"
-            aria-label="Lọc nhóm"
-            value={scope}
-            onChange={changeScope}
-            options={[
-              {
-                value: "mine",
-                label: (
-                  <Flex gap={6} align="center" justify="center" style={{ padding: "0 4px" }}>
-                    <UserOutlined aria-hidden />
-                    Của tôi <ScopeCount n={data.topics.filter(isMine).length} />
-                  </Flex>
-                ),
-              },
-              {
-                value: "all",
-                label: (
-                  <Flex gap={6} align="center" justify="center" style={{ padding: "0 4px" }}>
-                    <TeamOutlined aria-hidden />
-                    Cả đội <ScopeCount n={data.topics.length} />
-                  </Flex>
-                ),
-              },
-            ]}
-          />
+          <Flex justify={folded ? "center" : "space-between"} align="center">
+            {!folded && (
+              <Typography.Text strong style={{ paddingInlineStart: 4 }}>
+                Nhóm
+              </Typography.Text>
+            )}
+            <Tooltip title={folded ? "Mở rộng danh sách nhóm" : "Thu gọn danh sách nhóm"}>
+              <Button
+                size="small"
+                type="text"
+                aria-label={folded ? "Mở rộng danh sách nhóm" : "Thu gọn danh sách nhóm"}
+                icon={folded ? <RightOutlined /> : <LeftOutlined />}
+                onClick={() => setRail(folded ? "open" : "folded")}
+              />
+            </Tooltip>
+          </Flex>
+          {!folded && (
+            <Segmented<"mine" | "all">
+              block
+              shape="round"
+              aria-label="Lọc nhóm"
+              value={scope}
+              onChange={changeScope}
+              options={[
+                {
+                  value: "mine",
+                  label: (
+                    <Flex gap={6} align="center" justify="center" style={{ padding: "0 4px" }}>
+                      <UserOutlined aria-hidden />
+                      Của tôi <ScopeCount n={data.topics.filter(isMine).length} />
+                    </Flex>
+                  ),
+                },
+                {
+                  value: "all",
+                  label: (
+                    <Flex gap={6} align="center" justify="center" style={{ padding: "0 4px" }}>
+                      <TeamOutlined aria-hidden />
+                      Cả đội <ScopeCount n={data.topics.length} />
+                    </Flex>
+                  ),
+                },
+              ]}
+            />
+          )}
           <Flex vertical gap={2} data-testid="topic-list">
             {listed.length === 0 && (
               <Typography.Text type="secondary">
@@ -175,6 +198,50 @@ function Knowledge() {
             {listed.map((topic) => {
               const active = topic.id === current?.id;
               const missing = missingRequired(topic);
+              if (folded) {
+                return (
+                  <Tooltip
+                    key={topic.id}
+                    placement="right"
+                    title={`${topic.name} · ${topic.video_count} video${missing.length ? ` · còn thiếu: ${missing.join(", ")}` : ""}`}
+                  >
+                    <button
+                      type="button"
+                      aria-label={topic.name}
+                      aria-current={active ? "true" : undefined}
+                      onClick={() => choose(topic.id)}
+                      style={{
+                        position: "relative",
+                        width: 40,
+                        height: 40,
+                        margin: "2px auto",
+                        borderRadius: token.borderRadiusLG,
+                        border: `1px solid ${active ? token.colorPrimary : token.colorBorderSecondary}`,
+                        background: active ? token.colorPrimaryBg : token.colorBgContainer,
+                        color: active ? token.colorPrimaryText : token.colorText,
+                        font: "inherit",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {initials(topic.name)}
+                      <span
+                        aria-hidden
+                        style={{
+                          position: "absolute",
+                          top: -2,
+                          right: -2,
+                          width: 10,
+                          height: 10,
+                          borderRadius: "50%",
+                          border: `2px solid ${token.colorBgLayout}`,
+                          background: missing.length === 0 ? token.colorSuccess : token.colorWarning,
+                        }}
+                      />
+                    </button>
+                  </Tooltip>
+                );
+              }
               return (
                 <button
                   key={topic.id}
@@ -218,47 +285,49 @@ function Knowledge() {
               );
             })}
           </Flex>
-          <Flex gap={6} align="center">
-            <Input
-              variant="filled"
-              style={{ flex: 1, minWidth: 0, borderRadius: 999 }}
-              aria-label="Tên nhóm chủ đề mới"
-              placeholder="Nhóm mới…"
-              prefix={<PlusOutlined style={{ color: token.colorTextTertiary }} />}
-              maxLength={100}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              onPressEnter={() => name.trim() && add()}
-            />
-            <Tooltip title="Thêm nhóm">
-              <Button
-                shape="circle"
-                type="primary"
-                aria-label="Thêm nhóm"
-                icon={<CheckOutlined />}
-                loading={busy}
-                disabled={!name.trim()}
-                onClick={add}
+          {!folded && (
+            <Flex gap={6} align="center">
+              <Input
+                variant="filled"
+                style={{ flex: 1, minWidth: 0, borderRadius: 999 }}
+                aria-label="Tên nhóm chủ đề mới"
+                placeholder="Nhóm mới…"
+                prefix={<PlusOutlined style={{ color: token.colorTextTertiary }} />}
+                maxLength={100}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                onPressEnter={() => name.trim() && add()}
               />
-            </Tooltip>
-            <EditHistory
-              entityType="knowledge_topic"
-              field="name"
-              title="Nhóm chủ đề"
-              kind="value"
-              trigger={(open) => (
-                <Tooltip title="Nhóm đã tạo, đổi tên, xoá">
-                  <Button
-                    shape="circle"
-                    type="text"
-                    aria-label="Lịch sử nhóm chủ đề"
-                    icon={<HistoryOutlined />}
-                    onClick={open}
-                  />
-                </Tooltip>
-              )}
-            />
-          </Flex>
+              <Tooltip title="Thêm nhóm">
+                <Button
+                  shape="circle"
+                  type="primary"
+                  aria-label="Thêm nhóm"
+                  icon={<CheckOutlined />}
+                  loading={busy}
+                  disabled={!name.trim()}
+                  onClick={add}
+                />
+              </Tooltip>
+              <EditHistory
+                entityType="knowledge_topic"
+                field="name"
+                title="Nhóm chủ đề"
+                kind="value"
+                trigger={(open) => (
+                  <Tooltip title="Nhóm đã tạo, đổi tên, xoá">
+                    <Button
+                      shape="circle"
+                      type="text"
+                      aria-label="Lịch sử nhóm chủ đề"
+                      icon={<HistoryOutlined />}
+                      onClick={open}
+                    />
+                  </Tooltip>
+                )}
+              />
+            </Flex>
+          )}
         </Flex>
         <div style={{ flex: "1 1 560px", minWidth: 0 }}>
           {current === null ? (
@@ -276,6 +345,15 @@ function Knowledge() {
       </Flex>
     </>
   );
+}
+
+/** Two letters for a group in the folded column: the first of its first two words ("Già Mà Khỏe" → "GM"). */
+function initials(name: string): string {
+  const words = name
+    .trim()
+    .split(/\s+/)
+    .filter((word) => /[\p{L}\p{N}]/u.test(word));
+  return (words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? "?").slice(0, 2)).toUpperCase();
 }
 
 /** What a group must have to make and post videos: a Page that posts it and a script prompt (the owner's rule,
