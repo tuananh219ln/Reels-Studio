@@ -52,6 +52,7 @@ import { useStoredChoice } from "@/lib/storedChoice";
 import { useLeaveGuard } from "@/lib/unsaved";
 import { keepOnlyInAddress, useUrlChoiceIf, useUrlId } from "@/lib/urlState";
 import EditHistory, { lastEditText } from "@/components/EditHistory";
+import GuideButton from "@/components/GuideButton";
 import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
 import TopicMedia from "@/components/knowledge/TopicMedia";
@@ -231,6 +232,7 @@ function Knowledge() {
     <>
       <PageHeader
         title="Kho kiến thức"
+        actions={<GuideButton screen="knowledge" />}
         description="Mỗi nhóm chủ đề có video, prompt, từ cấm và kế hoạch 30 ngày riêng. Nhóm được chọn khi tạo video; bản nhân bản dùng nhóm của video gốc."
       />
       {/* A group is a workspace: the groups in a column on the left (above the group on a phone), each with a dot that

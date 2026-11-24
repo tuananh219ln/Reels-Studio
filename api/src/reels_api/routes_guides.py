@@ -20,7 +20,7 @@ TITLE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 
 def _read() -> dict[str, dict]:
     found = {}
-    for path in sorted(GUIDES.glob("*.md")):
+    for path in sorted(GUIDES.glob("*.md"), key=lambda one: one.stem):
         text = path.read_text(encoding="utf-8")
         marker = SCREEN.match(text)
         body = text[marker.end() :] if marker else text

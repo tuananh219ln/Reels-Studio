@@ -11,5 +11,5 @@ Asked by the owner ("mỗi tính năng nên có một mục hoặc tab tài li�
   (`MarkdownReader`, shared).
 - **Not** the "Tài liệu" tab of a group: that is a group's own documents, kept in the database and edited by the group.
   Guides are the app's, edited only through code.
-- **Written in Vietnamese**, as the app is; `docs/` stays English. The first screen is Affiliate (a screen guide and the
-  Custom Link one); other screens follow when they are changed.
+- **Written in Vietnamese**, as the app is; `docs/` stays English. Affiliate (a screen guide and the Custom Link one),
+  Kho kiến thức and Video (creating, and editing and posting) have theirs; other screens follow when they are changed.

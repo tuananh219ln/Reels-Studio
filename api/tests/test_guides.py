@@ -15,7 +15,7 @@ def test_a_screens_guides_are_listed_with_their_titles(client, db):
     found = next(guide for guide in listed if guide["slug"] == "custom-link")
     assert found["screen"] == "affiliate"
     assert found["title"].startswith("Hướng dẫn: gắn link affiliate hàng loạt")
-    assert client.get("/api/guides", params={"screen": "knowledge"}).json() == []
+    assert client.get("/api/guides", params={"screen": "khong-co"}).json() == []
 
 
 def test_a_guide_is_read_by_its_slug_and_an_unknown_one_is_a_404(client, db):
@@ -26,3 +26,17 @@ def test_a_guide_is_read_by_its_slug_and_an_unknown_one_is_a_404(client, db):
     assert "Custom Link" in guide["body"]
     assert client.get("/api/guides/khong-co").status_code == 404
     assert client.get("/api/guides/..%2Fpyproject").status_code == 404
+
+
+def test_every_screen_with_a_guide_lists_them_in_order(client, db):
+    make_user(db)
+    login(client)
+    by_screen = {
+        screen: [guide["slug"] for guide in client.get("/api/guides", params={"screen": screen}).json()]
+        for screen in ("affiliate", "knowledge", "videos")
+    }
+    assert by_screen == {
+        "affiliate": ["affiliate", "custom-link"],
+        "knowledge": ["knowledge"],
+        "videos": ["videos", "videos-editor"],
+    }
