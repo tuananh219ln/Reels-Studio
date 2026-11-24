@@ -67,7 +67,12 @@ def test_the_file_has_shopees_header_and_one_row_per_product_with_the_page_as_su
     target = page(db, topic)
     product(db, me, topic, 1)
     product(db, me, topic, 2)
-    got = rows(an.get(EXPORT, params={"topic_id": topic.id}))
+    response = an.get(EXPORT, params={"topic_id": topic.id})
+    # Shopee refuses a workbook that is not its template: same sheet name and document properties.
+    book = load_workbook(io.BytesIO(response.content))
+    assert book.sheetnames == ["Sheet1"]
+    assert [prop.name for prop in book.custom_doc_props.props] == ["KSOProductBuildVer"]
+    got = rows(response)
     assert got[0] == HEADERS
     assert got[1:] == [
         ["https://shopee.vn/product/1/1", f"p{target.id}", None, None, None, None],

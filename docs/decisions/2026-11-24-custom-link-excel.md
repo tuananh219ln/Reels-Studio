@@ -7,6 +7,7 @@ from an Excel file (up to 10,000 links; header `Liên kết gốc, Sub_id1 … S
 - **Export** `GET /api/affiliate-products/custom-link/export.xlsx` (`routes_custom_link.py`): the open group's approved
   products I added that have a `page_url`; by default only those with no `url` yet ("Gồm cả món đã có link" adds the
   rest). A teammate's products are left out: their link is theirs and the import never overwrites it.
+- **Built from Shopee's own template.** A workbook made from scratch was refused ("Đăng tải thất bại, vui lòng sử dụng bản mẫu có sẵn"); the same rows in a copy of the template were taken. The template ships as `api/src/reels_api/custom_link_template.xlsx` and rows are appended to it (sheet "Sheet1" and its document properties stay).
 - **`Sub_id1 = p{fanpage_id}`**, the exact form `affiliate_rounds.read_orders` reads (`^([vp])(\d+)$`); Sub_id2–5 empty.
 - **Trade-off, accepted:** the sub id is fixed when Shopee converts the link, so an order is measured to the **Page**,
   never to the video. A per-video file would mean exporting again for every scheduled video; not built.

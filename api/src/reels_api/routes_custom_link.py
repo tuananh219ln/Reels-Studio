@@ -8,11 +8,12 @@ import io
 import re
 import unicodedata
 import zipfile
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import Response
-from openpyxl import Workbook, load_workbook
+from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
@@ -35,6 +36,9 @@ ORIGINAL_HEADERS = ("liên kết gốc", "link gốc", "original link", "origina
 SHORT_HOSTS = ("shopee.vn", "shope.ee", "shp.ee")
 # A product page names its shop and item: ".../product/{shop}/{item}" or "...-i.{shop}.{item}".
 ITEM_IN_URL = re.compile(r"(?:/product/|-i\.)(\d+)[/.](\d+)")
+# Shopee's own template file: it refuses a workbook built from scratch ("sử dụng bản mẫu có sẵn"), so rows are added to a
+# copy of it (its sheet name "Sheet1" and document properties stay).
+TEMPLATE = Path(__file__).with_name("custom_link_template.xlsx")
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
@@ -80,9 +84,8 @@ def export_file(
         raise invalid("Không có sản phẩm nào cần xuất: cần sản phẩm đã duyệt, của bạn, có link sản phẩm")
     if len(links) > MAX_LINKS:
         raise invalid(f"Shopee nhận tối đa {MAX_LINKS} link mỗi lần, nhóm này có {len(links)}")
-    workbook = Workbook(write_only=True)
-    sheet = workbook.create_sheet("Custom Link")
-    sheet.append(list(EXPORT_HEADERS))
+    workbook = load_workbook(TEMPLATE)
+    sheet = workbook.worksheets[0]
     for link in links:
         sheet.append([link, f"p{page.id}", None, None, None, None])
     out = io.BytesIO()
