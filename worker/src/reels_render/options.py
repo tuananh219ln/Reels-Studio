@@ -20,7 +20,8 @@ MOTIONS = ("zoom_in", "zoom_out", "pan", "static", "kenburns_diagonal", "pan_ver
 ZOOMS = {"light": 1.06, "medium": 1.12, "strong": 1.18, "extreme": 1.6}
 # "box": a team box style's copied colours; "none": no box, outlined letters; the rest predate team styles.
 TEXT_STYLES = ("yellow", "white", "dark", "red", "box", "none")
-BOX_OPACITIES = ("auto", "solid", "soft", "clear", "none")  # the style's own, 100%, 88%, 70%, no background
+# The style's own, 100%, 88%, 70%, 45%, no background.
+BOX_OPACITIES = ("auto", "solid", "soft", "clear", "faint", "none")
 TEXT_COLORS = ("auto", "white", "black", "yellow", "red")  # "auto": the style's own text colour; or "#RRGGBB"
 TITLE_STYLES = ("same", "yellow")  # "same": the title scene is drawn like the other scenes
 TITLE_TEXT_STYLES = ("same", *TEXT_STYLES)  # "same": no look of its own (title_style decides)
