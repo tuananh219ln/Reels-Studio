@@ -185,6 +185,7 @@ export default function Products() {
     {
       title: "Sản phẩm",
       key: "name",
+      width: 380,
       render: (_, product) => {
         const link = product.url ?? product.page_url ?? undefined;
         return (
@@ -462,7 +463,7 @@ export default function Products() {
             dataSource={shown}
             loading={loading}
             pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
-            scroll={{ x: 1100 }}
+            scroll={{ x: 1400 }}
             locale={{
               emptyText: (
                 <EmptyState
