@@ -343,7 +343,7 @@ Two tools ([the decision](decisions/2026-11-15-mcp-duplicate-schedule.md)) let t
 well and post the copy on another Page, through the web's own rules:
 
 - `duplicate_video` (write) is "Nhân bản y hệt" (`duplicate.duplicate_video`, the route's own source check): an exact
-  copy named "… (copy)", made by the connected member, with no AI call and no MP4. `knowledge_topic_id` puts the copy
+  copy named "… (bản N)", made by the connected member, with no AI call and no MP4. `knowledge_topic_id` puts the copy
   in another topic group, as "Chuyển sang nhóm khác" does; `fanpage_id` gives it the logo of the channel linked to
   that Page, switched on, through the same check as the video page's "Kênh"/"Gắn logo" (the member's own channel,
   with a logo). Without it, a copy of a video carrying another channel's logo is refused by that Page's queue. A

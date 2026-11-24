@@ -53,7 +53,7 @@ export type VideoRow = {
   id: number;
   topic: string;
   title: string;
-  /** Its own name in the app ("… (copy)" after "Nhân bản y hệt"), shown before the title; never on the video. */
+  /** Its own name in the app ("… (bản 2)" after "Nhân bản y hệt"), shown before the title; never on the video. */
   name: string | null;
   /** A "Nhân bản xáo cảnh" copy whose title scene still says its source's: the app asks for a new title. */
   title_review: boolean;

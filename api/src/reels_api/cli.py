@@ -51,6 +51,11 @@ def main(argv: list[str] | None = None, ask: Ask = input, ask_secret: Ask = getp
         help="gắn thẻ một lần cho ảnh Già Mà Khỏe trong Kho tư liệu, theo tên file (chạy lại không nhân đôi)",
     )
     seed.add_argument("--dry-run", action="store_true", help="chỉ in việc sẽ làm, không ghi gì")
+    clean = commands.add_parser(
+        "clean-video-names",
+        help='dọn tên video bị chồng "(copy) (copy) (xáo N)"; mặc định chỉ in thay đổi, thêm --apply để ghi',
+    )
+    clean.add_argument("--apply", action="store_true", help="ghi thay đổi vào cơ sở dữ liệu")
     args = parser.parse_args(argv)
 
     if args.command == "node":
@@ -67,6 +72,8 @@ def main(argv: list[str] | None = None, ask: Ask = input, ask_secret: Ask = getp
         return run_job_command(args.job_id)
     if args.command == "seed-media-tags":
         return seed_media_tags(args.dry_run)
+    if args.command == "clean-video-names":
+        return clean_video_names(not args.apply)
 
     if sys.stdin is None or not sys.stdin.isatty():
         print("Lỗi: lệnh này cần chạy trong terminal để nhập mật khẩu ẩn", file=sys.stderr)
@@ -142,6 +149,23 @@ def _ask_password(ask_secret: Ask) -> str:
             print("Lỗi: hai lần nhập mật khẩu không khớp", file=sys.stderr)
             continue
         return password
+
+
+def clean_video_names(dry_run: bool) -> int:
+    """The one-off cleanup of piled-up copy suffixes (video_name_cleanup.py), with a line per video."""
+    from .video_name_cleanup import apply
+
+    try:
+        with sessionmaker(get_engine(), expire_on_commit=False)() as db:
+            for line in apply(db, dry_run=dry_run):
+                print(line)
+    except ConfigError as err:
+        print(f"Lỗi: {err}", file=sys.stderr)
+        return 1
+    except SQLAlchemyError:
+        print("Lỗi: không kết nối được cơ sở dữ liệu", file=sys.stderr)
+        return 1
+    return 0
 
 
 def seed_media_tags(dry_run: bool) -> int:

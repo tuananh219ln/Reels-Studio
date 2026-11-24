@@ -15,6 +15,7 @@ import { groupVideoModeLabel, VIDEO_MODES, videoModeLabel } from "@/components/v
 import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import VideoThumbnail from "@/components/VideoThumbnail";
+import VideoNameEditor from "@/components/VideoNameEditor";
 import VideoTitleCell from "@/components/VideoTitleCell";
 import {
   api,
@@ -632,6 +633,8 @@ function VideoCard({
 }) {
   const { token } = theme.useToken();
   const name = row.name || row.title || row.topic;
+  // "Đổi tên" in the card's menu opens the name editor in place of the title link.
+  const [renaming, setRenaming] = useState(false);
   const post = row.post;
   const standout = post?.times_median != null && post.times_median >= STANDOUT_TIMES;
   // A job's stage or a warning, said in words after the status rather than as more tags.
@@ -687,16 +690,28 @@ function VideoCard({
         </div>
         <Flex vertical style={{ minWidth: 0, flex: 1 }}>
           <Flex justify="space-between" gap={4}>
-            <Link href={`/videos/${row.id}`} prefetch={false} className="stretched-link">
-              <Typography.Paragraph
-                strong
-                ellipsis={{ rows: 2, tooltip: name }}
-                style={{ margin: 0, lineHeight: "20px" }}
-              >
-                {name}
-              </Typography.Paragraph>
-            </Link>
-            <VideoActions video={row} onChanged={onChanged} />
+            {renaming ? (
+              <VideoNameEditor
+                videoId={row.id}
+                name={row.name}
+                title={row.title || row.topic}
+                maxWidth={400}
+                editing
+                onEditingChange={setRenaming}
+                onSaved={onChanged}
+              />
+            ) : (
+              <Link href={`/videos/${row.id}`} prefetch={false} className="stretched-link">
+                <Typography.Paragraph
+                  strong
+                  ellipsis={{ rows: 2, tooltip: name }}
+                  style={{ margin: 0, lineHeight: "20px" }}
+                >
+                  {name}
+                </Typography.Paragraph>
+              </Link>
+            )}
+            <VideoActions video={row} onChanged={onChanged} onRename={() => setRenaming(true)} />
           </Flex>
           {/* Its kind on the left; where it is out on the right, every platform's icon in colour once posted there. */}
           <Flex justify="space-between" align="flex-start" gap={8} style={{ marginTop: 6 }}>
@@ -800,6 +815,8 @@ function VideoTable({
   // The table's page is in the address too, back to 1 when a filter changes.
   const tablePage = useUrlPage();
   const router = useRouter();
+  // One row's name is open for editing at a time; opening another closes (cancels) it.
+  const [renaming, setRenaming] = useState<number | null>(null);
   return (
     <Card styles={{ body: { padding: 0 } }}>
       <Table<VideoRow>
@@ -818,7 +835,7 @@ function VideoTable({
             title: "Thao tác",
             fixed: "right",
             width: 120,
-            render: (_, row) => <VideoActions video={row} onChanged={onChanged} />,
+            render: (_, row) => <VideoActions video={row} onChanged={onChanged} onRename={() => setRenaming(row.id)} />,
           },
           {
             title: "Video",
@@ -830,6 +847,18 @@ function VideoTable({
                 title={row.name || row.title || row.topic}
                 thumbnailUrl={row.thumbnail_url}
                 maxWidth={340}
+                editor={
+                  <VideoNameEditor
+                    videoId={row.id}
+                    name={row.name}
+                    title={row.title || row.topic}
+                    href={`/videos/${row.id}`}
+                    maxWidth={340}
+                    editing={renaming === row.id}
+                    onEditingChange={(on) => setRenaming(on ? row.id : null)}
+                    onSaved={onChanged}
+                  />
+                }
                 sub={
                   row.post ? (
                     postLine(row.post)
