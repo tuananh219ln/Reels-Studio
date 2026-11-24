@@ -214,13 +214,21 @@ def consent_page(session: Session, ticket: str, redirect: str, scopes: list[str]
         if "reels:write" in scopes
         else ""
     )
+    publish = (
+        f'<p class="warn"><strong>Quyền đăng bài lên Page.</strong> {escape(app)} còn được đăng ngay hoặc hẹn giờ '
+        "một Bài viết lên Fanpage của bạn, và bỏ hẹn bài đã hẹn. Bài đăng là bài thật trên Facebook, không đăng "
+        "trên Page của người khác.</p>"
+        if "reels:publish" in scopes
+        else ""
+    )
     response = page(
         f"Cho phép {app} kết nối?",
         f"<p>Bạn đang dùng tài khoản <strong>{escape(session.user.email)}</strong>. Quyền sẽ được gửi về "
         f"<code>{escape(host.netloc)}</code>.</p>{loopback}"
         f"<p>{escape(app)} được đọc video, kịch bản, nhóm chủ đề, sản phẩm affiliate và trạng thái công việc của cả "
-        f"nhóm.</p>{write}"
-        "<p>Kết nối không được đăng bài, xóa video hoặc thay đổi tài khoản và API key. Quyền hết hạn sau tối đa 30 "
+        f"nhóm.</p>{write}{publish}"
+        "<p>Kết nối không được xóa video hoặc thay đổi tài khoản và API key"
+        f"{'' if 'reels:publish' in scopes else ', và không được đăng bài'}. Quyền hết hạn sau tối đa 30 "
         "ngày và mất hiệu lực khi phiên đăng nhập này bị thu hồi.</p>"
         f'<form method="post" action="{PREFIX}/consent">'
         f'<input type="hidden" name="ticket" value="{escape(ticket, quote=True)}">'

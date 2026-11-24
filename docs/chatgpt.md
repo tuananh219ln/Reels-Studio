@@ -268,7 +268,7 @@ exact URI seen there to the allowlist.
 
 These are requests to ChatGPT, not deterministic commands. Read the proposed changes before
 approving a write tool in ChatGPT. Content returned by the tools is data, not tool instructions.
-The connector has no tools to post to Facebook, delete videos, manage users, modify prompts or
+Posting to Facebook is only through the article tools below and the queue (`schedule_video`); the connector has no tools to delete videos, manage users, modify prompts or
 credentials, or retrieve file bytes. Its `editor_url` opens the app; preview/download URLs still
 need a normal browser login. Listing has a maximum page size of 50; use `offset` to continue.
 
@@ -321,6 +321,21 @@ an owner check; agents do not access production or trigger real jobs to test it.
 scheduled (Page, time) and which waits for a manual "Duyệt" (reason). An assistant that is always on, like Muse on
 WhatsApp, calls it every few minutes with `after_id` set to the largest `id` it has already reported and messages the
 member one line per result. See [the decision](decisions/2026-11-13-auto-approve.md).
+
+## Articles ("Bài viết")
+
+Nine tools ([the decision](decisions/2026-11-24-mcp-articles.md)) run an article from draft to post through the web's
+own routes (`routes_articles`), so the same checks, locks and jobs apply: `list_articles`, `get_article`,
+`create_article` (the assistant's own caption, at most 5 hashtags, no AI cost), `update_article`, `add_article_image`
+(a link or a library photo id; up to 10), `add_article_text_card` ("Thẻ chữ"), `delete_article` (the creator; a posted
+or scheduled article is refused), and the two that touch Facebook, `publish_article` ("Đăng", now or at `scheduled_at`
+with a time zone, 15 minutes to 29 days ahead; a warning needs `confirm=true`) and `unschedule_article` ("Hủy đăng" /
+"Gỡ bài"). Posting runs as the `publish` job; read the article again for its status.
+
+Posting needs a third scope, **`reels:publish`**, which the consent screen names ("Quyền đăng bài lên Page") and
+which connections made before it lack: they must reconnect. Without it the two tools answer that the connection has
+no posting right. Only the member's own Page can be posted to (`ensure_page_owner`). The server's instructions tell
+the assistant to post only when the member asks, after they have seen the caption and photos.
 
 ## Copying a winning video to another Page, and queueing it
 
