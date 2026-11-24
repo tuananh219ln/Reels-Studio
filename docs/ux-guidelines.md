@@ -458,10 +458,11 @@ then a line per live post ("Bài #N: đã đăng 1/2 bình luận aff, bình lu�
 and "Đăng aff ngay" on the right while not all are up. A Page's card on "Quản lý kênh" has a grey line linking to its
 sets: "Bộ bình luận aff: 4/6 bộ dùng được, 2 bộ mỗi reel", "… đang tắt (6 bộ)" or "Chưa có bộ bình luận aff".
 Affiliate's tab "Bộ bình luận" (after "Sản phẩm"): "Chọn Page" (the member's own Page first), the Page's state
-("Bật · 10 bộ · 2 bộ/bài · 10 link/bình luận"), "Tạo tự động từ kho", "Thêm bộ" and "Thiết lập" on the right, a
-grey line on the timing and Facebook hiding many-link comments; then the sets as cards (name, a switch, "x/10 sản
-phẩm" or orange "9/10 hợp lệ", priority, tags, "Dùng N lần · gần nhất …", warnings; Sửa, Nhân bản, Xem trước,
-Xoá) and a folded table of the group's products with "Tên ngắn", "Nhóm" and "Tags" edited in place. From 1100 px wide the panel is beside the scenes, stuck under the header
+(a green or orange "Đang bật" / "Đang tắt" and tags "10 bộ", "2 bộ mỗi bài", "10 link mỗi bình luận"), "Tạo tự động từ kho",
+"Thêm bộ" and "Thiết lập" on the right, an info box on the timing and Facebook hiding many-link comments; then the sets
+as cards (name and a Bật/Tắt switch; "x/10 sản phẩm" or orange "9/10 sản phẩm hợp lệ" with a "Ưu tiên N" tag, tags,
+"Dùng N lần · gần nhất …", warnings; a footer with "Sửa" and "Xem trước" on the left, Nhân bản and Xoá icons on the
+right; a switched-off set is dimmed) and a folded table of the group's products with "Tên ngắn", "Nhóm" and "Tags" edited in place. From 1100 px wide the panel is beside the scenes, stuck under the header
 (its height measured, since it wraps) and scrolling on its own, while the scenes scroll with the page. Narrower than
 1100 px the panel is a drawer from the right, opened by "Đăng bài / Thiết lập" in the header (the progress line's
 steps open the status card or the products block on its tab, the QC chip its popover).

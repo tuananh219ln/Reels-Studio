@@ -314,6 +314,7 @@ export default function TopicDocs({
             <Flex gap={12}>
               <Form.Item label="Mục" style={{ width: 180 }}>
                 <Select
+                  aria-label="Mục"
                   value={draft.section}
                   onChange={(value) => setDraft({ ...draft, section: value })}
                   options={listing.sections.map((s) => ({ value: s.key, label: s.label }))}
@@ -321,6 +322,7 @@ export default function TopicDocs({
               </Form.Item>
               <Form.Item label="Tên file" style={{ flex: 1 }}>
                 <Input
+                  aria-label="Tên file"
                   value={draft.name}
                   placeholder="mau-chung.md"
                   maxLength={120}
@@ -330,6 +332,7 @@ export default function TopicDocs({
             </Flex>
             <Form.Item label="Nội dung (Markdown)">
               <Input.TextArea
+                aria-label="Nội dung (Markdown)"
                 value={draft.body}
                 autoSize={{ minRows: 12, maxRows: 24 }}
                 onChange={(event) => setDraft({ ...draft, body: event.target.value })}

@@ -29,6 +29,7 @@ import {
   ThunderboltOutlined,
 } from "@ant-design/icons";
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -45,6 +46,7 @@ import {
   Switch,
   Table,
   Tag,
+  theme,
   Tooltip,
   Typography,
 } from "antd";
@@ -60,6 +62,7 @@ const pre: React.CSSProperties = { whiteSpace: "pre-wrap", fontSize: 13, margin:
  * products.
  */
 export default function CommentSets() {
+  const { token } = theme.useToken();
   const { message } = App.useApp();
   const [pageId, setPageId] = useUrlId("page");
   const [pages, setPages] = useState<AffiliateOptions["pages"]>([]);
@@ -127,7 +130,7 @@ export default function CommentSets() {
   const settings = tab?.settings;
   return (
     <Flex vertical gap={12} data-testid="comment-sets">
-      <Flex gap={8} wrap align="center">
+      <Flex gap={12} wrap align="center">
         <FilterSelect<number>
           aria-label="Chọn Page"
           placeholder="Chọn Page"
@@ -137,14 +140,16 @@ export default function CommentSets() {
           onChange={(value) => setPageId(value ?? null)}
         />
         {settings && (
-          <Typography.Text type="secondary">
+          <Space size={[6, 6]} wrap>
             {settings.enabled ? (
-              <StatusText tone="success">Bật</StatusText>
+              <StatusText tone="success">Đang bật</StatusText>
             ) : (
-              <StatusText tone="warning">Tắt</StatusText>
-            )}{" "}
-            · {tab.sets.length} bộ · {settings.sets_per_post} bộ/bài · {settings.products_per_comment} link/bình luận
-          </Typography.Text>
+              <StatusText tone="warning">Đang tắt</StatusText>
+            )}
+            <Tag bordered={false}>{tab.sets.length} bộ</Tag>
+            <Tag bordered={false}>{settings.sets_per_post} bộ mỗi bài</Tag>
+            <Tag bordered={false}>{settings.products_per_comment} link mỗi bình luận</Tag>
+          </Space>
         )}
         <Space style={{ marginLeft: "auto" }} wrap>
           <Button icon={<ThunderboltOutlined />} disabled={!tab} onClick={() => setGenerating(true)}>
@@ -158,11 +163,12 @@ export default function CommentSets() {
           </Button>
         </Space>
       </Flex>
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        Khi bài bật “Tự bình luận”, Page tự đăng {settings?.sets_per_post ?? 2} bộ dưới reel, sau bình luận ghim và các
-        “Bình luận thêm”: bộ đầu chờ {minutes(settings?.first_delay)} phút sau bình luận món ăn cuối, các bộ sau cách
-        nhau {minutes(settings?.delay)} phút. Facebook có thể ẩn bình luận nhiều link: nên thử 5 link/bình luận trước.
-      </Typography.Text>
+      <Alert
+        type="info"
+        showIcon
+        message={`Khi bài bật “Tự bình luận”, Page đăng ${settings?.sets_per_post ?? 2} bộ dưới reel, sau bình luận ghim và các “Bình luận thêm”.`}
+        description={`Bộ đầu chờ ${minutes(settings?.first_delay)} phút sau bình luận món ăn cuối, các bộ sau cách nhau ${minutes(settings?.delay)} phút. Facebook có thể ẩn bình luận nhiều link: nên thử 5 link mỗi bình luận trước.`}
+      />
 
       {pageId === null ? (
         <EmptyState description="Chọn một Page để xem bộ bình luận của Page đó" />
@@ -179,7 +185,7 @@ export default function CommentSets() {
         />
       ) : (
         <div
-          style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}
+          style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}
           aria-busy={loading}
         >
           {tab?.sets.map((one) => (
@@ -190,54 +196,37 @@ export default function CommentSets() {
               title={one.name}
               extra={
                 <Switch
-                  size="small"
                   checked={one.enabled}
+                  checkedChildren="Bật"
+                  unCheckedChildren="Tắt"
                   aria-label={`Bật ${one.name}`}
                   onChange={(enabled) => void run(() => api(`/aff-sets/${one.id}`, "PUT", bodyOf(one, { enabled })))}
                 />
               }
-              actions={[
-                <Tooltip key="edit" title="Sửa">
-                  <EditOutlined aria-label="Sửa" onClick={() => setEditing(one)} />
-                </Tooltip>,
-                <Tooltip key="copy" title="Nhân bản">
-                  <CopyOutlined
-                    aria-label="Nhân bản"
-                    onClick={() => void run(() => api(`/aff-sets/${one.id}/duplicate`, "POST"), "Đã nhân bản")}
-                  />
-                </Tooltip>,
-                <Tooltip key="view" title="Xem trước bình luận">
-                  <EyeOutlined aria-label="Xem trước" onClick={() => setPreviewing(one)} />
-                </Tooltip>,
-                <Popconfirm
-                  key="delete"
-                  title="Xoá bộ này?"
-                  description="Bình luận đã đăng vẫn ở trên Facebook."
-                  okText="Xoá"
-                  okButtonProps={{ danger: true }}
-                  onConfirm={() => run(() => api(`/aff-sets/${one.id}`, "DELETE"), "Đã xoá")}
-                >
-                  <DeleteOutlined aria-label="Xoá" />
-                </Popconfirm>,
-              ]}
             >
-              <Flex vertical gap={4}>
-                <span>
+              <Flex vertical gap={8} style={{ opacity: one.enabled ? 1 : 0.55 }}>
+                <Flex justify="space-between" align="center" gap={8}>
                   {one.valid_count < one.products.length ? (
                     <StatusText tone="warning">
-                      {one.valid_count}/{one.products.length} hợp lệ
+                      {one.valid_count}/{one.products.length} sản phẩm hợp lệ
                     </StatusText>
                   ) : (
-                    `${one.products.length}/${MAX_ITEMS} sản phẩm`
-                  )}{" "}
-                  · ưu tiên {one.priority}
-                </span>
+                    <Typography.Text strong>
+                      {one.products.length}/{MAX_ITEMS} sản phẩm
+                    </Typography.Text>
+                  )}
+                  <Tag bordered={false} style={{ margin: 0 }}>
+                    Ưu tiên {one.priority}
+                  </Tag>
+                </Flex>
                 {one.tags.length > 0 && (
-                  <div>
+                  <Flex gap={4} wrap>
                     {one.tags.map((tag) => (
-                      <Tag key={tag}>{tag}</Tag>
+                      <Tag key={tag} style={{ margin: 0 }}>
+                        {tag}
+                      </Tag>
                     ))}
-                  </div>
+                  </Flex>
                 )}
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   {one.last_used_at
@@ -249,6 +238,39 @@ export default function CommentSets() {
                     {warning}
                   </StatusText>
                 ))}
+              </Flex>
+              <Flex
+                justify="space-between"
+                style={{ marginTop: 12, paddingTop: 8, borderTop: `1px solid ${token.colorBorderSecondary}` }}
+              >
+                <Space size={0}>
+                  <Button type="text" size="small" icon={<EditOutlined />} onClick={() => setEditing(one)}>
+                    Sửa
+                  </Button>
+                  <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => setPreviewing(one)}>
+                    Xem trước
+                  </Button>
+                </Space>
+                <Space size={0}>
+                  <Tooltip title="Nhân bản">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<CopyOutlined />}
+                      aria-label="Nhân bản"
+                      onClick={() => void run(() => api(`/aff-sets/${one.id}/duplicate`, "POST"), "Đã nhân bản")}
+                    />
+                  </Tooltip>
+                  <Popconfirm
+                    title="Xoá bộ này?"
+                    description="Bình luận đã đăng vẫn ở trên Facebook."
+                    okText="Xoá"
+                    okButtonProps={{ danger: true }}
+                    onConfirm={() => run(() => api(`/aff-sets/${one.id}`, "DELETE"), "Đã xoá")}
+                  >
+                    <Button type="text" size="small" danger icon={<DeleteOutlined />} aria-label="Xoá" />
+                  </Popconfirm>
+                </Space>
               </Flex>
             </Card>
           ))}
