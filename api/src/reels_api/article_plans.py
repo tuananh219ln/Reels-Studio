@@ -53,7 +53,7 @@ CONFLICTS = ("to_backlog", "overwrite", "skip")
 STATUS_LABELS = {
     "unused": "Chưa dùng",
     "used": "Đã tạo bài",
-    "scheduled": "Đã lên lịch",
+    "scheduled": "Đã hẹn giờ",
     "posted": "Đã đăng",
     "skipped": "Bỏ qua",
 }

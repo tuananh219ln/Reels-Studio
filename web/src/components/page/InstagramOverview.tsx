@@ -48,24 +48,28 @@ export default function InstagramOverview({ pageId, days }: { pageId: number; da
       <TileRow>
         <FigureTile
           title="Lượt xem"
+          source="Instagram"
           figure={totals.views}
           days={data.days}
           tip="Số lần Reel và bài của tài khoản được xem"
         />
         <FigureTile
           title="Tiếp cận"
+          source="Instagram"
           figure={totals.reach}
           days={data.days}
           tip="Số tài khoản đã thấy nội dung, Instagram ước tính"
         />
         <FigureTile
           title="Tương tác"
+          source="Instagram"
           figure={totals.interactions}
           days={data.days}
           tip="Thích, bình luận, chia sẻ và lưu"
         />
         <FigureTile
           title="Người theo dõi mới"
+          source="Instagram"
           figure={totals.follows}
           days={data.days}
           note={`Hiện có ${formatNumber(data.followers)}`}

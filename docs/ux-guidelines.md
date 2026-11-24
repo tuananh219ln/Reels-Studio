@@ -316,7 +316,7 @@ Built:
   opens the dialog (`/videos?reference=<id>`) on "Dùng mẫu đã học" with that sample chosen.
 - **Video list** (`/videos`): "Tạo video"; then, on one row, the search by title or topic and the filters:
   status (Cần làm: a draft older than 2 days, a failed job, an MP4 behind the edits, or a finished video not out
-  on Facebook or TikTok; Nháp, Đang xử lý, Chờ đăng, Đã lên lịch, Đã đăng, Lỗi, MP4 cần render lại: the same
+  on Facebook or TikTok; Nháp, Đang xử lý, Chờ đăng, Đã hẹn giờ, Đã đăng, Lỗi, MP4 cần render lại: the same
   choices as a group's "Video" tab, lib/videoStatus.ts), platform, Fanpage (any Page the video
   is out on or set for), topic group ("Sức khỏe (12)", its number of videos; remembered in the browser) and
   creator ("Của tôi" first, then the team; it starts on "Của tôi" once the member has made a video), each showing "Mọi trạng thái", "Mọi nền tảng", "Mọi Fanpage", "Mọi
@@ -342,13 +342,13 @@ Built:
     bold from 10×) and "N% share" (green once it reaches the goal); a warning on its own line (a job's
     "Render lại lỗi", "MP4 chưa cập nhật theo bản sửa"); then the status as a dot and a word, the api's
     `status_label` everywhere (Nháp / Chờ / Đang viết / Đang render… / Lỗi while there is no MP4 or a job runs; with
-    an MP4, by its posting: "Chờ đăng" (dark grey), "Đã lên lịch" (amber), "Đã đăng" (green); "Xong" said nothing
+    an MP4, by its posting: "Chờ đăng" (dark grey), "Đã hẹn giờ" (amber), "Đã đăng" (green); "Xong" said nothing
     about posting, 2026-11-12) and on
     the right the creator and the day it was made; under them, small, the topic group and its plan day.
     The kind tags sit under the title with the "Đã đăng" icons on their right;
   - a list, one row per video, in four columns (2026-11-14): **Video** (small thumbnail, the title on up to two lines, and
     under it the Page and time of its post, "hẹn" while scheduled, or "Chưa đăng"), **Trạng thái** (the status, "Đã đăng" or
-    "Đã lên lịch" and the platform icons on one line, the kind tags, TikTok versions and "Tạo bản TikTok" under it),
+    "Đã hẹn giờ" and the platform icons on one line, the kind tags, TikTok versions and "Tạo bản TikTok" under it),
     **Số liệu** (the views, sortable, with the 48h multiple or "chưa đủ dữ liệu" and the share rate under it; "—" before
     the first reading) and **Tạo** (group, plan day, creator, day), then the "⋮" button. Above the videos, one
   banner per topic group of the member's own (the groups their Pages in use post) whose plan has a today:
@@ -1237,7 +1237,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
     "Đối tượng" (followers now; bars for gender, age and the top cities, or the reason there are none: Instagram gives it
     only from 100 followers), "So sánh" and "Lịch đăng". A token without `instagram_manage_insights` is one warning alert
     above the figures with the way to fix it ("Dán token mới"), never a broken connection.
-  - **Instagram in "Đã lên lịch"** (both sides, on a Page with a linked account): each scheduled post has a grey line "Instagram:
+  - **Instagram in "Đã hẹn giờ"** (both sides, on a Page with a linked account): each scheduled post has a grey line "Instagram:
     tự đăng sau Facebook" (the Page's switch will send it a minute after), "đang đăng", "đã hẹn giờ" or "đã đăng" (green)
     when the video has its own Instagram post; nothing when the switch is off and there is none. Instagram has no time of its
     own to show.
@@ -1251,7 +1251,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
   - **A Page's dashboard** (`/fanpages/[id]`, modelled on Facebook's Professional Dashboard, built from what the
     app already reads): "← Quản lý kênh" above the Page's name; at the title's right "7 ngày / 28 ngày / 90 ngày"
     (28 at first, hidden on "Lịch đăng", which looks ahead) and "Kiểm tra ngay"; on "Lịch đăng" the grey line says
-    that a queued video is scheduled at the nearest free posting time within 48 hours and moves to "Đã lên lịch";
+    that a queued video is scheduled at the nearest free posting time within 48 hours and moves to "Đã hẹn giờ";
     elsewhere a grey line naming the period (Vietnam time, today included) and that each
     number is set against the same number of days just before. Every figure is a tile: its name (an ⓘ tip where
     the number needs one), the value, and "↑ 12% so với 28 ngày trước" in green or "↓" in red, the arrow always
@@ -1260,7 +1260,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
     tooltip with the day and value on hover, and "Xem bảng" for the numbers as a table. Six tabs:
     - **Tổng quan**: tiles Lượt xem, Tiếp cận, Tương tác and Người theo dõi mới ("Hiện có N"); the daily views
       chart; "Bài đăng mới nhất" (cover, title opening the video, when it went live, its views, reach, reactions,
-      comments, shares, average watch time and when they were read); "Đã lên lịch, 7 ngày tới" (the next six of
+      comments, shares, average watch time and when they were read); "Đã hẹn giờ, 7 ngày tới" (the next six of
       the week's scheduled posts and free posting times, in time order, "Khung trống" for a free one); "Kết nối"
       (the token's status, its last check, and a Page Insights error if any).
     - **Lượt xem**: tiles Lượt xem, Tiếp cận and Thời gian xem TB (the average watch time of the period's posts,
@@ -1288,7 +1288,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
       đăng" above it) and its posting times ("Giờ đăng mỗi ngày (giờ Việt Nam)" above them; tags such as "20:00", typed or removed with ×; "Dùng giờ của nhóm" goes back to the group's), a small
       line saying whose times they are and the next three free times within 48 hours ("và N khung khác" for the
       rest), then "Hàng chờ (N)" in bold, always there, with a grey line on how it empties (the first video is
-      scheduled at a free time once that time is within 48 hours, then shows under "Đã lên lịch"): each waiting video's number, cover, title (opening the video), who added it
+      scheduled at a free time once that time is within 48 hours, then shows under "Đã hẹn giờ"): each waiting video's number, cover, title (opening the video), who added it
       and when, the reason in yellow when it could not be scheduled, "Lên"/"Xuống" for the owner and a bin ("Bỏ
       khỏi hàng chờ", confirmed); an empty queue says how to add one. Beside it the whole week of scheduled
       posts and free times.
@@ -1711,10 +1711,18 @@ or source with the same title; once changed it is a grey line. Lists say "Chưa 
 
 ### Kho kiến thức: "Lịch đăng" and the video id
 
-A group has a "Lịch đăng" tab after "Backlog": the calendar of "Bài đăng" (day, week, month) limited to the group's posts,
-those on Facebook and those waiting for their time, whether a member scheduled them or a Page's queue did. The queue
-schedules a video only when its Page's next slot is within 48 hours, so a queued video shows there a day or two before
-it goes. The video table starts with an "ID" column, the number in the video's address (`/videos/<id>`).
+A group has a "Tài liệu" tab after the plan's tabs ("Kế hoạch 30 ngày", "Backlog"): its Markdown documents by section
+(Job, Mẫu, Kế hoạch, Prompt, Báo cáo), with search, pins, who changed each last and when; the document is shown as
+Markdown, and "Sửa", "Xoá", "Thêm tài liệu" and "Tải file .md" follow "Cho cả đội sửa". Then comes "Lịch đăng", which
+is only a link: the one calendar of what is out and what is set to go is the Page's "Lịch đăng" tab on Quản lý kênh
+(`/fanpages/{id}?tab=schedule`), so two copies never differ; the tab lists the Pages that post the group.
+A plan day also shows a dashed "Khung trống HH:MM" button for each posting time its ideas do not fill; it adds an idea
+to the day (the n-th idea takes the n-th time), whose "Tạo video" then opens the video flow.
+A video 10× its Page's median at 48 hours shows a gold "Winner" tag in the group's video list and "Tạo 3 biến thể":
+three draft copies named "(biến thể 1: đổi hook)", "(biến thể 2: đổi 1–2 món)" and "(biến thể 3: đổi dạng)", with no AI
+call. On Quản lý kênh every figure names its source and period ("Facebook, 28 ngày"; "Tool" for what the tool adds up
+from its posts' readings), and "Cửa đo 48h" above the tabs shows the median views and share/view at 48 hours, the
+videos measured towards 14 and 30, the gate's state and the winners. The video table starts with an "ID" column, the number in the video's address (`/videos/<id>`).
 
 
 ### Kho kiến thức: the groups bar and "Cập nhật view"

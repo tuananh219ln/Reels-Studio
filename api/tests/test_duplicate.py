@@ -134,3 +134,29 @@ def test_clean_video_names_keeps_one_suffix(db, me, storage):
     apply(db, dry_run=False)
     db.refresh(video)
     assert video.name == "A"
+
+
+def test_three_variants_are_draft_copies_named_for_what_to_change(an, db, me, storage):
+    video = make_video(db, storage, me, scene_count=2)
+    video.mp4_key = f"videos/{video.id}/video-abc.mp4"
+    storage.save_bytes(video.mp4_key, b"mp4")
+    db.commit()
+
+    response = an.post(f"/api/videos/{video.id}/variants")
+
+    assert response.status_code == 201, response.text
+    made = response.json()["videos"]
+    assert [v["name"] for v in made] == [
+        "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (biến thể 1: đổi hook)",
+        "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (biến thể 2: đổi 1–2 món)",
+        "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (biến thể 3: đổi dạng)",
+    ]
+    for payload in made:
+        copy = db.get(Video, payload["id"])
+        assert copy.mp4_key is None and copy.created_by_id == me.id and len(scenes_of(db, copy.id)) == 3
+        assert db.scalars(select(Job).where(Job.video_id == copy.id)).all() == []
+    # A variant of a variant carries one suffix, not a pile; the source is untouched.
+    again = an.post(f"/api/videos/{made[0]['id']}/variants").json()["videos"]
+    assert again[1]["name"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (biến thể 2: đổi 1–2 món)"
+    assert db.get(Video, video.id).mp4_key is not None
+    assert an.post("/api/videos/999999/variants").status_code == 404

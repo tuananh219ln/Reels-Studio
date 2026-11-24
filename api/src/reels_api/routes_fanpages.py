@@ -423,6 +423,16 @@ def page_dashboard_view(
     return page_dashboard.dashboard(db, row, days)
 
 
+@router.get("/{fanpage_id}/gate")
+def page_gate_view(fanpage_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Cửa đo 48h" of one Page: median views and share/view at 48 hours, progress towards 14 and 30 videos, the gate's
+    state and the winners."""
+    row = db.get(Fanpage, fanpage_id)
+    if row is None:
+        raise ApiError(404, "fanpage_not_found", "Không tìm thấy Fanpage")
+    return page_dashboard.gate(db, row)
+
+
 @router.get("/{fanpage_id}/instagram-dashboard")
 def page_instagram_dashboard_view(
     fanpage_id: int, days: int = 28, me: Session = Depends(current_member), db: DbSession = Depends(get_db)

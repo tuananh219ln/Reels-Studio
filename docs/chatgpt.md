@@ -388,6 +388,10 @@ and never a Page token.
 - `list_post_stats`: published Facebook posts of the last `days` (one Page, or the member's, or all) with views,
   reach, shares, comments, reactions, watch time and the reading against the Page's 48-hour median, sorted by views,
   date, shares or watch ratio (`GET /api/posts`). It is how the assistant picks winners to copy.
+- `list_docs`, `get_doc` (`reels:read`): the Markdown documents of a topic group ("Tài liệu" on Kho kiến thức):
+  `list_docs` gives id, section, file name, title, pinned, who changed it last and when (pinned first, optionally one
+  section or a search); `get_doc` gives one with its text, by id or file name. The daily job reads the group's rules
+  (template, thumbnail standard, order of marks) from here instead of having them pasted into its body.
 - `list_jobs`: the newest page of the job log (the member's or everyone's), filtered by status or video
   (`GET /api/jobs`), to follow many renders at once.
 - `list_comments`: visitors' comments under the app's posts, open ones by default (`GET /api/comments`). Read only:

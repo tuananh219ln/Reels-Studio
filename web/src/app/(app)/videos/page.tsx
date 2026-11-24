@@ -881,7 +881,7 @@ function VideoTable({
                   <VideoStatusTags video={row} />
                   {row.post && (
                     <StatusText tone={row.post.state === "posted" ? "success" : "waiting"} style={{ fontSize: 13 }}>
-                      {row.post.state === "posted" ? "Đã đăng" : "Đã lên lịch"}
+                      {row.post.state === "posted" ? "Đã đăng" : "Đã hẹn giờ"}
                     </StatusText>
                   )}
                   <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} />

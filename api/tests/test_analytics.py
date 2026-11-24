@@ -75,6 +75,7 @@ def test_a_post_is_measured_against_its_pages_median(an, db, me, storage, frozen
         "median_views": 1000,
         "samples": 6,
         "times_median": 12.0,
+        "is_winner": True,  # 10× its Page's median or more
         "share_rate": None,
     }
     assert analysis_of(an, usual)["times_median"] == 1.0
@@ -164,6 +165,7 @@ def test_a_post_not_measured_at_48_hours_yet_shows_its_pages_median_only(an, db,
         "median_views": 300,
         "samples": 5,
         "times_median": None,
+        "is_winner": False,
         "share_rate": None,
     }
 

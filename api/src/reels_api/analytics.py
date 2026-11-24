@@ -1,8 +1,9 @@
 """What the posts' numbers mean: the median views of each Page, how far a post is from it, and the weekly KPIs.
 
 All of it comes from the `48h` readings (metrics.py), so posts are compared at the same age, and is worked out when asked:
-nothing here is stored or calls Facebook. The share/view goal is the team's (docs/content.md): 0.2 %. There is no "Video
-thắng" flag: it was dropped on 2026-11-03 (docs/decisions.md).
+nothing here is stored or calls Facebook. The share/view goal is the team's (docs/content.md): 0.2 %. A "winner" is a
+post at `WINNER_TIMES` times its Page's median or more at 48 hours; it is worked out when shown, never stored (dropped
+on 2026-11-03, brought back that way on 2026-11-24: docs/decisions/2026-11-24-winner-gate-docs.md).
 
 - The median is per Page, over its posts that went live in the last `MEDIAN_DAYS` days: a growing Page would make every
   new video look far above its first weeks, and a large Page would do the same to a small one.
@@ -27,6 +28,7 @@ MEDIAN_DAYS = 60
 TAKEN_DOWN = ("deleted", "cancelled")
 MIN_SAMPLES = 5
 SHARE_GOAL = 0.002
+WINNER_TIMES = 10
 # Vietnam has no daylight saving time, so a fixed offset needs no time zone database in the images.
 VIETNAM = timezone(timedelta(hours=7), "Asia/Ho_Chi_Minh")
 
@@ -87,6 +89,11 @@ def times_median(views: int, median: Median | None) -> float | None:
     return views / median.views
 
 
+def is_winner(times: float | None) -> bool:
+    """A post `WINNER_TIMES` times its Page's median or more; never while the median is not meaningful (times None)."""
+    return times is not None and times >= WINNER_TIMES
+
+
 def of_post(post: Publication, mark_views: int | None, mark_shares: int | None, by_page: dict) -> dict:
     """The analysis shown with a post. Its Page's median and sample count are given even before the post's own mark,
     so the page can say "chưa đủ dữ liệu" or how far the post is."""
@@ -96,6 +103,7 @@ def of_post(post: Publication, mark_views: int | None, mark_shares: int | None, 
         "median_views": median.views if median else None,
         "samples": median.samples if median else 0,
         "times_median": round(times, 1) if times is not None else None,
+        "is_winner": is_winner(times),
         "share_rate": share_rate(mark_views, mark_shares),
     }
 

@@ -53,8 +53,12 @@ export function FigureTile({
   format = formatNumber,
   tip,
   note,
+  source = "Facebook",
 }: {
   title: string;
+  /** Where the number comes from, shown with the period: Facebook's own Page Insights, Instagram's, or what the tool
+   * adds up from the readings of the posts it made ("Tool"). Every number on Quản lý kênh says it. */
+  source?: "Facebook" | "Instagram" | "Tool";
   figure: DashboardFigure;
   days: number;
   format?: (value: number | null) => string;
@@ -74,6 +78,9 @@ export function FigureTile({
         </Typography.Text>
         <Typography.Text strong style={{ fontSize: 24, lineHeight: "32px" }}>
           {format(figure.value)}
+        </Typography.Text>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="figure-source">
+          {source}, {days} ngày
         </Typography.Text>
         <Change change={figure.change} days={days} />
         {note && (

@@ -277,7 +277,7 @@ test("30-day plan: a ready video is approved from its idea card", async ({ page 
   await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "Duyệt", exact: true }).click();
   // The plan reloads: the idea is scheduled at the plan's suggested time.
-  await expect(card).toContainText("Đã lên lịch", { timeout: 30_000 });
+  await expect(card).toContainText("Đã hẹn giờ", { timeout: 30_000 });
   await expect(card).toContainText("23:00");
 });
 
@@ -3756,7 +3756,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
   const plan = health.getByTestId("plan-tab");
   await expect(plan.getByTestId("plan-strip")).toHaveCount(0);
-  await expect(plan.getByTestId("plan-legend")).toContainText("Đã lên lịch");
+  await expect(plan.getByTestId("plan-legend")).toContainText("Đã hẹn giờ");
 
   // Thiết lập: "Huỷ" drops what was changed, "Lưu" sends the changed fields once.
   let patches = 0;

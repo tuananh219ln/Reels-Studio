@@ -507,7 +507,7 @@ def test_an_idea_shows_when_its_video_is_scheduled_and_posted(an, db, me, storag
     db.add(post)
     db.flush()
     item = an.get(f"/api/plans/{topic_id}").json()["items"][0]
-    assert (item["status"], item["status_label"]) == ("scheduled", "Đã lên lịch")
+    assert (item["status"], item["status_label"]) == ("scheduled", "Đã hẹn giờ")
     assert datetime.fromisoformat(item["post_at"]) == later
     post.status, post.published_at = "published", later
     db.flush()
@@ -586,6 +586,7 @@ def test_cards_carry_the_48_hour_numbers_of_each_facebook_post(an, db, me, stora
         "median_views": 100,
         "samples": 6,  # the five others and this one
         "times_median": 12.0,
+        "is_winner": True,
         "share_rate": 0.005,
     }
     [pending] = posts["Chưa đo"]
