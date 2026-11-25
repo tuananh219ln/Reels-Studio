@@ -1132,7 +1132,9 @@ test("Kho kiến thức and a Page's dashboard keep the group, tab, period and f
   await health.getByRole("tab", { name: "Lịch đăng", exact: true }).click();
   await expect(page).toHaveURL(/[?&]tab=schedule/);
   await health.getByRole("tab", { name: /^Video/ }).click();
-  await expect(health.getByRole("columnheader", { name: "ID", exact: true })).toBeVisible();
+  // "ID" is a column of "Cột", off until ticked; the table itself shows.
+  await expect(health.getByRole("columnheader", { name: "Số liệu", exact: true })).toBeVisible();
+  await expect(health.getByRole("columnheader", { name: "ID", exact: true })).toHaveCount(0);
 
   // A Page's dashboard: its period and tab.
   await connectFacebook(page);

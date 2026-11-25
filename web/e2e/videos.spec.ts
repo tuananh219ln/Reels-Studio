@@ -441,11 +441,11 @@ test("knowledge topics: a group's Video tab lists its videos and makes a new one
   await expect(videos.getByRole("columnheader", { name: "Số liệu" })).toBeVisible();
   await expect(videos.getByRole("row").nth(1)).toContainText("—");
   // "ID" is a column of "Cột", off until ticked.
-  await expect(videos.getByRole("columnheader", { name: "ID" })).toHaveCount(0);
+  await expect(videos.getByRole("columnheader", { name: "ID", exact: true })).toHaveCount(0);
   await videos.getByRole("button", { name: "Cột" }).click();
-  await page.getByRole("checkbox", { name: "ID" }).check();
+  await page.getByRole("checkbox", { name: "ID", exact: true }).check();
   await page.getByRole("button", { name: "Áp dụng" }).click();
-  await expect(videos.getByRole("columnheader", { name: "ID" })).toBeVisible();
+  await expect(videos.getByRole("columnheader", { name: "ID", exact: true })).toBeVisible();
   // "Thẻ" keeps the search, and is remembered in this browser.
   await videos.getByLabel("Kiểu hiển thị").getByText("Thẻ", { exact: true }).click();
   await expect(videos.getByTestId("video-card")).toHaveCount(1);
