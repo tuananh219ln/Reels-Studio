@@ -25,6 +25,9 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+# A new video's "Dòng khảo sát" (pinned.py), when no script gave it a question of its own.
+DEFAULT_PINNED_SURVEY = "Bạn hay ăn cặp nào nhất? Bình luận số thứ tự nhé"
+
 NAMING = {
     "ix": "ix_%(column_0_label)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",
@@ -56,6 +59,9 @@ class User(Base):
     auto_approve: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Their last "Cập nhật view" on "Bài đăng" (migration 0088): once per 5 minutes (routes_posts.REFRESH_EVERY).
     views_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When their "Đối thủ" page last said the competitor extension is there (migration 0098): MCP tells the
+    # assistant whether a queued scan will be picked up (competitors.scanner_online).
+    competitor_scanner_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
 
@@ -165,6 +171,9 @@ class KnowledgeTopic(Base):
     # The group's own narration voice (an ElevenLabs id, "vieneu:<id>" or "google:<name>"): a new video of the group starts with it,
     # over its maker's defaults (video_options.apply_defaults). Empty: the maker's defaults decide.
     voice_id: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    # The group's backup voice: a narration whose own voice cannot be read (every key of its service wrong or spent) is
+    # read with this one instead (jobs.narrate). Empty: no backup.
+    voice_backup_id: Mapped[str] = mapped_column(String(200), default="", server_default="")
     # "Từ video mẫu" (reference.py): the prompt that writes a script from a sample video, and the one that analyses
     # the sample on its own (ways B, C and D). Empty: the default in prompts/.
     learn_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
@@ -199,6 +208,9 @@ class KnowledgeTopic(Base):
     # "Không dùng cảnh có người" (migration 0090, owner 2026-11-15): the group's scenes show no faces or bodies (hands
     # at work are fine). The assistants read it from the video and pick footage by it; on for "Ăn Lành Sống Khỏe".
     no_people: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # "Cảnh kết Theo dõi & Chia sẻ" (migration 0115, outro.py): its new videos end on the shared follow-and-share
+    # scene, which takes the place of a closing call to action of their script.
+    outro_cta: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     text_suggestions: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # The group's "Mẫu dựng" (part 2 of docs/specs/per-user-settings-ownership), picked from the saved ones, and the
     # one its new videos take ("app" or one of them; None for none), over their maker's own (autoedit).
@@ -245,6 +257,26 @@ class TopicPlanItem(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class TopicDoc(Base):
+    """A document of a topic group ("Tài liệu" on Kho kiến thức): a Markdown file of how the group's Page is run (a
+    template, a plan, a prompt, a report, the daily job). The copy here is the master; assistants read it through
+    MCP (`list_docs`, `get_doc`) instead of having its rules pasted into their jobs."""
+
+    __tablename__ = "topic_docs"
+    __table_args__ = (UniqueConstraint("knowledge_topic_id", "name", name="uq_topic_docs_topic_name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    knowledge_topic_id: Mapped[int] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"), index=True)
+    section: Mapped[str] = mapped_column(String(20))  # a key of topic_docs.SECTIONS
+    name: Mapped[str] = mapped_column(String(120))  # its file name, e.g. "mau-chung.md"
+    body: Mapped[str] = mapped_column(Text, default="", server_default="")
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class VideoReference(Base):
     """A sample video members learn from ("Từ video mẫu", reference.py): its file stays stored so scene clips can be
     cut from it, by any number of videos. `frames` are the stills the AI looks at: [{"second", "key", "note"}], the
@@ -284,14 +316,20 @@ class Video(Base):
     # "assistant": the script was written by a member's own Claude through MCP (on their plan, at no cost to the
     # team's AI service); "": by the team's AI service in a job, or typed by a member.
     written_via: Mapped[str] = mapped_column(String(20), default="", server_default="")
-    # Which assistant wrote it through MCP (mcp_auth.app_of: ChatGPT, Claude, Claude Code, Muse); "" when unknown
+    # Which assistant wrote it through MCP (mcp_auth.app_of: ChatGPT, Claude, Claude Code, Gemini, Antigravity, Muse); "" when unknown
     # (made before this was kept) or not written through MCP.
     assistant_app: Mapped[str] = mapped_column(String(20), default="", server_default="")
     title_options: Mapped[list] = mapped_column(JSONB, default=list)
     caption: Mapped[str] = mapped_column(Text, default="")
     hashtags: Mapped[list] = mapped_column(JSONB, default=list)
     affiliates: Mapped[list] = mapped_column(JSONB, default=list)
+    # The pinned comment's template before migration 0110; no longer read or written, kept for a while in case the
+    # change has to be undone (docs/decisions/2026-11-19-pinned-comment-fixed-shape.md).
     pinned_comment: Mapped[str] = mapped_column(Text, default="")
+    # "Dòng khảo sát": the pinned comment's last line, under the title and the scenes (pinned.py); "" for none.
+    pinned_survey: Mapped[str] = mapped_column(
+        Text, default=DEFAULT_PINNED_SURVEY, server_default=DEFAULT_PINNED_SURVEY
+    )
     # "Bình luận thêm": more comments the Page writes under each reel after the first, in order (post_comments.py).
     extra_comments: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     self_review: Mapped[list] = mapped_column(JSONB, default=list)
@@ -300,6 +338,10 @@ class Video(Base):
     # "Đã dán link tay" (migration 0071): a member pasted its affiliate links on Facebook, so the worker never writes or
     # edits a comment under its posts; products attached to it are only a record.
     manual_comment: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    # "Bình luận aff tự động" for this video alone (aff_sets.py, migration 0113): none at all, or these sets (ids of any
+    # Page's sets, in order; a Page none of them belongs to plans its own) instead of the app's choice.
+    aff_comments_off: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    aff_set_ids: Mapped[list | None] = mapped_column(JSONB)
     mp4_key: Mapped[str | None] = mapped_column(String(200))
     mp4_seconds: Mapped[float | None] = mapped_column(Float)
     # The MP4's automatic QC (qc.py), measured by the render job that made it: {"status", "checks": [...]}.
@@ -321,6 +363,14 @@ class Video(Base):
     # Snapshot taken when "Nhân bản" was pressed: the source's title, topic, edited script and the change
     # request. A clone draft keeps it, so cancelling and writing again reruns the same clone.
     clone_source: Mapped[dict | None] = mapped_column(JSONB)
+    # "Clone" from "Phân tích đối thủ" (migration 0109, clone.py): the competitor's video it was built from, kept as
+    # plain text (its Facebook link, the channel's name then) plus the row its sample comments are read from, which
+    # goes when the competitor is deleted while the link and name stay. Copies ("Nhân bản", shuffles) keep all three.
+    competitor_source_url: Mapped[str | None] = mapped_column(Text)
+    competitor_source_name: Mapped[str | None] = mapped_column(String(200))
+    competitor_source_video_id: Mapped[int | None] = mapped_column(
+        ForeignKey("competitor_videos.id", ondelete="SET NULL"), index=True
+    )
     # The "Mẫu dựng" last put on the video ({id, name, source: video|group|member, data}): another one put on later
     # takes its sounds and layers off first (autoedit.put), and "video" (chosen on it) wins when its scenes are
     # written again.
@@ -339,6 +389,12 @@ class Video(Base):
     # "Loại nội dung": what kind of content a member says it is (Hướng dẫn, Mẹo nhanh...), free text; "" for none.
     content_type: Mapped[str] = mapped_column(String(40), default="", server_default="")
     variant_of_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"))
+    # "Nhân bản xáo cảnh" (shuffle.py): the video this copy was shuffled from (the first one, for a copy of a copy),
+    # its content scenes' order as that video's scene ids ("12,10,11"), so later copies take another order, and the
+    # title the copy started with: "Đổi tiêu đề" is asked for while the title scene still says it. "Bỏ qua" clears it.
+    shuffled_from_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"), index=True)
+    scene_order: Mapped[str | None] = mapped_column(Text)
+    review_title: Mapped[str | None] = mapped_column(Text)
     # Shopee product suggestions (affiliate_suggest.py): asked for, with whose account, done, and what went wrong.
     suggest_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     suggest_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
@@ -385,6 +441,12 @@ class Scene(Base):
     # "Tìm chữ/logo tự động" (image_marks job): {"key": the photo it looked at, "boxes": [[x, y, w, h], ...]}, offered
     # as boxes in "Xóa vùng" while the scene still shows that photo.
     image_marks: Mapped[dict | None] = mapped_column(JSONB)
+    # "Khung ảnh" (reels_render.framing): None is "Tự động", by the photo's shape; "cover" fills the frame as every
+    # photo once did, "whole" keeps the photo's shape and "square" cuts it square, both over its blurred copy. Only a
+    # content scene's photo on a slide video is framed so; the title and a backdrop video always fill the frame.
+    image_fit: Mapped[str | None] = mapped_column(String(8))
+    # Where the square is cut along the photo's longer side, 0 to 1; None: the middle. A new photo drops it.
+    image_crop_offset: Mapped[float | None] = mapped_column(Float)
     # "Làm mờ vùng" on a clip: {"key": the clip, "boxes": [[x, y, w, h], ...]} as fractions of the 1080x1920 frame,
     # blurred for the whole scene (reels_render/blur.py) while the scene still shows that clip.
     video_blur: Mapped[dict | None] = mapped_column(JSONB)
@@ -428,6 +490,8 @@ class Scene(Base):
     # {"html", "seconds", "photo_key": a copy of the scene's photo the markup may show, "clip_key": the clip it
     # made}. The scene shows it while video_key is still clip_key; another photo or clip simply takes its place.
     motion: Mapped[dict | None] = mapped_column(JSONB)
+    # The scene of the first video a "Nhân bản xáo cảnh" copy comes from (shuffle.py), for its order; None otherwise.
+    source_scene_id: Mapped[int | None] = mapped_column(Integer)
 
     video: Mapped[Video] = relationship(back_populates="scenes")
     layers: Mapped[list["SceneLayer"]] = relationship(
@@ -448,6 +512,10 @@ class SceneSound(Base):
     sound: Mapped[str] = mapped_column(String(24))
     start: Mapped[float] = mapped_column(Float, default=0)  # seconds into the scene
     volume: Mapped[str] = mapped_column(String(8), default="normal")
+    # "manual": a member put it there; "auto_title_reveal": the title motion's ting for slot `slot_index`
+    # (title_motion.sync_title_sfx owns those rows).
+    origin: Mapped[str] = mapped_column(String(20), default="manual", server_default="manual")
+    slot_index: Mapped[int | None] = mapped_column(Integer)
 
     scene: Mapped[Scene] = relationship(back_populates="sounds")
 
@@ -525,6 +593,12 @@ class Job(Base):
             postgresql_where=text("status IN ('queued', 'running') AND kind = 'plan'"),
         ),
         Index(
+            "uq_jobs_active_slot_comments",
+            "plan_slot_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued', 'running') AND kind = 'slot_comments'"),
+        ),
+        Index(
             "uq_jobs_active_text_look",
             "knowledge_topic_id",
             unique=True,
@@ -540,7 +614,7 @@ class Job(Base):
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))
     article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
     # script | clone | learn | render | publish | unpublish | check | image | photos | voice | plan | revise
-    # | article_caption | motion | tiktok_publish | image_edit | image_marks
+    # | article_caption | motion | tiktok_publish | youtube_publish | image_edit | image_marks
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
@@ -555,6 +629,10 @@ class Job(Base):
     edit_prompt: Mapped[str | None] = mapped_column(Text)
     # The post an unpublish job takes down, or the TikTok post a tiktok_publish job sends.
     publication_id: Mapped[int | None] = mapped_column(Integer)
+    # A slot_comments job ("Tạo bình luận ghim") belongs to a plan script; `params` says {"index": n} for one comment
+    # only and {"overwrite": true} when a member asked for it by hand.
+    plan_slot_id: Mapped[int | None] = mapped_column(ForeignKey("article_plan_slots.id", ondelete="CASCADE"))
+    params: Mapped[dict | None] = mapped_column(JSONB)
     # A render or motion job handed to a member's render machine (render_nodes.py): "ready" once the VPS has packed
     # what it needs, "taken" while a machine renders it; None for a job the worker runs itself. The job stays
     # `running` meanwhile, so the video stays locked and the worker's restart and exit checks leave it alone.
@@ -612,9 +690,23 @@ class Fanpage(Base):
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="SET NULL"))
     # "HH:MM" in Vietnam, when its queue posts; None: the group's posting times.
     post_times: Mapped[list | None] = mapped_column(JSONB)
+    # Pacing of the comments the worker writes under its reels (post_comments.py, migration 0104): the earliest time the
+    # next one may go, and how many went out on `comments_day` (Vietnam date).
+    comments_next_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    comments_day: Mapped[date | None] = mapped_column(Date)
+    comments_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # What the worker sends to TikTok when a video of the Page goes live on Facebook (migration 0084, jobs.queue_tiktok_posts):
     # "draft" into the owner's TikTok inbox, or "direct" (public).
     tiktok_auto_mode: Mapped[str] = mapped_column(String(16), default="draft", server_default="draft")
+    # On: a video of the Page that goes live on Facebook at its slot is also posted to the linked Instagram account
+    # (migration 0117, jobs.queue_instagram_auto_posts).
+    instagram_auto: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # On: a video of the Page that goes live on Facebook at its slot is also uploaded (private) to the Page's
+    # YouTube channel (migration 0118, jobs.queue_youtube_auto_posts).
+    youtube_auto: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # The YouTube channel the Page's videos open with on their "Tải lên YouTube" (migration 0097): one its owner
+    # connected (youtube_connections).
+    youtube_channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id", ondelete="SET NULL"))
     # "Đồng bộ bài ngoài app" (meta_sync.py, migration 0089): reels posted on the Page outside the app are imported
     # hourly; when that last worked, was tried, was asked for ("Đồng bộ ngay"), and what went wrong.
     sync_external_posts: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
@@ -622,6 +714,22 @@ class Fanpage(Base):
     sync_tried_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sync_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sync_error: Mapped[str | None] = mapped_column(Text)
+    # The Instagram Business/Creator account linked to the Page, read at each check (migration 0111): where "Đăng bài" ›
+    # Instagram posts, with the Page's own token (ig_publish.py). None when the Page has none.
+    instagram_user_id: Mapped[str | None] = mapped_column(String(32))
+    instagram_username: Mapped[str | None] = mapped_column(String(100))
+    # Why the last check could not read the linked account (migration 0112), shown on "Quản lý kênh"; None when it read.
+    instagram_error: Mapped[str | None] = mapped_column(Text)
+    # Why the last check could not read the account's numbers (migration 0119, `instagram_manage_insights`); None when it
+    # did. The account's followers as of that check, and its days in `instagram_insights`.
+    instagram_insights_error: Mapped[str | None] = mapped_column(Text)
+    instagram_followers_count: Mapped[int | None] = mapped_column(Integer)
+    # The followers' gender, age and city as of the last check ({"gender": {"F": 72.0, ...}, "age": {...}, "city": {...}},
+    # shares in percent), and why they could not be read (Instagram gives them only from 100 followers).
+    instagram_audience: Mapped[dict | None] = mapped_column(JSONB)
+    instagram_audience_error: Mapped[str | None] = mapped_column(Text)
+    # "Bộ bình luận" settings (aff_sets.DEFAULTS names them and fills what is missing; migration 0113).
+    aff_settings: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
 
     updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
     owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])
@@ -645,6 +753,9 @@ class Brand(Base):
     youtube_channel_id: Mapped[str | None] = mapped_column(String(64))
     youtube_handle: Mapped[str | None] = mapped_column(String(64))
     logo_default_on: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    # "Kiểu tiêu đề" of the Page's videos (title_motion.py): "classic" or "motion" is what a title built for the first time
+    # shows; None: the motion title.
+    title_style: Mapped[str | None] = mapped_column(String(8))
     # The logo on an article's photos (photo_logo.py): a white version for dark photos, used when the photo under
     # the logo is darker than `photo_logo_alt_threshold` (0–1, None: never); where it sits (PHOTO_LOGO_POSITIONS),
     # its width and its distance from the edges in % of the photo's width, and its opacity (0–1).
@@ -723,6 +834,23 @@ class FanpageInsights(Base):
     engagements: Mapped[int | None] = mapped_column(Integer)
 
 
+class InstagramInsights(Base):
+    """A Page's Instagram numbers for one day (Vietnam time), read by the worker's check: views of its content, the
+    accounts reached, the interactions (likes, comments, shares, saves) and the follows that day; None when Instagram
+    gave no number."""
+
+    __tablename__ = "instagram_insights"
+    __table_args__ = (Index("uq_instagram_insights_fanpage_id_day", "fanpage_id", "day", unique=True),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fanpage_id: Mapped[int] = mapped_column(ForeignKey("fanpages.id", ondelete="CASCADE"))
+    day: Mapped[date] = mapped_column(Date)
+    views: Mapped[int | None] = mapped_column(Integer)
+    reach: Mapped[int | None] = mapped_column(Integer)
+    interactions: Mapped[int | None] = mapped_column(Integer)
+    follows: Mapped[int | None] = mapped_column(Integer)
+
+
 class LlmProvider(Base):
     """A provider's settings from /settings/ai; the list of providers is fixed in llm.py. The key is encrypted
     like a Fanpage token (see crypto.py) and empty fields fall back to the provider's defaults."""
@@ -798,6 +926,43 @@ class AppSetting(Base):
     )
 
 
+class ApiKey(Base):
+    """A backup narration key of the team (source_keys.py), under the main key on the settings pages and tried in
+    `position` order after it once it fails. `service`: elevenlabs, gemini or vieneu. The key is stored encrypted
+    (crypto) and never sent back; `tail` keeps its last characters for the pages and the logs. `error`/`error_at`:
+    why and when a narration last could not use it (wrong key, quota spent), shown on its row until it reads again."""
+
+    __tablename__ = "api_keys"
+    __table_args__ = (Index("ix_api_keys_service_position", "service", "position"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    service: Mapped[str] = mapped_column(String(20))
+    label: Mapped[str] = mapped_column(String(40))
+    key_encrypted: Mapped[str] = mapped_column(Text)
+    tail: Mapped[str] = mapped_column(String(8))
+    position: Mapped[int] = mapped_column(Integer)
+    error: Mapped[str | None] = mapped_column(Text)
+    error_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class AiServiceCall(Base):
+    """One request the app sent to Gemini or Cloudflare Workers AI (service_usage.py), for the calls-today count on
+    Cài đặt › AI và nguồn tư liệu. `kind`: image, edit or voice. Rows older than a few weeks are removed as new ones come."""
+
+    __tablename__ = "ai_service_calls"
+    __table_args__ = (Index("ix_ai_service_calls_service_created_at", "service", "created_at"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    service: Mapped[str] = mapped_column(String(20))
+    kind: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Publication(Base):
     """One post of a video, or of an article ("Bài viết"), to a platform; posted again, it has one row per post, kept
     after it is cancelled or deleted. The publish job reads what to do from the one pending row. Code that lists every
@@ -847,6 +1012,8 @@ class Publication(Base):
     platform: Mapped[str] = mapped_column(String(16))  # facebook
     fanpage_id: Mapped[int | None] = mapped_column(ForeignKey("fanpages.id"))
     # pending | scheduled | published | cancelled (never went live) | deleted (taken off the platform after going live)
+    # | private (a YouTube upload waiting for its member to make it public in YouTube Studio; `scheduled_at` is the
+    # time they planned, only a reminder) | pending_link
     status: Mapped[str] = mapped_column(String(16), default="pending")
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # The platform's id, saved before the upload, so "Thử lại" continues this reel instead of posting a second one.
@@ -879,6 +1046,13 @@ class Publication(Base):
     # The video's "Bình luận thêm" written under it: Facebook's ids and the texts sent, by place, so each is edited.
     extra_comment_ids: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     extra_comment_texts: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    # The affiliate set comments written after them (aff_sets.py): the sets chosen, kept from the first one written so
+    # the choice never changes under a live reel, and Facebook's ids and the texts sent, by place.
+    aff_set_ids: Mapped[list | None] = mapped_column(JSONB)
+    aff_comment_ids: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    aff_comment_texts: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    # How many times in a row the worker retried a failed set comment by itself (post_comments.AFF_RETRIES; 0114).
+    aff_retries: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     comment_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # set before asking Facebook
     commented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Facebook took it
     comment_error: Mapped[str | None] = mapped_column(Text)
@@ -886,6 +1060,9 @@ class Publication(Base):
     # When the worker last read the visitors' comments under the reel (comments_inbox.py), and what went wrong then.
     comments_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     comments_error: Mapped[str | None] = mapped_column(Text)
+    # The Page's own comments under the reel at that reading: "link" (one holds a Shopee link), "no_link" or "none";
+    # NULL until read. Covers links pasted by hand on Facebook (post_comments.link_state).
+    own_comment: Mapped[str | None] = mapped_column(String(10))
     # Where each scene starts and ends in the MP4 sent as `remote_id` ({label, start, end} in seconds), taken when it
     # was uploaded, so the retention curve is read against the scenes that were posted, not later edits.
     scene_marks: Mapped[list | None] = mapped_column(JSONB)
@@ -905,6 +1082,9 @@ class Publication(Base):
     external_id: Mapped[str | None] = mapped_column(String(64))
     # The YouTube channel a YouTube post is on (TikTok posts have `affiliate_account_id`, Facebook `fanpage_id`).
     channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id", ondelete="SET NULL"))
+    # A YouTube upload's resumable session (youtube_publish.py), saved before the file is sent so a retry asks YouTube
+    # about that very upload instead of making a second video; None once it is done, and for every other post.
+    upload_url: Mapped[str | None] = mapped_column(Text)
     # "Tải MP4" for TikTok or YouTube on "Bài đăng": the post waits for its link (status `pending_link`) since then.
     mp4_downloaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Whether `published_at` was read from the platform ("api") or typed or defaulted by the member ("user").
@@ -1075,6 +1255,8 @@ class Article(Base):
     image_aspect: Mapped[str] = mapped_column(String(8), default="4:5", server_default="4:5")
     # The comment the worker writes under the post opens with this, then the products' links (as a video's).
     pinned_comment: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # "Đăng kèm bình luận": the plan script's pinned comments are written under the post once it is live.
+    post_comments_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     # Product ideas to search Shopee for ("Tìm sản phẩm"), and that search, as on a video (affiliate_rounds.suggest).
     affiliates: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
     suggest_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -1133,6 +1315,8 @@ class ArticlePlan(Base):
     topic_group_ids: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
     kind_mix: Mapped[dict] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))  # kind -> %
     tone: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # Who the Page's comments are written for ("35–55 tuổi"), read by "Tạo bình luận ghim" (slot_comments.py).
+    audience: Mapped[str] = mapped_column(String(200), default="", server_default="")
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -1179,9 +1363,47 @@ class ArticlePlanSlot(Base):
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="SET NULL"))
     keywords: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
     source: Mapped[str] = mapped_column(String(8), default="manual", server_default="manual")
+    # "Bình luận ghim" (slot_comments.py): up to 5 comments of {"type", "text"}, in the order they are posted under
+    # the article; `pin_index` is the one to pin. `comments_edited` is set when a member changes them by hand, so a
+    # bulk "Tạo bình luận ghim" leaves them alone.
+    pinned_comments: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    pin_index: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    comments_source: Mapped[str | None] = mapped_column(String(8))  # one of ARTICLE_SLOT_SOURCES
+    comments_edited: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    comments_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     skipped: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="SET NULL"), unique=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+POST_COMMENT_STATUSES = ("pending", "posted", "pinned", "need_manual_pin", "failed", "skipped")
+
+
+class PostComment(Base):
+    """One of the pinned comments written under a posted article (slot_comments.py). Made once the post is live, as a
+    copy of the plan script's comments at that moment, so editing the script later never changes what was posted."""
+
+    __tablename__ = "post_comments"
+    __table_args__ = (
+        CheckConstraint(f"status IN {POST_COMMENT_STATUSES}", name="status"),
+        Index("ix_post_comments_publication", "publication_id", "order"),
+        Index("ix_post_comments_status_due", "status", "due_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    publication_id: Mapped[int] = mapped_column(ForeignKey("publications.id", ondelete="CASCADE"))
+    script_id: Mapped[int | None] = mapped_column(ForeignKey("article_plan_slots.id", ondelete="SET NULL"))
+    order: Mapped[int] = mapped_column(Integer)  # 0–4, the place in the script
+    text: Mapped[str] = mapped_column(Text)
+    type: Mapped[str | None] = mapped_column(String(16))
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    fb_comment_id: Mapped[str | None] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
+    error: Mapped[str | None] = mapped_column(Text)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # None: waits for the comment before it
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -1278,6 +1500,41 @@ class TikTokConnection(Base):
     last_error: Mapped[str | None] = mapped_column(Text)
 
 
+class YouTubeConnection(Base):
+    """A member's YouTube channel connected through Google's OAuth (youtube_connections.py), on its `channels` row.
+    Both tokens are encrypted like a Fanpage token (crypto.py) and never leave the server. Videos go up private only
+    (docs/decisions/2026-11-17-youtube-private-upload.md)."""
+
+    __tablename__ = "youtube_connections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"), unique=True)
+    google_channel_id: Mapped[str] = mapped_column(String(64), unique=True)  # YouTube's id of the channel, "UC…"
+    title: Mapped[str] = mapped_column(String(200))
+    access_token_encrypted: Mapped[str] = mapped_column(Text)
+    refresh_token_encrypted: Mapped[str] = mapped_column(Text)
+    access_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    scopes: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    # What went wrong refreshing the tokens (revoked on Google, or ended): the member has to connect again.
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class YouTubeOAuthState(Base):
+    """A "Kết nối YouTube" on its way through Google's consent page: the hash of its `state`, the member who started
+    it, and when it lapses. Used once."""
+
+    __tablename__ = "youtube_oauth_states"
+
+    state_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
 class TikTokOAuthState(Base):
     """A "Kết nối TikTok" on its way through TikTok's authorize page: the hash of its `state`, the member who started
     it, and when it lapses. Used once."""
@@ -1317,6 +1574,11 @@ class AffiliateProduct(Base):
     sold: Mapped[int] = mapped_column(Integer)
     price: Mapped[int] = mapped_column(Integer)  # VND
     commission_rate: Mapped[float] = mapped_column(Float)  # percent
+    # What a "Bộ bình luận" comment calls it, its group and the words matching it to a video (aff_sets.py); editing
+    # them keeps the approval.
+    short_name: Mapped[str | None] = mapped_column(String(60))
+    category: Mapped[str | None] = mapped_column(String(60))
+    tags: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     status: Mapped[str] = mapped_column(String(16), default="draft")  # draft | approved
     checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     checked_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
@@ -1399,6 +1661,46 @@ class AffiliateSuggestion(Base):
     product: Mapped[AffiliateProduct] = relationship()
 
 
+class AffCommentSet(Base):
+    """A Page's "Bộ bình luận": an opening line, up to aff_sets.MAX_ITEMS products and a closing line, written as one
+    comment under the Page's reels after the food comments (aff_sets.py)."""
+
+    __tablename__ = "aff_comment_sets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fanpage_id: Mapped[int] = mapped_column(ForeignKey("fanpages.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    intro_text: Mapped[str] = mapped_column(Text, default="", server_default="")
+    outro_text: Mapped[str] = mapped_column(Text, default="", server_default="")
+    tags: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    priority: Mapped[int] = mapped_column(Integer, default=3, server_default="3")  # 1-5, higher first
+    # When one of its comments was last written under a reel, and how many were: the rotation reads them.
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    use_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    items: Mapped[list["AffCommentSetItem"]] = relationship(
+        order_by="AffCommentSetItem.position", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class AffCommentSetItem(Base):
+    """A product of a set, at its place in the comment (1 first)."""
+
+    __tablename__ = "aff_comment_set_items"
+
+    set_id: Mapped[int] = mapped_column(ForeignKey("aff_comment_sets.id", ondelete="CASCADE"), primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"), primary_key=True)
+    position: Mapped[int] = mapped_column(Integer)
+
+    product: Mapped[AffiliateProduct] = relationship()
+
+
 class AffiliateConversion(Base):
     """One item of an order Shopee credits to a member's account, with the video and Page its link was made for."""
 
@@ -1466,3 +1768,143 @@ class VideoPresence(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     editing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+# "Phân tích đối thủ" (competitors.py, migration 0098): a member's competitors on Facebook, read in their own Chrome by
+# the team's extension, never by the server (docs/decisions/2026-11-17-competitor-analyzer.md).
+COMPETITOR_KINDS = ("page", "profile")
+SCAN_STATUSES = ("queued", "running", "partial", "done", "failed")
+COMPETITOR_VIDEO_TYPES = ("reel", "video")
+
+
+class Competitor(Base):
+    """A Facebook Page or profile one member follows; `fb_url` is its canonical address (competitors.parse_url)."""
+
+    __tablename__ = "competitors"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "fb_url", name="uq_competitors_owner_url"),
+        CheckConstraint(f"kind IN {COMPETITOR_KINDS}", name="kind"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # The member who scans it: the whole team reads it, only they scan it again, resume or delete it.
+    owner: Mapped[User] = relationship()
+    fb_url: Mapped[str] = mapped_column(Text)
+    # The numeric id of a profile.php address; None for a vanity name.
+    fb_id: Mapped[str | None] = mapped_column(String(40))
+    kind: Mapped[str] = mapped_column(String(16))
+    name: Mapped[str | None] = mapped_column(String(200))
+    followers: Mapped[int | None] = mapped_column(BigInteger)
+    bio: Mapped[str | None] = mapped_column(Text)
+    # What the scan read from the Page's header (migration 0101): the avatar is a small copy kept in storage (never
+    # Facebook's signed, expiring link), `custom_name` is the member's own name for it and wins over `name`.
+    avatar_key: Mapped[str | None] = mapped_column(Text)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    custom_name: Mapped[str | None] = mapped_column(String(200))
+    meta_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Which videos of a scan are kept (migration 0102): auto (a channel with many 100K+ videos keeps only those),
+    # all, 100k or 1m; see competitors.apply_threshold.
+    video_threshold_mode: Mapped[str] = mapped_column(String(8), default="auto", server_default="auto")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CompetitorScan(Base):
+    """One reading of a competitor's videos. Queued by the page or MCP, claimed by the member's open "Đối thủ" page,
+    which drives the extension and sends the videos back in batches; a stalled or stopped one can be resumed."""
+
+    __tablename__ = "competitor_scans"
+    __table_args__ = (CheckConstraint(f"status IN {SCAN_STATUSES}", name="status"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    competitor_id: Mapped[int] = mapped_column(ForeignKey("competitors.id", ondelete="CASCADE"), index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="queued", server_default="queued")
+    # {"reels": true, "videos": false, "max_videos": 500}.
+    scope: Mapped[dict] = mapped_column(JSONB, default=dict)
+    videos_found: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # "Cập nhật thông tin kênh" (migration 0101): reads only the Page's header, no videos; never a competitor's
+    # "latest scan" for numbers.
+    meta_only: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # What was read against what was kept (migration 0102): `threshold_applied` is the views a video needed to be
+    # kept (None: all were kept). `stats_snapshot` holds the numbers summed over everything read, taken before the
+    # videos under the threshold were dropped, so total, median and buckets never shrink with the list.
+    scanned_count: Mapped[int | None] = mapped_column(Integer)
+    stored_count: Mapped[int | None] = mapped_column(Integer)
+    threshold_applied: Mapped[int | None] = mapped_column(BigInteger)
+    stats_snapshot: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The last word from the scanning page; a running scan silent for competitors.STALLED_AFTER is claimed again.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+
+    competitor: Mapped[Competitor] = relationship()
+
+
+class CompetitorVideo(Base):
+    """A reel or video seen on the competitor's grid. The grid shows only the views; the rest comes later (M3)."""
+
+    __tablename__ = "competitor_videos"
+    __table_args__ = (
+        UniqueConstraint("scan_id", "fb_video_id", name="uq_competitor_videos_scan_video"),
+        CheckConstraint(f"type IN {COMPETITOR_VIDEO_TYPES}", name="type"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scan_id: Mapped[int] = mapped_column(ForeignKey("competitor_scans.id", ondelete="CASCADE"), index=True)
+    fb_video_id: Mapped[str] = mapped_column(String(40))
+    url: Mapped[str] = mapped_column(Text)
+    type: Mapped[str] = mapped_column(String(8), default="reel")
+    # Normalized from views_raw (competitors.parse_views); None when the grid showed no number.
+    views: Mapped[int | None] = mapped_column(BigInteger)
+    views_raw: Mapped[str | None] = mapped_column(String(60))
+    # Place on the grid, newest first, as the page lists them: the order of posting while dates are unknown.
+    position: Mapped[int | None] = mapped_column(Integer)
+    caption: Mapped[str | None] = mapped_column(Text)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The posting time as the video's own page wrote it ("3 ngày", "17 tháng 10"; migration 0099): posted_at is
+    # read from it (competitors.parse_posted), so a relative one is approximate.
+    posted_raw: Mapped[str | None] = mapped_column(String(80))
+    duration_s: Mapped[int | None] = mapped_column(Integer)
+    audio_name: Mapped[str | None] = mapped_column(Text)
+    reactions: Mapped[int | None] = mapped_column(BigInteger)
+    comments: Mapped[int | None] = mapped_column(BigInteger)
+    shares: Mapped[int | None] = mapped_column(BigInteger)
+    # A small copy of the video's picture, kept in storage (migration 0105); only the videos whose own page was opened.
+    thumb_key: Mapped[str | None] = mapped_column(Text)
+
+
+class CompetitorComment(Base):
+    """A sample of the comments under one of the most viewed reels (M4): their text and likes only, never who wrote
+    them. Replaced whole each time the reel is read again."""
+
+    __tablename__ = "competitor_comments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    video_id: Mapped[int] = mapped_column(ForeignKey("competitor_videos.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    text: Mapped[str] = mapped_column(Text)
+    like_count: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class CompetitorReport(Base):
+    """The analysis the member's Claude saved through MCP (competitor_report_save): topics, pains and recommendations
+    as it wrote them, the report as markdown, and the scan's numbers at that moment, summed in code."""
+
+    __tablename__ = "competitor_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scan_id: Mapped[int] = mapped_column(ForeignKey("competitor_scans.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # The assistant that saved it (mcp_auth.app_of), "" when unknown.
+    written_by: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    # The member whose Claude saved it (migration 0100): any member may save one on any scan.
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_by: Mapped[User | None] = relationship()
+    summary: Mapped[dict] = mapped_column(JSONB, default=dict)
+    topics: Mapped[list] = mapped_column(JSONB, default=list)
+    pain_points: Mapped[list] = mapped_column(JSONB, default=list)
+    recommendations: Mapped[list] = mapped_column(JSONB, default=list)
+    markdown: Mapped[str] = mapped_column(Text, default="")

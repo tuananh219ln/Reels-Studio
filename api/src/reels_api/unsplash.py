@@ -1,6 +1,6 @@
 """Unsplash photos for scenes: high-quality photos, Asian dishes and ingredients among them.
 
-Brief docs/specs/them-nguon-anh-stock. The Access Key is pasted on Cài đặt › Nguồn tư liệu (source_keys) or set in
+Brief docs/specs/them-nguon-anh-stock. The Access Key is pasted on Cài đặt › AI và nguồn tư liệu (source_keys) or set in
 the server's .env, and sent in a header, never in an address, so no log keeps it. The free ("demo") plan allows 50
 calls an hour for the whole team; Unsplash answers 403 "Rate Limit Exceeded" once they are used up, which must not
 read as a bad key. Unsplash's API terms ask for its download endpoint to be called whenever a photo is used: done
@@ -21,7 +21,7 @@ from .uploads import UploadRejected, image_extension
 MAX_SEARCH_BYTES = 2 * 1024 * 1024
 RESULTS = 20  # the picker grid shows them all
 PHOTO_WIDTH = 1080  # Unsplash's "regular" size: the frame's width
-MISSING_KEY = "Chưa cấu hình key Unsplash (Cài đặt › Nguồn tư liệu) nên không tìm được ảnh Unsplash"
+MISSING_KEY = "Chưa cấu hình key Unsplash (Cài đặt › AI và nguồn tư liệu) nên không tìm được ảnh Unsplash"
 
 
 class UnsplashError(Exception):

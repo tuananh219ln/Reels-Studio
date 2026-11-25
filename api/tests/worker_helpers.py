@@ -12,6 +12,7 @@ from sqlalchemy import delete, update
 from sqlalchemy.orm import sessionmaker
 
 from reels_api.models import (
+    AiServiceCall,
     AppSetting,
     Article,
     Brand,
@@ -36,6 +37,7 @@ def committed(engine):
     yield factory
     with factory() as db:
         for model in (
+            AiServiceCall,
             TopicPlanItem,
             Job,
             Article,

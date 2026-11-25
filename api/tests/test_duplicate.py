@@ -1,4 +1,4 @@
-"""'Nhân bản y hệt': an exact copy of a (winning) video, named "… (copy)", with its own files and no MP4."""
+"""'Nhân bản y hệt': an exact copy of a (winning) video, named "… (bản N)", with its own files and no MP4."""
 
 import pytest
 from conftest import login, make_user, make_video
@@ -43,14 +43,14 @@ def test_duplicate_copies_the_video_exactly_with_its_own_files(an, db, me, stora
     payload = response.json()
     copy = db.get(Video, payload["id"])
     assert copy.id != video.id and copy.created_by_id == me.id
-    assert payload["name"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (copy)"
-    # The title scene, drawn on the video, is unchanged: only the name in the app says "(copy)".
+    assert payload["name"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (bản 1)"
+    # The title scene, drawn on the video, is unchanged: only the name in the app says "(bản 1)".
     assert payload["title"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE"
-    assert (copy.topic, copy.caption, copy.hashtags, copy.pinned_comment, copy.music_volume) == (
+    assert (copy.topic, copy.caption, copy.hashtags, copy.pinned_survey, copy.music_volume) == (
         video.topic,
         video.caption,
         video.hashtags,
-        video.pinned_comment,
+        video.pinned_survey,
         video.music_volume,
     )
     # No LLM call, no job: the copy is ready to edit and render.
@@ -75,18 +75,39 @@ def test_duplicate_copies_the_video_exactly_with_its_own_files(an, db, me, stora
     assert storage.path(copy.music_key).read_bytes() == MP3
 
 
-def test_a_copy_of_a_copy_is_named_after_its_source(an, db, me, storage):
+def test_a_copy_of_a_copy_carries_one_numbered_suffix(an, db, me, storage):
     video = make_video(db, storage, me, scene_count=1)
     first = an.post(f"/api/videos/{video.id}/duplicate").json()
     second = an.post(f"/api/videos/{first['id']}/duplicate").json()
-    assert second["name"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (copy) (copy)"
+    third = an.post(f"/api/videos/{video.id}/duplicate").json()
+    assert second["name"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (bản 2)"
+    assert third["name"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (bản 3)"
+
+
+def test_base_name_cuts_only_the_suffixes_at_the_end():
+    from reels_api.videos import base_name
+
+    assert base_name("A (copy) (copy) (xáo 2) (xáo 3)") == "A"
+    assert base_name("A (bản 3)") == "A"
+    assert base_name("A (copy) giữa tên") == "A (copy) giữa tên"
+    assert base_name(None) == ""
+
+
+def test_the_name_is_renamed_without_touching_the_render(an, db, me, storage):
+    video = make_video(db, storage, me, scene_count=1)
+    renamed = an.patch(f"/api/videos/{video.id}", json={"name": "  Tên mới  "}).json()
+    assert renamed["name"] == "Tên mới" and renamed["mp4_outdated"] is False
+    assert an.get("/api/videos", params={"q": "tên mới"}).json()[0]["id"] == video.id
+    assert an.patch(f"/api/videos/{video.id}", json={"caption": "x"}).json()["name"] == "Tên mới"
+    assert an.patch(f"/api/videos/{video.id}", json={"name": ""}).json()["name"] is None
+    assert an.patch(f"/api/videos/{video.id}", json={"name": "a" * 201}).status_code == 422
 
 
 def test_lists_show_the_copy_by_its_name(an, db, me, storage):
     video = make_video(db, storage, me, scene_count=1)
     copy_id = an.post(f"/api/videos/{video.id}/duplicate").json()["id"]
     rows = {row["id"]: row for row in an.get("/api/videos").json()}
-    assert rows[copy_id]["name"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (copy)"
+    assert rows[copy_id]["name"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (bản 1)"
     assert rows[video.id]["name"] is None
 
 
@@ -97,3 +118,45 @@ def test_a_video_without_a_script_is_not_duplicated(an, db, me, storage):
     response = an.post(f"/api/videos/{video.id}/duplicate")
     assert response.status_code == 409 and "chưa có kịch bản" in response.json()["message"]
     assert an.post("/api/videos/999999/duplicate").status_code == 404
+
+
+def test_clean_video_names_keeps_one_suffix(db, me, storage):
+    from reels_api.video_name_cleanup import apply, cleaned
+
+    assert cleaned("A (copy) (copy) (xáo 2) (xáo 3)") == "A (xáo 3)"
+    assert cleaned("A (copy) (copy)") == "A"
+    video = make_video(db, storage, me, scene_count=1)
+    video.name = "A (copy) (copy)"
+    db.commit()
+    assert apply(db, dry_run=True)[0] == f"{video.id} | A (copy) (copy) → A"
+    db.refresh(video)
+    assert video.name == "A (copy) (copy)"
+    apply(db, dry_run=False)
+    db.refresh(video)
+    assert video.name == "A"
+
+
+def test_three_variants_are_draft_copies_named_for_what_to_change(an, db, me, storage):
+    video = make_video(db, storage, me, scene_count=2)
+    video.mp4_key = f"videos/{video.id}/video-abc.mp4"
+    storage.save_bytes(video.mp4_key, b"mp4")
+    db.commit()
+
+    response = an.post(f"/api/videos/{video.id}/variants")
+
+    assert response.status_code == 201, response.text
+    made = response.json()["videos"]
+    assert [v["name"] for v in made] == [
+        "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (biến thể 1: đổi hook)",
+        "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (biến thể 2: đổi 1–2 món)",
+        "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (biến thể 3: đổi dạng)",
+    ]
+    for payload in made:
+        copy = db.get(Video, payload["id"])
+        assert copy.mp4_key is None and copy.created_by_id == me.id and len(scenes_of(db, copy.id)) == 3
+        assert db.scalars(select(Job).where(Job.video_id == copy.id)).all() == []
+    # A variant of a variant carries one suffix, not a pile; the source is untouched.
+    again = an.post(f"/api/videos/{made[0]['id']}/variants").json()["videos"]
+    assert again[1]["name"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE (biến thể 2: đổi 1–2 món)"
+    assert db.get(Video, video.id).mp4_key is not None
+    assert an.post("/api/videos/999999/variants").status_code == 404

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatTrimmed } from "@/lib/format";
 import { LockOutlined, UnlockOutlined, ZoomInOutlined, ZoomOutOutlined } from "@ant-design/icons";
 import { Button, Flex, Slider, Tooltip, Typography } from "antd";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -38,7 +39,7 @@ const LANE_LOOK: Record<Lane["key"], { background: string; color: string }> = {
 };
 
 const tenth = (value: number) => Math.round(value * 10) / 10;
-const shown = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+const shown = formatTrimmed;
 
 /** "00:07" on the ruler; "00:07,4" with tenths for the playhead. */
 export function clockLabel(value: number, tenths = false): string {

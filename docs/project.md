@@ -44,7 +44,7 @@ app replaces CapCut, so the output is a finished MP4.
    benefits, drafted by Claude, with food bank rows needing a member's approval before use. See
    [content.md](content.md#knowledge-base).
 3. **Script generation (built):** one LLM call (Claude by default; another provider can be chosen
-   on Cài đặt › Mô hình AI) turns a topic into 5 title options, a 5–7 scene
+   on Cài đặt › AI và nguồn tư liệu) turns a topic into 5 title options, a 5–7 scene
    script, a caption with hashtags, per-scene image prompts, affiliate
    suggestions, a safety self-review, and music suggestions. Every part is editable. "Nhân bản"
    writes one variant of an existing video from a change request. "Tự viết" makes a video without
@@ -129,6 +129,17 @@ app replaces CapCut, so the output is a finished MP4.
     mẫu", is cut by what is said (pauses and fillers out, each stretch a scene keeping its own sound, captions on the
     real words) with no AI writing. Any clip scene can keep its sound ("Tiếng gốc"). Next: the AI picks the hook,
     on-screen text and effects; then a long video cut into several shorts.
+12. **Phân tích đối thủ (built, `/competitors`):** a member pastes a competitor's Facebook link;
+    the team's Chrome extension reads its Reels grid (each reel and its views), then the most viewed reels' captions,
+    sound and reactions, in an incognito window of the member's Chrome signed in as a second account by its cookies,
+    the api sums the numbers (total, median, buckets, the top 10's share), and the member's Claude analyses topics,
+    viewers' pains and what to make through MCP, on the member's plan, using sample comments of the top reels as
+    evidence, and saves the report, shown under the scan. The Videos tab can be read too, posting dates of
+    samples down each grid give how often a competitor posts, and "So sánh" puts competitors side by side. The table
+    names each channel with its avatar, verified badge and followers, read from the Page's header (a member may
+    rename it), and an expanded row shows the spread of views and a paged, exportable video list. See
+    [decision](decisions/2026-11-17-competitor-analyzer.md) and
+    [v2](decisions/2026-11-18-competitors-ui-v2.md).
 
 ---
 
@@ -139,12 +150,13 @@ app replaces CapCut, so the output is a finished MP4.
    [content.md](content.md#monetization-and-publishing-context)), and a ready package of MP4, caption, and hashtags. Members post and pin the affiliate
    comment manually.
 3. **Later, in no fixed order:** topic calendar, 48-hour metrics tracking (built), API
-   auto-posting beyond Facebook Pages (built), YouTube Shorts, English content, the disclaimer and functional-food sentence, and
+   auto-posting beyond Facebook Pages (built), YouTube Shorts (uploading private through a member's own connection is
+   built; making it public stays in YouTube Studio), English content, the disclaimer and functional-food sentence, and
    AI image generation. Concrete items are [GitHub Issues](https://github.com/tuananh219ln/Reels-Studio/issues).
 
-Posting to connected Facebook Pages is built. The rest of API auto-posting is deferred for these reasons:
+Posting to connected Facebook Pages is built. Beyond Facebook, platform by platform:
 
-- Instagram publishing needs a Business/Creator account linked to a Facebook Page.
+- Instagram: posting a Reel to the Business/Creator account linked to a connected Page is built (now or at a set time); Instagram's numbers and comments are not read into the app.
 - TikTok: sending a draft to a member's TikTok inbox, or a direct post, is built (issue #46); until
   the TikTok app passes audit a direct post can only be private, and the cart is still attached in
   TikTok's app. TikTok's numbers are not read into the app.

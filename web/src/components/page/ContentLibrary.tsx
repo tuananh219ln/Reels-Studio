@@ -1,4 +1,5 @@
 "use client";
+import { decimalFormat } from "@/lib/format";
 import VideoActions from "@/components/actions/VideoActions";
 import ManagedPostActions from "@/components/actions/ManagedPostActions";
 
@@ -17,7 +18,7 @@ import {
   SettingOutlined,
 } from "@ant-design/icons";
 import type { TableColumnsType, TablePaginationConfig } from "antd";
-import { App, Button, Card, Checkbox, Dropdown, Flex, Popover, Table, Tooltip, Typography, theme } from "antd";
+import { App, Button, Card, Checkbox, Dropdown, Flex, Popover, Table, Tag, Tooltip, Typography, theme } from "antd";
 import type { SorterResult } from "antd/es/table/interface";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -26,7 +27,7 @@ const REFRESH_MS = 60_000;
 // Remembered in this browser, like the list or grid choice of other pages.
 const COLUMNS_KEY = "page-content-columns";
 
-const times = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });
+const times = decimalFormat;
 
 type Key =
   | "live_at"
@@ -58,7 +59,7 @@ function latest(metric: keyof NonNullable<PageContentPost["numbers"]>) {
   };
 }
 
-function Times({ value }: { value: number | null }) {
+function Times({ value, winner = false }: { value: number | null; winner?: boolean }) {
   const { token } = theme.useToken();
   if (value === null) return <Typography.Text type="secondary">—</Typography.Text>;
   const up = value >= 1;
@@ -66,6 +67,11 @@ function Times({ value }: { value: number | null }) {
   return (
     <span style={{ color: up ? token.colorSuccessText : token.colorTextSecondary, whiteSpace: "nowrap" }}>
       {up ? <ArrowUpOutlined /> : <ArrowDownOutlined />} {times.format(value)}×
+      {winner && (
+        <Tag color="gold" style={{ marginInlineStart: 6, marginInlineEnd: 0 }} data-testid="winner-flag">
+          Winner
+        </Tag>
+      )}
     </span>
   );
 }
@@ -92,7 +98,7 @@ const COLUMNS: Column[] = [
   },
   ...(
     [
-      ["views", "Lượt xem", undefined],
+      ["views", "Lượt xem", "Facebook, lần đo mới nhất của bài (không phải số 48 giờ)"],
       ["reach", "Tiếp cận", "Số người đã thấy reel, Facebook ước tính"],
       ["reactions", "Cảm xúc", undefined],
       ["comments", "Bình luận", undefined],
@@ -129,7 +135,7 @@ const COLUMNS: Column[] = [
     tip: "View 48 giờ gấp mấy lần trung vị của Page (các bài 60 ngày qua)",
     numeric: true,
     value: (post) => post.times_median,
-    render: (post) => <Times value={post.times_median} />,
+    render: (post) => <Times value={post.times_median} winner={post.is_winner} />,
   },
 ];
 
@@ -392,7 +398,9 @@ export default function ContentLibrary({ pageId, days }: { pageId: string; days:
           }}
         />
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Số ở lần đo mới nhất của mỗi bài (bấm “Cập nhật view” ở ⋯ để đo lại); bài đăng ngoài app không có ở đây.{" "}
+          Nguồn: Facebook, đọc qua tool ở lần đo mới nhất của mỗi bài (bấm “Cập nhật view” ở ⋯ để đo lại); cột “View 48
+          giờ” và “So với trung vị” là số tool đo đúng lúc 48 giờ. Số này là của từng bài, khác thẻ “Lượt xem” ở Tổng
+          quan (cả Page, theo khoảng ngày đã chọn); bài đăng ngoài app không có ở đây.{" "}
           {median && median.samples >= median.min_samples && median.views !== null
             ? `Trung vị view 48 giờ của Page: ${formatNumber(median.views)} (${median.samples} bài).`
             : `Cần ít nhất ${median?.min_samples ?? 5} bài có view 48 giờ để so với trung vị.`}

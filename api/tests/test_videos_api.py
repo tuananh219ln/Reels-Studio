@@ -107,7 +107,7 @@ def test_list_keeps_one_topic_groups_videos_for_its_tab_in_kho_kien_thuc(an, db,
 
 
 def test_a_rendered_video_says_whether_it_waits_to_be_posted_is_scheduled_or_is_out(an, db, me, storage):
-    """ "Xong" said nothing about posting: a video with an MP4 is "Chờ đăng", "Đã lên lịch" or "Đã đăng"."""
+    """ "Xong" said nothing about posting: a video with an MP4 is "Chờ đăng", "Đã hẹn giờ" or "Đã đăng"."""
     page = Fanpage(page_id="p1", name="Vườn nhà", token_encrypted="x", token_tail="x")
     db.add(page)
     draft, ready, later, out = (make_video(db, storage, me, topic=name) for name in ("nháp", "chờ", "hẹn", "đăng"))
@@ -122,12 +122,12 @@ def test_a_rendered_video_says_whether_it_waits_to_be_posted_is_scheduled_or_is_
     expected = {
         draft.id: ("draft", "Nháp", None),
         ready.id: ("done", "Chờ đăng", "ready"),
-        later.id: ("done", "Đã lên lịch", "scheduled"),
+        later.id: ("done", "Đã hẹn giờ", "scheduled"),
         out.id: ("done", "Đã đăng", "posted"),
     }
     assert {key: (row["status"], row["status_label"], row["post_stage"]) for key, row in rows.items()} == expected
     page_view = an.get(f"/api/videos/{later.id}").json()
-    assert (page_view["status_label"], page_view["post_stage"]) == ("Đã lên lịch", "scheduled")
+    assert (page_view["status_label"], page_view["post_stage"]) == ("Đã hẹn giờ", "scheduled")
 
 
 def _post(db, me, video, page, status="published", at=None, latest=None, h48=None):
@@ -192,6 +192,7 @@ def test_the_list_shows_each_videos_posts_views_and_48_hour_numbers(an, db, me, 
         "share_rate": 0.005,
         "share_met": True,  # against analytics.SHARE_GOAL
         "times_median": 12.0,
+        "is_winner": True,
     }
     scheduled = rows["Hẹn giờ"]["post"]
     assert (scheduled["state"], scheduled["fanpage"], scheduled["views"]) == ("scheduled", "Vườn nhà", None)
@@ -216,13 +217,13 @@ def test_field_saves_never_overwrite_other_fields(an, binh, db, me, storage):
     video = make_video(db, storage, me)
     first, second = scene_ids(db, video)[:2]
     an.patch(f"/api/videos/{video.id}", json={"caption": "Caption của An"})
-    binh.patch(f"/api/videos/{video.id}", json={"pinned_comment": "Ghim của Bình"})
+    binh.patch(f"/api/videos/{video.id}", json={"pinned_survey": "Ghim của Bình"})
     an.patch(f"/api/scenes/{first}", json={"text": "Chữ của An"})
     binh.patch(f"/api/scenes/{second}", json={"seconds": 5})
     binh.patch(f"/api/scenes/{first}", json={"keywords": ["cá cơm", " ", "cá"]})
 
     saved = an.get(f"/api/videos/{video.id}").json()
-    assert (saved["caption"], saved["pinned_comment"]) == ("Caption của An", "Ghim của Bình")
+    assert (saved["caption"], saved["pinned_survey"]) == ("Caption của An", "Ghim của Bình")
     assert saved["scenes"][0]["text"] == "Chữ của An" and saved["scenes"][0]["keywords"] == ["cá cơm", "cá"]
     assert saved["scenes"][1]["seconds"] == 5
 
@@ -233,7 +234,7 @@ def test_post_fields_and_image_prompt_are_editable(an, db, me, storage):
         "caption": "Mới",
         "hashtags": ["#x", "#y"],
         "affiliates": ["A", "B"],
-        "pinned_comment": "G",
+        "pinned_survey": "G",
         "music_suggestions": ["Windy Hill", "Nhạc 2"],
     }
     saved = an.patch(f"/api/videos/{video.id}", json=body).json()
@@ -441,7 +442,7 @@ def test_a_failed_rerender_keeps_done_with_a_label(an, db, me, storage):
         (("image", None), True),
         (("video", {"caption": "khác"}), False),
         (
-            ("video", {"hashtags": ["#khac"], "affiliates": ["x"], "pinned_comment": "y", "music_suggestions": ["z"]}),
+            ("video", {"hashtags": ["#khac"], "affiliates": ["x"], "pinned_survey": "y", "music_suggestions": ["z"]}),
             False,
         ),
         (("scene", {"keywords": ["khác"], "image_prompt": "khác"}), False),
@@ -1080,3 +1081,161 @@ def test_a_render_machine_is_sent_the_loop_flag_only_when_a_clip_loops():
 
     assert "clip_loop" not in render_nodes.options_dict(RenderOptions())
     assert render_nodes.options_dict(replace(RenderOptions(), clip_loop=True))["clip_loop"] is True
+
+
+# --- "Khung ảnh" (reels_render.framing) ---
+
+
+def wide_scene(db, storage, video, size=(1000, 800)):
+    """The first content scene, given a 5:4 photo instead of the seeded 9:16 one."""
+    scene = db.get(Scene, scene_ids(db, video)[0])
+    key = f"videos/{video.id}/wide-{size[0]}x{size[1]}.jpg"
+    storage.save_bytes(key, photo_bytes(size=size))
+    scene.image_key = key
+    db.commit()
+    return scene.id
+
+
+def shown_scene(data, scene_id):
+    return next(scene for scene in data["scenes"] if scene["id"] == scene_id)
+
+
+def test_a_wide_photo_is_framed_square_with_its_text_above(an, db, me, storage):
+    video = make_video(db, storage, me)
+    target = wide_scene(db, storage, video)
+    data = an.get(f"/api/videos/{video.id}").json()
+
+    frame = shown_scene(data, target)["image_frame"]
+    assert frame["fit"] is None and frame["kind"] == "square" and frame["shape"] == [1000, 800]
+    assert frame["text_at"][0] == 540 and frame["text_at"][1] < 960, "the text goes on the blurred copy above"
+    # A 9:16 photo still fills the frame; the title (the cover) is never framed.
+    # A 9:16 photo still fills the frame, and its text stays where it always went.
+    other = next(scene for scene in data["scenes"] if scene["id"] != target)
+    assert other["image_frame"]["kind"] == "cover" and other["image_frame"]["text_at"] is None
+    assert data["title_scene"]["image_frame"] is None
+
+    for anchor in ("top", "bottom"):
+        response = an.get(f"/api/scenes/{target}/frame.jpg?anchor={anchor}")
+        assert response.status_code == 200
+        assert Image.open(io.BytesIO(response.content)).size == (1080, 1920)
+
+
+def test_choosing_the_fit_changes_the_preview_and_the_mp4_fingerprint(an, db, me, storage):
+    from reels_api.videos import render_signature, split_scenes
+
+    def signature():
+        db.expire_all()
+        row = db.get(Video, video.id)
+        return render_signature(row, *split_scenes(db, row))
+
+    video = make_video(db, storage, me)
+    target = wide_scene(db, storage, video)
+    before_preview = shown_scene(an.get(f"/api/videos/{video.id}").json(), target)["preview_url"]
+    before = signature()
+
+    whole = an.patch(f"/api/scenes/{target}", json={"image_fit": "whole"}).json()
+    shown = shown_scene(whole, target)
+    assert shown["image_frame"]["fit"] == "whole" and shown["image_frame"]["kind"] == "whole"
+    assert shown["preview_url"] != before_preview and signature() != before
+    preview = an.get(shown["preview_url"])
+    assert preview.status_code == 200 and Image.open(io.BytesIO(preview.content)).size == (1080, 1920)
+
+    slid = an.patch(f"/api/scenes/{target}", json={"image_fit": "square", "image_crop_offset": 0}).json()
+    assert shown_scene(slid, target)["image_frame"]["offset"] == 0
+    back = an.patch(f"/api/scenes/{target}", json={"image_fit": None, "image_crop_offset": None}).json()
+    assert shown_scene(back, target)["image_frame"]["fit"] is None
+    assert signature() == before, "back to Tự động with no square chosen: the fingerprint from before"
+
+
+def test_a_new_photo_forgets_where_the_square_was_cut(an, db, me, storage):
+    video = make_video(db, storage, me)
+    target = wide_scene(db, storage, video)
+    an.patch(f"/api/scenes/{target}", json={"image_crop_offset": 0.8})
+    uploaded = an.post(f"/api/scenes/{target}/image", files={"file": ("moi.jpg", photo_bytes(size=(900, 900)))})
+    assert uploaded.status_code == 200
+    assert shown_scene(uploaded.json(), target)["image_frame"]["offset"] is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{"image_fit": "stretch"}, {"image_fit": 3}, {"image_crop_offset": 2}, {"image_crop_offset": True}],
+)
+def test_bad_fits_are_refused(an, db, me, storage, body):
+    video = make_video(db, storage, me)
+    response = an.patch(f"/api/scenes/{scene_ids(db, video)[0]}", json=body)
+    assert response.status_code == 422
+
+
+def test_the_title_has_no_fit(an, db, me, storage):
+    video = make_video(db, storage, me)
+    response = an.patch(f"/api/scenes/{title_id(db, video)}", json={"image_fit": "square"})
+    assert response.status_code == 422 and "cảnh nội dung" in response.json()["message"]
+
+
+def test_a_blurry_photo_warns_and_a_sharp_or_plain_one_does_not(an, db, me, storage):
+    """ "Ảnh mờ, nên thay ảnh khác" (reels_render.framing.is_blurry) on a framed photo; the seeded one-colour photos
+    have nothing to judge."""
+    from conftest import API_DIR
+    from PIL import ImageFilter
+
+    from reels_api.script_rules import BLURRY_PHOTO
+
+    video = make_video(db, storage, me)
+    first, second = scene_ids(db, video)[:2]
+    sharp = Image.open(API_DIR.parent / "samples" / "xuong-khop" / "02-sua-chua.jpg").convert("RGB")
+    soft = sharp.filter(ImageFilter.GaussianBlur(3))
+    for scene_id, picture in ((first, soft), (second, sharp)):
+        buffer = io.BytesIO()
+        picture.save(buffer, "JPEG", quality=92)
+        key = f"videos/{video.id}/photo-{scene_id}.jpg"
+        storage.save_bytes(key, buffer.getvalue())
+        db.get(Scene, scene_id).image_key = key
+    db.commit()
+
+    data = an.get(f"/api/videos/{video.id}").json()
+    assert {"message": BLURRY_PHOTO, "field": "image", "level": "warning"} in shown_scene(data, first)["issues"]
+    assert BLURRY_PHOTO not in shown_scene(data, second)["warnings"]
+    assert all(BLURRY_PHOTO not in scene["warnings"] for scene in data["scenes"][2:])
+
+
+def test_every_scenes_photo_and_text_share_one_line_whatever_the_text_height(an, db, me, storage):
+    """The video's tallest framed text box decides the line: a one-line scene, a three-line scene and a 9:16 scene put
+    their text on the same middle line, and the two framed photos start on the same row in the drag frame."""
+    video = make_video(db, storage, me)
+    first, second, third = scene_ids(db, video)[:3]
+    wide_scene(db, storage, video, size=(1000, 800))
+    key = f"videos/{video.id}/wide-second.jpg"
+    storage.save_bytes(key, photo_bytes(size=(1380, 1000)))
+    db.get(Scene, second).image_key = key
+    db.commit()
+    an.patch(f"/api/scenes/{first}", json={"text": "Một dòng"})
+    an.patch(f"/api/scenes/{second}", json={"text": "Ba dòng chữ dài\nhơn nhiều\nso với cảnh trước"})
+    data = an.get(f"/api/videos/{video.id}").json()
+
+    at = [shown_scene(data, scene_id)["image_frame"]["text_at"] for scene_id in (first, second)]
+    assert all(at), at
+    assert shown_scene(data, third)["image_frame"]["text_at"] is None, "a 9:16 scene's text is not moved"
+    assert max(point[1] for point in at) - min(point[1] for point in at) <= 1
+    assert shown_scene(data, second)["image_frame"]["kind"] == "square", "1.38 is cut square like a 5:4 photo"
+
+    def photo_row(scene_id):
+        response = an.get(f"/api/scenes/{scene_id}/frame.jpg?anchor=top")
+        frame = Image.open(io.BytesIO(response.content)).convert("RGB")
+        # The photo is the seeded colour (190, 120, 60); its blurred copy around it is darker.
+        return next(
+            y for y in range(1920) if all(abs(a - b) < 12 for a, b in zip(frame.getpixel((20, y)), (190, 120, 60)))
+        )
+
+    assert abs(photo_row(first) - photo_row(second)) <= 2
+
+
+def test_a_scenes_taller_text_draws_the_other_scenes_frames_again(an, db, me, storage):
+    """The tallest text box sets the line for every scene (a 9:16 scene's text goes on it too), so changing it gives the
+    other scenes' frames a new address, and the preview is drawn again."""
+    video = make_video(db, storage, me)
+    first, second = scene_ids(db, video)[:2]
+    wide_scene(db, storage, video)
+    before = shown_scene(an.get(f"/api/videos/{video.id}").json(), second)["frame_url"]
+    an.patch(f"/api/scenes/{first}", json={"text": "Ba dòng chữ dài\nhơn nhiều\nso với cảnh trước"})
+    after = shown_scene(an.get(f"/api/videos/{video.id}").json(), second)["frame_url"]
+    assert before != after

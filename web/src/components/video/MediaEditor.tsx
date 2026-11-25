@@ -22,7 +22,8 @@ const MIN_CLIP_SPEED = 0.5;
 const MAX_CLIP_SPEED = 2;
 
 const round = (value: number, digits: number) => Number(value.toFixed(digits));
-const seconds = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+import { formatTrimmed } from "@/lib/format";
+const seconds = formatTrimmed;
 const speedText = (value: number) => `${value.toLocaleString("vi-VN")}×`;
 
 /** "Chỉnh khung": a photo is cropped to 9:16, turned or flipped; a clip is trimmed to the part the scene plays. */

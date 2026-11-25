@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import post_links, tiktok_connections
+from . import post_links, tiktok_connections, youtube_connections
 from .db import get_db
 from .errors import ApiError
 from .models import AffiliateAccount, Channel, Fanpage, Publication, Session, User
@@ -108,6 +108,9 @@ def list_channels(me: Session = Depends(current_member), db: DbSession = Depends
                 "created_by_id": channel.created_by_id,
                 "created_by": channel.created_by.name,
                 "post_count": youtube_posts.get(channel.id, 0),
+                # Connected through Google ("Kết nối YouTube"): its owner uploads private videos to it.
+                "connection": youtube_connections.payload(connection := youtube_connections.of_channel(db, channel.id)),
+                "connected_by": names.get(connection.owner_id) if connection else None,
             }
             for channel in db.scalars(select(Channel).where(Channel.platform == "youtube").order_by(Channel.name))
         ],
@@ -184,6 +187,8 @@ def remove_youtube(channel_id: int, me: Session = Depends(current_member), db: D
         raise ApiError(404, "channel_not_found", "Không tìm thấy kênh")
     if channel.created_by_id != me.user_id:
         raise ApiError(403, "not_channel_author", "Chỉ người thêm kênh này mới xóa được")
+    if youtube_connections.of_channel(db, channel.id) is not None:
+        raise ApiError(409, "channel_connected", "Kênh đang kết nối YouTube, hãy ngắt kết nối trước rồi xóa")
     db.delete(channel)
     db.commit()
     return {"ok": True}

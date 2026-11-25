@@ -367,15 +367,16 @@ def test_render_without_an_elevenlabs_key_says_where_to_paste_one(committed, voi
     user, storage, video_id = voiced
     monkeypatch.setenv("ELEVENLABS_API_KEY", "")
     job = render(committed, storage, video_id, user.id)
-    assert job.status == "failed" and "Chưa có key ElevenLabs" in job.error and "Nguồn tư liệu" in job.error
+    assert job.status == "failed" and "Chưa có key ElevenLabs" in job.error and "AI và nguồn tư liệu" in job.error
     assert fakes.tts_requests == []
 
 
 @needs_ffmpeg
-def test_narration_pushing_the_total_over_90_seconds_fails_but_keeps_what_was_made(committed, tmp_path, fakes):
+def test_narration_pushing_the_total_over_150_seconds_fails_but_keeps_what_was_made(committed, tmp_path, fakes):
     user = add_user(committed)
     storage = DirectoryStorage(tmp_path / "storage")
-    long_text = " ".join(["chữ"] * 40)  # 12 s of fake narration: each of the two scenes becomes 12.7 s
+    # 48 s of fake narration (0.3 s a word): each of the two scenes becomes about 48.7 s, well past 150 s together
+    long_text = " ".join(["chữ"] * 160)
     with committed() as db:
         video = make_video(db, storage, user, scene_count=9, seconds=9, title_text="", scene_text="")
         _, scenes = split_scenes(db, video)
@@ -385,7 +386,7 @@ def test_narration_pushing_the_total_over_90_seconds_fails_but_keeps_what_was_ma
         video_id = video.id
     job = render(committed, storage, video_id, user.id)
     assert job.status == "failed"
-    assert job.error.startswith("Chưa render được: Tổng độ dài") and "tối đa 90 giây" in job.error
+    assert job.error.startswith("Chưa render được: Tổng độ dài") and "tối đa 150 giây" in job.error
     assert len(fakes.tts_requests) == 2
     with committed() as db:
         _, scenes = split_scenes(db, db.get(Video, video_id))

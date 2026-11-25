@@ -1,9 +1,10 @@
-"""Scene narration with ElevenLabs (the "Adam" voice by default), VieNeu or Google Cloud Text-to-Speech, called only
-from the voice and render jobs.
+"""Scene narration with ElevenLabs (the "Adam" voice by default), VieNeu, Gemini or Google Cloud Text-to-Speech, called
+only from the voice and render jobs.
 
 A video's voice id says which service reads it: "vieneu:<VieNeu voice id>" is a VieNeu voice (its OpenAI-compatible
-/v1/audio/speech), "google:<Google voice name>" a Google Cloud one (its /v1/text:synthesize), any other id an
-ElevenLabs one. Each scene's MP3 is stored with the signature of what it was made
+/v1/audio/speech), "gemini:<voice>" a Gemini TTS one (the Google AI Studio key that makes AI photos, its
+/v1beta/interactions), "google:<Google voice name>" a Google Cloud one (its own key, its /v1/text:synthesize), any
+other id an ElevenLabs one. Each scene's MP3 is stored with the signature of what it was made
 from, so a re-render pays only for narration whose text, voice or model changed.
 """
 
@@ -30,6 +31,45 @@ VIENEU_PREFIX = "vieneu:"
 VIENEU_MODEL = "vieneu-v4"
 VIENEU_ENGINE = "v4"
 
+GEMINI_PREFIX = "gemini:"
+GEMINI_MODEL = "gemini-3.8-flash-tts"
+GEMINI_RETRIES = 3  # a per-minute limit is waited out this many times before the job fails
+GEMINI_RETRY_SECONDS = 20
+# Gemini's 30 prebuilt voices speak any language it is given (Vietnamese included), picked by name; the word is
+# Google's own description of the voice (ai.google.dev/gemini-api/docs/speech-generation#voices), in Vietnamese.
+GEMINI_VOICES = {
+    "Achernar": "Mềm",
+    "Achird": "Thân thiện",
+    "Algenib": "Khàn",
+    "Algieba": "Mượt",
+    "Alnilam": "Chắc",
+    "Aoede": "Nhẹ nhàng",
+    "Autonoe": "Sáng",
+    "Callirrhoe": "Thoải mái",
+    "Charon": "Rõ thông tin",
+    "Despina": "Mượt",
+    "Enceladus": "Hơi thở",
+    "Erinome": "Rõ",
+    "Fenrir": "Hào hứng",
+    "Gacrux": "Chững chạc",
+    "Iapetus": "Rõ",
+    "Kore": "Chắc",
+    "Laomedeia": "Tươi vui",
+    "Leda": "Trẻ trung",
+    "Orus": "Chắc",
+    "Puck": "Tươi vui",
+    "Pulcherrima": "Thẳng",
+    "Rasalgethi": "Rõ thông tin",
+    "Sadachbia": "Sôi nổi",
+    "Sadaltager": "Hiểu biết",
+    "Schedar": "Đều",
+    "Sulafat": "Ấm",
+    "Umbriel": "Thoải mái",
+    "Vindemiatrix": "Dịu",
+    "Zephyr": "Sáng",
+    "Zubenelgenubi": "Tự nhiên",
+}
+
 GOOGLE_PREFIX = "google:"
 GOOGLE_MODEL = "google-tts-v1"  # names the service in a narration's signature; Google picks the model by voice
 GOOGLE_LANGUAGE = "vi-VN"  # the voices offered; a voice's own language comes from its name ("vi-VN-Neural2-A")
@@ -37,12 +77,27 @@ GOOGLE_MAX_INPUT_BYTES = 5000  # Google refuses a longer text in one request
 
 
 class TtsError(Exception):
-    """`message` is shown to members, `detail` is diagnostic."""
+    """`message` is shown to members, `detail` is diagnostic. `key_fault`: the key itself cannot read (wrong or revoked,
+    not allowed, its quota ran out), so another key of the same service may still; a busy or broken service, a
+    network failure or a missing voice is not the key's fault and fails at once."""
 
-    def __init__(self, message: str, detail: str = ""):
+    def __init__(self, message: str, detail: str = "", key_fault: bool = False):
         super().__init__(message)
         self.message = message
         self.detail = detail
+        self.key_fault = key_fault
+
+
+SERVICE_NAMES = {"elevenlabs": "ElevenLabs", "gemini": "Gemini", "vieneu": "VieNeu", "google_tts": "Google"}
+
+
+def all_keys_failed(service: str, count: int) -> str:
+    """The reason a narration fails once every one of the service's `count` keys was wrong or out of quota."""
+    name = SERVICE_NAMES.get(service, service)
+    return (
+        f"Đã thử hết {count} key {name} và key nào cũng lỗi hoặc hết hạn mức: xem lỗi của từng key ở "
+        "Cài đặt › AI và nguồn tư liệu, thêm key mới, hoặc chọn giọng dịch vụ khác cho video này"
+    )
 
 
 def spoken_text(voice_text: str) -> str:
@@ -58,6 +113,10 @@ def is_vieneu(voice_id: str | None) -> bool:
     return bool(voice_id) and voice_id.startswith(VIENEU_PREFIX)
 
 
+def is_gemini(voice_id: str | None) -> bool:
+    return bool(voice_id) and voice_id.startswith(GEMINI_PREFIX)
+
+
 def is_google(voice_id: str | None) -> bool:
     return bool(voice_id) and voice_id.startswith(GOOGLE_PREFIX)
 
@@ -66,18 +125,20 @@ def key_name(voice_id: str | None) -> str:
     """The source_keys name of the key that reads this voice (the server's default voice is an ElevenLabs one)."""
     if is_vieneu(voice_id):
         return "vieneu"
+    if is_gemini(voice_id):
+        return "gemini"
     return "google_tts" if is_google(voice_id) else "elevenlabs"
 
 
 def service_name(voice_id: str | None) -> str:
-    if is_vieneu(voice_id):
-        return "VieNeu"
-    return "Google" if is_google(voice_id) else "ElevenLabs"
+    return SERVICE_NAMES[key_name(voice_id)]
 
 
 def _model(voice: str) -> str:
     if is_vieneu(voice):
         return VIENEU_MODEL
+    if is_gemini(voice):
+        return GEMINI_MODEL
     return GOOGLE_MODEL if is_google(voice) else config.voice_model()
 
 
@@ -92,9 +153,10 @@ def voice_signature(voice_text: str, voice_id: str | None = None, speed: float =
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
-NO_KEY = "Chưa có key ElevenLabs nên {}: nhập key ở Cài đặt › Nguồn tư liệu"
-NO_VIENEU_KEY = "Chưa có key VieNeu nên {}: nhập key ở Cài đặt › Mô hình AI"
-NO_GOOGLE_KEY = "Chưa có key Google Cloud Text-to-Speech nên {}: nhập key ở Cài đặt › Mô hình AI"
+NO_KEY = "Chưa có key ElevenLabs nên {}: nhập key ở Cài đặt › AI và nguồn tư liệu"
+NO_VIENEU_KEY = "Chưa có key VieNeu nên {}: nhập key ở Cài đặt › AI và nguồn tư liệu"
+NO_GEMINI_KEY = "Chưa có key Gemini nên {}: nhập key ở Cài đặt › AI và nguồn tư liệu (cùng key tạo ảnh AI)"
+NO_GOOGLE_KEY = "Chưa có key Google Cloud Text-to-Speech nên {}: nhập key ở Cài đặt › AI và nguồn tư liệu"
 
 
 def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: float = 1.0) -> bytes:
@@ -104,6 +166,8 @@ def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: fl
     voice = voice_id or config.voice_id()
     if is_vieneu(voice):
         return change_speed(_vieneu_speech(voice_text, key, voice.removeprefix(VIENEU_PREFIX)), speed)
+    if is_gemini(voice):
+        return change_speed(_gemini_speech(voice_text, key, voice.removeprefix(GEMINI_PREFIX)), speed)
     if is_google(voice):
         return change_speed(_google_speech(voice_text, key, voice.removeprefix(GOOGLE_PREFIX)), speed)
     if not key:
@@ -161,20 +225,141 @@ def _vieneu_error(status: int, body: str) -> TtsError:
     detail = f"HTTP {status}: {body}"
     lowered = body.lower()
     if status == 401:
-        return TtsError("Key VieNeu không hợp lệ hoặc đã bị thu hồi: kiểm tra lại ở Cài đặt › Mô hình AI", detail)
+        return TtsError(
+            "Key VieNeu không hợp lệ hoặc đã bị thu hồi: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu", detail, True
+        )
     if status == 429:
         if "trial" in lowered:
-            return TtsError("Key VieNeu dùng thử đã hết lượt gọi trong ngày, thử lại sau 0 giờ", detail)
+            return TtsError("Key VieNeu dùng thử đã hết lượt gọi trong ngày, thử lại sau 0 giờ", detail, True)
         return TtsError("VieNeu đang giới hạn lượt gọi, thử lại sau", detail)
     if status == 402 or "credit" in lowered or "quota" in lowered or "balance" in lowered:
-        return TtsError("Tài khoản VieNeu đã hết lượt (credit), cần nạp thêm", detail)
+        return TtsError("Tài khoản VieNeu đã hết lượt (credit), cần nạp thêm", detail, True)
     if status == 403:
-        return TtsError("Tài khoản VieNeu chưa có gói API đang hoạt động", detail)
+        return TtsError("Tài khoản VieNeu chưa có gói API đang hoạt động", detail, True)
     if status == 400 and "voice" in lowered:
         return TtsError("VieNeu không có giọng đã chọn, hãy chọn giọng khác", detail)
     if status >= 500:
         return TtsError(f"VieNeu đang lỗi (HTTP {status}), thử lại sau", detail)
     return TtsError("VieNeu từ chối tạo lời đọc", detail)
+
+
+def _gemini_speech(voice_text: str, key: str, voice: str) -> bytes:
+    """Gemini TTS's MP3 for the text. Its answer is JSON holding a base64 WAV (24 kHz, mono), turned into MP3 here;
+    the language is detected from the text, and the text is read verbatim (no style note is sent). A per-minute
+    limit is waited out and the call made again; the daily one fails at once."""
+    if not key:
+        raise TtsError(NO_GEMINI_KEY.format("không tạo được lời đọc"))
+    if voice not in GEMINI_VOICES:
+        raise TtsError("Gemini không có giọng đã chọn, hãy chọn giọng khác", f"voice {voice!r}")
+    payload = {
+        "model": GEMINI_MODEL,
+        "input": [{"type": "user_input", "content": [{"type": "text", "text": spoken_text(voice_text)}]}],
+        "response_format": {"type": "audio"},
+        "generation_config": {"speech_config": [{"voice": voice}]},
+    }
+    for attempt in range(GEMINI_RETRIES + 1):
+        request = urllib.request.Request(
+            f"{config.image_gen_api_url()}/v1beta/interactions",
+            data=json.dumps(payload, ensure_ascii=False).encode(),
+            method="POST",
+            headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+                answer = json.loads(response.read(MAX_AUDIO_BYTES * 2))
+            break
+        except urllib.error.HTTPError as err:
+            body = err.read(4000).decode("utf-8", "replace")
+            if err.code == 429 and not _gemini_daily_limit(body) and attempt < GEMINI_RETRIES:
+                time.sleep(GEMINI_RETRY_SECONDS)
+                continue
+            raise _gemini_error(err.code, body) from None
+        except OSError as err:
+            raise TtsError("Không kết nối được Gemini, kiểm tra mạng rồi thử lại", str(err)) from None
+        except ValueError as err:
+            raise TtsError("Gemini trả file lời đọc không dùng được, thử lại sau", repr(err)) from None
+    wav = _gemini_audio(answer)
+    if not wav or len(wav) > MAX_AUDIO_BYTES:
+        raise TtsError("Gemini trả file lời đọc không dùng được, thử lại sau", f"{len(wav)} bytes")
+    return _wav_to_mp3(wav)
+
+
+def _gemini_audio(answer: object) -> bytes:
+    """The last audio block of the answer's steps, decoded; empty when there is none."""
+    blocks = []
+    steps = answer.get("steps") if isinstance(answer, dict) else None
+    for step in steps if isinstance(steps, list) else []:
+        content = step.get("content") if isinstance(step, dict) else None
+        for block in content if isinstance(content, list) else []:
+            if isinstance(block, dict) and block.get("type") == "audio" and isinstance(block.get("data"), str):
+                blocks.append(block["data"])
+    if not blocks:
+        return b""
+    try:
+        return base64.b64decode(blocks[-1], validate=True)
+    except (ValueError, binascii.Error):
+        return b""
+
+
+def _gemini_daily_limit(body: str) -> bool:
+    """A 429 about the day's requests ("...RequestsPerDay...") rather than the minute's: waiting does not help."""
+    lowered = body.lower()
+    return "perday" in lowered or "per day" in lowered or "daily" in lowered
+
+
+def _gemini_error(status: int, body: str) -> TtsError:
+    detail = f"HTTP {status}: {body}"
+    lowered = body.lower()
+    if "api_key_invalid" in lowered or "api key not valid" in lowered or status == 401:
+        return TtsError(
+            "Key Gemini không hợp lệ hoặc đã bị thu hồi: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu", detail, True
+        )
+    if status == 403:
+        return TtsError(
+            "Key Gemini không được phép đọc lời (chưa bật quyền hoặc bị giới hạn): kiểm tra ở AI Studio", detail, True
+        )
+    if status == 429:
+        if _gemini_daily_limit(body):
+            return TtsError(
+                "Key Gemini đã hết lượt đọc lời trong ngày (làm mới khoảng 14–15 giờ Việt Nam): "
+                "thử lại sau, hoặc chọn giọng ElevenLabs/VieNeu cho video này",
+                detail,
+                True,
+            )
+        return TtsError("Gemini đang giới hạn số lượt gọi mỗi phút, thử lại sau ít phút", detail)
+    if status == 404:
+        return TtsError("Gemini không có model đọc lời đã cấu hình", detail)
+    if status == 400 and "voice" in lowered:
+        return TtsError("Gemini không có giọng đã chọn, hãy chọn giọng khác", detail)
+    if status >= 500:
+        return TtsError(f"Gemini đang lỗi (HTTP {status}), thử lại sau", detail)
+    return TtsError("Gemini từ chối tạo lời đọc", detail)
+
+
+def _wav_to_mp3(data: bytes) -> bytes:
+    with tempfile.TemporaryDirectory() as folder:
+        source, output = Path(folder) / "voice.wav", Path(folder) / "voice.mp3"
+        source.write_bytes(data)
+        try:
+            run(
+                [
+                    find_tools().ffmpeg,
+                    "-v",
+                    "error",
+                    "-y",
+                    "-i",
+                    str(source),
+                    "-c:a",
+                    "libmp3lame",
+                    "-b:a",
+                    "128k",
+                    str(output),
+                ],
+                "FFmpeg không đổi được lời đọc Gemini sang MP3",
+            )
+        except RenderError as err:
+            raise TtsError("Gemini trả file lời đọc không dùng được, thử lại sau", str(err)) from None
+        return output.read_bytes()
 
 
 def _google_headers(key: str) -> dict:
@@ -218,19 +403,25 @@ def _google_speech(voice_text: str, key: str, voice: str) -> bytes:
 
 
 def _google_error(status: int, body: str) -> TtsError:
-    """Google answers {"error": {"code", "message", "status", "details": [{"reason": ...}]}}; the reason says most."""
+    """Google answers {"error": {"code", "message", "status", "details": [{"reason": ...}]}}; the reason says most.
+    A wrong key, a project without billing or the API, or a blocked key is the key's fault (the next key may read); a
+    per-minute 429 is not."""
     detail = f"HTTP {status}: {body}"
     lowered = body.lower()
     if "api_key_invalid" in lowered or "api key not valid" in lowered or status == 401:
-        return TtsError("Key Google Cloud không hợp lệ: kiểm tra lại ở Cài đặt › Mô hình AI", detail)
+        return TtsError(
+            "Key Google Cloud không hợp lệ hoặc đã bị thu hồi: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu",
+            detail,
+            True,
+        )
     if "billing" in lowered:
-        return TtsError("Dự án Google Cloud của key chưa bật thanh toán (billing), cần bật để đọc lời", detail)
+        return TtsError("Dự án Google Cloud của key chưa bật thanh toán (billing), cần bật để đọc lời", detail, True)
     if "service_disabled" in lowered or "has not been used" in lowered or "is disabled" in lowered:
-        return TtsError("Dự án Google Cloud của key chưa bật Cloud Text-to-Speech API", detail)
+        return TtsError("Dự án Google Cloud của key chưa bật Cloud Text-to-Speech API", detail, True)
     if "api_key_service_blocked" in lowered or status == 403:
-        return TtsError("Key Google Cloud không được phép gọi Text-to-Speech: kiểm tra giới hạn của key", detail)
+        return TtsError("Key Google Cloud không được phép gọi Text-to-Speech: kiểm tra giới hạn của key", detail, True)
     if status == 429:
-        return TtsError("Google Cloud đang giới hạn lượt gọi hoặc đã hết hạn mức, thử lại sau", detail)
+        return TtsError("Google Cloud đang giới hạn lượt gọi, thử lại sau", detail)
     if status == 400 and "voice" in lowered:
         return TtsError("Google không có giọng đã chọn, hãy chọn giọng khác", detail)
     if status >= 500:
@@ -271,10 +462,30 @@ def change_speed(data: bytes, speed: float) -> bytes:
 
 def _http_error(status: int, body: str) -> TtsError:
     detail = f"HTTP {status}: {body}"
-    if "quota" in body.lower() or status == 402:
-        return TtsError("Tài khoản ElevenLabs đã hết ký tự (credit), cần nạp thêm", detail)
+    lowered = body.lower()
+    # A free plan cannot read library voices through the API: ElevenLabs answers HTTP 402 "paid_plan_required". It is
+    # the key's plan, not its credit, so another key (a paid one, or the voice in its own account) may still read.
+    if "paid_plan_required" in lowered or "library voice" in lowered:
+        return TtsError(
+            "Key ElevenLabs gói miễn phí không đọc được giọng thư viện qua API: dùng key gói trả phí hoặc chọn giọng "
+            "có sẵn trong tài khoản của key này",
+            detail,
+            True,
+        )
+    # ElevenLabs says a spent plan with HTTP 401 and "quota_exceeded", so this comes before the 401 of a wrong key.
+    if "quota" in lowered or status == 402:
+        return TtsError("Tài khoản ElevenLabs đã hết ký tự (credit), cần nạp thêm", detail, True)
     if status == 401:
-        return TtsError("Key ElevenLabs không hợp lệ: kiểm tra lại ở Cài đặt › Nguồn tư liệu", detail)
+        return TtsError(
+            "Key ElevenLabs không hợp lệ hoặc đã bị thu hồi: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu", detail, True
+        )
+    if status == 404 and "voice_not_found" in lowered:
+        # A voice lives in one account: a key of another account does not have it, but the next key may.
+        return TtsError(
+            "Tài khoản của key ElevenLabs này không có giọng đã chọn: thêm giọng đó vào tài khoản hoặc chọn giọng khác",
+            detail,
+            True,
+        )
     if status == 404:
         return TtsError(
             "ElevenLabs không có giọng hoặc model đã cấu hình (ELEVENLABS_VOICE_ID, ELEVENLABS_MODEL)", detail
@@ -370,6 +581,23 @@ def list_vieneu_voices(key: str) -> list[dict]:
     voices.sort(key=lambda voice: voice["name"].lower())
     _voices_cache[cache_key] = (time.monotonic(), voices)
     return voices
+
+
+def list_gemini_voices(key: str) -> list[dict]:
+    """Gemini TTS's prebuilt voices for the voice picker, each id prefixed with "gemini:". The list is fixed (Google
+    publishes it, no call is made) and offered once the Gemini key is set, since reading them needs it."""
+    if not key:
+        raise TtsError(NO_GEMINI_KEY.format("chưa chọn được giọng Gemini"))
+    return [
+        {
+            "id": GEMINI_PREFIX + name,
+            "name": name,
+            "description": description,
+            "preview_url": None,
+            "service": "gemini",
+        }
+        for name, description in sorted(GEMINI_VOICES.items())
+    ]
 
 
 GOOGLE_GENDERS = {"FEMALE": "Nữ", "MALE": "Nam", "NEUTRAL": "Trung tính"}

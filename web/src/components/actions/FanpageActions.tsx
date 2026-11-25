@@ -1,19 +1,32 @@
 "use client";
 import FormDrawer from "@/components/FormDrawer";
 import PhotoLogoDrawer from "@/components/actions/PhotoLogoDrawer";
+import PageSync from "@/components/page/PageSync";
 import { useMe } from "@/components/MeContext";
-import { api, errorMessage, upload, type AffiliateAccount, type BrandLogoResult, type Fanpage } from "@/lib/api";
+import {
+  api,
+  errorMessage,
+  upload,
+  type AffiliateAccount,
+  type BrandLogoResult,
+  type Fanpage,
+  type YouTubeConnection,
+} from "@/lib/api";
 import { DeleteOutlined, FacebookOutlined, MoreOutlined, StopOutlined } from "@ant-design/icons";
 import { App, Button, Dropdown, Flex, Input, Popconfirm, Select, Spin, Switch, Typography } from "antd";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export function OwnerLine({
   row,
   accounts,
+  youtube = [],
   onRows,
 }: {
   row: Fanpage;
   accounts: AffiliateAccount[];
+  /** The member's own connected YouTube channels, the ones the Page's YouTube select offers. */
+  youtube?: YouTubeConnection[];
   onRows: (rows: Fanpage[]) => void;
 }) {
   const { message } = App.useApp();
@@ -63,7 +76,9 @@ export function OwnerLine({
           call(`/fanpages/${row.id}/shopee-account`, "PUT", { account_id: accountId ?? null })
         }
         notFoundContent={
-          <Typography.Text type="secondary">Thêm tài khoản ở Cài đặt › Tài khoản affiliate</Typography.Text>
+          <Typography.Text type="secondary">
+            Thêm tài khoản ở <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản và kênh</Link>
+          </Typography.Text>
         }
       />
       {row.shopee_account && !row.shopee_account.usable && (
@@ -87,12 +102,14 @@ export function OwnerLine({
           call(`/fanpages/${row.id}/tiktok-account`, "PUT", { account_id: accountId ?? null })
         }
         notFoundContent={
-          <Typography.Text type="secondary">Kết nối TikTok ở Cài đặt › Tài khoản affiliate</Typography.Text>
+          <Typography.Text type="secondary">
+            Kết nối TikTok ở <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản và kênh</Link>
+          </Typography.Text>
         }
       />
       {row.tiktok_account && !row.tiktok_account.connected && (
         <Typography.Text type="warning" style={{ fontSize: 12 }}>
-          Tài khoản TikTok chưa kết nối, hãy kết nối lại trong Cài đặt › Tài khoản affiliate
+          Tài khoản TikTok chưa kết nối, hãy kết nối lại ở Cài đặt › Tài khoản và kênh
         </Typography.Text>
       )}
       {row.tiktok_account && (
@@ -113,6 +130,61 @@ export function OwnerLine({
               : "Video lên Facebook lúc nào, bản nháp vào hộp thư TikTok của bạn trong khoảng 1 phút sau đó. Caption, giỏ hàng và nhãn AI bạn tự thêm trong app TikTok."}
           </Typography.Text>
         </>
+      )}
+      <Flex gap={8} align="center">
+        <Switch
+          size="small"
+          checked={row.instagram_auto}
+          disabled={!row.instagram}
+          aria-label={`Tự đăng Instagram của ${row.name}`}
+          onChange={(auto) => call(`/fanpages/${row.id}/instagram-auto`, "PUT", { auto })}
+        />
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {row.instagram
+            ? "Tự đăng Instagram: video hẹn giờ lên Facebook lúc nào, Instagram lên trong khoảng 1 phút sau đó."
+            : "Tự đăng Instagram: Chưa liên kết Instagram"}
+        </Typography.Text>
+      </Flex>
+      <Flex gap={8} align="center">
+        <Switch
+          size="small"
+          checked={row.youtube_auto}
+          disabled={!row.youtube_channel}
+          aria-label={`Tự đăng YouTube của ${row.name}`}
+          onChange={(auto) => call(`/fanpages/${row.id}/youtube-auto`, "PUT", { auto })}
+        />
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {row.youtube_channel
+            ? "Tự đăng YouTube: video hẹn giờ lên Facebook lúc nào, YouTube tải lên (riêng tư) ngay sau đó, thường trong vài phút."
+            : "Tự đăng YouTube: Chưa chọn kênh YouTube"}
+        </Typography.Text>
+      </Flex>
+      <Select
+        size="small"
+        aria-label={`Kênh YouTube của ${row.name}`}
+        placeholder="Chưa gắn kênh YouTube (chọn tay ở từng video)"
+        allowClear
+        value={row.youtube_channel?.id ?? null}
+        options={[
+          ...youtube.map((connection) => ({ value: connection.channel_id, label: `YouTube: ${connection.title}` })),
+          // The channel already picked keeps its name even where the member's connections were not loaded.
+          ...(row.youtube_channel && !youtube.some((connection) => connection.channel_id === row.youtube_channel?.id)
+            ? [{ value: row.youtube_channel.id, label: `YouTube: ${row.youtube_channel.name}` }]
+            : []),
+        ]}
+        onChange={(channelId: number | undefined) =>
+          call(`/fanpages/${row.id}/youtube-channel`, "PUT", { channel_id: channelId ?? null })
+        }
+        notFoundContent={
+          <Typography.Text type="secondary">
+            Kết nối YouTube ở <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản và kênh</Link>
+          </Typography.Text>
+        }
+      />
+      {row.youtube_channel && !row.youtube_channel.connected && (
+        <Typography.Text type="warning" style={{ fontSize: 12 }}>
+          Kênh YouTube mất kết nối, hãy kết nối lại ở Cài đặt › Tài khoản và kênh
+        </Typography.Text>
       )}
       <LogoLine row={row} onRows={onRows} />
     </Flex>
@@ -215,6 +287,23 @@ function LogoLine({ row, onRows }: { row: Fanpage; onRows: (rows: Fanpage[]) => 
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Video của Page tự gắn logo
           </Typography.Text>
+          <Select
+            size="small"
+            style={{ width: 150 }}
+            aria-label="Kiểu tiêu đề video của Page"
+            value={brand.title_style ?? "motion"}
+            disabled={busy}
+            options={[
+              { value: "motion", label: "Tiêu đề động" },
+              { value: "classic", label: "Tiêu đề cổ điển" },
+            ]}
+            onChange={(style) =>
+              change(async (id) => {
+                await api(`/brands/${id}`, "PATCH", { title_style: style });
+                return null;
+              })
+            }
+          />
           <Button size="small" type="link" onClick={() => setPhotoLogo(true)}>
             Logo trên ảnh bài viết
           </Button>
@@ -339,6 +428,36 @@ export function FanpageMenu({
   );
 }
 
+/** "Tài khoản và chủ Page": every account, auto-post switch and logo of a Page, the same drawer on its card and on its
+ * dashboard. */
+export function PageSettingsDrawer({
+  row,
+  accounts,
+  youtube,
+  open,
+  onClose,
+  onRows,
+}: {
+  row: Fanpage;
+  accounts: AffiliateAccount[];
+  youtube?: YouTubeConnection[];
+  open: boolean;
+  onClose: () => void;
+  onRows: (rows: Fanpage[]) => void;
+}) {
+  return (
+    <FormDrawer title={`Tài khoản và chủ Page ${row.name}`} open={open} onClose={onClose} destroyOnHidden footer={null}>
+      <OwnerLine row={row} accounts={accounts} youtube={youtube} onRows={onRows} />
+      {row.mine && (
+        <Typography.Paragraph style={{ margin: "12px 0" }}>
+          Chưa có tài khoản hay kênh phù hợp? <Link href="/settings/affiliate-accounts">Quản lý kết nối →</Link>
+        </Typography.Paragraph>
+      )}
+      {open && <PageSync row={row} />}
+    </FormDrawer>
+  );
+}
+
 export default function FanpageActions({
   pageId,
   onChanged,
@@ -380,14 +499,13 @@ export default function FanpageActions({
     <>
       <FanpageMenu row={row} onToken={() => setToken(true)} onSettings={() => setSettings(true)} onChanged={refresh} />
       <TokenModal row={token ? row : null} onClose={() => setToken(false)} onSaved={(rows) => void receive(rows)} />
-      <FormDrawer
-        title={`Tài khoản và chủ Page ${row.name}`}
+      <PageSettingsDrawer
+        row={row}
+        accounts={accounts}
         open={settings}
         onClose={() => setSettings(false)}
-        footer={null}
-      >
-        <OwnerLine row={row} accounts={accounts} onRows={(rows) => void receive(rows)} />
-      </FormDrawer>
+        onRows={(rows) => void receive(rows)}
+      />
     </>
   );
 }

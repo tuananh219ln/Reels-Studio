@@ -1,42 +1,60 @@
 "use client";
 
 import EmptyState from "@/components/EmptyState";
-import PostCalendar from "@/components/PostCalendar";
-import { api, errorMessage, type PostRow } from "@/lib/api";
-import { App, Flex, Spin, Typography } from "antd";
+import { api, errorMessage, type QueueOverview } from "@/lib/api";
+import { App, Button, Flex, Spin, Typography } from "antd";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
-/** "Lịch đăng" in Kho kiến thức: the calendar of the posts of one topic group, those on Facebook and those waiting for
- * their time, the ones a member scheduled and the ones a Page's queue scheduled by itself. The queue schedules a video
- * only when its Page's slot is within the next 48 hours, so a queued video appears here a day or two before it goes. */
-export default function TopicSchedule({ topicId, visible }: { topicId: number; visible: boolean }) {
+/** "Lịch đăng" in Kho kiến thức: only a link. The one calendar of what is out and what is set to go is the Page's
+ * "Lịch đăng" tab on Quản lý kênh (docs/decisions/2026-11-24-winner-gate-docs.md), so two copies can never differ;
+ * this tab names the Pages that post the group and opens it. */
+export default function TopicSchedule({
+  topicId,
+  fanpageId,
+  visible,
+}: {
+  topicId: number;
+  /** Only this Page's link (a group several Pages post, with one of them chosen). */
+  fanpageId?: number;
+  visible: boolean;
+}) {
   const { message } = App.useApp();
-  const [posts, setPosts] = useState<PostRow[] | null>(null);
+  const [pages, setPages] = useState<QueueOverview["pages"] | null>(null);
 
   useEffect(() => {
     if (!visible) return;
-    api<PostRow[]>("/posts")
-      .then((rows) => setPosts(rows.filter((post) => post.knowledge_topic_id === topicId)))
+    api<QueueOverview>("/queue")
+      .then((overview) =>
+        setPages(overview.pages.filter((page) => page.topic?.id === topicId && (!fanpageId || page.id === fanpageId))),
+      )
       .catch((err) => message.error(errorMessage(err)));
-  }, [topicId, visible, message]);
+  }, [topicId, fanpageId, visible, message]);
 
-  if (posts === null) {
+  if (pages === null) {
     return (
       <Flex justify="center" style={{ padding: 32 }}>
         <Spin />
       </Flex>
     );
   }
-  if (!posts.some((post) => post.status === "scheduled" || post.status === "published")) {
-    return <EmptyState description="Nhóm này chưa có bài nào đã đăng hoặc hẹn giờ." />;
+  if (pages.length === 0) {
+    return (
+      <EmptyState description="Chưa có Page nào đăng nhóm này. Chọn nhóm cho Page ở Quản lý kênh, tab Lịch đăng." />
+    );
   }
   return (
-    <Flex vertical gap={8}>
+    <Flex vertical gap={12} data-testid="topic-schedule-links">
       <Typography.Text type="secondary">
-        Bài đã đăng và đã hẹn giờ của nhóm, giờ Việt Nam. Video trong hàng chờ của Page lên lịch trước giờ đăng khoảng
-        48 giờ, nên chỉ hiện ở đây khi đã được hẹn.
+        Lịch đăng (bài đã đăng, đã hẹn giờ, khung trống) chỉ có một bản, ở Quản lý kênh của từng Page.
       </Typography.Text>
-      <PostCalendar posts={posts} />
+      <Flex wrap gap={8}>
+        {pages.map((page) => (
+          <Link key={page.id} prefetch={false} href={`/fanpages/${page.id}?tab=schedule`}>
+            <Button>Mở lịch đăng của {page.name}</Button>
+          </Link>
+        ))}
+      </Flex>
     </Flex>
   );
 }

@@ -17,7 +17,7 @@ from .models import McpConnection, Session, User
 from .security import hash_session_token, new_session_token
 from .sessions import now
 
-SCOPES = {"reels:read", "reels:write"}
+SCOPES = {"reels:read", "reels:write", "reels:publish"}
 ACCESS_LIFETIME = timedelta(hours=1)
 CONNECTION_LIFETIME = timedelta(days=30)
 # The callbacks of the AI apps a member may connect; no arbitrary redirect hosts or fetches. Issuer identification
@@ -26,9 +26,16 @@ CHATGPT_CALLBACK = "https://chatgpt.com/connector_platform_oauth_redirect"
 CLAUDE_CALLBACKS = ("https://claude.ai/api/mcp/auth_callback", "https://claude.com/api/mcp/auth_callback")
 # Muse (Meta's assistant): exactly the callback it sent on 2026-11-07, read from the "MCP registration refused" log.
 MUSE_CALLBACKS = ("https://agent.meta.ai/api/hatch/oauth/callback",)
-HOSTED_CALLBACKS = frozenset({CHATGPT_CALLBACK, *CLAUDE_CALLBACKS, *MUSE_CALLBACKS})
-# Claude Code is a native client: an RFC 8252 loopback redirect on a port that changes every session.
-LOOPBACK = re.compile(r"http://(localhost|127\.0\.0\.1)(?::(\d{1,5}))?/callback")
+# Apps that call back to this machine: the consent screen warns for them.
+LOCAL_APPS = frozenset({"Claude Code", "Gemini"})
+# Antigravity CLI (agy), which Google AI Pro moved to from Gemini CLI: its hosted callback, from its published client
+# metadata (https://antigravity.google/oauth/client-metadata.json).
+ANTIGRAVITY_CALLBACKS = ("https://antigravity.google/oauth-callback",)
+HOSTED_CALLBACKS = frozenset({CHATGPT_CALLBACK, *CLAUDE_CALLBACKS, *MUSE_CALLBACKS, *ANTIGRAVITY_CALLBACKS})
+# Native clients: an RFC 8252 loopback redirect on a port that changes every session. Claude Code's path is
+# /callback; Gemini CLI's is /oauth/callback (its docs: google-gemini/gemini-cli docs/tools/mcp-server.md).
+GEMINI_PATH = "/oauth/callback"
+LOOPBACK = re.compile(r"http://(localhost|127\.0\.0\.1)(?::(\d{1,5}))?(/callback|/oauth/callback)")
 MAX_REDIRECTS = 4
 SERVER_POST_PATHS = frozenset({"/api/mcp", "/api/mcp/oauth/register", "/api/mcp/oauth/token", "/api/mcp/oauth/revoke"})
 
@@ -60,12 +67,12 @@ def require_enabled() -> str:
     return url
 
 
-def _loopback(uri: str) -> tuple[str, str] | None:
-    """(host, port) of a loopback callback, or None."""
+def _loopback(uri: str) -> tuple[str, str, str] | None:
+    """(host, port, path) of a loopback callback, or None."""
     found = LOOPBACK.fullmatch(uri)
     if found is None or (found.group(2) and not 0 < int(found.group(2)) < 65536):
         return None
-    return found.group(1), found.group(2) or ""
+    return found.group(1), found.group(2) or "", found.group(3)
 
 
 def allowed_redirect(uri: str) -> bool:
@@ -83,7 +90,8 @@ def redirect_matches(redirects: str, uri: str) -> bool:
         return True
     asked = _loopback(uri)
     return asked is not None and any(
-        (known := _loopback(one)) is not None and known[0] == asked[0] for one in registered(redirects)
+        (known := _loopback(one)) is not None and (known[0], known[2]) == (asked[0], asked[2])
+        for one in registered(redirects)
     )
 
 
@@ -95,7 +103,10 @@ def app_of(redirect: str) -> str:
         return "Claude"
     if redirect in MUSE_CALLBACKS:
         return "Muse"
-    return "Claude Code"
+    if redirect in ANTIGRAVITY_CALLBACKS:
+        return "Antigravity"
+    asked = _loopback(redirect)
+    return "Gemini" if asked is not None and asked[2] == GEMINI_PATH else "Claude Code"
 
 
 class OAuthError(ApiError):

@@ -45,6 +45,7 @@ export const OPACITIES: { value: Exclude<Opacity, "auto">; label: string; alpha:
   { value: "solid", label: "Đặc", alpha: 1 },
   { value: "soft", label: "Hơi trong", alpha: 224 / 255 },
   { value: "clear", label: "Trong", alpha: 178 / 255 },
+  { value: "faint", label: "Rất trong", alpha: 115 / 255 },
   // No background: drawn like Không hộp, the box colour becoming the outline's.
   { value: "none", label: "Không nền", alpha: 0 },
 ];

@@ -13,13 +13,16 @@ import base64
 import hashlib
 import io
 import json
+import math
 import re
+import struct
 import subprocess
 import sys
 import threading
 import time
 import urllib.parse
-from datetime import datetime
+import wave
+from datetime import UTC, date, datetime, timedelta, timezone
 from email import policy as email_policy
 from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -57,6 +60,8 @@ GONE = (
     },
 )
 FACEBOOK_USER_TOKEN = "fake-facebook-user-token"  # manages the Page, gets the Page's token from /me/accounts
+INSTAGRAM_USER = "17841400000000001"  # the Instagram Business account linked to FACEBOOK_PAGE
+INSTAGRAM_USERNAME = "duongsinh.ig"
 SHOPEE_APP_ID = "1000001"
 SHOPEE_SECRET = "fake-shopee-secret"
 YOUTUBE_KEY = "fake-youtube-key"
@@ -64,6 +69,10 @@ TIKTOK_CLIENT_KEY = "fake-tiktok-client-key"
 TIKTOK_CLIENT_SECRET = "fake-tiktok-client-secret"
 TIKTOK_CODE = "fake-tiktok-code"  # the code TikTok's authorize page sends back for TIKTOK_OPEN_ID
 TIKTOK_OPEN_ID = "tt-open-an"
+GOOGLE_CLIENT_ID = "fake-google-client-id"
+GOOGLE_CLIENT_SECRET = "fake-google-client-secret"
+GOOGLE_CODE = "fake-google-code"  # the code Google's consent page sends back for YOUTUBE_CHANNEL_ID
+YOUTUBE_CHANNEL_ID = "UCfakeAnNgonSongKhoe0001"
 # What /v2/user/info/ reads with user.info.basic; username, bio and stats need other scopes.
 TIKTOK_BASIC_FIELDS = {"open_id", "union_id", "avatar_url", "avatar_url_100", "avatar_large_url", "display_name"}
 
@@ -295,6 +304,9 @@ class FakeServices:
         self._clip_bytes: bytes | None = None
         self.default_seconds = 4.0
         self.tts_mode = "ok"  # ok | quota | error500
+        # Narration keys whose quota ran out, whatever the mode; a test adds more keys of a service by appending
+        # "-" and anything to its fake key (valid_key), so it can tell which key a narration was read with.
+        self.exhausted_keys: set[str] = set()
         self.tts_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
         self.image_gen_mode = "ok"  # ok | quota | error500
         self.image_gen_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
@@ -303,6 +315,12 @@ class FakeServices:
         # Cloudflare Workers AI, apart from Gemini's state.
         self.cf_image_gen_mode = "ok"  # ok | quota | error500
         self.cf_image_gen_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
+        # Cài đặt › Nguồn tư liệu's usage lines: ElevenLabs' subscription and Cloudflare's neurons today.
+        self.elevenlabs_usage_mode = "ok"  # ok | no_permission
+        self.elevenlabs_usage = {"tier": "creator", "character_count": 12_345, "character_limit": 100_000}
+        self.cf_analytics_mode = "ok"  # ok | no_permission
+        self.cf_neurons_today = 1234.5
+        self.usage_requests: list[str] = []  # "elevenlabs" or "cloudflare:<date>", one per request
         self.cf_image_gen_refused: list[str] = []  # a prompt containing one of these is refused (200, success false)
         self.cf_image_gen_prompts: list[str] = []
         # Cloudflare's inpainting model ("Sửa ảnh" › "Xóa vùng"): each request's prompt and the sizes of the image and
@@ -316,10 +334,52 @@ class FakeServices:
         # VieNeu (OpenAI-compatible /v1/audio/speech): {"voice", "input", "model", "response_format", "authorization"}
         self.vieneu_requests: list[dict] = []
         self.vieneu_mode = "ok"  # ok | trial_limit | error500
+        # Gemini TTS (/v1beta/interactions, the key that makes AI photos): {"voice", "text", "model", "key"}
+        self.gemini_tts_requests: list[dict] = []
+        self.gemini_tts_mode = "ok"  # ok | daily_limit | minute_limit | error500
+        self.gemini_tts_minute_failures = 0  # in "minute_limit" mode that many requests are refused, then it reads
         # Google Cloud Text-to-Speech (/v1/text:synthesize): {"input", "voice", "audioConfig", "key"}
         self.google_tts_requests: list[dict] = []
         self.google_tts_mode = "ok"  # ok | billing | error500
         self.reels: dict[str, dict] = {}  # video_id -> {"uploaded", "bytes", "finishes", "state", "description", ...}
+        # Instagram, through the Page's token: the account linked to FACEBOOK_PAGE (None: not linked), Reel containers
+        # by id {caption, bytes, reads, state}, the account's media newest first {id, caption, permalink, timestamp}.
+        self.instagram_account: dict | None = {"id": INSTAGRAM_USER, "username": INSTAGRAM_USERNAME}
+        self.instagram_containers: dict[str, dict] = {}
+        self.instagram_media: list[dict] = []
+        self.instagram_busy_reads = 0  # that many status reads of a container say IN_PROGRESS before FINISHED
+        self.instagram_container_error = False  # a container ends ERROR instead of FINISHED
+        self.instagram_publish_replies_lost = 0  # that many publishes go through but answer 500
+        self.instagram_refusal: int | None = None  # every Instagram call answers with this Graph error code
+        # The token may read the Page's linked account but not the account itself (no instagram_basic): asking for its
+        # username, nested or on its own, answers 403 code 10.
+        self.instagram_username_refused = False
+        # The Page field that holds the linked account: Meta fills `connected_instagram_account` for some links.
+        self.instagram_link_field = "instagram_business_account"
+        self.instagram_upload_refused = False  # the upload server answers its `debug_info` 400 (rupload's shape)
+        self.instagram_upload_paths: list[str] = []  # the path each file was sent to
+        self.instagram_calls: list[str] = []  # "container", "upload", "status", "publish", "permalink", "media"
+        # The linked account's Instagram Insights: {metric: {"YYYY-MM-DD" (Vietnam day): value}} over the defaults, which
+        # give a day its number from its date; `instagram_insights_refused` is a token without instagram_manage_insights
+        # (code 10); a metric in `instagram_metrics_dropped` is refused as Meta refuses a retired one.
+        self.instagram_insights: dict[str, dict[str, int]] = {}
+        self.instagram_insights_refused = False
+        # The followers' audience by breakdown ({"gender": {"F": 72, ...}}); an empty dict answers like an account under
+        # 100 followers (code 100).
+        self.instagram_audience: dict[str, dict[str, int]] = {
+            "gender": {"F": 72, "M": 27, "U": 1},
+            "age": {"18-24": 30, "25-34": 45, "35-44": 15, "45-54": 10},
+            "city": {"Ho Chi Minh City, Vietnam": 38, "Hanoi, Vietnam": 24},
+        }
+        self.instagram_metrics_dropped: set[str] = set()
+        self.instagram_followers: int | None = 1204
+        self.instagram_insights_calls: list[str] = []
+        # A Reel's Media Insights by media id (over the defaults below); a metric in `instagram_media_dropped` makes a call
+        # that asks for it fail with (#100), as Meta does for a metric a media does not have; `instagram_media_gone`
+        # Reels answer (#100) to every metric.
+        self.instagram_media_insights: dict[str, dict[str, int]] = {}
+        self.instagram_media_dropped: set[str] = set()
+        self.instagram_media_gone: set[str] = set()
         # Photo and text posts on the Page's feed ("Bài viết"), by post id: {"message", "published", "scheduled",
         # "photo": bytes or None, "photos": the attached photos of a post of several}; their numbers by post id (reach,
         # shares, comments, reactions).
@@ -329,6 +389,7 @@ class FakeServices:
         self.page_post_replies_lost = 0  # that many posts are made, then answer 500
         self.page_post_refusals = 0  # that many posts are refused: 400 and nothing is posted
         self.page_post_errors = 0  # that many posts fail on Facebook's side: 500 and nothing is posted
+        self.page_scheduled_photo_without_post_id = False  # a scheduled photo answers with the photo's id only
         self.page_post_numbers: dict[str, dict] = {}
         self.page_post_reach_retired = False  # post_total_media_view_unique is refused, (#100) like a retired metric
         self.facebook_finish_fails = 0  # that many finish calls fail: 500 without publishing
@@ -421,6 +482,21 @@ class FakeServices:
         self.youtube_gone: set[str] = set()
         self.youtube_error: int | None = None
         self.youtube_calls: list[list[str]] = []
+        # Google's OAuth and YouTube's resumable upload: the channel each code, access and refresh token is for.
+        self.google_codes: dict[str, str] = {GOOGLE_CODE: YOUTUBE_CHANNEL_ID}
+        self.google_access: dict[str, str] = {}
+        self.google_refresh: dict[str, str] = {}
+        self.google_token_count = 0
+        self.google_expires_in = 3600
+        self.google_revoked: list[str] = []
+        self.youtube_channels: dict[str, dict] = {
+            YOUTUBE_CHANNEL_ID: {"title": "Ăn Ngon Sống Khỏe", "customUrl": "@anngonsongkhoe"}
+        }
+        # Upload sessions by id: {channel, body, size, bytes, video}; `video` is the YouTube id once complete.
+        self.youtube_uploads: dict[str, dict] = {}
+        self.youtube_upload_error: str | None = None  # a reason every new session answers 403 with
+        self.youtube_upload_cuts = 0  # that many file sends keep only half the bytes and answer 503
+        self.youtube_upload_calls: list[str] = []  # "init", "send", "query", in order
         # Reels on a Page posted outside the app (Meta Business Suite), by Page id: what /video_reels lists,
         # {id, description, created_time (Graph's format), length, picture, published}.
         self.page_reels: dict[str, list[dict]] = {}
@@ -468,6 +544,7 @@ class FakeServices:
             "IMAGE_GEN_CF_ACCOUNT_ID": "test-account",
             "IMAGE_GEN_CF_API_KEY": IMAGE_GEN_CF_KEY,
             "FACEBOOK_API_URL": f"{self.url}/facebook",
+            "INSTAGRAM_UPLOAD_URL": f"{self.url}/instagram-upload",
             "SHOPEE_AFFILIATE_API_URL": f"{self.url}/shopee/graphql",
             "SHOPEE_SHORT_LINK_URL": f"{self.url}/shopee-short",
             "TIKTOK_API_URL": f"{self.url}/tiktok",
@@ -477,6 +554,10 @@ class FakeServices:
             "YOUTUBE_OEMBED_URL": f"{self.url}/oembed/youtube",
             "TIKTOK_CLIENT_KEY": TIKTOK_CLIENT_KEY,
             "TIKTOK_CLIENT_SECRET": TIKTOK_CLIENT_SECRET,
+            "GOOGLE_CLIENT_ID": GOOGLE_CLIENT_ID,
+            "GOOGLE_CLIENT_SECRET": GOOGLE_CLIENT_SECRET,
+            "GOOGLE_OAUTH_URL": f"{self.url}/google",
+            "YOUTUBE_UPLOAD_URL": f"{self.url}/youtube-upload",
         }
 
     def image_url(self, name: str) -> str:
@@ -562,7 +643,7 @@ class FakeServices:
     def _voices(self, key: str | None) -> tuple[int, dict]:
         with self.lock:
             self.voice_list_requests += 1
-        if key != ELEVENLABS_KEY:
+        if not self.valid_key(key, ELEVENLABS_KEY):
             return 401, {"detail": {"status": "invalid_api_key", "message": "Invalid API key"}}
         return 200, {
             "voices": [
@@ -850,6 +931,11 @@ class FakeServices:
             self.unsplash_downloads.append(name)
         return 200, {"url": self.image_url(name)}
 
+    @staticmethod
+    def valid_key(key: str | None, known: str) -> bool:
+        """The service's fake key, or another key of the same account a test made from it ("<known>-backup")."""
+        return bool(key) and (key == known or key.startswith(f"{known}-"))
+
     def _tts(self, voice_id: str, key: str, body: dict) -> tuple[int, object]:
         with self.lock:
             self.tts_requests.append(
@@ -861,10 +947,16 @@ class FakeServices:
                 }
                 # Only a request that set a speed records one.
                 | ({"speed": body["voice_settings"]["speed"]} if body.get("voice_settings") else {})
+                # Only a test's own extra key records which key read.
+                | ({"key": key} if key != ELEVENLABS_KEY else {})
             )
-        if key != ELEVENLABS_KEY:
+        if not self.valid_key(key, ELEVENLABS_KEY):
             return 401, {"detail": {"status": "invalid_api_key", "message": "Invalid API key"}}
-        if self.tts_mode == "quota" or (self.tts_ok_count is not None and len(self.tts_requests) > self.tts_ok_count):
+        if (
+            key in self.exhausted_keys
+            or self.tts_mode == "quota"
+            or (self.tts_ok_count is not None and len(self.tts_requests) > self.tts_ok_count)
+        ):
             return 401, {"detail": {"status": "quota_exceeded", "message": "This request exceeds your quota"}}
         if self.tts_mode == "error500":
             return 500, {"detail": "server error"}
@@ -890,15 +982,73 @@ class FakeServices:
         def failed(status: int, message: str, code: str | None = None) -> tuple[int, dict]:
             return status, {"error": {"message": message, "type": "error", "param": None, "code": code}}
 
-        if authorization != f"Bearer {VIENEU_KEY}":
+        key = (authorization or "").removeprefix("Bearer ")
+        if not self.valid_key(key, VIENEU_KEY):
             return failed(401, "Invalid or revoked API key.")
-        if self.vieneu_mode == "trial_limit":
+        if self.vieneu_mode == "trial_limit" or key in self.exhausted_keys:
             return failed(429, "Trial daily limit reached.", "TRIAL_API_DAILY_LIMIT")
         if self.vieneu_mode == "error500":
             return failed(500, "server error")
         if body.get("voice") not in {voice["id"] for voice in self.VIENEU_VOICES}:
             return failed(400, "Unknown voice for engine v4.")
         return 200, self._tone(str(body.get("input", "")))
+
+    GEMINI_TTS_VOICES = {"Kore", "Puck", "Charon"}
+
+    @staticmethod
+    def _gemini_failed(status: int, message: str, state: str, metric: str = "") -> tuple[int, dict]:
+        details = [{"@type": "type.googleapis.com/google.rpc.QuotaFailure", "violations": [{"quotaId": metric}]}]
+        return status, {"error": {"code": status, "message": message, "status": state, "details": details}}
+
+    def _gemini_speech(self, key: str | None, body: dict) -> tuple[int, dict]:
+        try:
+            text = body["input"][0]["content"][0]["text"]
+            voice = body["generation_config"]["speech_config"][0]["voice"]
+        except (KeyError, IndexError, TypeError):
+            return self._gemini_failed(400, "Invalid request.", "INVALID_ARGUMENT")
+        with self.lock:
+            self.gemini_tts_requests.append({"voice": voice, "text": text, "model": body.get("model"), "key": key})
+            refused_minute = self.gemini_tts_mode == "minute_limit" and self.gemini_tts_minute_failures > 0
+            if refused_minute:
+                self.gemini_tts_minute_failures -= 1
+        if not self.valid_key(key, IMAGE_GEN_KEY):
+            return self._gemini_failed(400, "API key not valid. Please pass a valid API key.", "INVALID_ARGUMENT")
+        if self.gemini_tts_mode == "daily_limit" or key in self.exhausted_keys:
+            return self._gemini_failed(
+                429,
+                "You exceeded your current quota.",
+                "RESOURCE_EXHAUSTED",
+                "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+            )
+        if refused_minute:
+            return self._gemini_failed(
+                429,
+                "You exceeded your current quota.",
+                "RESOURCE_EXHAUSTED",
+                "GenerateRequestsPerMinutePerProjectPerModel-FreeTier",
+            )
+        if self.gemini_tts_mode == "error500":
+            return self._gemini_failed(500, "Internal error encountered.", "INTERNAL")
+        if voice not in self.GEMINI_TTS_VOICES:
+            return self._gemini_failed(400, f"Unknown voice {voice}.", "INVALID_ARGUMENT")
+        audio = base64.b64encode(self._wav_tone(str(text))).decode()
+        return 200, {"steps": [{"type": "model_output", "content": [{"type": "audio", "data": audio}]}]}
+
+    @staticmethod
+    def _wav_tone(text: str) -> bytes:
+        # The same tone as _tone, as the 24 kHz mono 16-bit WAV Gemini answers with.
+        rate, seconds = 24000, 0.3 * max(1, len(text.split()))
+        frames = b"".join(
+            struct.pack("<h", int(8000 * math.sin(2 * math.pi * 330 * index / rate)))
+            for index in range(int(rate * seconds))
+        )
+        out = io.BytesIO()
+        with wave.open(out, "wb") as file:
+            file.setnchannels(1)
+            file.setsampwidth(2)
+            file.setframerate(rate)
+            file.writeframes(frames)
+        return out.getvalue()
 
     GOOGLE_VOICES = [
         {"languageCodes": ["vi-VN"], "name": "vi-VN-Chirp3-HD-Achernar", "ssmlGender": "FEMALE"},
@@ -907,14 +1057,14 @@ class FakeServices:
     ]
 
     @staticmethod
-    def _google_failed(status: int, message: str, reason: str) -> tuple[int, dict]:
+    def _google_tts_failed(status: int, message: str, reason: str) -> tuple[int, dict]:
         state = {400: "INVALID_ARGUMENT", 403: "PERMISSION_DENIED", 500: "INTERNAL"}.get(status, "UNKNOWN")
         details = [{"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": reason}] if reason else []
         return status, {"error": {"code": status, "message": message, "status": state, "details": details}}
 
     def _google_voices(self, key: str | None, query: dict) -> tuple[int, dict]:
         if key != GOOGLE_TTS_KEY:
-            return self._google_failed(400, "API key not valid. Please pass a valid API key.", "API_KEY_INVALID")
+            return self._google_tts_failed(400, "API key not valid. Please pass a valid API key.", "API_KEY_INVALID")
         language = query.get("languageCode")
         voices = [voice for voice in self.GOOGLE_VOICES if not language or language in voice["languageCodes"]]
         return 200, {"voices": [voice | {"naturalSampleRateHertz": 24000} for voice in voices]}
@@ -925,14 +1075,14 @@ class FakeServices:
                 {name: body.get(name) for name in ("input", "voice", "audioConfig")} | {"key": key}
             )
         if key != GOOGLE_TTS_KEY:
-            return self._google_failed(400, "API key not valid. Please pass a valid API key.", "API_KEY_INVALID")
+            return self._google_tts_failed(400, "API key not valid. Please pass a valid API key.", "API_KEY_INVALID")
         if self.google_tts_mode == "billing":
-            return self._google_failed(403, "This API method requires billing to be enabled.", "BILLING_DISABLED")
+            return self._google_tts_failed(403, "This API method requires billing to be enabled.", "BILLING_DISABLED")
         if self.google_tts_mode == "error500":
-            return self._google_failed(500, "Internal error encountered.", "")
+            return self._google_tts_failed(500, "Internal error encountered.", "")
         voice = (body.get("voice") or {}).get("name")
         if voice not in {item["name"] for item in self.GOOGLE_VOICES}:
-            return self._google_failed(400, f"Voice '{voice}' does not exist.", "")
+            return self._google_tts_failed(400, f"Voice '{voice}' does not exist.", "")
         audio = self._tone(str((body.get("input") or {}).get("text", "")))
         return 200, {"audioContent": base64.b64encode(audio).decode()}
 
@@ -1024,6 +1174,32 @@ class FakeServices:
         buffer = io.BytesIO()
         Image.new("RGB", (body.get("width") or 512, body.get("height") or 512), CF_INPAINT_COLOR).save(buffer, "PNG")
         return 200, buffer.getvalue()
+
+    def _subscription(self, key: str | None) -> tuple[int, dict]:
+        with self.lock:
+            self.usage_requests.append("elevenlabs")
+        if key != ELEVENLABS_KEY:
+            return 401, {"detail": {"status": "invalid_api_key", "message": "Invalid API key"}}
+        if self.elevenlabs_usage_mode == "no_permission":
+            return 401, {
+                "detail": {
+                    "status": "missing_permissions",
+                    "message": "The API key you used is missing the permission user_read to execute this operation.",
+                }
+            }
+        return 200, {**self.elevenlabs_usage, "status": "active", "next_character_count_reset_unix": 1795000000}
+
+    def _cf_graphql(self, authorization: str | None, body: dict) -> tuple[int, dict]:
+        variables = body.get("variables") or {}
+        with self.lock:
+            self.usage_requests.append(f"cloudflare:{variables.get('date')}")
+        if authorization != f"Bearer {IMAGE_GEN_CF_KEY}":
+            return 401, {"data": None, "errors": [{"message": "Authentication error"}]}
+        # Like Cloudflare: a token without Account Analytics › Read is answered 200 with an error.
+        if self.cf_analytics_mode == "no_permission" or "aiInferenceAdaptiveGroups" not in str(body.get("query")):
+            return 200, {"data": None, "errors": [{"message": "not authorized for that account"}]}
+        groups = [{"sum": {"totalNeurons": self.cf_neurons_today}}]
+        return 200, {"data": {"viewer": {"accounts": [{"aiInferenceAdaptiveGroups": groups}]}}, "errors": None}
 
     def _cf_image_gen(self, authorization: str | None, body: dict) -> tuple[int, dict]:
         prompt = str(body.get("prompt") or "")
@@ -1127,6 +1303,8 @@ class FakeServices:
                 self.page_post_replies_lost -= 1
                 return 500, {"error": {"message": "Service unavailable", "code": 2}}
         if edge == "photos":
+            if scheduled and self.page_scheduled_photo_without_post_id:
+                return 200, {"id": f"photo_{post_id}"}
             return 200, {"id": f"photo_{post_id}", "post_id": post_id}
         return 200, {"id": post_id}
 
@@ -1235,9 +1413,23 @@ class FakeServices:
         return 200, {"data": [page | {"access_token": FACEBOOK_TOKEN} for page in self.facebook_pages]}
 
     def _page_info(self, page_id: str, query: dict) -> tuple[int, dict]:
-        """GET /{page-id}?fields=name,followers_count,picture with the Page's own token."""
+        """GET /{page-id}?fields=name,followers_count,picture with the Page's own token, or
+        ?fields=instagram_business_account{id,username}."""
         if query.get("access_token") != FACEBOOK_TOKEN:
             return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        fields = query.get("fields", "")
+        if "instagram_business_account" in fields or "connected_instagram_account" in fields:
+            if self.instagram_refusal is not None:
+                return self._instagram_refused()
+            if self.instagram_username_refused and "username" in fields:
+                return 403, {"error": {"message": "(#10) Requires instagram_basic", "code": 10}}
+            linked = self.instagram_account if page_id == FACEBOOK_PAGE else None
+            reply = {"id": page_id}
+            if linked and self.instagram_link_field in fields:
+                asked = fields.split(self.instagram_link_field, 1)[1]
+                nested = asked.startswith("{")
+                reply[self.instagram_link_field] = dict(linked) if nested else {"id": linked["id"]}
+            return 200, reply
         if self.facebook_page_info_refused:
             return 403, {"error": {"message": "(#200) Requires pages_read_engagement permission", "code": 200}}
         page = next(page for page in self.facebook_pages if page["id"] == page_id)
@@ -1247,6 +1439,215 @@ class FakeServices:
         if self.facebook_picture is not None:
             reply["picture"] = {"data": {"url": self.facebook_picture, "is_silhouette": False}}
         return 200, reply
+
+    def _instagram_insights(self, query: dict) -> tuple[int, dict]:
+        """GET /{ig-user-id}/insights: `metric_type=total_value` for the window since..until (a day's total), or
+        `follower_count` per day (`values`), in the shape Meta documents."""
+        metric = query.get("metric", "")
+        self.instagram_insights_calls.append(metric)
+        if self.instagram_insights_refused:
+            return 403, {"error": {"message": "(#10) Requires instagram_manage_insights permission", "code": 10}}
+        if metric == "follower_demographics":
+            counts = self.instagram_audience.get(query.get("breakdown", ""))
+            if not counts:
+                return 400, {"error": {"message": "(#100) Not enough followers for demographics", "code": 100}}
+            results = [{"dimension_values": [key], "value": value} for key, value in counts.items()]
+            return 200, {
+                "data": [
+                    {
+                        "name": metric,
+                        "period": "lifetime",
+                        "total_value": {"breakdowns": [{"dimension_keys": [query["breakdown"]], "results": results}]},
+                        "id": f"{INSTAGRAM_USER}/insights/{metric}/lifetime",
+                    }
+                ]
+            }
+        if metric in self.instagram_metrics_dropped or metric not in (
+            "views",
+            "reach",
+            "total_interactions",
+            "follower_count",
+        ):
+            return 400, {"error": {"message": "(#100) The value must be a valid insights metric", "code": 100}}
+        zone = timezone(timedelta(hours=7))
+        since = datetime.fromtimestamp(int(query.get("since", "0")), zone)
+        until = datetime.fromtimestamp(int(query.get("until", "0")), zone)
+
+        def number(day: date) -> int:
+            base = {"views": 1000, "reach": 700, "total_interactions": 50, "follower_count": 0}[metric]
+            default = base + day.day if metric != "follower_count" else day.day % 5
+            return self.instagram_insights.get(metric, {}).get(day.isoformat(), default)
+
+        if query.get("metric_type") == "total_value":
+            return 200, {
+                "data": [
+                    {
+                        "name": metric,
+                        "period": "day",
+                        "total_value": {"value": number(since.date())},
+                        "id": f"{INSTAGRAM_USER}/insights/{metric}/day",
+                    }
+                ]
+            }
+        values, day = [], since.date()
+        while datetime(day.year, day.month, day.day, tzinfo=zone) < until:
+            end = datetime(day.year, day.month, day.day, tzinfo=zone) + timedelta(days=1)
+            values.append({"value": number(day), "end_time": end.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S+0000")})
+            day += timedelta(days=1)
+        return 200, {
+            "data": [
+                {"name": metric, "period": "day", "values": values, "id": f"{INSTAGRAM_USER}/insights/{metric}/day"}
+            ]
+        }
+
+    def _instagram_media_insights(self, media_id: str, query: dict) -> tuple[int, dict]:
+        """GET /{media-id}/insights?metric=a,b,c: each metric's lifetime value in `values`, as Meta documents."""
+        asked = [name for name in query.get("metric", "").split(",") if name]
+        self.instagram_insights_calls.append(f"media:{media_id}:{','.join(asked)}")
+        if self.instagram_insights_refused:
+            return 403, {"error": {"message": "(#10) Requires instagram_manage_insights permission", "code": 10}}
+        known = (
+            "views",
+            "reach",
+            "likes",
+            "comments",
+            "shares",
+            "saved",
+            "total_interactions",
+            "ig_reels_avg_watch_time",
+        )
+        if media_id in self.instagram_media_gone or any(
+            name not in known or name in self.instagram_media_dropped for name in asked
+        ):
+            return 400, {"error": {"message": "(#100) The value must be a valid insights metric", "code": 100}}
+        defaults = {
+            "views": 1000,
+            "reach": 800,
+            "likes": 60,
+            "comments": 5,
+            "shares": 9,
+            "saved": 12,
+            "total_interactions": 86,
+            "ig_reels_avg_watch_time": 6200,
+        }
+        numbers = defaults | self.instagram_media_insights.get(media_id, {})
+        return 200, {
+            "data": [
+                {
+                    "name": name,
+                    "period": "lifetime",
+                    "values": [{"value": numbers[name]}],
+                    "id": f"{media_id}/insights/{name}/lifetime",
+                }
+                for name in asked
+            ]
+        }
+
+    def _instagram_refused(self) -> tuple[int, dict]:
+        code = self.instagram_refusal
+        return 403, {"error": {"message": f"(#{code}) Instagram refused", "code": code}}
+
+    def is_instagram(self, object_id: str) -> bool:
+        return (
+            object_id == INSTAGRAM_USER
+            or object_id in self.instagram_containers
+            or any(item["id"] == object_id for item in self.instagram_media)
+        )
+
+    def _instagram_post(self, path: str, form: dict) -> tuple[int, dict]:
+        """POST /{ig-user-id}/media (a Reel container) or /{ig-user-id}/media_publish."""
+        if form.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        if self.instagram_refusal is not None:
+            return self._instagram_refused()
+        with self.lock:
+            if path.endswith("/media"):
+                self.instagram_calls.append("container")
+                if form.get("media_type") != "REELS" or not (
+                    form.get("upload_type") == "resumable" or form.get("video_url")
+                ):
+                    return 400, {"error": {"message": "Invalid parameter", "code": 100}}
+                container_id = str(17900000000000 + len(self.instagram_containers) + 1)
+                self.instagram_containers[container_id] = {
+                    "caption": form.get("caption", ""),
+                    "video_url": form.get("video_url", ""),
+                    # Instagram fetches a `video_url` itself, so such a container needs no upload to start processing.
+                    "bytes": 1 if form.get("video_url") else 0,
+                    "reads": 0,
+                    "state": "IN_PROGRESS",
+                }
+                uri = f"{self.url}/instagram-upload/ig-api-upload/v99.0/{container_id}"
+                return 200, {"id": container_id, "uri": uri}
+            self.instagram_calls.append("publish")
+            container = self.instagram_containers.get(form.get("creation_id", ""))
+            if container is None or container["state"] != "FINISHED":
+                return 400, {"error": {"message": "Media ID is not available", "code": 9007}}
+            media_id = str(18000000000000 + len(self.instagram_media) + 1)
+            container["state"] = "PUBLISHED"
+            self.instagram_media.insert(
+                0,
+                {
+                    "id": media_id,
+                    "caption": container["caption"],
+                    "permalink": f"https://www.instagram.com/reel/Fake{media_id[-4:]}/",
+                    "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S+0000"),
+                },
+            )
+            if self.instagram_publish_replies_lost:
+                self.instagram_publish_replies_lost -= 1
+                return 500, {"error": {"message": "Service unavailable", "code": 2}}
+            return 200, {"id": media_id}
+
+    def _instagram_upload(
+        self, container_id: str, authorization: str | None, raw: bytes, path: str = ""
+    ) -> tuple[int, dict]:
+        if authorization != f"OAuth {FACEBOOK_TOKEN}":
+            return 401, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        with self.lock:
+            self.instagram_calls.append("upload")
+            self.instagram_upload_paths.append(path)
+            if self.instagram_upload_refused:
+                debug = {"retriable": False, "type": "ProcessingFailedError", "message": "Request processing failed"}
+                return 400, {"debug_info": debug}
+            container = self.instagram_containers.get(container_id)
+            if container is None:
+                return 400, {"error": {"message": "Unknown container", "code": 100}}
+            container["bytes"] = len(raw)
+        return 200, {"success": True}
+
+    def _instagram_read(self, target: str, query: dict) -> tuple[int, dict]:
+        """GET a container's status, a media's permalink, or /{ig-user-id}/media."""
+        if query.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        if self.instagram_refusal is not None:
+            return self._instagram_refused()
+        with self.lock:
+            if target == INSTAGRAM_USER:
+                fields = query.get("fields", "")
+                if self.instagram_username_refused and "followers_count" not in fields:
+                    return 403, {"error": {"message": "(#10) Requires instagram_basic", "code": 10}}
+                reply = {"id": INSTAGRAM_USER, "username": (self.instagram_account or {}).get("username")}
+                if "followers_count" in fields and self.instagram_followers is not None:
+                    reply["followers_count"] = self.instagram_followers
+                return 200, reply
+            if target == f"{INSTAGRAM_USER}/insights":
+                return self._instagram_insights(query)
+            if target.endswith("/insights"):
+                return self._instagram_media_insights(target.removesuffix("/insights"), query)
+            if target == f"{INSTAGRAM_USER}/media":
+                self.instagram_calls.append("media")
+                return 200, {"data": [dict(item) for item in self.instagram_media]}
+            container = self.instagram_containers.get(target)
+            if container is not None:
+                self.instagram_calls.append("status")
+                if container["state"] == "IN_PROGRESS" and container["bytes"]:
+                    container["reads"] += 1
+                    if container["reads"] > self.instagram_busy_reads:
+                        container["state"] = "ERROR" if self.instagram_container_error else "FINISHED"
+                return 200, {"id": target, "status_code": container["state"], "status": container["state"]}
+            self.instagram_calls.append("permalink")
+            media = next(item for item in self.instagram_media if item["id"] == target)
+            return 200, {"id": target, "permalink": media["permalink"]}
 
     def add_visitor_comment(self, object_id: str, message: str, author: str = "Cô Lan", **fields) -> str:
         """A comment a visitor wrote under a reel (or under a comment, as a reply)."""
@@ -1542,6 +1943,117 @@ class FakeServices:
         return 200, {"items": items}
 
     @staticmethod
+    def _google_failed(status: int, reason: str) -> tuple[int, dict]:
+        return status, {"error": {"code": status, "message": reason, "errors": [{"reason": reason}]}}
+
+    def _google_token(self, form: dict) -> tuple[int, dict]:
+        if form.get("client_id") != GOOGLE_CLIENT_ID or form.get("client_secret") != GOOGLE_CLIENT_SECRET:
+            return 401, {"error": "invalid_client", "error_description": "The OAuth client was not found."}
+        with self.lock:
+            if form.get("grant_type") == "authorization_code":
+                channel = self.google_codes.get(form.get("code", ""))
+                if channel is None or not form.get("redirect_uri"):
+                    return 400, {"error": "invalid_grant", "error_description": "Bad Request"}
+                refresh = f"g-refresh-{self.google_token_count + 1}"
+                self.google_refresh[refresh] = channel
+            elif form.get("grant_type") == "refresh_token":
+                channel = self.google_refresh.get(form.get("refresh_token", ""))
+                if channel is None:
+                    return 400, {"error": "invalid_grant", "error_description": "Token has been expired or revoked."}
+                refresh = None  # Google keeps the refresh token: a refresh answers without one
+            else:
+                return 400, {"error": "unsupported_grant_type"}
+            self.google_token_count += 1
+            access = f"g-access-{self.google_token_count}"
+            self.google_access[access] = channel
+        answer = {
+            "access_token": access,
+            "expires_in": self.google_expires_in,
+            "scope": "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly",
+            "token_type": "Bearer",
+        }
+        return 200, answer | ({"refresh_token": refresh} if refresh else {})
+
+    def _google_revoke(self, form: dict) -> tuple[int, dict]:
+        token = form.get("token", "")
+        with self.lock:
+            self.google_revoked.append(token)
+            channel = self.google_refresh.pop(token, None)
+            for access in [key for key, value in self.google_access.items() if value == channel]:
+                self.google_access.pop(access)
+        return 200, {}
+
+    def _google_channel(self, authorization: str | None) -> str | None:
+        return self.google_access.get((authorization or "").removeprefix("Bearer "))
+
+    def _youtube_mine(self, authorization: str | None) -> tuple[int, dict]:
+        channel = self._google_channel(authorization)
+        if channel is None:
+            return self._google_failed(401, "authError")
+        info = self.youtube_channels[channel]
+        return 200, {"items": [{"id": channel, "snippet": {"title": info["title"], "customUrl": info["customUrl"]}}]}
+
+    def _youtube_upload_start(self, authorization: str | None, query: dict, size: str, body: dict):
+        channel = self._google_channel(authorization)
+        if channel is None:
+            return (*self._google_failed(401, "authError"), {})
+        if query.get("uploadType") != "resumable" or not size.isdigit():
+            return (*self._google_failed(400, "badRequest"), {})
+        if self.youtube_upload_error:
+            return (*self._google_failed(403, self.youtube_upload_error), {})
+        with self.lock:
+            self.youtube_upload_calls.append("init")
+            session = f"s{len(self.youtube_uploads) + 1}"
+            self.youtube_uploads[session] = {
+                "channel": channel,
+                "body": body,
+                "size": int(size),
+                "bytes": 0,
+                "video": None,
+            }
+        return 200, {}, {"Location": f"{self.url}/youtube-upload/session/{session}"}
+
+    @staticmethod
+    def _youtube_video(upload: dict) -> dict:
+        return {
+            "id": upload["video"],
+            "snippet": upload["body"].get("snippet", {}),
+            "status": {**upload["body"].get("status", {}), "uploadStatus": "uploaded"},
+        }
+
+    def _youtube_upload_send(self, session: str, authorization: str | None, content_range: str, raw: bytes):
+        upload = self.youtube_uploads.get(session)
+        if upload is None:
+            return 404, {"error": "not found"}, {}
+        if self._google_channel(authorization) != upload["channel"]:
+            return (*self._google_failed(401, "authError"), {})
+        with self.lock:
+            if content_range.startswith("bytes */"):
+                self.youtube_upload_calls.append("query")
+                if upload["video"]:
+                    return 200, self._youtube_video(upload), {}
+                return 308, {}, ({"Range": f"bytes=0-{upload['bytes'] - 1}"} if upload["bytes"] else {})
+            self.youtube_upload_calls.append("send")
+            start = 0
+            if content_range:
+                match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", content_range)
+                if not match or int(match.group(2)) - int(match.group(1)) + 1 != len(raw):
+                    return 400, {"error": "bad Content-Range"}, {}
+                start = int(match.group(1))
+            if start != upload["bytes"]:
+                return 400, {"error": "resumed from the wrong byte"}, {}
+            if self.youtube_upload_cuts > 0:
+                self.youtube_upload_cuts -= 1
+                upload["bytes"] += len(raw) // 2
+                return 503, {"error": "backend error"}, {}
+            upload["bytes"] += len(raw)
+            if upload["bytes"] != upload["size"]:
+                return 400, {"error": "size mismatch"}, {}
+            done = sum(1 for one in self.youtube_uploads.values() if one["video"])
+            upload["video"] = f"ytUp{done + 1:07d}"
+            return 200, self._youtube_video(upload), {}
+
+    @staticmethod
     def _oembed_default(url: str) -> dict:
         path = urllib.parse.urlsplit(url).path
         if path.startswith("/@") and "/video/" in path:
@@ -1715,7 +2227,9 @@ class FakeServices:
             def log_message(self, *args):
                 pass
 
-            def _send(self, status: int, body: object, content_type: str = "application/json") -> None:
+            def _send(
+                self, status: int, body: object, content_type: str = "application/json", headers: dict | None = None
+            ) -> None:
                 data = (
                     body
                     if isinstance(body, bytes)
@@ -1726,6 +2240,8 @@ class FakeServices:
                 self.send_response(status)
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(data)))
+                for name, value in (headers or {}).items():
+                    self.send_header(name, value)
                 self.end_headers()
                 self.wfile.write(data)
 
@@ -1733,6 +2249,14 @@ class FakeServices:
                 length = int(self.headers.get("Content-Length") or 0)
                 raw = self.rfile.read(length)
                 path = urllib.parse.urlsplit(self.path).path
+                if path.startswith("/instagram-upload/"):
+                    container_id = path.rsplit("/", 1)[1]
+                    self._send(*fake._instagram_upload(container_id, self.headers.get("Authorization"), raw, path))
+                    return
+                if path.startswith("/facebook/") and path.split("/")[2] == INSTAGRAM_USER:
+                    form = dict(urllib.parse.parse_qsl(raw.decode()))
+                    self._send(*fake._instagram_post(path.removeprefix("/facebook/"), form))
+                    return
                 if path.startswith("/facebook-upload/"):
                     reel = fake.reels[path.removeprefix("/facebook-upload/")]
                     if self.headers.get("Authorization") != f"OAuth {FACEBOOK_TOKEN}":
@@ -1752,7 +2276,11 @@ class FakeServices:
                     parts = {
                         part.get_param("name", header="content-disposition"): part for part in message.iter_parts()
                     }
-                    form = {name: part.get_content() for name, part in parts.items() if name != "source"}
+                    form = {
+                        name: part.get_payload(decode=True).decode()  # UTF-8, as Facebook reads a field
+                        for name, part in parts.items()
+                        if name != "source"
+                    }
                     photo = parts["source"].get_payload(decode=True) if "source" in parts else None
                     self._send(*fake._page_post(path.split("/")[2], "photos", form, photo))
                     return
@@ -1784,6 +2312,19 @@ class FakeServices:
                 if path == "/shopee/graphql":
                     self._send(*fake._shopee(self.headers.get("Authorization"), raw))
                     return
+                if path in ("/google/token", "/google/revoke"):
+                    form = dict(urllib.parse.parse_qsl(raw.decode()))
+                    self._send(*(fake._google_token(form) if path == "/google/token" else fake._google_revoke(form)))
+                    return
+                if path == "/youtube-upload/videos":
+                    status, reply, headers = fake._youtube_upload_start(
+                        self.headers.get("Authorization"),
+                        dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query)),
+                        self.headers.get("X-Upload-Content-Length", ""),
+                        json.loads(raw or b"{}"),
+                    )
+                    self._send(status, reply, headers=headers)
+                    return
                 if path.startswith("/tiktok/"):
                     target = path.removeprefix("/tiktok")
                     with fake.lock:
@@ -1803,6 +2344,8 @@ class FakeServices:
                     self._send(*fake._chat(self.headers.get("Authorization"), body))
                 elif path.startswith("/gemini/v1beta/models/"):
                     self._send(*fake._image_gen(self.headers.get("x-goog-api-key"), body))
+                elif path == "/cloudflare/client/v4/graphql":
+                    self._send(*fake._cf_graphql(self.headers.get("Authorization"), body))
                 elif path.startswith("/cloudflare/client/v4/accounts/") and "/ai/run/" in path and "inpaint" in path:
                     status, reply = fake._cf_inpaint(self.headers.get("Authorization"), body)
                     self._send(status, reply, "image/png" if isinstance(reply, bytes) else "application/json")
@@ -1813,6 +2356,8 @@ class FakeServices:
                         path.removeprefix("/v1/text-to-speech/"), self.headers.get("xi-api-key"), body
                     )
                     self._send(status, reply, "audio/mpeg" if isinstance(reply, bytes) else "application/json")
+                elif path == "/gemini/v1beta/interactions":
+                    self._send(*fake._gemini_speech(self.headers.get("x-goog-api-key"), body))
                 elif path == "/vieneu/api/v1/audio/speech":
                     status, reply = fake._vieneu_speech(self.headers.get("Authorization"), body)
                     self._send(status, reply, "audio/mpeg" if isinstance(reply, bytes) else "application/json")
@@ -1825,6 +2370,15 @@ class FakeServices:
                 length = int(self.headers.get("Content-Length") or 0)
                 raw = self.rfile.read(length)
                 path = urllib.parse.urlsplit(self.path).path
+                if path.startswith("/youtube-upload/session/"):
+                    status, reply, headers = fake._youtube_upload_send(
+                        path.removeprefix("/youtube-upload/session/"),
+                        self.headers.get("Authorization"),
+                        self.headers.get("Content-Range", ""),
+                        raw,
+                    )
+                    self._send(status, reply, headers=headers)
+                    return
                 if path.startswith("/tiktok-upload/"):
                     publish_id = path.removeprefix("/tiktok-upload/")
                     with fake.lock:
@@ -1860,6 +2414,8 @@ class FakeServices:
                     self._send(200, {"ok": True})
                 elif parts.path == "/v1/voices":
                     self._send(*fake._voices(self.headers.get("xi-api-key")))
+                elif parts.path == "/v1/user/subscription":
+                    self._send(*fake._subscription(self.headers.get("xi-api-key")))
                 elif parts.path == "/vieneu/api/v1/voices":
                     self._send(*fake._vieneu_voices(dict(urllib.parse.parse_qsl(parts.query))))
                 elif parts.path == "/google-tts/v1/voices":
@@ -1875,7 +2431,9 @@ class FakeServices:
                     query = dict(urllib.parse.parse_qsl(parts.query))
                     target = parts.path.removeprefix("/facebook/")
                     page_ids = {page["id"] for page in fake.facebook_pages}
-                    if target.endswith(("/video_reels", "/videos")) and target.split("/")[0] in page_ids:
+                    if fake.is_instagram(target.split("/")[0]):
+                        self._send(*fake._instagram_read(target, query))
+                    elif target.endswith(("/video_reels", "/videos")) and target.split("/")[0] in page_ids:
                         self._send(*fake._page_reels(target.split("/")[0], query))
                     elif target in ("me", "me/accounts"):
                         self._send(*fake._me(target, query))
@@ -1895,6 +2453,8 @@ class FakeServices:
                         self._send(*fake._reel_insights(target.removesuffix("/video_insights"), query))
                     else:
                         self._send(*fake._reel_status(target, query))
+                elif parts.path == "/youtube/v3/channels":
+                    self._send(*fake._youtube_mine(self.headers.get("Authorization")))
                 elif parts.path == "/youtube/v3/videos":
                     self._send(*fake._youtube_videos(dict(urllib.parse.parse_qsl(parts.query))))
                 elif parts.path in ("/oembed/tiktok", "/oembed/youtube"):

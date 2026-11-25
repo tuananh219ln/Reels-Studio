@@ -1,5 +1,6 @@
 """Brands ("Kênh"): one logo each, laid on the MP4 at render, shared by the brand's Facebook Page, TikTok account and
-YouTube channel (docs/decisions/2026-11-13-brand-logo.md).
+YouTube channel (docs/decisions/2026-11-13-brand-logo.md; which brand a new video starts on:
+docs/decisions/2026-11-20-brand-default.md, which replaces the single-brand fallback of the first).
 
 A video keeps its brand and the logo switch in `video.options` as `brand_id` and `logo_enabled`, outside
 `video_options.DEFAULTS` (they are no member's default look). While the logo is on, the brand's `logo_version` is in
@@ -200,6 +201,23 @@ def badge_path(db: DbSession, storage: DirectoryStorage, video: Video) -> Path |
     return storage.path(brand.logo_badge_path)
 
 
+def default_for(db: DbSession, user_id: int, knowledge_topic_id: int | None) -> Brand | None:
+    """The channel a member's new video starts on, so they need not pick it on every video: among their own brands
+    with a logo, the one whose active Page is in the video's topic group; None otherwise — a lone brand is never
+    the default for a group its Page is not in, so a logo stays only on its own Page's videos. The logo switch is
+    left unset, so the brand's "Video của Page tự gắn logo" (`logo_default_on`) decides it."""
+    if knowledge_topic_id is None:
+        return None
+    mine = db.scalars(
+        select(Brand).where(Brand.owner_id == user_id, Brand.logo_badge_path.is_not(None)).order_by(Brand.id)
+    )
+    for brand in mine:
+        page = brand.fanpage
+        if page is not None and page.active and page.knowledge_topic_id == knowledge_topic_id:
+            return brand
+    return None
+
+
 def has_posts(db: DbSession, video_id: int) -> bool:
     return (
         db.scalar(
@@ -207,7 +225,7 @@ def has_posts(db: DbSession, video_id: int) -> bool:
             .select_from(Publication)
             .where(
                 Publication.video_id == video_id,
-                Publication.status.in_(("pending", "scheduled", "published")),
+                Publication.status.in_(("pending", "scheduled", "private", "published")),
             )
         )
         > 0

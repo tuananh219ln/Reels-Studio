@@ -29,6 +29,7 @@ from .models import (
     Fanpage,
     Video,
 )
+from .ownership import can_add_products
 from .sessions import now
 
 log = logging.getLogger("reels_api.affiliate_rounds")
@@ -118,24 +119,40 @@ def suggest(db: DbSession, video: Video | Article) -> None:
     try:
         for keyword in keywords:
             offers = shopee.search(credentials, keyword, SEARCH_RESULTS)
+            # The searcher's own row in this group first, else the item's oldest one (a suggestion carries no link: each
+            # Page makes its own), so a search never adds a copy of what the team already lists.
             known = {
                 product.shopee_item_id: product
                 for product in db.scalars(
-                    select(AffiliateProduct).where(
-                        AffiliateProduct.shopee_item_id.in_([offer.item_id for offer in offers])
+                    select(AffiliateProduct)
+                    .where(AffiliateProduct.shopee_item_id.in_([offer.item_id for offer in offers]))
+                    .order_by(
+                        (
+                            (AffiliateProduct.created_by_id == video.suggest_by_id)
+                            & (AffiliateProduct.knowledge_topic_id == topic.id)
+                        ).asc(),
+                        AffiliateProduct.id.desc(),
                     )
                 )
             }
             candidates = []
             for offer in offers:
-                product = known.get(offer.item_id) or AffiliateProduct(
-                    platform="shopee",
-                    shopee_item_id=offer.item_id,
-                    knowledge_topic_id=topic.id,
-                    topic=topic,
-                    status="draft",
-                    created_by_id=video.suggest_by_id,
+                # A search adds a row only for the group's maker (decision 2026-11-25); for anyone else it offers
+                # the products the team already lists.
+                product = known.get(offer.item_id) or (
+                    AffiliateProduct(
+                        platform="shopee",
+                        shopee_item_id=offer.item_id,
+                        knowledge_topic_id=topic.id,
+                        topic=topic,
+                        status="draft",
+                        created_by_id=video.suggest_by_id,
+                    )
+                    if can_add_products(topic, video.suggest_by_id)
+                    else None
                 )
+                if product is None:
+                    continue
                 if product.id is None:
                     _fill(product, offer)
                 if not affiliate.problems(product):
@@ -185,14 +202,19 @@ def check_offer(db: DbSession, product: AffiliateProduct) -> None:
         db.commit()
         log.warning("Could not check product %s: %s %s", product.id, err.message, err.detail)
         return
+    old_page = product.page_url
     if offer is None:
         product.status, product.checked_at, product.checked_by_id = "draft", None, None
         log.info("Product %s is no longer offered, back to draft", product.id)
+        affiliate.ask_comment_refresh(db, [product.id])
     else:
         _fill(product, offer)
         if affiliate.problems(product):
             product.status, product.checked_at, product.checked_by_id = "draft", None, None
             log.info("Product %s no longer meets the rules, back to draft", product.id)
+            affiliate.ask_comment_refresh(db, [product.id])
+        elif product.page_url != old_page:
+            affiliate.ask_comment_refresh(db, [product.id], forget_links=True)
     db.commit()
 
 
@@ -211,7 +233,10 @@ def lookup(db: DbSession, product: AffiliateProduct) -> None:
             raise shopee.ShopeeError("Link không dẫn tới một sản phẩm Shopee, hãy kiểm tra lại link")
         twin = db.scalar(
             select(AffiliateProduct).where(
-                AffiliateProduct.shopee_item_id == item_id, AffiliateProduct.id != product.id
+                AffiliateProduct.shopee_item_id == item_id,
+                AffiliateProduct.created_by_id == product.created_by_id,
+                AffiliateProduct.knowledge_topic_id == product.knowledge_topic_id,
+                AffiliateProduct.id != product.id,
             )
         )
         if twin is not None:
@@ -228,6 +253,7 @@ def lookup(db: DbSession, product: AffiliateProduct) -> None:
     _fill(product, offer)
     if product.status == "approved" and affiliate.problems(product):
         product.status, product.checked_at, product.checked_by_id = "draft", None, None
+        affiliate.ask_comment_refresh(db, [product.id])
     db.commit()
     log.info("Read product %s (item %s) from Shopee", product.id, item_id)
 

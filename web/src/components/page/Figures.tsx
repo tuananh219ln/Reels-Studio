@@ -1,13 +1,14 @@
 "use client";
 
+import { countFormat, decimalFormat, percentFormat } from "@/lib/format";
 import { ArrowDownOutlined, ArrowUpOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { Card, Flex, Tooltip, Typography, theme } from "antd";
 import type { ReactNode } from "react";
 import type { DashboardFigure } from "@/lib/api";
 
-const count = new Intl.NumberFormat("vi-VN");
-const percent = new Intl.NumberFormat("vi-VN", { style: "percent", maximumFractionDigits: 1 });
-const decimal = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });
+const count = countFormat;
+const percent = percentFormat;
+const decimal = decimalFormat;
 
 export function formatNumber(value: number | null): string {
   return value === null ? "—" : count.format(value);
@@ -52,8 +53,12 @@ export function FigureTile({
   format = formatNumber,
   tip,
   note,
+  source = "Facebook",
 }: {
   title: string;
+  /** Where the number comes from, shown with the period: Facebook's own Page Insights, Instagram's, or what the tool
+   * adds up from the readings of the posts it made ("Tool"). Every number on Quản lý kênh says it. */
+  source?: "Facebook" | "Instagram" | "Tool";
   figure: DashboardFigure;
   days: number;
   format?: (value: number | null) => string;
@@ -73,6 +78,9 @@ export function FigureTile({
         </Typography.Text>
         <Typography.Text strong style={{ fontSize: 24, lineHeight: "32px" }}>
           {format(figure.value)}
+        </Typography.Text>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="figure-source">
+          {source}, {days} ngày
         </Typography.Text>
         <Change change={figure.change} days={days} />
         {note && (
@@ -97,5 +105,31 @@ export function TileRow({ children }: { children: ReactNode }) {
     >
       {children}
     </div>
+  );
+}
+
+/** One number of a Page card, small: the value over its label, with an optional note after the value. */
+export function MiniFigure({ label, value, note }: { label: string; value: string; note?: ReactNode }) {
+  return (
+    <Flex vertical gap={0} style={{ minWidth: 0 }}>
+      <Typography.Text strong style={{ fontSize: 15, lineHeight: "22px" }}>
+        {value}
+        {note}
+      </Typography.Text>
+      <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+        {label}
+      </Typography.Text>
+    </Flex>
+  );
+}
+
+/** "+12" after the followers, this week's gain; nothing until there is a number from last week. */
+export function FollowerGain({ gain }: { gain: number | null }) {
+  if (!gain) return null;
+  return (
+    <Typography.Text type={gain > 0 ? "success" : "secondary"} style={{ fontSize: 12, fontWeight: 400, marginLeft: 4 }}>
+      {gain > 0 ? "+" : ""}
+      {countFormat.format(gain)}
+    </Typography.Text>
   );
 }

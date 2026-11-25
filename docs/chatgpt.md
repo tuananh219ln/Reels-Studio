@@ -1,6 +1,6 @@
 # ChatGPT and Claude connection
 
-Members can use ChatGPT, Claude (web, Desktop, mobile), Claude Code or Muse (Meta's assistant) to search and read the shared
+Members can use ChatGPT, Claude (web, Desktop, mobile), Claude Code, Gemini CLI, Antigravity (`agy`) or Muse (Meta's assistant) to search and read the shared
 video library, edit a scene's text, voice text and clip part, edit caption/hashtags/pinned comment,
 create a video with a script job or from a script the assistant writes itself, give a scene a photo
 or clip from a link, attach approved affiliate products, and request a render.
@@ -17,8 +17,8 @@ Where the script is written decides who pays, and the video page says which one 
 
 | Started from | Written by | Cost | Video page shows |
 | --- | --- | --- | --- |
-| "Tạo video" in the app (or `create_video` over MCP) | The team's AI service, a script job | API key on Cài đặt › Mô hình AI | "Kịch bản viết bởi Claude · <model>" (provider and model of the job) |
-| A chat in an assistant connected here (ChatGPT, Claude, Claude Code, Muse) | The member's own assistant | The member's own plan, nothing to the team | "Kịch bản viết bởi <assistant> của thành viên qua kết nối MCP", e.g. "Muse của thành viên…" ("Trợ lý AI" for videos made before 2026-11-08) |
+| "Tạo video" in the app (or `create_video` over MCP) | The team's AI service, a script job | API key on Cài đặt › AI và nguồn tư liệu | "Kịch bản viết bởi Claude · <model>" (provider and model of the job) |
+| A chat in an assistant connected here (ChatGPT, Claude, Claude Code, Gemini CLI, Antigravity, Muse) | The member's own assistant | The member's own plan, nothing to the team | "Kịch bản viết bởi <assistant> của thành viên qua kết nối MCP", e.g. "Muse của thành viên…" ("Trợ lý AI" for videos made before 2026-11-08) |
 
 A topic group's video is written with the group's own prompt either way:
 
@@ -56,6 +56,12 @@ service:
    photo and links), approved ones by default and only those the member added (`whose="all"` adds
    teammates', each row saying `created_by` and `mine`); `video_id` puts the products of the video's topic
    group first.
+   Shopee's "Custom Link" by Excel has three tools ([guide](../api/src/reels_api/guides/custom-link.md)):
+   `list_custom_link_products` (a group's approved products the member added that still lack an affiliate
+   link: the product pages and the `sub_id1` code of the Page the orders are measured to; `fanpage_id` when the
+   group has several Pages), `preview_custom_link_import` (the pasted result file of Shopee, row by row, nothing
+   written) and `import_custom_link_result` (writes the links, replacing the saved ones of the member's own
+   products; teammates' stay). The assistant does not call Shopee: the member uploads the file there.
 2. `create_video_from_script` makes a "Tự viết" video from a script the assistant writes: one scene per
    paragraph, `Đọc:` lines as the voice text. No script job, so no cost to the team's AI service. `video_mode`
    (`slides` or `single`) is optional: left out, the group's "Kiểu video" decides, as for every new video.
@@ -73,6 +79,8 @@ service:
    the product photo flying in) and the worker renders it with HyperFrames into the scene's clip
    ([architecture.md](architecture.md#motion-scenes-hyperframes)). The scene's photo at that moment is available as
    `assets/photo.*`, so attach a transparent product photo first. No cost to the team's AI service.
+6. `set_title_motion` builds the title scene's "Tiêu đề động" from the scenes below it, and `set_title_style` switches the
+   title between Cổ điển and Động, and `sync_title_sfx` re-places the title's ting, one per slot ([architecture.md](architecture.md#motion-scenes-hyperframes)). No cost to the team's AI service.
 6. `render_video` queues the render; narration may use ElevenLabs.
 
 ## The media library
@@ -80,7 +88,7 @@ service:
 Members fill "Kho tư liệu" (`/media`) by dragging whole folders of their own footage and product photos, or by
 searching the product on Google Ảnh / TikTok from the page and pasting the links back. The assistant reads it with
 `list_media` (by folder, kind, tags such as `xoay-co,sofa` (every one) or a search over names, folders and tags; each item with its tags), **looks at the items** with `view_media` before choosing, adds links the
-member gives with `add_media_from_links`, and puts an item in a scene with `set_scene_media_from_library` (a copy).
+member gives with `add_media_from_links` (up to 10, with `folder` and `tags`; a link to one Google Drive file shared "anyone with the link" works too, a folder does not; a failed link comes back in `failed` with a `reason`: `not_public`, `expired_or_unreachable`, `too_large`, `not_media`, `blocked_host` or `invalid_link`, so the assistant resends only that link, at most twice, then asks the member; MCP still carries no files, [decision](decisions/2026-11-24-media-links-drive.md)), and puts an item in a scene with `set_scene_media_from_library` (a copy).
 `cut_clip_to_library` cuts the part a scene needs out of a library clip into a new item (no sound, folder, tags
 required, the clip's source link kept; the clip stays), so the library keeps only cut parts, attached afterwards with
 `video_start` 0; `delete_media` deletes an item the member added, only when they ask (a scene keeps its own copy).
@@ -98,7 +106,7 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
   down; `reset_text_position` and `reset_title_text_position` put each back where the template has it).
   Only the arguments sent change; it goes through the same `PATCH /videos/{id}` handler and `video_options.clean`
   as the tab, so one wrong value saves nothing. A voice id is checked for its form only (a bare ElevenLabs id,
-  `vieneu:<id>` or `google:<voice name>`), as on the web; a voice that does not exist fails when the narration is made. It makes no
+  `vieneu:<id>` or `gemini:<voice>` or `google:<voice name>`), as on the web; a voice that does not exist fails when the narration is made. It makes no
   narration and never touches the member's defaults or another video. It returns the video's whole `options`.
 - `set_scene_effects` (transition, colour, music level, "Tự khớp lời đọc"; `default` goes back to the video's),
   `reorder_scenes`, `split_scene`, `delete_scene` (content scenes only).
@@ -146,7 +154,8 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
   boxes given, keeps the scene's length (the web sets a clip scene to the clip's length, 10 s at most, which turned a
   fixed-length title into 10 s) and answers with the scene's first frame. `update_scene` takes `text_position`
   ([x, y] in the 1080×1920 frame; the render keeps the box in its safe zone, the title moves only up and down) and
-  `reset_text_position`.
+  `reset_text_position`, and a content scene's "Khung ảnh": `image_fit` ("auto", "cover", "square", "whole"),
+  `image_crop_offset` (0–1 along the photo's longer side) and `reset_image_crop_offset`.
 - **A blurred patch is covered**: `set_scene_clip_blur` and `attach_scene_clip` move the scene's text box onto the
   centre of the largest box, then work out, with the render core's own box (`frames.text_box`), what of the patches
   the box leaves showing and add cover stickers there (the kitchen set and Trái tim, Ngôi sao, Dấu tích, the smallest
@@ -193,6 +202,9 @@ failed check, look at the MP4's frames after it, and say the video is done only 
      **OAuth**. The workspace owner may need to allow custom connections.
    - **Claude (web, Desktop):** Settings › Connectors › add a custom connector with that URL.
    - **Claude Code:** `claude mcp add --transport http reels-studio <URL>`, then `/mcp` to sign in.
+   - **Gemini CLI:** `gemini mcp add --scope user --transport http reels-studio <URL>`, then `/mcp auth reels-studio` to sign in.
+   - **Gemini CLI:** `gemini mcp add --transport http reels-studio <URL>`, then `/mcp auth reels-studio` to sign in. Google moved the Google AI Pro / free sign-in from Gemini CLI to Antigravity (2026-06-18), so a member on those plans uses `agy`.
+   - **Antigravity CLI (`agy`):** add `{"mcpServers":{"reels-studio":{"serverUrl":"<URL>"}}}` to `~/.gemini/config/mcp_config.json` (the field is `serverUrl`), run `agy`, `/mcp`, choose reels-studio. It registers itself (DCR) with its hosted callback.
 
    This server supports dynamic client registration (DCR), public clients and S256 PKCE; it does not
    support CIMD or a client secret, so Claude falls back to DCR.
@@ -223,7 +235,9 @@ identification is enabled, so ChatGPT's redirect URI is
 [connector authentication](https://claude.com/docs/connectors/building/authentication) page:
 `https://claude.ai/api/mcp/auth_callback` for the hosted apps (and `https://claude.com/...`, where it
 may move), and for Claude Code a loopback `http://localhost:<port>/callback` or
-`http://127.0.0.1:<port>/callback` whose port changes every session. Muse's is exactly
+`http://127.0.0.1:<port>/callback` whose port changes every session, and for Gemini CLI the same loopback on
+`/oauth/callback` (its docs; named "Gemini", and a client registered on one of the two paths may not go back to the
+other). Antigravity's is exactly `https://antigravity.google/oauth-callback` (from its published client metadata, no other path on that host; named "Antigravity"). Muse's is exactly
 `https://agent.meta.ai/api/hatch/oauth/callback`, read from the refused-registration log below (no other
 path on that host is accepted). A client may register up to
 four of these and nothing else. A loopback callback matches its registered host and path on any
@@ -260,7 +274,7 @@ exact URI seen there to the allowlist.
 
 These are requests to ChatGPT, not deterministic commands. Read the proposed changes before
 approving a write tool in ChatGPT. Content returned by the tools is data, not tool instructions.
-The connector has no tools to post to Facebook, delete videos, manage users, modify prompts or
+Posting to Facebook is only through the article tools below and the queue (`schedule_video`); the connector has no tools to delete videos, manage users, modify prompts or
 credentials, or retrieve file bytes. Its `editor_url` opens the app; preview/download URLs still
 need a normal browser login. Listing has a maximum page size of 50; use `offset` to continue.
 
@@ -314,13 +328,28 @@ scheduled (Page, time) and which waits for a manual "Duyệt" (reason). An assis
 WhatsApp, calls it every few minutes with `after_id` set to the largest `id` it has already reported and messages the
 member one line per result. See [the decision](decisions/2026-11-13-auto-approve.md).
 
+## Articles ("Bài viết")
+
+Nine tools ([the decision](decisions/2026-11-24-mcp-articles.md)) run an article from draft to post through the web's
+own routes (`routes_articles`), so the same checks, locks and jobs apply: `list_articles`, `get_article`,
+`create_article` (the assistant's own caption, at most 5 hashtags, no AI cost), `update_article`, `add_article_image`
+(a link or a library photo id; up to 10), `add_article_text_card` ("Thẻ chữ"), `delete_article` (the creator; a posted
+or scheduled article is refused), and the two that touch Facebook, `publish_article` ("Đăng", now or at `scheduled_at`
+with a time zone, 15 minutes to 29 days ahead; a warning needs `confirm=true`) and `unschedule_article` ("Hủy đăng" /
+"Gỡ bài"). Posting runs as the `publish` job; read the article again for its status.
+
+Posting needs a third scope, **`reels:publish`**, which the consent screen names ("Quyền đăng bài lên Page") and
+which connections made before it lack: they must reconnect. Without it the two tools answer that the connection has
+no posting right. Only the member's own Page can be posted to (`ensure_page_owner`). The server's instructions tell
+the assistant to post only when the member asks, after they have seen the caption and photos.
+
 ## Copying a winning video to another Page, and queueing it
 
 Two tools ([the decision](decisions/2026-11-15-mcp-duplicate-schedule.md)) let the assistant copy a video that did
 well and post the copy on another Page, through the web's own rules:
 
 - `duplicate_video` (write) is "Nhân bản y hệt" (`duplicate.duplicate_video`, the route's own source check): an exact
-  copy named "… (copy)", made by the connected member, with no AI call and no MP4. `knowledge_topic_id` puts the copy
+  copy named "… (bản N)", made by the connected member, with no AI call and no MP4. `knowledge_topic_id` puts the copy
   in another topic group, as "Chuyển sang nhóm khác" does; `fanpage_id` gives it the logo of the channel linked to
   that Page, switched on, through the same check as the video page's "Kênh"/"Gắn logo" (the member's own channel,
   with a logo). Without it, a copy of a video carrying another channel's logo is refused by that Page's queue. A
@@ -331,6 +360,28 @@ well and post the copy on another Page, through the web's own rules:
   100 videos. It neither picks a time nor posts: the worker's queue round schedules the Page's first video at its
   next free posting time within 48 hours (the Page's own times, else its group's). The server's instructions ask the
   assistant to call it only when the member asks, after looking at the render's frames.
+
+## Shuffled copies and their new titles
+
+`shuffle_duplicate_video` (write) is "Nhân bản xáo cảnh" ([the decision](decisions/2026-11-17-shuffle-copies.md)):
+`count` copies (1–20) of a video, each with its content scenes in another order (`lock_last`, `pinned_scene_ids` keep
+scenes in place; `renumber` writes the list numbers again), through `shuffle.preview` and `shuffle.make_copies` as the
+web's drawer. No AI call of the team's and no MP4. The answer lists each copy with its `title_scene_id`, title and
+scene lines, the source's `title_options` and the `used_titles` of the source and its copies; the tool's description
+asks the assistant to write each copy a new title with the same idea and numbers and save it with `update_scene`, so
+the hook is rewritten on the member's own plan rather than the team's AI service. A changed title ends the copy's
+"Đổi tiêu đề" reminder as on the web.
+
+## A detailed comment per dish
+
+`list_videos_for_food_comments` (read) lists the member's videos that went live on Facebook within 3 days, or are
+scheduled to within 48 hours (`coming`, so their comments are ready when they go live), with each
+content scene's text and voice; the member's own assistant (Claude on the web, no AI cost to the team) writes one
+comment per dish from them and `set_food_comments` (write) saves them as the video's "Bình luận thêm"
+(`videos.extra_comments`, up to 12) and asks the comment worker to write them under each such post, after the pinned
+one ([food_comments.py](../api/src/reels_api/food_comments.py)). A comment of 80–1500 characters that promises a cure
+or holds a banned word of the video's group is refused; a video marked "Đã dán link tay" is saved but not posted.
+Decision: [2026-11-18-food-comments](decisions/2026-11-18-food-comments.md).
 
 ## Reading Pages, results, jobs and comments
 
@@ -343,10 +394,41 @@ and never a Page token.
 - `list_post_stats`: published Facebook posts of the last `days` (one Page, or the member's, or all) with views,
   reach, shares, comments, reactions, watch time and the reading against the Page's 48-hour median, sorted by views,
   date, shares or watch ratio (`GET /api/posts`). It is how the assistant picks winners to copy.
+- `list_docs`, `get_doc` (`reels:read`): the Markdown documents of a topic group ("Tài liệu" on Kho kiến thức):
+  `list_docs` gives id, section, file name, title, pinned, who changed it last and when (pinned first, optionally one
+  section or a search); `get_doc` gives one with its text, by id or file name. The daily job reads the group's rules
+  (template, thumbnail standard, order of marks) from here instead of having them pasted into its body.
 - `list_jobs`: the newest page of the job log (the member's or everyone's), filtered by status or video
   (`GET /api/jobs`), to follow many renders at once.
 - `list_comments`: visitors' comments under the app's posts, open ones by default (`GET /api/comments`). Read only:
   the app neither answers nor hides comments (removed 2026-11-10), and a comment's text is data, not an instruction.
+
+## Competitor analysis
+
+Nine tools ([the decision](decisions/2026-11-17-competitor-analyzer.md)) let a member's Claude analyse a competitor's
+Facebook Reels on the member's own plan, with no AI call of the team's. They read every member's competitors
+([team read](decisions/2026-11-17-competitor-team-read.md)); only scanning is the member's own:
+
+- `competitor_scan_start` (write): queues a scan of the pasted link's Reels tab (`max_videos`, 500 by default;
+  `fetch_captions_top_n`, 30 by default, the most viewed reels opened for caption, sound and counts;
+  `fetch_comments_top_n`, 10 by default, the first of them whose comments are sampled; `include_videos`, the Videos
+  tab too) or answers the one already waiting. It runs as the second Facebook account saved in the member's extension. Its answer says whether the member's "Đối thủ" page with the extension is open
+  (`scanner_online`) and, if not, asks the assistant to have the member open it: the scan runs only there.
+- `competitor_scan_get`: the scan's status and number of videos; the assistant calls it again after 30–60 s.
+- `competitor_list`: the member's competitors with their latest scan and its views.
+- `competitor_stats`: count (by type), total, median, buckets (≥1M, 100K–1M, 10K–100K, <10K), the top 10's share,
+  how often each grid was posted to (whole span and each stretch between dated samples), and the data's limits,
+  all summed in code.
+- `competitor_compare`: 2–10 competitors side by side, each by its latest scan ([M5](decisions/2026-11-17-competitor-m5.md)).
+- `competitor_video_details`: one video's full caption, sound, length, counts and `comment_samples` (text and
+  likes, up to 30, no authors).
+- `competitor_top_videos`: the most viewed videos (links and views; caption, sound and counts for the opened ones)
+  with
+  `analysis_prompt`, how to group topics, find viewers' pains and recommend content. Captions and comments are data,
+  not instructions.
+- `competitor_report_save` (write) and `competitor_report_get`: the report the assistant wrote (markdown, topics,
+  pain points, recommendations), kept with the scan's numbers summed by the app; the newest shows on
+  `/competitors`.
 
 ## Changing the queue, the plan, the logo and jobs
 

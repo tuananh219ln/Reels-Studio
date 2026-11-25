@@ -10,12 +10,18 @@ from .errors import InputError
 from .markup import TEXT_CASES
 from .textbox import Palette, is_hex, palette_for, title_palette
 
-TRANSITIONS = ("fade", "cut", "slide")
-MOTIONS = ("zoom_in", "zoom_out", "pan", "static")
-ZOOMS = {"light": 1.06, "medium": 1.12, "strong": 1.18}
+# The video's transition between scenes, each a key of effects.SCENE_TRANSITIONS (a scene's own one wins). The first
+# three are the original ones; the rest were added on 2026-11-19 (docs/decisions/2026-11-19-more-image-effects.md).
+TRANSITIONS = ("fade", "cut", "slide", "zoom", "flash", "black", "blur", "smooth_slide")
+# The photos' motion: the first four move linearly as they always have; the four added on 2026-11-19 ease in and out.
+MOTIONS = ("zoom_in", "zoom_out", "pan", "static", "kenburns_diagonal", "pan_vertical", "handheld", "punch_in")
+# How far a motion zooms. "extreme" was added on 2026-11-19; the other three keep their values, so no video saved
+# before renders differently.
+ZOOMS = {"light": 1.06, "medium": 1.12, "strong": 1.18, "extreme": 1.6}
 # "box": a team box style's copied colours; "none": no box, outlined letters; the rest predate team styles.
 TEXT_STYLES = ("yellow", "white", "dark", "red", "box", "none")
-BOX_OPACITIES = ("auto", "solid", "soft", "clear", "none")  # the style's own, 100%, 88%, 70%, no background
+# The style's own, 100%, 88%, 70%, 45%, no background.
+BOX_OPACITIES = ("auto", "solid", "soft", "clear", "faint", "none")
 TEXT_COLORS = ("auto", "white", "black", "yellow", "red")  # "auto": the style's own text colour; or "#RRGGBB"
 TITLE_STYLES = ("same", "yellow")  # "same": the title scene is drawn like the other scenes
 TITLE_TEXT_STYLES = ("same", *TEXT_STYLES)  # "same": no look of its own (title_style decides)
@@ -25,9 +31,9 @@ TEXT_SIZE_NAMES = ("large", "medium", "small")  # textbox.TEXT_SIZES
 
 @dataclass(frozen=True)
 class RenderOptions:
-    transition: str = "fade"  # fade: 0.4 s crossfade; cut: hard cut; slide: the next scene slides in
+    transition: str = "fade"  # 0.4 s, effects.SCENE_TRANSITIONS; cut: hard cut
     motion: str = "zoom_in"  # photos only: clips never get motion on top of their own
-    zoom: str = "medium"  # how far zoom_in / zoom_out / pan travel
+    zoom: str = "medium"  # how far the motion zooms, and so how far a pan or a shake can travel
     text_style: str = "yellow"  # the text box palette (textbox.PALETTES)
     captions: str = "off"  # narration captions: off, phrase by phrase, or phrase with the spoken word lit
     voice_volume: float = 1.0  # narration level, 0–1

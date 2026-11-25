@@ -156,9 +156,30 @@ def claude_model() -> str:
 DEFAULT_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
 
 
+# The Graph API version for Facebook and Instagram; change it here when Meta retires it.
+GRAPH_VERSION = "v26.0"
+
+
 def facebook_api_url() -> str:
     # Overridable only so tests and E2E can point at a local fake; production uses the default.
-    return (read_env("FACEBOOK_API_URL") or "https://graph.facebook.com/v26.0").rstrip("/")
+    return (read_env("FACEBOOK_API_URL") or f"https://graph.facebook.com/{GRAPH_VERSION}").rstrip("/")
+
+
+def instagram_video_base_url() -> str:
+    # The public https address Instagram fetches a Reel's MP4 from (`video_url`). `INSTAGRAM_VIDEO_BASE_URL` wins;
+    # else the first https origin of ALLOWED_ORIGINS (the web domain); "" when there is none (local dev: the file is
+    # then sent by resumable upload instead).
+    url = read_env("INSTAGRAM_VIDEO_BASE_URL").rstrip("/")
+    if url:
+        return url
+    return next((origin for origin in sorted(allowed_origins()) if origin.startswith("https://")), "")
+
+
+def instagram_upload_url() -> str:
+    # Where an Instagram Reel's file is sent (resumable upload, by container id). Overridable only so tests and E2E can
+    # point at a local fake; production uses the default.
+    url = read_env("INSTAGRAM_UPLOAD_URL") or f"https://rupload.facebook.com/ig-api-upload/{GRAPH_VERSION}"
+    return url.rstrip("/")
 
 
 def shopee_affiliate_api_url() -> str:
@@ -186,6 +207,25 @@ def youtube_api_key() -> str | None:
 def youtube_api_url() -> str:
     # Overridable only so tests and E2E can point at a local fake; production uses the default.
     return (read_env("YOUTUBE_API_URL") or "https://www.googleapis.com/youtube/v3").rstrip("/")
+
+
+def google_client_id() -> str:
+    # The team's Google Cloud OAuth client ("Kết nối YouTube" and uploading Shorts as private), not a member's.
+    return read_env("GOOGLE_CLIENT_ID")
+
+
+def google_client_secret() -> str:
+    return read_env("GOOGLE_CLIENT_SECRET")
+
+
+def google_oauth_url() -> str:
+    # Google's token and revoke endpoints. Overridable only so tests and E2E can point at a local fake.
+    return (read_env("GOOGLE_OAUTH_URL") or "https://oauth2.googleapis.com").rstrip("/")
+
+
+def youtube_upload_url() -> str:
+    # YouTube's resumable upload endpoint. Overridable only so tests and E2E can point at a local fake.
+    return (read_env("YOUTUBE_UPLOAD_URL") or "https://www.googleapis.com/upload/youtube/v3").rstrip("/")
 
 
 def tiktok_oembed_url() -> str:

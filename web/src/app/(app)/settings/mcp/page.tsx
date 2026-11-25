@@ -65,7 +65,7 @@ export default function ChatGptPage() {
     <>
       <SettingsHeader
         title="Kết nối MCP"
-        description="Cấp quyền và quản lý các kết nối ChatGPT, Claude, Claude Code và Muse của bạn."
+        description="Cấp quyền và quản lý các kết nối ChatGPT, Claude, Claude Code, Gemini CLI, Antigravity và Muse của bạn."
       />
       <Flex vertical gap={16} style={{ maxWidth: 820 }}>
         {loading && <Spin />}
@@ -87,7 +87,7 @@ export default function ChatGptPage() {
                 type="warning"
                 showIcon
                 title="Kết nối với một chương trình trên máy tính"
-                description="Chỉ cho phép nếu bạn vừa tự kết nối Reels Studio trong Claude Code trên máy này. Một chương trình khác trên máy cũng có thể nhận địa chỉ này."
+                description="Chỉ cho phép nếu bạn vừa tự kết nối Reels Studio trong Claude Code hoặc Gemini CLI trên máy này. Một chương trình khác trên máy cũng có thể nhận địa chỉ này."
                 style={{ marginBottom: 16 }}
               />
             )}
@@ -104,8 +104,18 @@ export default function ChatGptPage() {
                 style={{ marginBottom: 16 }}
               />
             )}
+            {consent.scopes.includes("reels:publish") && (
+              <Alert
+                type="warning"
+                showIcon
+                title="Quyền đăng bài lên Page"
+                description={`${consent.app} còn được đăng ngay hoặc hẹn giờ một Bài viết lên Fanpage của bạn, và bỏ hẹn bài đã hẹn. Bài đăng là bài thật trên Facebook, không đăng trên Page của người khác.`}
+                style={{ marginBottom: 16 }}
+              />
+            )}
             <Typography.Paragraph>
-              Kết nối không được đăng bài, xóa video hoặc thay đổi tài khoản và API key. Quyền hết hạn sau tối đa 30
+              Kết nối không được xóa video hoặc thay đổi tài khoản và API key
+              {consent.scopes.includes("reels:publish") ? "" : ", và không được đăng bài"}. Quyền hết hạn sau tối đa 30
               ngày và mất hiệu lực khi phiên đăng nhập này bị thu hồi.
             </Typography.Paragraph>
             {/* A native form follows the OAuth redirect without exposing credentials to client-side code. */}
@@ -147,6 +157,30 @@ export default function ChatGptPage() {
               {`claude mcp add --transport http reels-studio ${serverUrl}`}
             </Typography.Paragraph>
             <Typography.Paragraph>
+              <strong>Gemini CLI:</strong> chạy lệnh dưới đây, rồi gõ{" "}
+              <Typography.Text code>/mcp auth reels-studio</Typography.Text> để đăng nhập.
+            </Typography.Paragraph>
+            <Typography.Paragraph
+              copyable={{ text: `gemini mcp add --scope user --transport http reels-studio ${serverUrl}` }}
+              code
+              style={{ overflowWrap: "anywhere" }}
+            >
+              {`gemini mcp add --scope user --transport http reels-studio ${serverUrl}`}
+            </Typography.Paragraph>
+            <Typography.Paragraph>
+              <strong>Antigravity (agy):</strong> thêm khối dưới đây vào{" "}
+              <Typography.Text code>~/.gemini/config/mcp_config.json</Typography.Text>, mở{" "}
+              <Typography.Text code>agy</Typography.Text>, gõ <Typography.Text code>/mcp</Typography.Text> rồi chọn
+              reels-studio để đăng nhập.
+            </Typography.Paragraph>
+            <Typography.Paragraph
+              copyable={{ text: `{"mcpServers":{"reels-studio":{"serverUrl":"${serverUrl}"}}}` }}
+              code
+              style={{ overflowWrap: "anywhere" }}
+            >
+              {`{"mcpServers":{"reels-studio":{"serverUrl":"${serverUrl}"}}}`}
+            </Typography.Paragraph>
+            <Typography.Paragraph>
               <strong>Muse:</strong> trong luồng kết nối công cụ MCP của Muse, dán địa chỉ trên rồi bấm Kết nối.
             </Typography.Paragraph>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
@@ -168,7 +202,13 @@ export default function ChatGptPage() {
                       <Typography.Text strong>
                         {row.app}, kết nối #{row.id}
                       </Typography.Text>{" "}
-                      <Tag>{row.scopes.includes("reels:write") ? "Đọc và sửa" : "Chỉ đọc"}</Tag>
+                      <Tag>
+                        {row.scopes.includes("reels:publish")
+                          ? "Đọc, sửa và đăng bài"
+                          : row.scopes.includes("reels:write")
+                            ? "Đọc và sửa"
+                            : "Chỉ đọc"}
+                      </Tag>
                       <Typography.Text type="secondary" style={{ display: "block" }}>
                         Hết hạn {formatDateTime(row.expires_at)}
                       </Typography.Text>

@@ -83,6 +83,8 @@ class SceneSound:
     sound: str
     start: float = 0.0  # seconds into its scene
     volume: str = "normal"
+    # On top of the volume level, in dB: the title's ting play 3 dB under it so seven in a row do not pile up.
+    gain_db: float = 0.0
 
 
 def make_sound(name: str, output: Path) -> Path:

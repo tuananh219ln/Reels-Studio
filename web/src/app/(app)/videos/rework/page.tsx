@@ -1,6 +1,8 @@
 "use client";
 
-import { App, Alert, Button, Card, Checkbox, Flex, Space, Table, Tag, Typography } from "antd";
+import Hint from "@/components/Hint";
+import StatusText from "@/components/StatusText";
+import { App, Alert, Button, Card, Checkbox, Flex, Space, Table, Typography } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import VideoTitleCell from "@/components/VideoTitleCell";
@@ -107,12 +109,10 @@ export default function ReworkVideos() {
         </Typography.Paragraph>
       </div>
       {error && <Alert type="error" title={error} showIcon />}
-      <Alert
-        type="info"
-        showIcon
-        title="Không cần tìm link thủ công"
-        description="App tự tìm clip rồi dùng ảnh khi không có đoạn phù hợp. Nếu không tìm được tư liệu mới, giữ tư liệu cũ và báo trong kết quả. Video đã lên lịch cần hủy lịch cũ trước khi nâng cấp."
-      />
+      <Hint>
+        Không cần tìm link thủ công: app tự tìm clip rồi dùng ảnh khi không có đoạn phù hợp. Nếu không tìm được tư liệu
+        mới, giữ tư liệu cũ và báo trong kết quả. Video đã lên lịch cần hủy lịch cũ trước khi nâng cấp.
+      </Hint>
       <Card>
         <Flex vertical gap={16}>
           <Checkbox
@@ -174,7 +174,7 @@ export default function ReworkVideos() {
                 key: "eligible",
                 render: (_, row) =>
                   row.eligible ? (
-                    <Tag color="green">Có thể nâng cấp</Tag>
+                    <StatusText tone="success">Có thể nâng cấp</StatusText>
                   ) : (
                     <Typography.Text type="secondary">{row.reason}</Typography.Text>
                   ),
@@ -186,12 +186,12 @@ export default function ReworkVideos() {
                   if (!row.job) return "—";
                   if (row.job.status === "failed")
                     return <Typography.Text type="danger">{row.job.error}</Typography.Text>;
-                  if (row.job.status === "cancelled") return <Tag>Đã hủy</Tag>;
-                  if (row.job.status !== "done") return <Tag color="processing">Đang xử lý</Tag>;
+                  if (row.job.status === "cancelled") return <StatusText tone="idle">Đã hủy</StatusText>;
+                  if (row.job.status !== "done") return <StatusText tone="active">Đang xử lý</StatusText>;
                   return (
                     <Flex vertical gap={4}>
                       <Typography.Text>
-                        Đã đổi {row.job.progress.replaced?.length ?? 0} cảnh · Giữ tư liệu cũ{" "}
+                        Đã đổi {row.job.progress.replaced?.length ?? 0} cảnh, giữ tư liệu cũ{" "}
                         {row.job.progress.kept?.length ?? 0} cảnh
                       </Typography.Text>
                       <Link prefetch={false} href={`/videos/${row.id}`}>

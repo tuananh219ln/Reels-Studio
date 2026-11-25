@@ -7,6 +7,7 @@ import EmptyState from "@/components/EmptyState";
 import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import VideoTitleCell from "@/components/VideoTitleCell";
+import WinnerFlag from "@/components/WinnerFlag";
 import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
 import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
 import { VIDEO_STATUS_FILTERS } from "@/lib/videoStatus";
@@ -95,10 +96,13 @@ function rowDetails(row: VideoRow): string {
 /** "Video" in Kho kiến thức: the videos of one topic group, newest first, each opening its video page. */
 export default function TopicVideos({
   topicId,
+  fanpageId,
   canCreate,
   visible = true,
 }: {
   topicId: number;
+  /** Only the videos posted on, or waiting in the queue of, this Page (a group several Pages post). */
+  fanpageId?: number;
   canCreate: boolean;
   /** Whether its group is the one shown: only then are the search, filter and page in the address. */
   visible?: boolean;
@@ -110,19 +114,20 @@ export default function TopicVideos({
   const tablePage = useUrlPageIf(visible);
   const [view, setView] = useView();
 
+  const listUrl = `/videos?knowledge_topic_id=${topicId}${fanpageId ? `&fanpage_id=${fanpageId}` : ""}`;
   const load = useCallback(
     async (quiet = false) => {
       try {
-        setRows(await api<VideoRow[]>(`/videos?knowledge_topic_id=${topicId}`));
+        setRows(await api<VideoRow[]>(listUrl));
       } catch (err) {
         if (!quiet) message.error(errorMessage(err));
       }
     },
-    [topicId, message],
+    [listUrl, message],
   );
   useEffect(() => {
     let live = true;
-    api<VideoRow[]>(`/videos?knowledge_topic_id=${topicId}`).then(
+    api<VideoRow[]>(listUrl).then(
       (found) => {
         if (live) setRows(found);
       },
@@ -136,7 +141,7 @@ export default function TopicVideos({
     return () => {
       live = false;
     };
-  }, [topicId, message]);
+  }, [listUrl, message]);
   // "Cập nhật view": the worker reads the numbers in its next rounds, so the list is read often for a while after.
   const [refreshing, setRefreshing] = useState(false);
   const [watching, setWatching] = useState(false);
@@ -275,9 +280,10 @@ export default function TopicVideos({
                 <Flex vertical gap={4} align="flex-start">
                   <Flex gap={8} align="center" wrap>
                     <VideoStatusTags video={row} />
-                    <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} />
+                    <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} />
                   </Flex>
                   <VideoKindTags video={row} />
+                  <WinnerFlag video={row} onChanged={() => load(true)} />
                 </Flex>
               ),
             },
@@ -290,10 +296,10 @@ export default function TopicVideos({
                 return (
                   <Flex vertical>
                     <Typography.Text>
-                      View <b>{count(n.views)}</b>, 48h <b>{count(n.views48)}</b>
+                      View Facebook <b>{count(n.views)}</b>, tool 48h <b>{count(n.views48)}</b>
                     </Typography.Text>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      Share {count(n.shares)}, share/view {percent(n.rate)}
+                      Share 48h {count(n.shares)}, share/view 48h {percent(n.rate)}
                     </Typography.Text>
                   </Flex>
                 );
@@ -395,14 +401,15 @@ function VideoCards({
                     .join(" · ")}
                 </Typography.Text>
                 <VideoKindTags video={row} />
+                <WinnerFlag video={row} onChanged={onChanged} />
                 <Flex wrap gap={8} align="center">
                   <VideoStatusTags video={row} />
-                  <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} />
+                  <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} />
                 </Flex>
                 <Typography.Text type="secondary" style={{ fontSize: 13 }} data-testid="topic-video-numbers">
                   {figures.views === null && figures.views48 === null
                     ? "Chưa có số liệu đăng"
-                    : `${count(figures.views)} view; 48h: ${count(figures.views48)} view, ${count(figures.shares)} share, share/view ${percent(figures.rate)}`}
+                    : `${count(figures.views)} view (Facebook, đến nay); 48h (tool): ${count(figures.views48)} view, ${count(figures.shares)} share, share/view ${percent(figures.rate)}`}
                 </Typography.Text>
               </Flex>
             </Flex>

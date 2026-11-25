@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import analytics, metrics, post_links, posts_board
+from . import analytics, comment_tracker, metrics, post_links, posts_board
 from .db import get_db
 from .errors import ApiError
 from .models import Channel, Job, PostMetricSnapshot, Publication, Session, User, Video
@@ -118,6 +118,7 @@ def request_comment(post_id: int, me: Session = Depends(current_member), db: DbS
             "Video đã đánh dấu dán link tay nên app không bình luận; bỏ đánh dấu ở Affiliate trước",
         )
     post.comment_requested_at = now()
+    post.aff_retries = 0  # a set comment that failed gets its automatic retries back
     db.commit()
     return _payload(db, db.get(Video, post.video_id), post, analytics.medians(db))
 
@@ -179,6 +180,15 @@ def get_board(
     return posts_board.board(db, filters, max(cursor, 0), min(max(limit, 1), posts_board.MAX_PAGE_SIZE))
 
 
+@router.get("/comments")
+def comment_tracker_view(
+    owner: str = "team", me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Bình luận": the reels live within 3 days, how many of their comments are up, and when the rest should be;
+    `owner=me` keeps the member's own posts and Pages ("Của tôi")."""
+    return comment_tracker.tracker(db, me.user_id if owner == "me" else None)
+
+
 @router.get("/videos/{video_id}")
 def video_posts(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     """A video's posts on every platform, for its opened row on the board."""
@@ -209,7 +219,7 @@ def mark_pending(body: PendingBody, me: Session = Depends(current_member), db: D
         select(Publication.id).where(
             Publication.video_id == video.id,
             Publication.platform == body.platform,
-            Publication.status.in_(("pending_link", "pending", "scheduled", "published")),
+            Publication.status.in_(("pending_link", "pending", "scheduled", "private", "published")),
         )
     )
     if already is None:

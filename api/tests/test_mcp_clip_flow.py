@@ -45,7 +45,7 @@ def test_a_write_tool_answers_with_a_compact_video(mcp_client, db, storage):  # 
     for heavy in ("fanpages", "pinned_comment", "options", "caption", "publications"):
         assert heavy not in answer
     full = payload(call(mcp_client, tokens["access_token"], "get_video", video_id=video.id))
-    assert "fanpages" in full and "pinned_comment" in full
+    assert "fanpages" in full and "pinned_survey" in full
 
 
 # --- A scene's own text position ---

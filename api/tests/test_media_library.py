@@ -116,3 +116,39 @@ def test_the_assistant_lists_looks_at_and_uses_library_items(mcp_client, db, sto
     assert not used.get("isError"), used
     db.refresh(scene)
     assert scene.image_key and scene.image_key != key and storage.exists(scene.image_key)
+
+
+def test_the_assistant_adds_links_with_tags_and_hears_why_a_link_failed(mcp_client, db, fakes, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(remote_media, "is_public", lambda address: True)
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    good = fakes.image_url("anh-bai-viet")
+    added = call(
+        mcp_client,
+        token,
+        "add_media_from_links",
+        urls=[good, "http://127.0.0.1:9/khong-co.jpg", "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMn"],
+        folder="FoodDose/anh-bai-viet",
+        tags=["fooddose", "anh-bai-viet"],
+    )
+    assert not added.get("isError"), added
+    result = payload(added)
+    assert [item["source_url"] for item in result["added"]] == [good]
+    assert result["added"][0]["tags"] == ["fooddose", "anh-bai-viet"]
+    assert result["added"][0]["folder"] == "FoodDose/anh-bai-viet"
+    assert [row["reason"] for row in result["failed"]] == ["expired_or_unreachable", "not_media"]
+    assert all(row["url"] and row["error"] for row in result["failed"])
+    listed = payload(call(mcp_client, token, "list_media", folder="FoodDose/anh-bai-viet"))
+    assert [row["id"] for row in listed["items"]] == [result["added"][0]["id"]]
+    deleted = call(mcp_client, token, "delete_media", media_id=result["added"][0]["id"])
+    assert not deleted.get("isError"), deleted
+    assert db.scalar(select(MediaItem.id)) is None
+
+
+def test_the_assistant_cannot_send_too_many_tags_or_a_too_long_one(mcp_client, db):  # noqa: F811
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    url = ["https://example.com/a.jpg"]
+    assert call(mcp_client, token, "add_media_from_links", urls=url, tags=[f"t{n}" for n in range(31)])["isError"]
+    assert call(mcp_client, token, "add_media_from_links", urls=url, tags=["x" * 51])["isError"]
+    assert db.scalar(select(MediaItem.id)) is None

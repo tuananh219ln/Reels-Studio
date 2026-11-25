@@ -61,7 +61,7 @@ function sourceOptions(sources: StockSource[]) {
     label: item.available ? item.label : `${item.label} (chưa cấu hình key)`,
     value: item.id,
     disabled: !item.available,
-    title: item.available ? undefined : "Dán key ở Cài đặt › Nguồn tư liệu để dùng nguồn này",
+    title: item.available ? undefined : "Dán key ở Cài đặt › AI và nguồn tư liệu để dùng nguồn này",
   }));
 }
 

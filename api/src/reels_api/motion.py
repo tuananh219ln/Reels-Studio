@@ -101,8 +101,21 @@ def check_seconds(seconds: float) -> float:
     return round(seconds, 1)
 
 
-def request(db: DbSession, storage: DirectoryStorage, scene_id: int, markup: str, seconds: float, me) -> dict:
-    """Store the markup and queue the job that renders it (one active job per video, like every job)."""
+def request(
+    db: DbSession,
+    storage: DirectoryStorage,
+    scene_id: int,
+    markup: str,
+    seconds: float,
+    me,
+    atlas: tuple[bytes, str] | None = None,
+    title: dict | None = None,
+) -> dict:
+    """Store the markup and queue the job that renders it (one active job per video, like every job).
+
+    `atlas` (JPEG bytes and extension) is shown as assets/photo.* instead of the scene's own photo, and `title` marks
+    the motion as a title scene's ("Tiêu đề động", title_motion.py): the photo or clip the scene showed is kept as
+    `classic`, so the switch Cổ điển / Động needs no new render."""
     # The editor's locks, payload and queue live with its routes; imported here so the worker loads no web layer.
     from . import routes_videos
     from .videos import ensure_unlocked, lock_scene
@@ -112,12 +125,19 @@ def request(db: DbSession, storage: DirectoryStorage, scene_id: int, markup: str
     ensure_unlocked(db, video)
     before = scene.motion or {}
     photo_key, stale = before.get("photo_key"), None
-    # The scene's photo now (a transparent product photo, say) is what the markup shows as assets/photo.*. It is
-    # copied, because the clip the job makes takes the photo's place on the scene.
-    if scene.image_key and storage.exists(scene.image_key):
+    classic = before.get("classic") if title else None
+    if atlas is not None:
+        stale = photo_key
+        photo_key = new_key(video.id, f"motion-photo-{scene.id}", atlas[1])
+        storage.save_bytes(photo_key, atlas[0])
+    elif scene.image_key and storage.exists(scene.image_key):
+        # The scene's photo now (a transparent product photo, say) is what the markup shows as assets/photo.*. It is
+        # copied, because the clip the job makes takes the photo's place on the scene.
         stale = photo_key
         photo_key = new_key(video.id, f"motion-photo-{scene.id}", scene.image_key.rsplit(".", 1)[-1])
         storage.save_file(photo_key, storage.path(scene.image_key))
+    if title and not shows_motion(scene):
+        classic = snapshot(scene)
     scene.motion = {
         "html": markup,
         "seconds": seconds,
@@ -125,10 +145,39 @@ def request(db: DbSession, storage: DirectoryStorage, scene_id: int, markup: str
         "clip_key": before.get("clip_key"),
         "pending": True,
     }
+    if title:
+        scene.motion = {**scene.motion, "title": title, "classic": classic, "clip_seconds": before.get("clip_seconds")}
     routes_videos._enqueue(db, video, "motion", me, scene_id=scene.id)
     payload = routes_videos._saved(db, video)
     storage.delete(stale)
     return payload
+
+
+# The scene's own media fields, kept when a title scene shows its motion clip instead ("classic").
+CLASSIC_FIELDS = (
+    "image_key",
+    "image_source",
+    "image_auto",
+    "video_key",
+    "video_seconds",
+    "video_start",
+    "video_speed",
+    "video_loop",
+    "video_sound",
+    "seconds",
+    "seconds_auto",
+)
+
+
+def shows_motion(scene: Scene) -> bool:
+    return bool(scene.motion and scene.motion.get("clip_key") and scene.motion["clip_key"] == scene.video_key)
+
+
+def snapshot(scene: Scene) -> dict | None:
+    """What the scene shows now, for "Cổ điển"; None when it shows nothing."""
+    if not (scene.image_key or scene.video_key):
+        return None
+    return {name: getattr(scene, name) for name in CLASSIC_FIELDS}
 
 
 def find_tools() -> tuple[str, Path]:
@@ -258,7 +307,8 @@ def attach(db: DbSession, storage: DirectoryStorage, job: Job, target: Path) -> 
         raise MotionError("HyperFrames làm ra clip không dùng được", str(err)) from None
     video = db.scalar(select(Video).where(Video.id == scene.video_id).with_for_update())
     db.refresh(scene)
-    old = [key for key in (scene.image_key, scene.video_key, drop_original(scene)) if key and key != photo_key]
+    kept = {photo_key, *((motion.get("classic") or {}).get(name) for name in ("image_key", "video_key"))}
+    old = [key for key in (scene.image_key, scene.video_key, drop_original(scene)) if key and key not in kept]
     key = new_key(video.id, f"motion-{scene.id}", clip.extension)
     storage.save_file(key, target)
     scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = key, round(clip.seconds, 3), 0, 1
@@ -268,7 +318,16 @@ def attach(db: DbSession, storage: DirectoryStorage, job: Job, target: Path) -> 
     scene.image_key, scene.image_source, scene.image_error, scene.image_auto = None, None, None, False
     # The motion is timed to its seconds, so the scene keeps them rather than following the narration.
     scene.seconds, scene.seconds_auto = motion["seconds"], False
-    scene.motion = {**motion, "clip_key": key, "pending": False}
+    scene.motion = {**motion, "clip_key": key, "clip_seconds": round(clip.seconds, 3), "pending": False}
+    from . import outro
+
+    outro.keep(storage, scene, target)
+    info = motion.get("title") or {}
+    if info.get("style") == "classic" and motion.get("classic"):
+        # The Page's "Kiểu tiêu đề" is Cổ điển: the clip is made and kept, the scene goes on showing its own media.
+        for name in CLASSIC_FIELDS:
+            setattr(scene, name, motion["classic"].get(name))
+        scene.motion = {**scene.motion, "title": {k: v for k, v in info.items() if k != "style"}}
     if scene.is_title:
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)

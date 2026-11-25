@@ -59,7 +59,7 @@ export function ColorChoice({
   const hex = toHex(value);
   const custom = hex !== null && !SWATCHES.some((swatch) => swatch.hex === hex);
   const ring = (checked: boolean) => ({
-    border: `1px solid ${checked ? COLORS.primary : "#d9d9d9"}`,
+    border: `1px solid ${checked ? COLORS.primary : COLORS.border}`,
     boxShadow: checked ? `0 0 0 1px ${COLORS.primary}` : undefined,
     cursor: disabled ? "not-allowed" : "pointer",
   });

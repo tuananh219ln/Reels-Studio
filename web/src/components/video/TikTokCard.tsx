@@ -211,7 +211,7 @@ export default function TikTokCard({ video, fanpageId }: { video: VideoDetail; f
           {accounts !== null && connected.length === 0 ? (
             <Typography.Paragraph type="secondary" style={{ margin: "4px 0 0" }}>
               Chưa có tài khoản TikTok nào đã kết nối. Bấm Kết nối TikTok ở{" "}
-              <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản affiliate</Link>.
+              <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản và kênh</Link>.
             </Typography.Paragraph>
           ) : (
             <Flex vertical gap={8} style={{ marginTop: 4 }}>
@@ -270,7 +270,7 @@ export default function TikTokCard({ video, fanpageId }: { video: VideoDetail; f
           {accounts !== null && accounts.length === 0 ? (
             <Typography.Paragraph type="secondary" style={{ margin: "4px 0 0" }}>
               Chưa có tài khoản TikTok của bạn. Thêm ở{" "}
-              <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản affiliate</Link>.
+              <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản và kênh</Link>.
             </Typography.Paragraph>
           ) : (
             <Flex wrap gap={8} align="flex-start" style={{ marginTop: 4 }}>

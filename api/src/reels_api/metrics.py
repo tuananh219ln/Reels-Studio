@@ -20,7 +20,7 @@ from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
 
-from . import analytics, facebook, fanpages, tiktok, tiktok_connections, youtube
+from . import analytics, facebook, fanpages, instagram, tiktok, tiktok_connections, youtube
 from .facebook import FacebookError
 from .models import PostMetrics, PostMetricSnapshot, Publication, TikTokConnection, Video
 from .sessions import now
@@ -128,15 +128,23 @@ def readable(at: datetime, youtube_on: bool | None = None):
             TikTokConnection.scopes.contains(tiktok.VIDEO_LIST),
         ),
     )
-    facebook_post = or_(facebook_post, tiktok_post)
+    # An Instagram Reel posted by the app, read through its Page's token (`instagram_manage_insights`).
+    instagram_post = and_(
+        Publication.platform == "instagram",
+        Publication.external_id.is_not(None),
+        Publication.fanpage_id.is_not(None),
+        Publication.match_status != "ignored",
+        Publication.status == "published",
+    )
+    facebook_post = or_(facebook_post, tiktok_post, instagram_post)
     if not youtube_on:
         return facebook_post
     youtube_post = and_(
         Publication.platform == "youtube",
         Publication.external_id.is_not(None),
         Publication.match_status != "ignored",
-        # A removed Short is looked at again for a week, in case it comes back.
-        or_(Publication.status == "published", Publication.status == "deleted"),
+        # A removed Short is looked at again for a week, in case it comes back; a private upload until it is public.
+        Publication.status.in_(("published", "deleted", "private")),
     )
     return or_(facebook_post, youtube_post)
 
@@ -180,6 +188,9 @@ RETRY_LATER = timedelta(hours=1)
 GONE_CONFIRM = timedelta(hours=1)
 REMOVED_EVERY = timedelta(hours=24)
 REMOVED_FOLLOW = timedelta(days=7)
+# A private YouTube upload is looked at hourly from the time its member planned to make it public, until it is public,
+# for this long at most.
+PRIVATE_FOLLOW = timedelta(days=14)
 # (age up to which it applies, reading every, marks read on the dot within it)
 SCHEDULE = (
     (timedelta(hours=48), timedelta(hours=1), (timedelta(hours=1), timedelta(hours=24), timedelta(hours=48))),
@@ -264,8 +275,11 @@ def record_manual(db: DbSession, post: Publication, numbers: dict, captured_at: 
     db.commit()
 
 
-def _record(db: DbSession, post: Publication, numbers: dict, at: datetime, source: str) -> None:
-    """A reading that worked: a snapshot, the marks, and when to read next."""
+def _record(
+    db: DbSession, post: Publication, numbers: dict, at: datetime, source: str, extra: dict | None = None
+) -> None:
+    """A reading that worked: a snapshot, the marks, and when to read next. `extra` is what only that platform gives
+    (an Instagram Reel's reach, saves and watch time), kept in the snapshot's `raw`."""
     live = _live(post)
     before = db.scalar(
         select(PostMetricSnapshot.views)
@@ -282,7 +296,7 @@ def _record(db: DbSession, post: Publication, numbers: dict, at: datetime, sourc
             likes=numbers.get("likes", numbers.get("reactions")),
             comments=numbers.get("comments"),
             shares=numbers.get("shares"),
-            raw={"source": source},
+            raw={"source": source, **({"numbers": extra} if extra else {})},
         )
     )
     db.flush()
@@ -318,9 +332,29 @@ def measure(db: DbSession, post: Publication) -> None:
     log.info("Read the numbers of post %s: %s", post.id, numbers)
 
 
+def measure_instagram(db: DbSession, post: Publication) -> None:
+    """Read an Instagram Reel's numbers once through its Page's token and keep them as a reading, or what went wrong,
+    to try again in an hour. Commits."""
+    at = now()
+    post.metrics_tried_at = at
+    try:
+        page = fanpages.load_page(db, post.fanpage_id)
+        numbers = instagram.media_insights(page, post.external_id)
+    except FacebookError as err:
+        post.metrics_error, post.next_snapshot_at = err.message, at + RETRY_LATER
+        db.commit()
+        log.warning("Could not read the numbers of Instagram post %s: %s %s", post.id, err.message, err.detail)
+        return
+    post.metrics_error = None
+    _record(db, post, {**numbers, "reactions": numbers.get("likes")}, at, "instagram", extra=numbers)
+    db.commit()
+    log.info("Read the numbers of Instagram post %s: %s", post.id, numbers)
+
+
 def measure_youtube(db: DbSession, posts: list[Publication]) -> None:
     """Read YouTube Shorts in one call. A Short missing twice, an hour apart, is removed (§3.6); one found again is
-    published again. A call that fails reads nothing and tries again in an hour. Commits."""
+    published again. A private upload found is public now: published, its planned time dropped; missing, it is still
+    private and looked at again in an hour. A call that fails reads nothing and tries again in an hour. Commits."""
     if not posts:
         return
     at = now()
@@ -336,12 +370,18 @@ def measure_youtube(db: DbSession, posts: list[Publication]) -> None:
         return
     for post in posts:
         item = items.get(post.external_id)
+        if item is None and post.status == "private":
+            post.metrics_error = None
+            post.next_snapshot_at = at + RETRY_LATER if at - _live(post) < PRIVATE_FOLLOW else None
+            continue
         if item is None:
             _missing(post, at)
             continue
         post.metrics_error, post.gone_since = None, None
         if post.status == "deleted" and post.closed_by_id is None:
             post.status, post.closed_at = "published", None
+        if post.status == "private":
+            post.status, post.scheduled_at, post.published_at = "published", None, at
         published = youtube.published_at(item)
         if published is not None and post.published_at_source != "user":
             post.published_at, post.published_at_source = published, "api"
@@ -437,6 +477,7 @@ def measure_due(factory: sessionmaker) -> None:
             ids = [post.id for post in due_posts(db)]
             shorts = [post.id for post in due_posts(db, youtube.BATCH, "youtube")] if youtube.enabled() else []
             clips = [post.id for post in due_posts(db, TIKTOK_PER_ROUND, "tiktok")]
+            reels = [post.id for post in due_posts(db, BATCH, "instagram")]
     except Exception:
         log.exception("Could not look for posts to read the numbers of")
         return
@@ -448,6 +489,14 @@ def measure_due(factory: sessionmaker) -> None:
                     measure(db, post)
         except Exception:
             log.exception("Could not read the numbers of post %s", post_id)
+    for post_id in reels:
+        try:
+            with factory() as db:
+                post = db.get(Publication, post_id)
+                if post is not None:
+                    measure_instagram(db, post)
+        except Exception:
+            log.exception("Could not read the numbers of Instagram post %s", post_id)
     if shorts:
         try:
             with factory() as db:

@@ -8,7 +8,7 @@ from fake_services import FACEBOOK_PAGE
 from PIL import Image
 from worker_helpers import add_user, committed  # noqa: F401  (fixture)
 
-from reels_api.models import Brand, Fanpage, Publication
+from reels_api.models import Brand, Fanpage, KnowledgeTopic, Publication
 from reels_api.videos import render_signature, split_scenes
 
 URL = "/api/brands"
@@ -235,3 +235,83 @@ def test_the_render_job_hands_the_badge_to_the_renderer_and_a_machine_gets_the_o
 
     assert render_nodes.options_dict(__import__("reels_render").RenderOptions(logo=True))["logo"] is True
     assert "logo" not in render_nodes.options_dict(__import__("reels_render").RenderOptions())
+
+
+# --- A new video starts on the member's channel ---
+
+
+def new_video(an, group_id):
+    made = an.post(
+        "/api/videos",
+        json={"topic": "Ngủ ngon", "knowledge_topic_id": group_id, "mode": "manual", "script": "Một\n\nHai"},
+    )
+    assert made.status_code == 201, made.text
+    return an.get(f"/api/videos/{made.json()['id']}").json()
+
+
+def make_group(db, me, name="Ăn ngon"):
+    group = KnowledgeTopic(name=name, created_by_id=me.id, script_prompt="Viết về [Chủ đề]")
+    db.add(group)
+    db.commit()
+    return group
+
+
+def test_a_new_video_gets_no_brand_when_its_group_has_none_of_the_members_pages(an, db, me, storage):
+    group = make_group(db, me)
+    assert new_video(an, group.id)["brand"] is None  # no brand with a logo yet: nothing picked
+    with_logo(an)  # the member's only channel, but its Page is in no group
+    assert new_video(an, group.id)["brand"] is None  # a lone brand is never the default for another group
+
+
+def test_a_new_video_starts_on_the_members_only_channel_when_its_page_is_in_the_group(an, db, me, storage):
+    group = make_group(db, me)
+    page = own_page(db, me)
+    page.knowledge_topic_id = group.id
+    db.commit()
+    brand_id, _ = with_logo(an, make_brand(an, "Kênh một", fanpage_id=page.id)["id"])
+    video = new_video(an, group.id)
+    assert video["brand"]["id"] == brand_id and video["logo_enabled"] is True
+
+
+def test_with_several_channels_a_new_video_takes_the_one_whose_page_is_in_its_group(an, db, me, storage):
+    group, other = make_group(db, me), make_group(db, me, "Dưỡng sinh")
+    page = own_page(db, me)
+    page.knowledge_topic_id = group.id
+    db.commit()
+    first, _ = with_logo(an, make_brand(an, "Kênh một")["id"])
+    second, _ = with_logo(an, make_brand(an, "Kênh hai", fanpage_id=page.id)["id"])
+    assert new_video(an, group.id)["brand"]["id"] == second
+    assert new_video(an, other.id)["brand"] is None  # two channels, none of this group: the member picks
+    assert first != second
+
+
+def test_an_inactive_page_does_not_pick_its_channel_for_a_new_video(an, db, me, storage):
+    group = make_group(db, me)
+    page = own_page(db, me)
+    page.knowledge_topic_id = group.id
+    db.commit()
+    with_logo(an, make_brand(an, "Kênh một", fanpage_id=page.id)["id"])
+    assert new_video(an, group.id)["brand"] is not None
+    page.active = False  # the API only lets a brand own an active Page, so the Page is turned off afterwards
+    db.commit()
+    assert new_video(an, group.id)["brand"] is None
+
+
+def test_a_video_with_no_group_gets_no_default_channel(an, db, me, storage):
+    from reels_api import brands
+
+    group = make_group(db, me)
+    page = own_page(db, me)
+    page.knowledge_topic_id = group.id
+    db.commit()
+    with_logo(an, make_brand(an, "Kênh một", fanpage_id=page.id)["id"])
+    assert brands.default_for(db, me.id, None) is None
+    assert brands.default_for(db, me.id, group.id) is not None
+
+
+def test_a_new_video_never_starts_on_a_teammates_channel(an, db, me, client, storage):
+    group = make_group(db, me)
+    with_logo(an)
+    make_user(db, email="binh@doi.vn", name="Bình")
+    login(client, email="binh@doi.vn")
+    assert new_video(client, group.id)["brand"] is None

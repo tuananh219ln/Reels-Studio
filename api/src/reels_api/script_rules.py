@@ -13,7 +13,7 @@ from reels_render.timeline import FPS, HALF_XFADE, fit_seconds
 
 MIN_SECONDS = 1
 MAX_SECONDS = 10
-MAX_TOTAL_SECONDS = 90
+MAX_TOTAL_SECONDS = 150
 SCENE_COUNT_RANGE = (5, 7)
 # A narrated script at its 150-word limit runs about 52 seconds; a longer one has outgrown the format.
 TOTAL_SECONDS_RANGE = (20, 55)
@@ -42,6 +42,7 @@ class SceneInput:
     text_case: str = "upper"  # the letter case its text is drawn in (reels_render.markup.TEXT_CASES)
     photo_credit: dict | None = None  # the shown photo's licence asks for credit (videos.photo_credit)
     clip_loop: bool = False  # "Lặp clip": a short clip starts again instead of holding its last frame
+    photo_blurry: bool = False  # the photo looks soft even sharpened (reels_render.framing.is_blurry)
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,9 @@ def banned_hits(text: str, banned_words: list[str]) -> list[str]:
     return [word for word in banned_words if _comparable(word) and _comparable(word) in haystack]
 
 
+BLURRY_PHOTO = "Ảnh mờ, nên thay ảnh khác"
+
+
 def credit_warning(credit: dict) -> str:
     """The warning of a photo whose licence asks for credit: the line to put in the post, and share-alike's extra."""
     text = f"Ảnh cần ghi nguồn khi đăng: “{credit.get('line') or credit.get('license')}”"
@@ -119,6 +123,8 @@ def check_script(
                 warn(Issue("Cảnh chưa có từ khóa tìm ảnh: nhập từ khóa hoặc tải ảnh lên", scene.id, "keywords"))
         if scene.photo_credit:
             warn(Issue(credit_warning(scene.photo_credit), scene.id, "image"))
+        if scene.photo_blurry:
+            warn(Issue(BLURRY_PHOTO, scene.id, "image"))
         if not MIN_SECONDS <= scene.seconds <= MAX_SECONDS:
             block(Issue(f"Số giây phải từ {MIN_SECONDS} đến {MAX_SECONDS}", scene.id, "seconds"))
         neighbours = (index > 0) + (index < len(every) - 1)
@@ -137,7 +143,7 @@ def check_script(
             warn(Issue(f"Lời đọc có từ cấm: “{word}”", scene.id, "voice"))
 
     # Scenes count as lengthened to fit narration made earlier; narration not made yet is measured by the render job.
-    # Rounded so float sums such as 0.1 + 0.2 never push an exact 90 over the limit.
+    # Rounded so float sums such as 0.1 + 0.2 never push an exact 150 over the limit.
     total = round(
         sum(fit_seconds(scene.seconds, scene.voice_seconds) for scene in ([title] if title else []) + scenes), 3
     )

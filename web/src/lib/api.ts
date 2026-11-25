@@ -53,8 +53,10 @@ export type VideoRow = {
   id: number;
   topic: string;
   title: string;
-  /** Its own name in the app ("… (copy)" after "Nhân bản y hệt"), shown before the title; never on the video. */
+  /** Its own name in the app ("… (bản 2)" after "Nhân bản y hệt"), shown before the title; never on the video. */
   name: string | null;
+  /** A "Nhân bản xáo cảnh" copy whose title scene still says its source's: the app asks for a new title. */
+  title_review: boolean;
   platform: VideoPlatform;
   /** The video a TikTok version was made from; the list shows the version on that video's card. */
   variant_of_id: number | null;
@@ -64,6 +66,8 @@ export type VideoRow = {
   posted_on: ("facebook" | "tiktok" | "youtube" | "instagram")[];
   /** The link of each platform's newest post, for the icon to open it; a platform without a link is left out. */
   posted_links?: Partial<Record<"facebook" | "tiktok" | "youtube" | "instagram", string>>;
+  /** What an icon must not hide: "draft" while the video is on TikTok only as drafts in its owner's inbox. */
+  posted_states?: Partial<Record<"facebook" | "tiktok" | "youtube" | "instagram", "draft">>;
   /** A TikTok version was made from it; a Facebook clone ("Nhân bản", a version for another Page) was made from it. */
   has_tiktok_version: boolean;
   cloned: boolean;
@@ -71,7 +75,7 @@ export type VideoRow = {
   created_by_id: number;
   created_at: string;
   status: VideoStatus;
-  /** For a person; a video with its MP4 is named by its posting ("Chờ đăng", "Đã lên lịch", "Đã đăng"). */
+  /** For a person; a video with its MP4 is named by its posting ("Chờ đăng", "Đã hẹn giờ", "Đã đăng"). */
   status_label: string;
   /** Where a video with its MP4 stands on posting (api videos.post_stage); null until it has one. */
   post_stage: "ready" | "scheduled" | "posted" | null;
@@ -119,6 +123,8 @@ export type VideoRowPost = {
   share_met: boolean | null;
   /** Null while its Page has fewer than 5 posts measured at 48 hours. */
   times_median: number | null;
+  /** 10× its Page's median or more at 48 hours: worked out when shown, never stored. */
+  is_winner: boolean;
 };
 
 /** A photo or clip in the team's "Kho tư liệu" (api routes_media.py). */
@@ -178,6 +184,8 @@ export type JobInfo = {
     | "revise"
     | "motion"
     | "tiktok_publish"
+    | "youtube_publish"
+    | "ig_publish"
     | "image_edit"
     | "image_marks";
   /** The one scene an image job makes a photo for; null for every other job. */
@@ -319,8 +327,12 @@ export type SceneData = {
   text_position: [number, number] | null;
   /** Where the box goes after all: its own place, the video's place for content scenes, or null (the template's). */
   placed_at: [number, number] | null;
-  /** The frame without text and the exact box image, which the box is dragged with. */
+  /** The frame without text and the exact box image, which the box is dragged with. A framed photo's frame takes
+   * `&anchor=bottom` for a box in the lower half, where the photo sits above the text. */
   frame_url: string | null;
+  /** "Khung ảnh" (reels_render.framing): how the photo fills the 9:16 frame; null for the title, a clip or a backdrop
+   * video's scene, and from an api older than the page. */
+  image_frame?: ImageFrame | null;
   textbox_url: string | null;
   text_problem: string | null;
   /** The studio's effects (reels_render.effects): the transition into this scene, null for the video's one. */
@@ -336,6 +348,20 @@ export type SceneData = {
   voice_id: string | null;
   /** A "Cảnh động" an assistant wrote (HTML + GSAP, rendered by HyperFrames into this scene's clip); null: none. */
   motion: { html: string; seconds: number; pending: boolean } | null;
+  /** The title scene's "Tiêu đề động": its layout, number of dishes, what the scene shows now and whether it is made. */
+  title_motion: {
+    layout: "grid" | "ring" | "strip" | "warn";
+    /** What was asked for when it was built: "auto" (the app chooses) or a layout; offered again on a rebuild. */
+    requested?: "auto" | "grid" | "ring" | "strip" | "warn";
+    count: number;
+    mode: "motion" | "classic";
+    ready: boolean;
+    pending: boolean;
+    has_classic: boolean;
+    labels: string[];
+    /** One per slot: its own photo (null while it follows its scene's photo) and the scene it is told to take from. */
+    slots?: { photo_url: string | null; from_scene: number | null }[];
+  } | null;
   blocking: string[];
   warnings: string[];
   /** The same reasons, each with the field it is about ("video", "keywords", "text"…), so a fix can sit beside it;
@@ -344,6 +370,22 @@ export type SceneData = {
 };
 
 export type SceneIssue = { message: string; field: string; level: "blocking" | "warning" };
+
+/** What "Khung ảnh" may be set to; null is "Tự động", by the photo's shape. */
+export type ImageFit = "cover" | "whole" | "square";
+
+export type ImageFrame = {
+  /** What was chosen; null: "Tự động". */
+  fit: ImageFit | null;
+  /** What the render does: fill the frame, keep the photo's shape, or cut it square, both over its blurred copy. */
+  kind: ImageFit;
+  /** The photo's size (its padding taken off); null when it cannot be read. */
+  shape: [number, number] | null;
+  /** Where the square is cut along the photo's longer side, 0–1; null: the middle. */
+  offset: number | null;
+  /** Where the text box's centre goes when nobody placed it; null: the template's place. */
+  text_at: [number, number] | null;
+};
 
 export type VideoDetail = VideoRow & {
   /** The video's channel ("Kênh") and whether its logo is laid on the MP4 (api brands.payload_of). */
@@ -371,12 +413,10 @@ export type VideoDetail = VideoRow & {
   manual_posts: ManualPost[];
   /** Shopee's product suggestions for the video (the worker searches with a member's own account). */
   suggest: { state: "idle" | "pending" | "failed"; error: string | null; at: string | null };
-  /** The pinned comment's template (`{title}`, `{items}`... filled from the scenes, lib/pinned.ts). */
-  pinned_comment: string;
-  /** What the template reads as now: what "Copy ghim" copies and the Page writes under a reel. */
+  /** "Dòng khảo sát": the pinned comment's last line, under the title and the scenes (lib/pinned.ts); "" for none. */
+  pinned_survey: string;
+  /** The whole pinned comment as it reads now: what "Copy ghim" copies and the Page writes under a reel. */
   pinned_comment_text: string;
-  /** The attached products' names, for `{products}` in the live preview. */
-  pinned_products: string[];
   /** "Bình luận thêm": more comments of the Page under each reel after the first, in order. */
   extra_comments: string[];
   self_review: string[];
@@ -416,6 +456,10 @@ export type VideoDetail = VideoRow & {
     knowledge_topic_id: number | null;
     /** The TikTok account picked for the Page on /fanpages; null until one is picked. */
     tiktok_account_id: number | null;
+    /** The YouTube channel picked for the Page on /fanpages: "Tải lên YouTube" opens with it. */
+    youtube_channel_id: number | null;
+    /** The Instagram account linked to the Page, where "Đăng bài" › Instagram posts; null when none. */
+    instagram_username: string | null;
     error: string | null;
   }[];
   /** The newest post still on its way or on Facebook; `pending` until the publish job has finished. */
@@ -433,6 +477,21 @@ export type VideoDetail = VideoRow & {
   /** When the script was written: its last job's end, or the video's making; null without a script. */
   script_at: string | null;
   clone_of: { title: string; request: string } | null;
+  /** "Clone" from "Phân tích đối thủ": the competitor's video it was built from (its Facebook link and the channel's
+   * name as saved) and that video's sample comments, text and likes only; null for any other video. */
+  competitor_source: {
+    url: string | null;
+    name: string | null;
+    has_comments: boolean;
+    comments: { text: string; like_count: number | null }[];
+  } | null;
+  /** A "Nhân bản xáo cảnh" copy: its source, whether a new title is still asked for, and the videos with the same
+   * title among its source and the source's other copies. Null for any other video. */
+  shuffle: {
+    source: { id: number; name: string } | null;
+    review: boolean;
+    same_title: { id: number; name: string }[];
+  } | null;
   /** "Từ video mẫu": the sample video the script is learned from; null for other videos. */
   reference: VideoSample | null;
   /** The 30-day plan idea the video was made from. */
@@ -517,6 +576,33 @@ export type ManualPost = {
   at: string;
   created_by: string;
   created_by_id: number;
+  /** `pending` being sent (YouTube upload, Instagram post), `private` uploaded and waiting to be made public in YouTube
+   * Studio, `scheduled` an Instagram post waiting for its time; one recorded by hand is `published`. */
+  status: "pending" | "private" | "scheduled" | "published" | "deleted";
+  /** The YouTube channel it went to, when known. */
+  channel: string | null;
+  /** "app_api" sent by the app, "manual_link" recorded by hand. */
+  source: string;
+  /** An Instagram post through the API: the Page whose linked account it went to. */
+  fanpage: string | null;
+  /** An Instagram post set for later: its time. */
+  scheduled_at: string | null;
+  /** A private upload: when its member planned to make it public (a reminder only). */
+  planned_at: string | null;
+  /** A private upload's page in YouTube Studio, where it is made public or scheduled. */
+  studio_url: string | null;
+};
+
+/** A member's YouTube channel connected through Google; the tokens never leave the server. */
+export type YouTubeConnection = {
+  id: number;
+  channel_id: number;
+  title: string;
+  owner_id: number;
+  last_error: string | null;
+  /** Google revoked it or it ended: "Kết nối lại". */
+  needs_reconnect: boolean;
+  connected_at: string | null;
 };
 
 export type TikTokPost = {
@@ -569,6 +655,8 @@ export type KnowledgeTopic = {
   article_prompt: string;
   /** The group's own narration voice, which its new videos start with; "" leaves it to each maker's defaults. */
   voice_id: string;
+  /** The voice read instead when the one above cannot (every key of its service wrong or spent); "" for none. */
+  voice_backup_id: string;
   /** "Kiểu video" of the group's new videos, unless one is picked for the video. */
   video_mode: GroupVideoMode;
   /** The mode a video made now takes by it ("Xen kẽ theo ngày" resolved for today in Vietnam). */
@@ -579,6 +667,8 @@ export type KnowledgeTopic = {
   text_ai: boolean;
   /** "Không dùng cảnh có người": the group's scenes show no faces or bodies (hands at work are fine). */
   no_people: boolean;
+  /** "Cảnh kết Theo dõi & Chia sẻ": the group's new videos end on the shared follow-and-share scene. */
+  outro_cta: boolean;
   /** The AI's last suggested looks ("AI gợi ý"), kept for a member to pick one; null before the first. */
   text_suggestions: TextSuggestions | null;
   /** The "AI gợi ý" job while queued or running, or the last one if it failed; null otherwise. */
@@ -594,6 +684,10 @@ export type KnowledgeTopic = {
   /** "Tư liệu": the folder of the team's "Kho tư liệu" the group shows (with its subfolders); null: none linked. */
   media_folder: string | null;
   video_count: number;
+  /** The active Pages that post the group; with two or more, the group's screen can be read for one of them. */
+  page_list: { id: number; name: string }[];
+  /** What the group has towards "Sẵn sàng tạo video": active Pages that post it, documents, approved products, a plan. */
+  readiness: { pages: number; docs: number; products: number; plan_started: boolean };
   /** A group of a Page the signed-in member owns and uses ("của tôi"): listed first where a group is picked. */
   mine: boolean;
   /** Its latest logged change ("… sửa … lúc …" under its name); null until the first one. */
@@ -629,14 +723,35 @@ export type Fanpage = {
   /** The member whose Page it is; `mine` when that is the signed-in member. */
   owner: { id: number; name: string } | null;
   mine: boolean;
+  /** Views that fell by half or more against the week before, per platform. */
+  alerts: { platform: "facebook" | "instagram"; current: number; previous: number; change: number }[];
   /** The Shopee account whose links its comments carry, shown only to its owner. */
   shopee_account: { id: number; name: string; usable: boolean } | null;
   /** The TikTok account its videos open with on their Đăng TikTok card, shown only to its owner. */
   tiktok_account: { id: number; name: string; connected: boolean } | null;
   /** What the worker sends to TikTok when a video of the Page goes live on Facebook: a draft, or a public post. */
   tiktok_auto_mode: "draft" | "direct";
+  /** Whether a video of the Page that goes live on Facebook at its slot is also posted to its linked Instagram. */
+  instagram_auto: boolean;
+  /** Whether a video of the Page that goes live on Facebook at its slot is also uploaded, private, to its YouTube channel. */
+  youtube_auto: boolean;
+  /** The YouTube channel its videos open with on "Tải lên YouTube", shown only to its owner. */
+  youtube_channel: { id: number; name: string; connected: boolean } | null;
+  /** The Instagram account linked to the Page (read at its check), where "Đăng bài" › Instagram posts. */
+  instagram: { id: string; username: string | null } | null;
+  /** Why the last check could not read the linked Instagram account; null when it read. */
+  instagram_error: string | null;
+  /** Its "Bộ bình luận": on or off, how many sets, how many the worker may choose now, how many go under a reel. */
+  aff_sets: { enabled: boolean; sets: number; usable: number; per_post: number };
   /** The Page's brand ("Kênh") and its logo, laid on the videos made for it; null until a logo is added. */
-  brand: { id: number; name: string; logo_badge_url: string | null; logo_default_on: boolean; owner_id: number } | null;
+  brand: {
+    id: number;
+    name: string;
+    logo_badge_url: string | null;
+    logo_default_on: boolean;
+    title_style: "classic" | "motion" | null;
+    owner_id: number;
+  } | null;
   /** The worker's last check of the token (api fanpages.check). */
   check: {
     checked_at: string | null;
@@ -662,6 +777,90 @@ export type DashboardFigure = { value: number | null; previous: number | null; c
 
 export type DashboardVideo = { id: number; title: string; thumbnail_url: string | null };
 
+/** The Page's linked Instagram account over the last `days` days in Vietnam time (api GET
+ * /fanpages/{id}/instagram-dashboard). A day with no stored number is null, never 0. */
+export type InstagramDashboard = {
+  page: { id: number; name: string; owner: { id: number; name: string } | null };
+  account: { id: string | null; username: string | null };
+  days: number;
+  start: string;
+  end: string;
+  series: {
+    day: string;
+    views: number | null;
+    reach: number | null;
+    interactions: number | null;
+    follows: number | null;
+  }[];
+  totals: Record<"views" | "reach" | "interactions" | "follows", DashboardFigure>;
+  /** The account's followers at the last check. */
+  followers: number | null;
+  /** The followers' share (percent) by gender, age range and city, the biggest first; null before the first read. */
+  audience: Record<"gender" | "age" | "city", { key: string; share: number }[]> | null;
+  /** Why there is none (Instagram gives it only from 100 followers); null when there is one. */
+  audience_error: string | null;
+  /** Why the last check could not read the numbers (a token without instagram_manage_insights); null when it did. */
+  insights_error: string | null;
+};
+
+/** An Instagram Reel the app posted, with its latest reading (api GET /fanpages/{id}/instagram-content). */
+export type InstagramContent = {
+  days: number;
+  posts: {
+    id: number;
+    live_at: string;
+    url: string | null;
+    video: DashboardVideo;
+    numbers: {
+      views: number | null;
+      reach: number | null;
+      likes: number | null;
+      comments: number | null;
+      shares: number | null;
+      saves: number | null;
+      interactions: number | null;
+      avg_watch_seconds: number | null;
+      measured_at: string;
+    } | null;
+    pending: boolean;
+    error: string | null;
+  }[];
+};
+
+/** The same videos on Facebook and Instagram side by side (api GET /fanpages/{id}/compare). */
+export type PageCompare = {
+  days: number;
+  videos: {
+    video: DashboardVideo;
+    facebook: {
+      live_at: string;
+      url: string | null;
+      views: number | null;
+      reach: number | null;
+      interactions: number | null;
+    } | null;
+    instagram: {
+      live_at: string;
+      url: string | null;
+      views: number | null;
+      reach: number | null;
+      interactions: number | null;
+    } | null;
+  }[];
+};
+
+/** The hours the Page's posts were watched most, by platform (api GET /fanpages/{id}/best-times). */
+export type BestTimes = {
+  min_posts: number;
+  facebook: BestHours;
+  instagram: BestHours | null;
+};
+export type BestHours = {
+  posts: number;
+  enough: boolean;
+  hours: { hour: number; average_views: number; posts: number }[];
+};
+
 /** One Page's dashboard over the last `days` days in Vietnam time (api GET /fanpages/{id}/dashboard). */
 export type PageDashboard = {
   page: {
@@ -673,6 +872,8 @@ export type PageDashboard = {
     token_tail: string;
     check: Fanpage["check"];
     insights_error: string | null;
+    /** The linked Instagram account: the dashboard's "Facebook | Instagram" switch shows only when there is one. */
+    instagram: { id: string; username: string | null } | null;
   };
   days: number;
   start: string;
@@ -707,7 +908,14 @@ export type PageDashboard = {
   } | null;
   /** The next week: posts waiting for their time, and posting times no post takes yet. */
   upcoming: {
-    posts: { id: number; status: string; scheduled_at: string; video: DashboardVideo }[];
+    posts: {
+      id: number;
+      status: string;
+      scheduled_at: string;
+      video: DashboardVideo;
+      /** What the Page's Instagram does with it: its own post's state, "auto" (follows Facebook), or null. */
+      instagram: "pending" | "scheduled" | "published" | "auto" | null;
+    }[];
     free_slots: string[];
     post_times: string[];
   };
@@ -738,6 +946,7 @@ export type PageContentPost = {
   views_48h: number | null;
   /** The 48-hour views as a multiple of the Page's median; null until the Page has enough measured posts. */
   times_median: number | null;
+  is_winner: boolean;
   /** "Cập nhật view" takes only a reel that is on Facebook. */
   can_refresh: boolean;
   /** A reading was asked for and the worker has not run it yet. */
@@ -767,9 +976,10 @@ export type VideoOptions = {
   voice_speed: number;
   voice_volume: number;
   ducking: boolean;
-  transition: "fade" | "cut" | "slide";
-  motion: "zoom_in" | "zoom_out" | "pan" | "static";
-  zoom: "light" | "medium" | "strong";
+  /** The video's transition between scenes, a key of the scene transitions (preview/effects.ts). */
+  transition: "fade" | "cut" | "slide" | "zoom" | "flash" | "black" | "blur" | "smooth_slide";
+  motion: "zoom_in" | "zoom_out" | "pan" | "static" | "kenburns_diagonal" | "pan_vertical" | "handheld" | "punch_in";
+  zoom: "light" | "medium" | "strong" | "extreme";
   /** "box": a team box style's copied colours; yellow, white, dark and red are kept for older videos. */
   text_style: "yellow" | "white" | "dark" | "red" | "box" | "none";
   /** "auto", a named colour (older videos) or "#RRGGBB". */
@@ -779,7 +989,7 @@ export type VideoOptions = {
   box_color: string;
   /** The *marked* words' colour: "auto" or "#RRGGBB". */
   accent_color: string;
-  box_opacity: "auto" | "solid" | "soft" | "clear" | "none";
+  box_opacity: "auto" | "solid" | "soft" | "clear" | "faint" | "none";
   /** The title scene's own look, like the five above; "same" follows the scenes (or title_style "yellow"). */
   title_text_style: "same" | VideoOptions["text_style"];
   title_text_color: string;
@@ -808,7 +1018,7 @@ export type TextBoxStyle = {
   id: string;
   name: string;
   box_color: string;
-  box_opacity: "solid" | "soft" | "clear" | "none";
+  box_opacity: "solid" | "soft" | "clear" | "faint" | "none";
   text_color: string;
   accent_color: string;
 };
@@ -832,13 +1042,13 @@ export type MyVideoDefaults = VideoDefaults & {
   owner: string;
 };
 
-/** A narration voice; a VieNeu one has an id starting with "vieneu:", a Google one "google:" (api tts.py). */
+/** A narration voice; a VieNeu one has an id starting with "vieneu:", a Gemini one "gemini:", a Google one "google:" (api tts.py). */
 export type Voice = {
   id: string;
   name: string;
   description: string;
   preview_url: string | null;
-  service: "elevenlabs" | "vieneu" | "google";
+  service: "elevenlabs" | "vieneu" | "gemini" | "google";
 };
 
 /** GET /settings/voices: `problems` names a service whose voices could not be listed while the other's came. */
@@ -846,7 +1056,13 @@ export type VoiceList = { default_id: string; voices: Voice[]; problems?: string
 
 /** The service that reads a voice id ("" is the server's default, an ElevenLabs voice). */
 export const voiceService = (voiceId: string) =>
-  voiceId.startsWith("vieneu:") ? "VieNeu" : voiceId.startsWith("google:") ? "Google" : "ElevenLabs";
+  voiceId.startsWith("vieneu:")
+    ? "VieNeu"
+    : voiceId.startsWith("gemini:")
+      ? "Gemini"
+      : voiceId.startsWith("google:")
+        ? "Google"
+        : "ElevenLabs";
 
 /** One LLM provider on /settings/ai. Its API key never comes back: only where it comes from and its last characters. */
 export type LlmProvider = {
@@ -1053,15 +1269,24 @@ export type Article = {
   /** The first photo's tag, so the list's thumbnail never shows an old one. */
   image_version: string | null;
   /** The plan script it was made from ("Ngày 5 · Khung 2"), its Page and the time planned for it. */
-  plan_slot: {
-    id: number;
-    day: number | null;
-    slot: number | null;
-    fanpage_id: number;
-    fanpage_name: string;
-    post_at: string | null;
-    image_urls: string[];
-  } | null;
+  plan_slot:
+    | ({
+        id: number;
+        day: number | null;
+        slot: number | null;
+        fanpage_id: number;
+        fanpage_name: string;
+        post_at: string | null;
+        image_urls: string[];
+        type_labels: Record<string, string>;
+        comments_updated_at: string | null;
+        /** A "Tạo bình luận ghim" job is queued or running for the script, or the last one failed. */
+        comments_pending: boolean;
+        comments_error: string | null;
+      } & SlotComments)
+    | null;
+  /** "Đăng kèm bình luận": the script's pinned comments are written under the post. */
+  post_comments_enabled: boolean;
   /** "Từ khóa tìm ảnh": what "Tìm ảnh" searches. */
   image_query: string;
   /** "Nâng cao: Prompt ảnh AI"; empty: the search words, then the topic. */
@@ -1156,7 +1381,7 @@ export type PlanSlot = {
   /** Its day at its slot's posting time; null in the Backlog. */
   post_at: string | null;
   created_by_id: number;
-};
+} & SlotComments;
 
 /** A Page's plan tab (GET /api/article-plans/{fanpage_id}). */
 export type ArticlePlanView = {
@@ -1174,17 +1399,61 @@ export type ArticlePlanView = {
     topic_group_ids: number[];
     kind_mix: Partial<Record<ArticleKind, number>>;
     tone: string;
+    /** Who the Page's comments are written for ("35–55 tuổi"). */
+    audience: string;
     total: number;
     used: number;
     scheduled: number;
     posted: number;
     empty_days: number;
     backlog: number;
+    /** "Bình luận: 72/87 kịch bản đủ 5/5". */
+    comments: { full: number; total: number };
+    /** "Tạo bình luận ghim" jobs still queued or running. */
+    comments_pending: number;
   } | null;
   slots: PlanSlot[];
   backlog: PlanSlot[];
   /** The earliest unused script from today on: "Tạo bài viết" offers it first. */
   next_slot_id: number | null;
+};
+
+/** One of a script's pinned comments; `type` is a label of its set (api slot_comments.TYPES_*) or null. */
+export type PinnedComment = { type: string | null; text: string };
+
+/** What a plan script carries of "Bình luận ghim". */
+export type SlotComments = {
+  pinned_comments: PinnedComment[];
+  pin_index: number;
+  comments_count: number;
+  comments_source: "import" | "ai" | "manual" | null;
+  comments_edited: boolean;
+  /** The label set for the script's kind, in the order the comments are written. */
+  type_set: string[];
+};
+
+/** One of a script's comments as written under a post. */
+export type PostCommentItem = {
+  id: number;
+  order: number;
+  type: string | null;
+  type_label: string | null;
+  text: string;
+  is_pinned: boolean;
+  status: "pending" | "posted" | "pinned" | "need_manual_pin" | "failed" | "skipped";
+  status_label: string;
+  error: string | null;
+  attempts: number;
+  posted_at: string | null;
+};
+
+export type PostPinnedComments = {
+  items: PostCommentItem[];
+  written: number;
+  total: number;
+  failed: number;
+  need_manual_pin: boolean;
+  url: string | null;
 };
 
 /** One row of a plan file as previewed (api article_plans.Row). */
@@ -1203,6 +1472,10 @@ export type PlanImportRow = {
   /** The kind and topic group as the file names them. */
   format: string;
   topic_group: string;
+  pinned_comments: PinnedComment[];
+  pin_index: number;
+  /** What saving does: add it, or skip it because its slot already has an article. */
+  action: "add" | "skip_posted" | "skip_used" | "skip";
   errors: string[];
   warnings: string[];
   /** "day:slot", "backlog" or "skip". */
@@ -1240,6 +1513,8 @@ export type ArticlePost = {
   can_check: boolean;
   can_measure: boolean;
   comment: Post["comment"];
+  /** The plan script's pinned comments as written under this post; null when none were made. */
+  pinned_comments: PostPinnedComments | null;
   /** Reach is the main number: a feed post has no views. The share/reach rate is null under 50 people reached. */
   numbers: {
     latest: ArticleNumbers | null;
@@ -1353,7 +1628,8 @@ export type AffiliateOptions = {
   platforms: { value: ProductPlatform; label: string }[];
   shop_types: Record<ProductPlatform, { value: string; label: string }[]>;
   /** `mine`: a group of a Page the member owns and uses, listed first. */
-  topics: { id: number; name: string; mine: boolean; product_count: number }[];
+  /** `can_add`: only the member who made a group adds products to it (decision 2026-11-25). */
+  topics: { id: number; name: string; mine: boolean; product_count: number; can_add: boolean }[];
   /** The Pages in use and the group each posts, to import "for a Page". */
   pages: AffiliatePage[];
   /** Some member has a Shopee account with App ID, so a pasted link is filled in by itself. */
@@ -1368,12 +1644,87 @@ export type AffiliatePage = {
   knowledge_topic_id: number | null;
 };
 
-/** A teammate's product the file also holds: left as it is, so their link stays theirs. */
-export type AffiliateImportOther = { row: number; name: string; by: string | null; topic: string | null };
+/** A Page's "Bộ bình luận" settings (api aff_sets.DEFAULTS); delays are seconds, [least, most]. */
+export type AffSettings = {
+  enabled: boolean;
+  sets_per_post: number;
+  products_per_comment: number;
+  strategy: string;
+  no_repeat_days: number;
+  first_delay: [number, number];
+  delay: [number, number];
+  line_format: string;
+};
 
-/** What "Nhập" would do with each row of the file, before anything is written. */
+/** A comment set: an opening line, up to 10 products in order, a closing line. */
+export type AffSet = {
+  id: number;
+  fanpage_id: number;
+  name: string;
+  intro_text: string;
+  outro_text: string;
+  tags: string[];
+  enabled: boolean;
+  priority: number;
+  last_used_at: string | null;
+  use_count: number;
+  products: { id: number; name: string; usable: boolean }[];
+  valid_count: number;
+  warnings: string[];
+  preview: string;
+};
+
+/** A product of the Page's group as the sets see it: its short name, group and tags. */
+export type AffSetProduct = {
+  id: number;
+  name: string;
+  short_name: string | null;
+  category: string | null;
+  tags: string[];
+  status: string;
+  usable: boolean;
+  link: string | null;
+  set_count: number;
+};
+
+export type AffSetsTab = {
+  page: { id: number; name: string; topic: string | null };
+  settings: AffSettings;
+  strategies: { value: string; label: string }[];
+  splits: { value: string; label: string }[];
+  sets: AffSet[];
+  products: AffSetProduct[];
+};
+
+export type AffGenerated = {
+  created: number;
+  sets: { name: string; intro_text: string; outro_text: string; tags: string[]; products: string[] }[];
+};
+
+/** A video's set comments on each Page it is or may be posted on (GET /api/aff-sets/videos/{id}). */
+export type AffVideoPlan = {
+  off: boolean;
+  manual_comment: boolean;
+  set_ids: number[] | null;
+  pages: {
+    fanpage_id: number;
+    name: string;
+    enabled: boolean;
+    sets_per_post: number;
+    first_delay: [number, number];
+    delay: [number, number];
+    sets: { id: number; name: string; enabled: boolean }[];
+    planned: { set_id: number; set_name: string; products: number; text: string }[];
+    /** Its live posts on the Page: set comments up of how many, when the next comment comes if the post waits (the
+     * Page's pause or a retry after an error), and the last error. */
+    posts: { post_id: number; count: number; total: number; next_at: string | null; error: string | null }[];
+  }[];
+};
+
+/** What "Nhập" would do with each row of the file, before anything is written: "new" (nobody has it), "mine" (my own
+ * product in this group, updated) or "copy" (a teammate has it; I get my own row beside theirs, with my link). */
 export type AffiliateImportPreview = {
-  rows: { row: number; name: string; state: "new" | "mine" | "others"; by: string | null; topic: string | null }[];
+  rows: { row: number; name: string; state: "new" | "mine" | "copy"; by: string | null; topic: string | null }[];
   errors: { row: number; message: string }[];
 };
 
@@ -1381,8 +1732,8 @@ export type AffiliateImportPreview = {
 export type AffiliateImport = {
   added: number;
   updated: number;
-  kept: number;
-  others: AffiliateImportOther[];
+  /** Of `added`, the products a teammate also has (each keeps their own link). */
+  shared: number;
   errors: { row: number; message: string }[];
   /** The worker will read stars, sales and the shop's type from Shopee. */
   lookup: boolean;
@@ -1424,6 +1775,7 @@ export type AffiliateVideoPost = {
   /** The app's comment under this post; "off" for TikTok and for a video pasted by hand. */
   comment: "off" | "waiting" | "pending" | "done" | "failed";
   comment_error: string | null;
+  links: CommentLinks;
 };
 
 /** Whose commission a product's link in one Page's comment earns: the Page's own account, the product's saved link
@@ -1471,6 +1823,7 @@ export type AffiliateRevenue = {
     video_id: number | null;
     title: string | null;
     fanpage: string | null;
+    fanpage_id: number | null;
     orders: number;
     commission: number;
   }[];
@@ -1505,8 +1858,15 @@ export type Post = {
     /** How many of the video's "Bình luận thêm" are written under the post. */
     extra_count?: number;
     at: string | null;
+    /** Whether the Page's comments under the reel hold a Shopee link (api post_comments.link_state). */
+    links?: CommentLinks;
   };
 };
+
+/** Whether a post's comments on Facebook hold a Shopee link: yes; updating (the app is about to write or edit its
+ * comment); missing (the Page commented without one); none (no comment yet); unknown (never read, not the app's);
+ * off (not on Facebook). A link pasted by hand is seen when the worker reads the reel's comments. */
+export type CommentLinks = "yes" | "updating" | "missing" | "none" | "unknown" | "off";
 
 /** A post's numbers on Facebook as of `measured_at`; a number is null when Facebook does not give it. */
 export type PostNumbers = {
@@ -1553,7 +1913,38 @@ export type PostAnalysis = {
   median_views: number | null;
   samples: number;
   times_median: number | null;
+  is_winner: boolean;
   share_rate: number | null;
+};
+
+/** A document of a topic group ("Tài liệu" on Kho kiến thức): `body` only when one is opened. */
+export type TopicDoc = {
+  id: number;
+  knowledge_topic_id: number;
+  section: string;
+  section_label: string;
+  name: string;
+  title: string;
+  pinned: boolean;
+  size: number;
+  updated_by: string | null;
+  updated_at: string;
+  body?: string;
+};
+
+/** "Cửa đo 48h" of a Page (api page_dashboard.gate). */
+export type PageGate = {
+  measured: number;
+  first: number;
+  last: number;
+  median_views: number | null;
+  samples: number;
+  median_share_rate: number | null;
+  top_views: number | null;
+  state: "measuring" | "pass" | "hold" | "change";
+  state_label: string;
+  rules: { pass: string; change: string; winner: string };
+  winners: { post_id: number; video: { id: number; title: string }; views_48h: number; times_median: number }[];
 };
 
 /** One week of the KPI strip, Monday to Sunday in Vietnam time (`start` is the Monday). */
@@ -1592,6 +1983,40 @@ export type PostRow = Post & {
   attempt: PostAttempt | null;
 };
 
+/** A reel live within 3 days on "Bình luận" of "Bài đăng" (GET /posts/comments). */
+export type TrackedPost = {
+  post_id: number;
+  video_id: number;
+  title: string;
+  fanpage_id: number | null;
+  fanpage: string | null;
+  live_at: string;
+  url: string;
+  /** Content scenes of the video, to compare with the detailed comments saved. */
+  scenes: number;
+  saved: number;
+  /** Of the saved "Bình luận thêm", how many are on Facebook as they read now. */
+  written: number;
+  /** Comments still to write or edit, the first comment included. */
+  left: number;
+  first: "off" | "waiting" | "pending" | "done" | "failed";
+  state: "done" | "queued" | "daily" | "stopped" | "not_asked" | "failed" | "no_extras" | "manual";
+  /** The reel's age: all its comments at once, one a day, or no new one. */
+  stage: "new" | "daily" | "stopped";
+  error: string | null;
+  resting_until: string | null;
+  /** Place in the worker's queue, from 1; null when not queued. */
+  position: number | null;
+  /** Rough time its last comment should be up. */
+  eta: string | null;
+};
+
+export type CommentTrackerData = {
+  day_cap: number;
+  pages: { id: number; name: string; today: number; resting_until: string | null }[];
+  posts: TrackedPost[];
+};
+
 export type JobRow = {
   id: number;
   /** null for a plan job, which belongs to a topic group, and an article's job. */
@@ -1615,6 +2040,8 @@ export type JobRow = {
   /** "DeepSeek · deepseek-chat" for a script or clone job; null for other jobs and older ones. */
   llm: string | null;
   error: string | null;
+  /** The platform's own words behind `error` (a raw reply), for diagnosis; null when there are none. */
+  error_detail: string | null;
   /** The job this one retries, if it is a retry. */
   retry_of_id: number | null;
   /** Seconds it waited in the queue before a worker took it; null while it still waits. */
@@ -2003,5 +2430,8 @@ export type Channels = {
     created_by_id: number;
     created_by: string;
     post_count: number;
+    /** Connected through Google ("Kết nối YouTube"): its owner uploads private videos to it. */
+    connection: YouTubeConnection | null;
+    connected_by: string | null;
   }[];
 };

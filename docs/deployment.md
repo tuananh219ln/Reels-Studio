@@ -42,7 +42,7 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
 
 - **Automatic footage** uses the worker's existing Node 22 and `yt-dlp[default]` (including its bundled YouTube
   JS solver), installed from `api/pyproject.toml`. It does not fetch solver code at runtime. Local workers need
-  Node 22 on PATH as well as FFmpeg. Enable the shared switch on Nguồn tư liệu once after deployment; the active
+  Node 22 on PATH as well as FFmpeg. Enable the shared switch on Cài đặt › AI và nguồn tư liệu once after deployment; the active
   LLM must accept images. Public YouTube downloads may still be blocked, in which case video stock/photo fallback
   runs automatically. No new environment variables are required.
 
@@ -60,8 +60,8 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
   runs api pytest with FFmpeg on four machines at once, each taking every 4th test (`PYTEST_SHARD`,
   see `api/tests/conftest.py`; a skipped test fails the job), both Docker
   image builds and the render parity test inside the worker image, worker pytest with FFmpeg, web
-  typecheck + lint + Cloudflare build, and E2E (with a real worker and fake Claude/Pixabay) on four
-  machines at once, each taking every 4th test of `playwright test --list`. A draft PR runs only the
+  typecheck + lint + Cloudflare build, and E2E (with a real worker and fake Claude/Pixabay) on eight
+  machines at once, each taking every 8th test of `playwright test --list`. A draft PR runs only the
   quick jobs (api, worker, web); E2E and the image job run once it is ready for review, and the quick
   jobs run again then only if they did not pass on that commit. When they are skipped, the
   `api-passed` job reports `api (1)`…`api (4)` as passed, since `main`'s ruleset requires those
@@ -116,28 +116,29 @@ when set to an empty string. Containers use real environment variables only.
 
 | Variable | Purpose |
 |---|---|
-| `ANTHROPIC_API_KEY` | worker and api: Claude API, used when no Claude key is saved on Cài đặt › Mô hình AI (keys for other LLM providers are entered only there) |
-| `CLAUDE_MODEL` | worker and api: Claude's model when none is set on Cài đặt › Mô hình AI; the default is `claude-sonnet-5-5` |
-| `PIXABAY_API_KEY` | api: the scene picker's default stock source (and the render core CLI); a key pasted on Cài đặt › Nguồn tư liệu wins over it |
-| `PEXELS_API_KEY` | optional, api: a second picker source (locale vi-VN); without it (or a key pasted on Cài đặt › Nguồn tư liệu) the picker hides Pexels. Openverse needs no key |
-| `UNSPLASH_ACCESS_KEY` | optional, api: Unsplash's Access Key (free "demo" plan, 50 searches an hour for the team); a key pasted on Cài đặt › Nguồn tư liệu wins. Without either, the picker shows Unsplash greyed out ("chưa cấu hình key") and searching it says so. Wikimedia Commons needs no key |
+| `ANTHROPIC_API_KEY` | worker and api: Claude API, used when no Claude key is saved on Cài đặt › AI và nguồn tư liệu (keys for other LLM providers are entered only there) |
+| `CLAUDE_MODEL` | worker and api: Claude's model when none is set on Cài đặt › AI và nguồn tư liệu; the default is `claude-sonnet-5-5` |
+| `PIXABAY_API_KEY` | api: the scene picker's default stock source (and the render core CLI); a key pasted on Cài đặt › AI và nguồn tư liệu wins over it |
+| `PEXELS_API_KEY` | optional, api: a second picker source (locale vi-VN); without it (or a key pasted on Cài đặt › AI và nguồn tư liệu) the picker hides Pexels. Openverse needs no key |
+| `UNSPLASH_ACCESS_KEY` | optional, api: Unsplash's Access Key (free "demo" plan, 50 searches an hour for the team); a key pasted on Cài đặt › AI và nguồn tư liệu wins. Without either, the picker shows Unsplash greyed out ("chưa cấu hình key") and searching it says so. Wikimedia Commons needs no key |
 | `WIKIMEDIA_API_URL`, `UNSPLASH_API_URL` | tests and E2E only: point the two sources at `api/scripts/fake_services.py`; unset in production |
 | `OPENVERSE_CLIENT_ID`, `OPENVERSE_CLIENT_SECRET` | optional, api: a registered Openverse application for its higher rate limits; without them Openverse is called anonymously, and a failed token exchange falls back to anonymous |
 | `STORAGE_DIR` | api and worker: the shared files folder; `/data/storage` in production, `data/storage` at the repo root when empty |
 | `DATABASE_URL` | api and worker: dev database; in production the Coolify Postgres internal URL |
 | `TEST_DATABASE_URL` | api: pytest database `reels_test` |
 | `ALLOWED_ORIGINS` | api: comma-separated origins allowed to change data; the default is `http://localhost:3000`; in production the web domain |
+| `INSTAGRAM_VIDEO_BASE_URL` | api, optional: public https address Instagram fetches a Reel's MP4 from (`video_url`); empty uses the first https origin of `ALLOWED_ORIGINS` (the web domain). With neither, the MP4 is sent by resumable upload |
 | `MCP_PUBLIC_URL` | api, optional: public web URL ending in `/api/mcp`; enables private ChatGPT and Claude MCP/OAuth. Empty disables it. HTTPS required except localhost; the origin must be in `ALLOWED_ORIGINS`. See [chatgpt.md](chatgpt.md) |
 | `REELS_SERVER`, `REELS_NODE_TOKEN` | render machine only (`python -m reels_api node` on a member's computer), never the api or the worker: the web address and the machine's token from Cài đặt › Máy render. `api/scripts/render-node.ps1` sets both for its run. See [Render machine](#render-machine) |
 | `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set on the Coolify application, empty on localhost |
-| `ELEVENLABS_API_KEY` | api + worker: scene narration and the voice list; a key pasted on Cài đặt › Nguồn tư liệu wins over it; with neither, a render with voice text fails with a clear reason |
-| `VIENEU_API_KEY` | api + worker, optional: VieNeu's Vietnamese narration voices (`vn_sk_…`, from VieNeu's Nhà phát triển page); a key pasted on Cài đặt › Mô hình AI wins over it. With a key, VieNeu's voices join the voice picker beside ElevenLabs'; a video whose voice is a VieNeu one (`vieneu:<name>`) is read by VieNeu |
-| `GOOGLE_TTS_API_KEY` | api + worker, optional: Google Cloud Text-to-Speech's Vietnamese voices (an API key from Google Cloud Console, `AIza…`; the project needs billing and the Cloud Text-to-Speech API turned on, and the key is best restricted to that API); a key pasted on Cài đặt › Mô hình AI wins over it. With a key, Google's `vi-VN` voices join the voice picker; a video whose voice is a Google one (`google:<voice name>`) is read by Google |
-| `IMAGE_GEN_API_KEY` | worker: AI photos for scenes that have none (Gemini via Google AI Studio); a key pasted on Cài đặt › Nguồn tư liệu wins over it; with neither, an image job fails with a clear reason |
+| `ELEVENLABS_API_KEY` | api + worker: scene narration and the voice list; a key pasted on Cài đặt › AI và nguồn tư liệu wins over it; with neither, a render with voice text fails with a clear reason |
+| `VIENEU_API_KEY` | api + worker, optional: VieNeu's Vietnamese narration voices (`vn_sk_…`, from VieNeu's Nhà phát triển page); a key pasted on Cài đặt › AI và nguồn tư liệu wins over it. With a key, VieNeu's voices join the voice picker beside ElevenLabs'; a video whose voice is a VieNeu one (`vieneu:<name>`) is read by VieNeu |
+| `GOOGLE_TTS_API_KEY` | api + worker, optional: Google Cloud Text-to-Speech's Vietnamese voices (an API key from Google Cloud Console, `AIza…`; the project needs billing and the Cloud Text-to-Speech API turned on, and the key is best restricted to that API); a key pasted on Cài đặt › AI và nguồn tư liệu wins over it. With a key, Google's `vi-VN` voices join the voice picker; a video whose voice is a Google one (`google:<voice name>`) is read by Google |
+| `IMAGE_GEN_API_KEY` | worker: AI photos for scenes that have none (Gemini via Google AI Studio); a key pasted on Cài đặt › AI và nguồn tư liệu wins over it; with neither, an image job fails with a clear reason |
 | `IMAGE_GEN_MODEL` | worker, optional: the image model; the default is `gemini-2.5-flash-image` |
-| `IMAGE_GEN_PROVIDER` | api + worker, optional and kept for older servers: the team's default AI photo provider until one is chosen on Cài đặt › Nguồn tư liệu (`gemini` or `cloudflare`; any other value means `gemini`). Unset: Cloudflare when it is set up, else Gemini |
-| `IMAGE_GEN_CF_API_KEY` | api + worker: Cloudflare Workers AI API token; a token pasted on Cài đặt › Nguồn tư liệu wins over it |
-| `IMAGE_GEN_CF_ACCOUNT_ID` | api + worker: the Cloudflare account ID (dashboard, top right; not a secret), needed with `cloudflare`. Without it on the api, Cài đặt › Nguồn tư liệu shows Cloudflare as not set up even with a pasted token |
+| `IMAGE_GEN_PROVIDER` | api + worker, optional and kept for older servers: the team's default AI photo provider until one is chosen on Cài đặt › AI và nguồn tư liệu (`gemini` or `cloudflare`; any other value means `gemini`). Unset: Cloudflare when it is set up, else Gemini |
+| `IMAGE_GEN_CF_API_KEY` | api + worker: Cloudflare Workers AI API token; a token pasted on Cài đặt › AI và nguồn tư liệu wins over it |
+| `IMAGE_GEN_CF_ACCOUNT_ID` | api + worker: the Cloudflare account ID (dashboard, top right; not a secret), needed with `cloudflare`. Without it on the api, Cài đặt › AI và nguồn tư liệu shows Cloudflare as not set up even with a pasted token |
 | `IMAGE_GEN_CF_MODEL` | worker, optional: the Workers AI model; the default is `@cf/black-forest-labs/flux-1-schnell` |
 | `IMAGE_INPAINT_CF_MODEL` | worker, optional: the Workers AI inpainting model of "Sửa ảnh" › "Xóa vùng" with Cloudflare (same token and account); the default is `@cf/runwayml/stable-diffusion-v1-5-inpainting` |
 | `TEXT_DETECT_MODEL_PATH` | worker: PP-OCRv4's text detector (ONNX) of "Sửa ảnh" › "Tìm chữ/logo tự động". Set by [api/Dockerfile.worker](../api/Dockerfile.worker) to the file it bakes in (`/opt/lama/text_detect.onnx`); nothing to set on Coolify. Empty or missing: the job fails and the member draws the boxes by hand |
@@ -145,16 +146,17 @@ when set to an empty string. Containers use real environment variables only.
 | `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL` | api and worker, optional, same values on both (the api recognizes made narration and the MP4 fingerprint by them): the voice (default "Adam", `pNInz6obpgDQGcFmaJgB`) and model (default `eleven_v3`); changing either re-makes every narration on the next render |
 | `TIKTOK_VIDEO_LIST` | api: `1` once TikTok has approved the developer app's `video.list` scope; "Kết nối TikTok" then asks for it, and the worker reads the views of TikTok videos on accounts connected with it (Bài đăng). Leave empty before the approval: asking for a scope not approved makes every connection fail. Accounts connected before it is set must connect again to grant it |
 | `YOUTUBE_API_KEY` | worker (and api, for a pasted YouTube link's time and length): a YouTube Data API v3 key from Google Cloud, the team's, no OAuth. The worker reads YouTube Shorts' views with it, 50 per call (1 quota unit of the free 10.000 a day). Empty: YouTube posts are recorded but not read |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | api + worker: the team's Google Cloud OAuth client (Web application, YouTube Data API v3 enabled), the app's identity and not a member's; members connect their own YouTube channels with "Kết nối YouTube" on Quản lý kênh and upload videos to them private ([decision](decisions/2026-11-17-youtube-private-upload.md)). Its Authorized redirect URI must be exactly `https://<web domain>/api/youtube/oauth/callback` (fixed in `youtube_upload.REDIRECT_URI`). An unaudited project keeps every upload private; a client in "Testing" ends refresh tokens after 7 days. Empty: "Kết nối YouTube" says they are missing |
 | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | api + worker: the TikTok developer app's Client Key and Secret (Login Kit + Content Posting API), the app's identity and not a member's; members connect their own TikTok accounts on Cấu hình › Tài khoản affiliate. Empty: "Kết nối TikTok" says they are missing. To record the review demo, put the Sandbox's own key and secret here (and add the target TikTok account to the Sandbox), then restart api + worker. The Redirect URI registered on the app must be exactly `https://<web domain>/api/tiktok/oauth/callback` (fixed in `tiktok.REDIRECT_URI`) |
 | `API_URL` | web: target of the `/api/*` rewrite, read by `next dev` and `next build` from the repo-root `.env`; in production the GitHub variable |
 
 Only tests and E2E set these, to reach the local fake Claude, Pixabay, ElevenLabs, Gemini and Cloudflare Workers AI
 ([api/scripts/fake_services.py](../api/scripts/fake_services.py)): `ANTHROPIC_BASE_URL`,
-`PIXABAY_API_URL`, `ELEVENLABS_API_URL`, `VIENEU_API_URL` (default `https://api.vieneu.io/api`; the fakes also empty `VIENEU_API_KEY`), `GOOGLE_TTS_API_URL` (default `https://texttospeech.googleapis.com`; the fakes also empty `GOOGLE_TTS_API_KEY`), `IMAGE_GEN_API_URL`, `IMAGE_GEN_CF_API_URL`, `FACEBOOK_API_URL`,
-`SHOPEE_AFFILIATE_API_URL`, `TIKTOK_API_URL` (TikTok's Login Kit and Content Posting API; default `https://open.tiktokapis.com`), `YOUTUBE_API_URL` (default `https://www.googleapis.com/youtube/v3`; the fakes also set a fake `YOUTUBE_API_KEY`), `TIKTOK_OEMBED_URL` and `YOUTUBE_OEMBED_URL` (what a pasted post link on "Bài đăng" is read with; defaults `https://www.tiktok.com/oembed` and `https://www.youtube.com/oembed`, no key), `SHOPEE_SHORT_LINK_URL` (where a pasted s.shopee.vn link is asked for its redirect; Shopee's keys are each member's, pasted on Cấu hình › Tài khoản affiliate, so there is no
+`PIXABAY_API_URL`, `ELEVENLABS_API_URL`, `VIENEU_API_URL` (default `https://api.vieneu.io/api`; the fakes also empty `VIENEU_API_KEY`), `GOOGLE_TTS_API_URL` (default `https://texttospeech.googleapis.com`; the fakes also empty `GOOGLE_TTS_API_KEY`), `IMAGE_GEN_API_URL` (also where Gemini narration is asked for), `IMAGE_GEN_CF_API_URL`, `FACEBOOK_API_URL`,
+`SHOPEE_AFFILIATE_API_URL`, `TIKTOK_API_URL` (TikTok's Login Kit and Content Posting API; default `https://open.tiktokapis.com`), `YOUTUBE_API_URL` (default `https://www.googleapis.com/youtube/v3`; the fakes also set a fake `YOUTUBE_API_KEY`), `GOOGLE_OAUTH_URL` (Google's token and revoke endpoints; default `https://oauth2.googleapis.com`), `YOUTUBE_UPLOAD_URL` (default `https://www.googleapis.com/upload/youtube/v3`), `INSTAGRAM_UPLOAD_URL` (where an Instagram Reel's file is sent; default `https://rupload.facebook.com/ig-api-upload/<Graph version>`), `TIKTOK_OEMBED_URL` and `YOUTUBE_OEMBED_URL` (what a pasted post link on "Bài đăng" is read with; defaults `https://www.tiktok.com/oembed` and `https://www.youtube.com/oembed`, no key), `SHOPEE_SHORT_LINK_URL` (where a pasted s.shopee.vn link is asked for its redirect; Shopee's keys are each member's, pasted on Cấu hình › Tài khoản affiliate, so there is no
 Shopee key in `.env`; the fakes also
 set `IMAGE_GEN_CF_ACCOUNT_ID=test-account` and a fake `IMAGE_GEN_CF_API_KEY`, so with `IMAGE_GEN_PROVIDER` unset Cloudflare is
-the default; Gemini and Cloudflare tests set `IMAGE_GEN_PROVIDER` themselves). The Graph API version is the default in `config.facebook_api_url()`; change it there when Meta retires it. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
+the default; Gemini and Cloudflare tests set `IMAGE_GEN_PROVIDER` themselves). The Graph API version (Facebook and Instagram) is `config.GRAPH_VERSION`; change it there when Meta retires it. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
 
 ## Render machine
 

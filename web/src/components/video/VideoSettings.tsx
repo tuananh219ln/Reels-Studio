@@ -15,6 +15,7 @@ import {
   type VoiceList,
   formatDecimal,
 } from "@/lib/api";
+import { VIDEO_TRANSITIONS } from "./preview/effects";
 import { ColorChoice } from "./textControls";
 import { OPACITIES, palette, warnings } from "./textPalette";
 import { TextStyleCards } from "./TextStyleCards";
@@ -67,21 +68,24 @@ const SPEED_MARKS = {
   [SPEED_MAX]: { label: "Nhanh", style: { transform: "translateX(-100%)" } },
 };
 const speedText = (speed: number) => `${formatDecimal(speed, 2)}×`;
-const TRANSITIONS = [
-  { value: "fade", label: "Mờ dần" },
-  { value: "cut", label: "Cắt thẳng" },
-  { value: "slide", label: "Trượt" },
+// The render's presets (worker reels_render.options); each value's tooltip says what it looks like. The
+// transitions are shared with the studio's bar (preview/effects.ts).
+const TRANSITIONS = VIDEO_TRANSITIONS;
+const MOTIONS: { value: VideoOptions["motion"]; label: string; tooltip: string }[] = [
+  { value: "zoom_in", label: "Zoom vào", tooltip: "Từ từ phóng vào giữa ảnh" },
+  { value: "zoom_out", label: "Zoom ra", tooltip: "Từ từ lùi ra" },
+  { value: "pan", label: "Lia ngang", tooltip: "Quét trái → phải" },
+  { value: "static", label: "Đứng yên", tooltip: "Không chuyển động" },
+  { value: "kenburns_diagonal", label: "Ken Burns chéo", tooltip: "Vừa zoom vừa trôi chéo" },
+  { value: "pan_vertical", label: "Lia dọc", tooltip: "Quét trên → dưới" },
+  { value: "handheld", label: "Cầm tay", tooltip: "Rung nhẹ như quay điện thoại" },
+  { value: "punch_in", label: "Đẩy nhanh", tooltip: "Zoom giật vào rồi giữ" },
 ];
-const MOTIONS = [
-  { value: "zoom_in", label: "Zoom vào" },
-  { value: "zoom_out", label: "Zoom ra" },
-  { value: "pan", label: "Lia ngang" },
-  { value: "static", label: "Đứng yên" },
-];
-const ZOOMS = [
+const ZOOMS: { value: VideoOptions["zoom"]; label: string }[] = [
   { value: "light", label: "Nhẹ" },
   { value: "medium", label: "Vừa" },
   { value: "strong", label: "Mạnh" },
+  { value: "extreme", label: "Cực mạnh" },
 ];
 const CAPTIONS = [
   { value: "off", label: "Tắt" },
@@ -95,7 +99,7 @@ export function forgetVoices() {
   voiceCache = null;
 }
 
-/** The ElevenLabs, VieNeu and Google voices, fetched once per page load. */
+/** The ElevenLabs, VieNeu, Gemini and Google voices, fetched once per page load. */
 function useVoices() {
   const [state, setState] = useState<{
     defaultId: string;
@@ -120,6 +124,7 @@ function useVoices() {
 const VOICE_GROUPS: { service: Voice["service"]; label: string }[] = [
   { service: "elevenlabs", label: "ElevenLabs" },
   { service: "vieneu", label: "VieNeu" },
+  { service: "gemini", label: "Gemini" },
   { service: "google", label: "Google" },
 ];
 
@@ -205,8 +210,8 @@ export function VoicePicker({
     return (
       <Typography.Text type="warning">
         {voices.error}{" "}
-        <Link prefetch={false} href="/settings/sources">
-          Mở Nguồn tư liệu
+        <Link prefetch={false} href="/settings/ai">
+          Mở AI và nguồn tư liệu
         </Link>
       </Typography.Text>
     );
@@ -280,7 +285,7 @@ export function AudioSettings({
       <RowFields.Provider value={Boolean(bare)}>
         <Flex vertical gap={bare ? 10 : 14}>
           {bare ? (
-            <Field label="Đọc lời" hint="Đọc lời từng cảnh bằng ElevenLabs, VieNeu hoặc Google.">
+            <Field label="Đọc lời" hint="Đọc lời từng cảnh bằng ElevenLabs, VieNeu, Gemini hoặc Google.">
               <Flex gap={8} align="flex-start">
                 <div style={{ paddingTop: 6 }}>{voiceSwitch}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -292,7 +297,7 @@ export function AudioSettings({
             <>
               <Flex gap={8} align="center">
                 {voiceSwitch}
-                <Typography.Text>Đọc lời từng cảnh (ElevenLabs, VieNeu hoặc Google)</Typography.Text>
+                <Typography.Text>Đọc lời từng cảnh (ElevenLabs, VieNeu, Gemini hoặc Google)</Typography.Text>
               </Flex>
               <Field label="Giọng">
                 <VoicePicker values={values} onChange={onChange} disabled={disabled || off} />
@@ -445,31 +450,35 @@ export function MotionSettings({ values, onChange, disabled, bare }: Props) {
   return (
     <Group title="Hình ảnh" testId="motion-settings" bare={bare}>
       <Flex vertical gap={14}>
+        {/* Eight choices wrap onto more lines instead of running off a phone's screen (globals.css). */}
         <Field label="Chuyển cảnh">
           <Segmented
             aria-label="Chuyển cảnh"
+            className="segmented-wrap"
             options={TRANSITIONS}
             value={values.transition}
             disabled={disabled}
-            onChange={(transition) => onChange({ transition: transition as VideoOptions["transition"] })}
+            onChange={(transition) => onChange({ transition })}
           />
         </Field>
         <Field label="Chuyển động ảnh" hint="Cảnh dùng video không có chuyển động thêm.">
           <Segmented
             aria-label="Chuyển động ảnh"
+            className="segmented-wrap"
             options={MOTIONS}
             value={values.motion}
             disabled={disabled}
-            onChange={(motion) => onChange({ motion: motion as VideoOptions["motion"] })}
+            onChange={(motion) => onChange({ motion })}
           />
         </Field>
-        <Field label="Độ zoom">
+        <Field label="Độ zoom" hint={values.zoom === "extreme" ? "Ảnh độ phân giải thấp có thể bị vỡ." : undefined}>
           <Segmented
             aria-label="Độ zoom"
+            className="segmented-wrap"
             options={ZOOMS}
             value={values.zoom}
             disabled={disabled || values.motion === "static"}
-            onChange={(zoom) => onChange({ zoom: zoom as VideoOptions["zoom"] })}
+            onChange={(zoom) => onChange({ zoom })}
           />
         </Field>
       </Flex>

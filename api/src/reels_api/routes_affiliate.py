@@ -15,7 +15,7 @@ from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import object_session
 
-from . import affiliate, affiliate_rounds, article_posts, facebook, knowledge, pinned, post_comments, shopee
+from . import aff_sets, affiliate, affiliate_rounds, article_posts, facebook, knowledge, pinned, post_comments, shopee
 from .db import get_db
 from .errors import ApiError
 from .models import (
@@ -32,7 +32,7 @@ from .models import (
     Video,
     VideoAffiliateProduct,
 )
-from .ownership import ensure_owner
+from .ownership import can_add_products, ensure_can_add_products, ensure_owner
 from .routes_music import like_pattern
 from .routes_videos import invalid, my_topic_ids
 from .sessions import current_member, now
@@ -61,7 +61,13 @@ IMPORT_COLUMNS = {
     "commission_rate": ("tỉ lệ hoa hồng", "tỷ lệ hoa hồng", "commission rate"),
     "page_url": ("link sản phẩm", "product link"),
     "url": ("link ưu đãi", "offer link"),
+    # Columns a member may add for "Bộ bình luận" (aff_sets.py); empty cells change nothing.
+    "short_name": ("tên ngắn", "short name"),
+    "category": ("nhóm", "nhóm sản phẩm"),
+    "tags": ("tags", "tag"),
 }
+# The columns a file may leave out.
+OPTIONAL_COLUMNS = {"url", "short_name", "category", "tags"}
 BOM = "\ufeff"
 
 
@@ -170,20 +176,27 @@ def _waiting(product: AffiliateProduct, user_id: int, ask: bool) -> None:
     product.lookup_requested_at, product.lookup_by_id, product.lookup_error = (now() if ask else None), user_id, None
 
 
-def _known(db: DbSession, item_ids: set[int], urls: set[str]) -> tuple[dict[int, AffiliateProduct], set[str]]:
-    rows = list(
-        db.scalars(
-            select(AffiliateProduct).where(
-                or_(
-                    AffiliateProduct.shopee_item_id.in_(item_ids),
-                    AffiliateProduct.url.in_(urls),
-                    AffiliateProduct.page_url.in_(urls),
-                )
-            )
+def _known(db: DbSession, item_ids: set[int], user_id: int, topic_id: int) -> dict[int, AffiliateProduct]:
+    """The member's own rows for these Shopee items in this group. A teammate's row of the same item is a different
+    product: it holds their affiliate link and commission, so it is never matched, updated or reused for me."""
+    rows = db.scalars(
+        select(AffiliateProduct).where(
+            AffiliateProduct.shopee_item_id.in_(item_ids),
+            AffiliateProduct.created_by_id == user_id,
+            AffiliateProduct.knowledge_topic_id == topic_id,
         )
     )
-    links = {row.url for row in rows if row.url} | {row.page_url for row in rows if row.page_url}
-    return {row.shopee_item_id: row for row in rows if row.shopee_item_id}, links
+    return {row.shopee_item_id: row for row in rows}
+
+
+def _teammates_of(db: DbSession, item_ids: set[int], user_id: int) -> dict[int, AffiliateProduct]:
+    """A teammate's row for each of these items (the first added), to name who has it already."""
+    rows = db.scalars(
+        select(AffiliateProduct)
+        .where(AffiliateProduct.shopee_item_id.in_(item_ids), AffiliateProduct.created_by_id != user_id)
+        .order_by(AffiliateProduct.id.desc())
+    )
+    return {row.shopee_item_id: row for row in rows}
 
 
 def _header(cell: str) -> str:
@@ -222,7 +235,7 @@ def _imported(row: dict[str, str]) -> dict:
     page_url = _url(row["page_url"])
     if not (url or page_url):
         raise invalid("Thiếu link sản phẩm")
-    return {
+    fields = {
         "shopee_item_id": item_id,
         "name": _text(row["name"], "Tên sản phẩm", MAX_NAME_LENGTH),
         "shop_name": _text(row["shop_name"], "Tên shop", MAX_SHOP_NAME_LENGTH),
@@ -231,6 +244,13 @@ def _imported(row: dict[str, str]) -> dict:
         "url": url,
         "page_url": page_url,
     }
+    short, category, tags = aff_sets.clean_labels(
+        row.get("short_name"), row.get("category"), aff_sets.split_tags(row.get("tags", ""))
+    )
+    # Only what the row gives: an empty cell keeps the label a member set on the "Bộ bình luận" tab.
+    labels = {"short_name": short, "category": category, "tags": tags or None}
+    fields.update({name: value for name, value in labels.items() if value is not None})
+    return fields
 
 
 def _expected_commission(product: AffiliateProduct) -> int:
@@ -359,6 +379,8 @@ def _post_payload(db: DbSession, post: Publication) -> dict:
         # How the post's comment stands (post_comments.payload): off, waiting, pending, done or failed.
         "comment": post_comments.payload(post)["state"] if post.platform == "facebook" else "off",
         "comment_error": post.comment_error if post.platform == "facebook" else None,
+        # Whether its comments on Facebook hold a Shopee link (post_comments.link_state).
+        "links": post_comments.link_state(post),
     }
 
 
@@ -407,8 +429,11 @@ def _video_payload(db: DbSession, video: Video, posts: list[Publication], user_i
     where = [_post_payload(db, one) for one in posts]
     if video.manual_comment:
         # Nothing waits for the worker under a video pasted by hand; a comment it already wrote still shows.
-        for one in where:
+        for live, one in zip(posts, where, strict=True):
             one["comment"] = "off" if one["comment"] in ("waiting", "pending") else one["comment"]
+            # Nor will the app write the comment it was waiting for: until the worker reads the reel, nobody knows.
+            if one["links"] in ("none", "updating") and live.own_comment is None:
+                one["links"] = "unknown"
     return {
         "id": video.id,
         "title": video_name(video, title),
@@ -773,7 +798,14 @@ def options(me: Session = Depends(current_member), db: DbSession = Depends(get_d
         },
         # "mine": a group a Page I own and use posts (decisions 2026-11-08), listed first in the filter.
         "topics": [
-            {"id": topic.id, "name": topic.name, "mine": topic.id in mine, "product_count": products.get(topic.id, 0)}
+            {
+                "id": topic.id,
+                "name": topic.name,
+                "mine": topic.id in mine,
+                "product_count": products.get(topic.id, 0),
+                # Only the group's maker adds products to it (decision 2026-11-25).
+                "can_add": can_add_products(topic, me.user_id),
+            }
             for topic in knowledge.all_topics(db)
         ],
         # The Pages in use and the group each posts, so a file can be imported "for a Page" into its group.
@@ -819,6 +851,10 @@ def export_products(
             "Ngày kiểm tra",
             "Người duyệt",
             "Nền tảng",
+            # As "Nhập file" reads them back.
+            "Tên ngắn",
+            "Nhóm",
+            "Tags",
         ]
     )
     for product in _ranked(db, topic_id, status, q, platform):
@@ -839,6 +875,9 @@ def export_products(
                 checked,
                 _csv_cell(product.checked_by.name) if product.checked_by else "",
                 affiliate.PLATFORMS[product.platform],
+                _csv_cell(product.short_name or ""),
+                _csv_cell(product.category or ""),
+                _csv_cell(", ".join(product.tags or [])),
             ]
         )
     # The byte order mark tells Excel the file is UTF-8, otherwise Vietnamese comes out garbled.
@@ -851,6 +890,9 @@ def export_products(
 
 @router.post("", status_code=201)
 def add_product(body: ProductBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    topic = db.get(KnowledgeTopic, body.knowledge_topic_id)
+    if topic is not None:
+        ensure_can_add_products(topic, me.user_id)
     product = AffiliateProduct(**_fields(db, body), created_by_id=me.user_id)
     db.add(product)
     db.commit()
@@ -862,6 +904,7 @@ def add_links(body: LinksBody, me: Session = Depends(current_member), db: DbSess
     """ "Thêm sản phẩm": a member pastes Shopee links and the worker reads each product within seconds (name, shop,
     stars, sales, price, commission); the request itself never calls Shopee."""
     topic = _topic(db, body.knowledge_topic_id)
+    ensure_can_add_products(topic, me.user_id)
     links = _shopee_links(body.links)
     if affiliate_rounds.team_account(db, me.user_id) is None:
         raise invalid(NO_SHOPEE_ACCOUNT)
@@ -890,14 +933,19 @@ def _shopee_links(raw: list[str]) -> list[str]:
 def _from_links(
     db: DbSession, topic: KnowledgeTopic, links: list[str], user_id: int, ask: bool
 ) -> dict[str, tuple[AffiliateProduct, bool]]:
-    """The product of each link: the one already listed (False), else a new draft named by its link (True), which the
-    worker reads when `ask`; without, a member fills it in by hand."""
+    """The product of each link: the member's own one already listed in this group (False), else a new draft named by
+    its link (True), which the worker reads when `ask`; without, a member fills it in by hand. A teammate's product of
+    the same item does not count: each member has their own, with their own link."""
     items = {link: shopee.item_id_of(link) for link in links}
-    known_items, _ = _known(db, {item for item in items.values() if item}, set())
+    known_items = _known(db, {item for item in items.values() if item}, user_id, topic.id)
     by_link = {
         link: row
         for row in db.scalars(
-            select(AffiliateProduct).where(or_(AffiliateProduct.url.in_(links), AffiliateProduct.page_url.in_(links)))
+            select(AffiliateProduct).where(
+                or_(AffiliateProduct.url.in_(links), AffiliateProduct.page_url.in_(links)),
+                AffiliateProduct.created_by_id == user_id,
+                AffiliateProduct.knowledge_topic_id == topic.id,
+            )
         )
         for link in (row.url, row.page_url)
         if link
@@ -908,6 +956,7 @@ def _from_links(
         if known is not None:
             found[link] = (known, False)
             continue
+        ensure_can_add_products(topic, user_id)
         product = AffiliateProduct(
             knowledge_topic_id=topic.id,
             platform="shopee",
@@ -951,7 +1000,9 @@ def _parsed_file(text_in: str) -> tuple[list[tuple[int, dict]], list[dict]]:
         field: next((index for index, header in enumerate(headers) if header in names), None)
         for field, names in IMPORT_COLUMNS.items()
     }
-    missing = [IMPORT_COLUMNS[field][0] for field, index in columns.items() if index is None and field != "url"]
+    missing = [
+        IMPORT_COLUMNS[field][0] for field, index in columns.items() if index is None and field not in OPTIONAL_COLUMNS
+    ]
     if missing:
         raise invalid(
             f"File thiếu cột: {', '.join(missing)}. Hãy dùng file tải từ Shopee Affiliate › Lấy link hàng loạt"
@@ -975,33 +1026,44 @@ def _parsed_file(text_in: str) -> tuple[list[tuple[int, dict]], list[dict]]:
 
 
 def _sorted_rows(
-    db: DbSession, parsed: list[tuple[int, dict]], user_id: int
+    db: DbSession, parsed: list[tuple[int, dict]], user_id: int, topic_id: int
 ) -> tuple[dict[int, AffiliateProduct], list[dict]]:
-    """Each row as new, mine (a product of mine already listed: its figures and link are updated) or others (a
-    teammate's: kept as it is, so their link and commission never change hands)."""
-    known, _ = _known(db, {fields["shopee_item_id"] for _, fields in parsed}, set())
+    """Each row as new (nobody has it), mine (my own product in this group: its figures and link are updated) or copy
+    (a teammate has it, and I get my own beside theirs, with my link)."""
+    items = {fields["shopee_item_id"] for _, fields in parsed}
+    known = _known(db, items, user_id, topic_id)
+    teammates = _teammates_of(db, items, user_id)
     rows = []
     for number, fields in parsed:
-        product = known.get(fields["shopee_item_id"])
-        state = "new" if product is None else "mine" if product.created_by_id == user_id else "others"
+        item_id = fields["shopee_item_id"]
+        theirs = teammates.get(item_id)
+        state = "mine" if item_id in known else "copy" if theirs is not None else "new"
         rows.append(
             {
                 "row": number,
                 "name": fields["name"],
                 "state": state,
-                "by": product.created_by.name if product is not None else None,
-                "topic": product.topic.name if product is not None else None,
+                "by": theirs.created_by.name if state == "copy" else None,
+                "topic": theirs.topic.name if state == "copy" else None,
             }
         )
     return known, rows
 
 
+def _refuse_new_rows(topic: KnowledgeTopic, rows: list[dict], user_id: int) -> None:
+    """A member who did not make the group may still update their own rows there (from before the rule); a row that
+    would be added ("new" or "copy") is refused."""
+    if not can_add_products(topic, user_id) and any(row["state"] != "mine" for row in rows):
+        ensure_can_add_products(topic, user_id)
+
+
 @router.post("/import/preview")
 def preview_import(body: ImportBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     """What "Nhập" would do with the file, row by row; writes nothing."""
-    _topic(db, body.knowledge_topic_id)
+    topic = _topic(db, body.knowledge_topic_id)
     parsed, errors = _parsed_file(body.text)
-    _, rows = _sorted_rows(db, parsed, me.user_id)
+    _, rows = _sorted_rows(db, parsed, me.user_id, body.knowledge_topic_id)
+    _refuse_new_rows(topic, rows, me.user_id)
     return {"rows": rows, "errors": errors}
 
 
@@ -1010,16 +1072,17 @@ def import_products(body: ImportBody, me: Session = Depends(current_member), db:
     """ "Nhập file": the CSV of Shopee Affiliate's "Lấy link hàng loạt" (item id, name, price, shop, commission,
     product link, affiliate link). Stars, sales and the shop's type are not in it: the worker reads them when a member
     has a Shopee account with App ID, otherwise a member fills them in before approving. A product of mine already in
-    the list takes the file's link and figures (an approved one keeps its approval unless it no longer meets the
-    rules); a teammate's is left as it is and listed in `others`, so their link is never replaced by mine."""
+    this group takes the file's link and figures (an approved one keeps its approval unless it no longer meets the
+    rules). A teammate's product of the same item is never touched: I get my own row beside it, with my link, and
+    `shared` counts those."""
     topic = _topic(db, body.knowledge_topic_id)
     parsed, errors = _parsed_file(body.text)
-    known, rows = _sorted_rows(db, parsed, me.user_id)
+    known, rows = _sorted_rows(db, parsed, me.user_id, topic.id)
+    _refuse_new_rows(topic, rows, me.user_id)
     ask = affiliate_rounds.team_account(db, me.user_id) is not None
-    added = updated = 0
+    added = updated = shared = 0
+    renamed: list[int] = []
     for (_, fields), row in zip(parsed, rows, strict=True):
-        if row["state"] == "others":
-            continue
         product = known.get(fields["shopee_item_id"])
         if product is None:
             product = AffiliateProduct(
@@ -1035,20 +1098,20 @@ def import_products(body: ImportBody, me: Session = Depends(current_member), db:
             db.add(product)
             known[fields["shopee_item_id"]] = product
             added += 1
+            shared += row["state"] == "copy"
             continue
+        if fields.get("short_name", product.short_name) != product.short_name:
+            renamed.append(product.id)
         for name, value in fields.items():
             if value is not None:
                 setattr(product, name, value)
         if product.status == "approved" and affiliate.problems(product):
             _clear_approval(product)
         updated += 1
+    # Set comments already written under live reels follow a new short name.
+    aff_sets.ask_set_refresh(db, aff_sets.sets_of_products(db, renamed))
     db.commit()
-    others = [
-        {"row": row["row"], "name": row["name"], "by": row["by"], "topic": row["topic"]}
-        for row in rows
-        if row["state"] == "others"
-    ]
-    return {"added": added, "updated": updated, "kept": len(others), "others": others, "errors": errors, "lookup": ask}
+    return {"added": added, "updated": updated, "shared": shared, "errors": errors, "lookup": ask}
 
 
 @router.post("/{product_id}/lookup")
@@ -1070,12 +1133,20 @@ def update_product(
     product_id: int, body: ProductBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
     product = _get(db, product_id)
+    if body.knowledge_topic_id != product.knowledge_topic_id:
+        target = db.get(KnowledgeTopic, body.knowledge_topic_id)
+        if target is not None:
+            ensure_can_add_products(target, me.user_id)
     fields = _fields(db, body)
-    if any(getattr(product, name) != value for name, value in fields.items()):
+    changed = {name for name, value in fields.items() if getattr(product, name) != value}
+    if changed:
         _clear_approval(product)
     for name, value in fields.items():
         setattr(product, name, value)
     product.lookup_error = None  # filled in by hand
+    # Comments already written under live posts carry the old link, name or approval.
+    if changed:
+        affiliate.ask_comment_refresh(db, [product.id], forget_links=bool(changed & {"url", "page_url"}))
     db.commit()
     db.refresh(product)
     return _payload(product)
@@ -1090,6 +1161,7 @@ def approve_product(product_id: int, me: Session = Depends(current_member), db: 
     if problems:
         raise ApiError(409, "product_not_approvable", f"Chưa duyệt được: {'; '.join(problems)}")
     product.status, product.checked_at, product.checked_by_id = "approved", datetime.now(UTC), me.user_id
+    affiliate.ask_comment_refresh(db, [product.id])  # a product left out while it failed the rules comes back
     db.commit()
     db.refresh(product)
     return _payload(product)
@@ -1099,6 +1171,7 @@ def approve_product(product_id: int, me: Session = Depends(current_member), db: 
 def unapprove_product(product_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     product = _get(db, product_id)
     _clear_approval(product)
+    affiliate.ask_comment_refresh(db, [product.id])
     db.commit()
     db.refresh(product)
     return _payload(product)
@@ -1117,6 +1190,7 @@ def approve_products(
         raise invalid(f"Mỗi lần duyệt tối đa {MAX_IMPORT_ROWS} sản phẩm")
     approved = skipped = 0
     at = datetime.now(UTC)
+    newly: list[int] = []
     for product in db.scalars(select(AffiliateProduct).where(AffiliateProduct.id.in_(ids))):
         if product.status == "approved":
             continue
@@ -1125,6 +1199,8 @@ def approve_products(
             continue
         product.status, product.checked_at, product.checked_by_id = "approved", at, me.user_id
         approved += 1
+        newly.append(product.id)
+    affiliate.ask_comment_refresh(db, newly)
     db.commit()
     return {"approved": approved, "skipped": skipped}
 
@@ -1140,6 +1216,8 @@ def delete_products(
     if len(ids) > MAX_IMPORT_ROWS:
         raise invalid(f"Mỗi lần xoá tối đa {MAX_IMPORT_ROWS} sản phẩm")
     products = list(db.scalars(select(AffiliateProduct).where(AffiliateProduct.id.in_(ids))))
+    affiliate.ask_comment_refresh(db, [product.id for product in products])
+    db.flush()
     for product in products:
         db.delete(product)
     db.commit()
@@ -1150,6 +1228,8 @@ def delete_products(
 def delete_product(product_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     product = _get(db, product_id)
     ensure_owner(product.created_by_id, me.user_id, "sản phẩm này")
+    affiliate.ask_comment_refresh(db, [product.id])
+    db.flush()
     db.delete(product)
     db.commit()
     return {"ok": True}

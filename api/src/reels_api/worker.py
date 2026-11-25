@@ -27,10 +27,19 @@ from . import (
     fanpages,
     meta_sync,
     metrics,
+    outro,
     page_queue,
     post_comments,
+    slot_comments,
 )
-from .jobs import queue_post_checks, queue_tiktok_posts, work_dir
+from .jobs import (
+    queue_instagram_auto_posts,
+    queue_instagram_posts,
+    queue_post_checks,
+    queue_tiktok_posts,
+    queue_youtube_auto_posts,
+    work_dir,
+)
 from .models import Job
 from .sessions import now
 
@@ -47,6 +56,8 @@ POST_CHECK_SECONDS = 60.0
 METRICS_SECONDS = 5.0
 DEFAULT_JOB_TIMEOUT = 15 * 60
 RESTARTED = "Worker khởi động lại giữa chừng"
+# `params` of a job the restart queued again: a second restart leaves it failed, for "Thử lại".
+AFTER_RESTART = "after_restart"
 
 
 class Stop(Exception):
@@ -102,18 +113,36 @@ def acquire_worker_lock(engine: Engine) -> Connection:
 
 
 def recover_interrupted(factory: sessionmaker) -> None:
-    """A job still `running` belonged to a worker that died; it is never re-run automatically (cost)."""
+    """A job still `running` belonged to a worker that died: it fails and is never re-run automatically (cost).
+
+    Except an Instagram post (`ig_publish`), cut off by a deploy while Instagram processes the video: it costs no AI
+    money and ig_publish.py never posts twice, so it is queued again once, as "Thử lại" would (2026-11-19)."""
     with factory() as db:
-        ids = db.scalars(
+        cut = db.execute(
             update(Job)
             # A job handed to a render machine lives on without the worker (render_nodes.py).
             .where(Job.status == "running", Job.node_stage.is_(None))
             .values(status="failed", error=RESTARTED, finished_at=now())
-            .returning(Job.id)
+            .returning(Job.id, Job.kind, Job.params)
         ).all()
+        again = [row.id for row in cut if row.kind == "ig_publish" and not (row.params or {}).get(AFTER_RESTART)]
+        for job in db.scalars(select(Job).where(Job.id.in_(again))):
+            db.add(
+                Job(
+                    video_id=job.video_id,
+                    kind=job.kind,
+                    status="queued",
+                    created_by_id=job.created_by_id,
+                    publication_id=job.publication_id,
+                    retry_of_id=job.id,
+                    params={AFTER_RESTART: True},
+                )
+            )
         db.commit()
-    for job_id in ids:
-        log.warning("Job %s was running when the previous worker stopped: marked failed", job_id)
+    for row in cut:
+        log.warning("Job %s was running when the previous worker stopped: marked failed", row.id)
+    for job_id in again:
+        log.warning("Instagram post job %s was queued again after the restart", job_id)
 
 
 def claim_next(factory: sessionmaker) -> int | None:
@@ -134,10 +163,22 @@ def queue_checks(factory: sessionmaker) -> None:
         with factory() as db:
             queue_post_checks(db)
             queue_tiktok_posts(db)
+            queue_instagram_posts(db)
+            queue_instagram_auto_posts(db)
+            queue_youtube_auto_posts(db)
             article_posts.queue_retries(db)
             db.commit()
     except Exception:
         log.exception("Could not queue the post checks")
+    # Apart, so an outro problem never holds the posts back.
+    try:
+        from .storage import get_storage
+
+        with factory() as db:
+            outro.fill(db, get_storage())
+            db.commit()
+    except Exception:
+        log.exception("Could not fill the outro scenes")
 
 
 def serve(factory: sessionmaker, lock: Connection) -> None:
@@ -153,6 +194,7 @@ def serve(factory: sessionmaker, lock: Connection) -> None:
             metrics.measure_due(factory)
             fanpages.check_due(factory)
             post_comments.write_due(factory)
+            slot_comments.run_due(factory)
             comments_inbox.run_round(factory)
             affiliate_rounds.run_round(factory)
             meta_sync.run_due(factory)

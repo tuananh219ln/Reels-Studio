@@ -28,11 +28,13 @@ from . import config
 from .models import KnowledgeTopic, Scene, UserVideoDefaults, Video
 from .tts import MAX_SPEED, MAX_VOICE_ID_LENGTH, MIN_SPEED, SPEED_STEP, is_vieneu
 
+TITLE_SFX = ("reveal_ting", "manual", "off")
+
 DEFAULTS_KEY = "video_defaults"  # the team's defaults before 2026-11-09 (migration 0067): kept, never read
 
 DEFAULTS: dict = {
-    # empty: the server's ELEVENLABS_VOICE_ID ("Adam" by default); "vieneu:<id>": a VieNeu voice, "google:<name>" a
-    # Google Cloud one (tts.py)
+    # empty: the server's ELEVENLABS_VOICE_ID ("Adam" by default); "vieneu:<id>": a VieNeu voice, "gemini:<name>" a
+    # Gemini one, "google:<name>" a Google Cloud one (tts.py)
     "voice_id": "",
     "voice_speed": 1.0,  # tempo factor, MIN_SPEED to MAX_SPEED
     "voice_volume": 100,  # percent
@@ -45,7 +47,7 @@ DEFAULTS: dict = {
     "title_style": "same",  # the title scene is drawn like the other scenes
     "box_color": "auto",  # the style's own box (or outline, without a box); or "#RRGGBB"
     "accent_color": "auto",  # marked words keep a colour apart from the text; or "#RRGGBB"
-    "box_opacity": "auto",  # the style's own; or solid, soft (88%), clear (70%), none (outlined)
+    "box_opacity": "auto",  # the style's own; or solid, soft (88%), clear (70%), faint (45%), none (outlined)
     # The title scene's own look, like the five above; "same" follows the scenes (or title_style "yellow").
     "title_text_style": "same",
     "title_text_color": "auto",
@@ -67,6 +69,9 @@ DEFAULTS: dict = {
     "title_text_position": None,
     # "Nghỉ sau lời đọc": the pause after each scene's narration when its seconds follow it ("Tự khớp lời đọc").
     "voice_pause": VOICE_TAIL,
+    # The title motion's sounds: "reveal_ting" a soft ding as each slot pops in (title_motion.sync_title_sfx), "manual"
+    # the member's own sounds are left alone, "off" the title scene has none.
+    "title_sfx": "reveal_ting",
 }
 # The pauses offered, in seconds; the shortest is the one every video had before the choice existed.
 VOICE_PAUSES = (VOICE_TAIL, 0.7, 1.0)
@@ -116,6 +121,7 @@ CHOICES = {
     "title_text_size": TEXT_SIZE_NAMES,
     "text_case": TEXT_CASES,
     "title_text_case": TEXT_CASES,
+    "title_sfx": TITLE_SFX,
 }
 
 
@@ -142,6 +148,7 @@ LABELS = {
     "title_text_case": "Dạng chữ tiêu đề",
     "ducking": "Nhỏ nhạc khi có giọng",
     "voice_pause": "Nghỉ sau lời đọc",
+    "title_sfx": "Âm thanh tiêu đề động",
     "voice_enabled": "Giọng đọc",
 }
 
@@ -161,7 +168,7 @@ def effective(video: Video) -> dict:
 
 
 def clean_voice_id(value: object) -> str:
-    """A voice id as typed or picked: an ElevenLabs id, vieneu:<name> or google:<name>; "" for none."""
+    """A voice id as typed or picked: an ElevenLabs id, vieneu:<name>, gemini:<name> or google:<name>; "" for none."""
     if not isinstance(value, str) or len(value) > MAX_VOICE_ID_LENGTH:
         raise OptionError("Mã giọng đọc không hợp lệ")
     value = value.strip()
@@ -230,7 +237,7 @@ def choices() -> dict:
         {name: list(values) for name, values in CHOICES.items()}
         | {name: [*values, "#RRGGBB"] for name, values in COLORS.items()}
         | {
-            "voice_id": "ElevenLabs voice id, vieneu:<id> or google:<name>; empty: the team's server voice",
+            "voice_id": "ElevenLabs voice id, vieneu:<id>, gemini:<name> or google:<name>; empty: the team's server voice",
             "voice_speed": {"min": MIN_SPEED, "max": MAX_SPEED, "step": SPEED_STEP},
             "voice_volume": {"min": 0, "max": 100},
             "voice_pause": list(VOICE_PAUSES),
@@ -328,7 +335,9 @@ def look_signature(video: Video) -> dict | None:
     narration signature); None while all are the defaults, so MP4s rendered before they existed stay current."""
     values = effective(video)
     # The pause after narration changes the seconds, which the fingerprint holds already.
-    changed = {name: values[name] for name in DEFAULTS if name not in ("voice_id", "voice_speed", "voice_pause")}
+    # The title's sounds are in the scenes' sounds, which the fingerprint holds already.
+    skipped = ("voice_id", "voice_speed", "voice_pause", "title_sfx")
+    changed = {name: values[name] for name in DEFAULTS if name not in skipped}
     if changed == {name: DEFAULTS[name] for name in changed}:
         return None
     for name in (*LATER_LOOK_FIELDS, "text_position", "title_text_position"):
@@ -344,15 +353,18 @@ def built_in_defaults() -> dict:
 
 def member_defaults(db: DbSession, user_id: int) -> dict:
     """What a member's new videos start with: their own defaults, or the app's built-in ones while they have none. A
-    value their copy lacks (a setting added since they saved) is the built-in one. There is no team level (part 3 of
-    docs/specs/per-user-settings-ownership): the team's old row (DEFAULTS_KEY) is never read."""
+    value their copy lacks (a setting added since they saved) or no longer accepts (a preset since removed, or a
+    value written by newer code) is the built-in one; the rest of their copy still counts. There is no team level
+    (part 3 of docs/specs/per-user-settings-ownership): the team's old row (DEFAULTS_KEY) is never read."""
     own = db.get(UserVideoDefaults, user_id)
     if own is None or not isinstance(own.value, dict):
         return built_in_defaults()
-    try:
-        stored = clean(own.value, allow_video_fields=True)
-    except OptionError:
-        return built_in_defaults()
+    stored: dict = {}
+    for name, value in own.value.items():
+        try:
+            stored |= clean({name: value}, allow_video_fields=True)
+        except OptionError:
+            continue
     return built_in_defaults() | stored
 
 
@@ -381,7 +393,10 @@ def forget_member_defaults(db: DbSession, user_id: int) -> None:
 
 def apply_defaults(db: DbSession, video: Video, user_id: int) -> None:
     """A new video takes its maker's defaults (member_defaults), and the voice and "Chữ & phụ đề" of its topic group
-    when the group has them: video's own › group's › maker's own › built-in. Set `video.knowledge_topic_id` first."""
+    when the group has them: video's own › group's › maker's own › built-in. It also starts on the channel whose
+    Page is in the video's topic group (`brands.default_for`), so the logo is on without picking it each time —
+    and on no channel at all when the group has none of the maker's Pages. Set `video.knowledge_topic_id` first."""
+    from . import brands  # imported here, like text_looks: kept out of this module's import-time graph
     from .text_looks import group_look  # imported here: text_looks reads this module
 
     defaults = member_defaults(db, user_id)
@@ -391,3 +406,6 @@ def apply_defaults(db: DbSession, video: Video, user_id: int) -> None:
     if group is not None and group.voice_id:
         video.options["voice_id"] = group.voice_id
     video.options.update(group_look(group))
+    brand = brands.default_for(db, user_id, video.knowledge_topic_id)
+    if brand is not None:
+        video.options["brand_id"] = brand.id

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .blur import ffmpeg_blur
 from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
+from .framing import BACKDROP_ZOOM_SHARE, PHOTO_ZOOM_SHARE
 from .layers import ANIMATION_SECONDS, SLIDE_UP_PX
 from .logo import Placement
 from .options import DEFAULT_OPTIONS, RenderOptions
@@ -48,6 +49,21 @@ class SceneInput:
     blur: tuple[tuple[float, float, float, float], ...] = ()  # boxes of the clip blurred (blur.py)
     # Half-frame photos ("Ảnh chèn nửa khung") over the picture and under its text box, not moved by its zoom.
     insets: tuple["InsetInput", ...] = ()
+    # A framed photo ("Khung ảnh", framing.py): `image` is then its blurred copy, and this the photo laid on it.
+    framed: "FramedInput | None" = None
+
+
+@dataclass(frozen=True)
+class FramedInput:
+    """A framed photo alone, laid at (`left`, `top`) at its size in the frame. It zooms inside that box with the
+    video's motion at PHOTO_ZOOM_SHARE of its zoom, while the blurred copy under it moves at BACKDROP_ZOOM_SHARE:
+    the box itself never moves, so it never runs under the scene's text."""
+
+    image: Path
+    left: int
+    top: int
+    width: int
+    height: int
 
 
 @dataclass(frozen=True)
@@ -141,26 +157,78 @@ def _progress(clip_frames: int, span: tuple[int, int] | None) -> str:
     return f"(on+{offset})/{max(total - 1, 1)}"
 
 
+def _frame(span: tuple[int, int] | None) -> str:
+    """The output frame `on`, counted from the video's start for a backdrop photo (`span`)."""
+    return "on" if span is None else f"(on+{span[0]})"
+
+
+def _eased(clip_frames: int, span: tuple[int, int] | None) -> str:
+    """The progress eased in and out (sine), as a camera operator starts and stops a move. Only the motions added on
+    2026-11-19 ease: the first four stay linear, so no video saved before renders differently."""
+    return f"(1-cos(PI*{_progress(clip_frames, span)}))/2"
+
+
+# "Đẩy nhanh" (punch_in) zooms all the way in over this many frames (0.3 s), easing out, then holds.
+PUNCH_FRAMES = round(0.3 * FPS)
+# "Cầm tay" (handheld) zooms only this share of the way, just enough room to shake in, and the shake reaches at
+# most this share of that room, so no edge of the photo ever shows. zoompan also clamps x and y inside the photo.
+HANDHELD_ZOOM = 0.5
+HANDHELD_REACH = 0.6
+
+
 def zoom_expression(
     clip_frames: int, motion: str = "zoom_in", zoom_end: float = ZOOM_END, span: tuple[int, int] | None = None
 ) -> str:
-    """zoom_in: linear from 1.00 on the clip's first frame to zoom_end on its last; zoom_out the reverse; pan
-    holds zoom_end so there is room to travel sideways; static stays at 1.00. With `span`, over the whole video."""
+    """zoom_in: linear from 1.00 on the clip's first frame to zoom_end on its last; zoom_out the reverse; pan and
+    pan_vertical hold zoom_end so there is room to travel; static stays at 1.00; kenburns_diagonal zooms in eased;
+    handheld holds half the zoom; punch_in reaches zoom_end in PUNCH_FRAMES and holds. With `span`, over the whole
+    video."""
     progress = _progress(clip_frames, span)
     if motion == "zoom_out":
         return f"{zoom_end:.4f}-{zoom_end - 1:.4f}*{progress}"
-    if motion == "pan":
+    if motion in ("pan", "pan_vertical"):
         return f"{zoom_end:.4f}"
     if motion == "static":
         return "1"
+    if motion == "kenburns_diagonal":
+        return f"1+{zoom_end - 1:.4f}*{_eased(clip_frames, span)}"
+    if motion == "handheld":
+        return f"{1 + (zoom_end - 1) * HANDHELD_ZOOM:.4f}"
+    if motion == "punch_in":
+        frame = _frame(span)
+        return f"if(lt({frame},{PUNCH_FRAMES}),1+{zoom_end - 1:.4f}*(1-pow(1-{frame}/{PUNCH_FRAMES},3)),{zoom_end:.4f})"
     return f"1+{zoom_end - 1:.4f}*{progress}"
 
 
+def _shake(axis: str, span: tuple[int, int] | None) -> str:
+    """The handheld shake along `axis` ("w" across, "h" down), in -1…1 of the room the zoom leaves: two waves of
+    unrelated periods added, so it never settles into a beat one notices."""
+    frame = _frame(span)
+    if axis == "w":
+        return f"(sin({frame}/7)+0.5*sin({frame}/13))/1.5"
+    return f"(cos({frame}/9)+0.5*cos({frame}/17))/1.5"
+
+
 def _pan_x(clip_frames: int, motion: str, span: tuple[int, int] | None = None) -> str:
-    """Centred, except a pan that travels from the left edge of the zoomed frame to the right."""
+    """Centred, except a pan that travels from the left edge of the zoomed frame to the right, a diagonal Ken Burns
+    that drifts the same way eased, and a handheld shake."""
     if motion == "pan":
         return f"(iw-iw/zoom)*{_progress(clip_frames, span)}"
+    if motion == "kenburns_diagonal":
+        return f"(iw-iw/zoom)*{_eased(clip_frames, span)}"
+    if motion == "handheld":
+        return f"iw/2-(iw/zoom/2)+(iw-iw/zoom)/2*{HANDHELD_REACH}*{_shake('w', span)}"
     return "iw/2-(iw/zoom/2)"
+
+
+def _pan_y(clip_frames: int, motion: str, span: tuple[int, int] | None = None) -> str:
+    """Centred, except a vertical pan and a diagonal Ken Burns, which travel from the top down eased, and a handheld
+    shake."""
+    if motion in ("pan_vertical", "kenburns_diagonal"):
+        return f"(ih-ih/zoom)*{_eased(clip_frames, span)}"
+    if motion == "handheld":
+        return f"ih/2-(ih/zoom/2)+(ih-ih/zoom)/2*{HANDHELD_REACH}*{_shake('h', span)}"
+    return "ih/2-(ih/zoom/2)"
 
 
 def _seconds(frames: int) -> str:
@@ -179,16 +247,36 @@ def _photo_chain(
     options: RenderOptions = DEFAULT_OPTIONS,
     color: str | None = None,
     span: tuple[int, int] | None = None,
+    zoom_share: float = 1.0,
+    size: tuple[int, int] = (FRAME_WIDTH, FRAME_HEIGHT),
 ) -> str:
-    scale_w, scale_h = FRAME_WIDTH * PRESCALE, FRAME_HEIGHT * PRESCALE
-    zoom = zoom_expression(frames, options.motion, options.zoom_end, span)
+    """A photo filling `size` (the frame, or a framed photo's box) and moving with the video's motion, at
+    `zoom_share` of the video's zoom."""
+    width, height = size
+    scale_w, scale_h = width * PRESCALE, height * PRESCALE
+    zoom_end = 1 + (options.zoom_end - 1) * zoom_share
+    zoom = zoom_expression(frames, options.motion, zoom_end, span)
     return (
         f"[{source}:v]scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase:out_range=tv,"
         f"crop={scale_w}:{scale_h},format=yuv420p,setsar=1,"
-        f"zoompan=z='{zoom}':x='{_pan_x(frames, options.motion, span)}':y='ih/2-(ih/zoom/2)'"
-        f":d={frames}:s={FRAME_WIDTH}x{FRAME_HEIGHT}:fps={FPS},"
+        f"zoompan=z='{zoom}':x='{_pan_x(frames, options.motion, span)}':y='{_pan_y(frames, options.motion, span)}'"
+        f":d={frames}:s={width}x{height}:fps={FPS},"
         f"{_graded(color)}format=yuv420p[{label}]"
     )
+
+
+def _framed_chains(
+    source: int, picture: int, framed: FramedInput, frames: int, label: str, options: RenderOptions, color: str | None
+) -> list[str]:
+    """A framed photo: its blurred copy (input `source`) and the photo (input `picture`) each with its own share of
+    the motion, the photo laid in its box, then graded as one picture."""
+    return [
+        _photo_chain(source, frames, f"{label}c", options, zoom_share=BACKDROP_ZOOM_SHARE),
+        _photo_chain(
+            picture, frames, f"{label}p", options, zoom_share=PHOTO_ZOOM_SHARE, size=(framed.width, framed.height)
+        ),
+        f"[{label}c][{label}p]overlay=x={framed.left}:y={framed.top},{_graded(color)}format=yuv420p[{label}]",
+    ]
 
 
 def _clip_chain(
@@ -249,10 +337,11 @@ def build_filter_graph(
     blurs: list[tuple] | None = None,
     insets: list[tuple[InsetInput, ...]] | None = None,
     logo: LogoInput | None = None,
+    framed: list[FramedInput | None] | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
     narration of each scene that has one (`voices` says which do), then the caption images, the layers' and last
-    the `insets` pictures, scene by scene; a scene's insets go over its picture (after its zoom and colour) and under
+    the `framed` photos and `insets` pictures, scene by scene (its framed photo first); a scene's insets go over its picture (after its zoom and colour) and under
     its text box. A scene that `clips`
     marks has a video clip in its image's place, played at its `speeds` entry; the clip's own sound is heard only
     when `clip_sounds` marks the scene, on the narration's track, so the music ducks under it as under a voice.
@@ -276,6 +365,7 @@ def build_filter_graph(
     spans = spans or [None] * count
     blurs = blurs or [()] * count
     insets = insets or [()] * count
+    framed = framed or [None] * count
     first_caption = 2 * len(box_positions) + (music_volume is not None) + sum(voices or [])
     next_inset = first_caption + len(captions) + len(layers or [])
     chains: list[str] = []
@@ -283,6 +373,9 @@ def build_filter_graph(
         image, box = 2 * index, 2 * index + 1
         if clips[index]:
             chains.append(_clip_chain(image, frames, f"bg{index}", speeds[index], colors[index], blurs[index]))
+        elif framed[index] is not None:
+            chains += _framed_chains(image, next_inset, framed[index], frames, f"bg{index}", options, colors[index])
+            next_inset += 1
         else:
             chains.append(_photo_chain(image, frames, f"bg{index}", options, colors[index], spans[index]))
         under = f"bg{index}"
@@ -391,19 +484,29 @@ def music_level_expression(timeline: Timeline, levels: list[str | None]) -> str 
     return "*".join(parts) or None
 
 
+SFX_LIMIT = 0.5  # the sound-effects bus peaks at -6 dBFS, so overlapping effects (the title's ting) do not clip
+
+
 def _sound_chains(sounds: list[SoundInput], samples: int) -> list[str]:
-    """Each effect made by its source filter, at its level, delayed to its second and as long as the video, then
-    added to the mix at full level as the narration is (amerge + pan, see above)."""
-    chains, previous = [], "base"
+    """Each effect made by its source filter, at its level, delayed to its second and as long as the video. The
+    effects are added together (amerge + pan, see above), held under SFX_LIMIT by a limiter, and only then added to
+    the mix at full level as the narration is."""
+    chains, bus = [], ""
     for index, item in enumerate(sounds):
         delay = round(item.start * 1000)
         chains.append(
             f"{SOUNDS[item.sound].source},aformat=sample_rates={AUDIO_RATE}:channel_layouts=stereo,"
             f"volume={item.gain:.4f},adelay={delay}|{delay},apad,atrim=end_sample={samples}[fx{index}]"
         )
-        label = "aout" if index == len(sounds) - 1 else f"mix{index}"
-        chains.append(f"[{previous}][fx{index}]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[{label}]")
-        previous = label
+        if index == 0:
+            bus = "fx0"
+            continue
+        label = f"sum{index}"
+        chains.append(f"[{bus}][fx{index}]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[{label}]")
+        bus = label
+    if sounds:
+        chains.append(f"[{bus}]alimiter=limit={SFX_LIMIT}:level=disabled[sfx]")
+        chains.append("[base][sfx]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[aout]")
     return chains
 
 
@@ -495,6 +598,8 @@ def build_ffmpeg_args(
         # Looped up to where it leaves, so its entrance has frames to fade in on.
         argv += ["-loop", "1", "-framerate", str(FPS), "-t", f"{layer.end:.3f}", "-i", str(layer.image)]
     for scene in scenes:
+        if scene.framed is not None:
+            argv += ["-i", str(scene.framed.image)]
         for inset in scene.insets:
             # Looped up to where it leaves its scene's picture, which is drawn from its own second 0.
             argv += ["-loop", "1", "-framerate", str(FPS), "-t", f"{inset.end:.3f}", "-i", str(inset.image)]
@@ -519,6 +624,7 @@ def build_ffmpeg_args(
         [scene.blur for scene in scenes],
         [scene.insets for scene in scenes],
         logo,
+        [scene.framed for scene in scenes],
     )
     argv += [
         "-filter_complex",

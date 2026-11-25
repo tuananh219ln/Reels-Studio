@@ -2,13 +2,15 @@
 
 import { Tabs } from "antd";
 import { Suspense } from "react";
+import CommentSets from "@/components/affiliate/CommentSets";
 import PostedVideos from "@/components/affiliate/PostedVideos";
 import Products from "@/components/affiliate/Products";
 import Revenue from "@/components/affiliate/Revenue";
+import GuideButton from "@/components/GuideButton";
 import PageHeader from "@/components/PageHeader";
 import { useUrlChoice } from "@/lib/urlState";
 
-type Tab = "videos" | "products" | "revenue";
+type Tab = "videos" | "products" | "sets" | "revenue";
 
 export default function AffiliatePage() {
   // The tab and its list's search and filters are in the address, which a static page only knows in the browser.
@@ -20,7 +22,7 @@ export default function AffiliatePage() {
 }
 
 function Affiliate() {
-  const [tab, setTab] = useUrlChoice<Tab>("tab", "videos", ["products", "revenue"]);
+  const [tab, setTab] = useUrlChoice<Tab>("tab", "videos", ["products", "sets", "revenue"]);
   // Each tab has its own filters: a new tab starts with none of the last one's.
   const choose = (next: string) => {
     window.history.replaceState(null, "", window.location.pathname);
@@ -30,7 +32,8 @@ function Affiliate() {
     <>
       <PageHeader
         title="Affiliate"
-        description="Gắn sản phẩm vào video đã đăng, quản lý danh sách sản phẩm và xem doanh thu của bạn."
+        actions={<GuideButton screen="affiliate" />}
+        description="Gắn sản phẩm vào video đã đăng, quản lý danh sách sản phẩm, bộ bình luận link của từng Page và xem doanh thu của bạn."
       />
       <Tabs
         activeKey={tab}
@@ -39,6 +42,7 @@ function Affiliate() {
         items={[
           { key: "videos", label: "Video đã đăng", children: <PostedVideos /> },
           { key: "products", label: "Sản phẩm", children: <Products /> },
+          { key: "sets", label: "Bộ bình luận", children: <CommentSets /> },
           { key: "revenue", label: "Doanh thu", children: <Revenue /> },
         ]}
       />

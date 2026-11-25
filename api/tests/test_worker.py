@@ -82,7 +82,7 @@ def test_script_job_writes_the_script_then_a_photo_search_fills_the_scenes(commi
     assert title.is_title and title.text == video.title_options[0] and title.seconds == 3
     assert title.voice_text == "Mời bạn xem đến cuối nhé" and content[0].voice_text == "Cá nhỏ giàu canxi"
     assert 5 <= len(content) <= 7 and all(scene.keywords for scene in content)
-    assert video.caption and len(video.hashtags) == 5 and len(video.affiliates) == 2 and video.pinned_comment
+    assert video.caption and len(video.hashtags) == 5 and len(video.affiliates) == 2 and video.pinned_survey
     assert video.self_review and video.music_suggestions
     assert "Chủ đề: xương khớp sau 50 tuổi" in services.claude_prompts[0]
     assert "chữa khỏi" in services.claude_prompts[0]
@@ -239,7 +239,7 @@ def test_a_provider_without_a_key_fails_the_job_without_a_call(committed, servic
 
     job = wait_for_status(committed, job_id)
     assert (job.status, job.claude_calls) == ("failed", 0)
-    assert job.error == "Chưa có API key cho OpenAI: nhập trong Cài đặt › Mô hình AI"
+    assert job.error == "Chưa có API key cho OpenAI: nhập trong Cài đặt › AI và nguồn tư liệu"
     assert services.chat_requests == [] and services.claude_prompts == []
 
 

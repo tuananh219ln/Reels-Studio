@@ -16,6 +16,7 @@ import {
   openPublishDrawer,
   openScene,
   resetDatabase,
+  openVideoTab,
   sideTab,
 } from "./helpers";
 
@@ -277,7 +278,7 @@ test("30-day plan: a ready video is approved from its idea card", async ({ page 
   await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "Duyệt", exact: true }).click();
   // The plan reloads: the idea is scheduled at the plan's suggested time.
-  await expect(card).toContainText("Đã lên lịch", { timeout: 30_000 });
+  await expect(card).toContainText("Đã hẹn giờ", { timeout: 30_000 });
   await expect(card).toContainText("23:00");
 });
 
@@ -387,7 +388,8 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
 
   // Renamed in place on its heading.
   await page.getByRole("button", { name: /Làm đẹp/ }).click();
-  await beauty.getByRole("button", { name: "Đổi tên" }).click();
+  await beauty.getByRole("button", { name: "Thao tác khác với nhóm" }).click();
+  await page.getByRole("menuitem", { name: "Đổi tên nhóm" }).click();
   await beauty.getByLabel("Tên nhóm chủ đề").fill("Làm đẹp da");
   await beauty.getByRole("button", { name: "Lưu tên" }).click();
   await expect(page.getByText("Đã lưu tên nhóm chủ đề")).toBeVisible();
@@ -485,18 +487,19 @@ test("knowledge topics: a group's own voice is what its new videos start with", 
   const card = group.locator(".ant-card").filter({ hasText: "Giọng mặc định của nhóm" });
   await expect(card).toContainText("Theo Thiết lập mặc định của người tạo");
   await expect(card.getByRole("button", { name: "Lưu giọng" })).toBeDisabled();
-  await card.getByLabel("Giọng đọc").click();
-  await card.getByLabel("Giọng đọc").fill("Mai");
+  // The card has two pickers now: the main voice first, then the backup ("Giọng phụ").
+  await card.getByLabel("Giọng đọc").first().click();
+  await card.getByLabel("Giọng đọc").first().fill("Mai");
   await page.keyboard.press("Enter");
   await card.getByRole("button", { name: "Lưu giọng" }).click();
   await expect(page.getByText("Đã lưu giọng của nhóm")).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: /Già Mà Khỏe/ }).click();
   await group.getByRole("tab", { name: "Cài đặt nhóm" }).click();
-  await expect(card.locator(".ant-select")).toContainText("Mai");
+  await expect(card.locator(".ant-select").first()).toContainText("Mai");
 
   // A new video of the group reads with the group's voice, with nothing set on it by hand.
-  await group.getByRole("tab", { name: /^Video/ }).click();
+  await openVideoTab(page, group);
   await group.getByTestId("topic-videos").getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
   await dialog.getByLabel("Chủ đề", { exact: true }).fill("ngâm chân nước ấm");
@@ -588,7 +591,7 @@ test("knowledge topics: a group's video mode is what its new videos take unless 
   await expect(card.getByRole("radio", { name: "Video xuyên suốt" })).toBeChecked();
 
   // The dialog starts on the group's mode and says so; a video made with nothing picked takes it.
-  await group.getByRole("tab", { name: /^Video/ }).click();
+  await openVideoTab(page, group);
   await group.getByTestId("topic-videos").getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
   await expect(dialog).toContainText("Theo kiểu video của nhóm: Video xuyên suốt");
@@ -619,41 +622,47 @@ test("the pinned comment lists the scenes and follows an edited scene", async ({
   await loginAsSeed(page);
   await newVideoWithScript(page, "canxi cho bữa sáng");
   await sideTab(page, "Bình luận & Sản phẩm");
-  // A new script's comment is a template: the title and the scenes, filled in, then the AI's sentence.
-  const field = page.getByLabel("Bình luận ghim");
+  // A new script's comment: the title, the scenes numbered from 1, then the AI's question as "Dòng khảo sát".
+  const field = page.getByLabel("Dòng khảo sát");
   const preview = page.getByTestId("pinned-preview");
-  await expect(field).toHaveValue("{title}\n{items}\nLink sản phẩm ở đây nhé");
+  await expect(field).toHaveValue("Link sản phẩm ở đây nhé");
   await expect(preview).toContainText("1. ");
   await expect(preview).toContainText("Link sản phẩm ở đây nhé");
+  // The free template and its variable buttons are gone.
+  await expect(page.getByLabel("Bình luận ghim", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "{items}" })).toHaveCount(0);
   // No product attached: the "link" is flagged.
   await expect(page.getByText("Bình luận nhắc tới “link” nhưng video chưa gắn sản phẩm nào")).toBeVisible();
 
-  // Editing a scene changes the comment, and says so.
+  // Editing a scene changes the comment, and says so; a number the scene already has is not repeated.
   const first = page.getByTestId("scene").first();
   await openScene(first);
   const text = first.getByLabel("Chữ trên màn hình");
-  await text.fill("Cá nhỏ chiên\nGiàu *canxi*");
+  await text.fill("1. Cá nhỏ chiên\nGiàu *canxi*");
   await text.blur();
   await expect(page.getByText("Bình luận ghim đã được cập nhật theo cảnh")).toBeVisible();
-  await expect(preview).toContainText("1. Cá nhỏ chiên – Giàu canxi");
+  await expect(preview).toContainText("1. Cá nhỏ chiên");
+  await expect(preview).not.toContainText("1. 1.");
   const id = page.url().split("/videos/")[1];
   await expect
     .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_comment_text)
-    .toContain("1. Cá nhỏ chiên – Giàu canxi");
+    .toContain("1. Cá nhỏ chiên");
 
-  // The preview follows the template as it is typed; without {items} it no longer follows the scenes.
+  // The preview follows the survey line as it is typed, and it is saved.
   await field.fill("Nhà bạn hay ăn món nào?");
-  await expect(preview).toHaveText("Nhà bạn hay ăn món nào?");
-  await expect(page.getByTestId("pinned-fixed")).toBeVisible();
+  await expect(preview).toContainText("Nhà bạn hay ăn món nào?");
+  await expect(preview).toContainText("1. Cá nhỏ chiên");
   await field.blur();
-  // "{items}" puts the variable back, and the comment lists the scenes again.
-  await page.getByTestId("field-insertions").getByRole("button", { name: "{items}", exact: true }).click();
-  await expect(field).toHaveValue(/\{items\}/);
-  await expect(preview).toContainText("1. Cá nhỏ chiên – Giàu canxi");
-  await expect(page.getByTestId("pinned-fixed")).toHaveCount(0);
   await expect
-    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_comment)
-    .toMatch(/\{items\}/);
+    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_survey)
+    .toBe("Nhà bạn hay ăn món nào?");
+  // Cleared, the comment ends with the list.
+  await field.fill("");
+  await field.blur();
+  await expect(preview).not.toContainText("Nhà bạn hay ăn món nào?");
+  await expect
+    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_comment_text)
+    .not.toContain("Nhà bạn hay ăn món nào?");
 });
 
 test("a scene reuses a photo another video of its group already uses", async ({ page }) => {
@@ -1241,6 +1250,17 @@ test("inset photo: only on a backdrop video, the scene's photo as a rounded squa
   await expect(block.getByRole("button")).toHaveCount(0);
   await expect(block.getByTestId("inset-own-image")).toHaveCount(0);
 
+  // The same layout as a slide video's scene: the 182 px preview, the place button under it, and the picture's tools
+  // column beside it, its top level with the preview's.
+  const stageBox = await panel.getByTestId("half-photo-stage").boundingBox();
+  const toolsBox = await panel.getByTestId("scene-media-tools").boundingBox();
+  const placeBox = await panel.getByRole("button", { name: "Chỉnh vị trí chữ & ảnh chèn" }).boundingBox();
+  expect(Math.round(stageBox!.width)).toBe(182);
+  expect(toolsBox!.x).toBeGreaterThan(stageBox!.x + stageBox!.width);
+  expect(Math.abs(toolsBox!.y - stageBox!.y)).toBeLessThan(2);
+  expect(placeBox!.y).toBeGreaterThan(stageBox!.y + stageBox!.height);
+  expect(placeBox!.width).toBeLessThanOrEqual(stageBox!.width + 1);
+
   // 32%: a 614 px square, centred across (left 233 of 1080), flush with the bottom edge (top 1306 of 1920).
   const photo = panel.getByTestId("half-photo-stage").getByTestId("preview-layer");
   await expect(photo).toBeVisible();
@@ -1548,7 +1568,8 @@ test("a video opens with its Page's TikTok account already chosen", async ({ pag
     return route.fulfill({ status: 302, headers: { location: `http://localhost:3100${back}` } });
   });
   await page.goto("/settings/affiliate-accounts");
-  await page.getByRole("button", { name: "Kết nối TikTok" }).first().click();
+  await page.getByRole("button", { name: "Thêm kết nối" }).click();
+  await page.getByRole("menuitem", { name: "Kết nối TikTok" }).click();
   await expect(page.getByText("Đã kết nối tài khoản TikTok")).toBeVisible();
 
   await connectFacebook(page);
@@ -1562,7 +1583,16 @@ test("a video opens with its Page's TikTok account already chosen", async ({ pag
   // The Page's TikTok account, picked once on its card.
   await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
-  await chooseOption(page, owner.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"), "TikTok: An Lành SK (@anlanhsk)");
+  await expect(owner).toContainText("Thuộc: bạn");
+  await page.getByRole("button", { name: "Cài đặt Trang Dưỡng Sinh" }).click();
+  const settings = page.getByRole("dialog", { name: /Tài khoản và chủ Page/ });
+  await chooseOption(
+    page,
+    settings.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"),
+    "TikTok: An Lành SK (@anlanhsk)",
+  );
+  await expect(owner).toContainText("TikTok: An Lành SK");
+  await page.keyboard.press("Escape");
 
   await renderedVideo(page);
   await openPublish(page);
@@ -1585,9 +1615,9 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   await expect(card.getByTestId("render-time")).toContainText(/^MP4 · [\d,]+ giây · 1080×1920/);
   await expect(card.getByRole("checkbox", { name: "Facebook" })).toBeChecked();
   await expect(card.getByRole("checkbox", { name: "TikTok" })).not.toBeChecked();
-  // YouTube Shorts and Instagram are posted by hand: their rows have no checkbox.
-  await expect(card.getByRole("button", { name: "YouTube Shorts, đăng tay" })).toHaveClass(/platform-option--manual/);
-  await expect(card.getByRole("checkbox", { name: "YouTube Shorts" })).toHaveCount(0);
+  // Every platform is a checkbox (YouTube Shorts uploaded private, Instagram through the Page).
+  await expect(card.getByRole("checkbox", { name: "YouTube Shorts" })).not.toBeChecked();
+  await expect(card.getByRole("checkbox", { name: "Instagram" })).not.toBeChecked();
   // Only the badge and the name show: TikTok's "Nháp vào hộp thư" is its tooltip and its checkbox's description.
   await expect(card.getByRole("checkbox", { name: "TikTok" })).toHaveAccessibleDescription("Nháp vào hộp thư");
   await expect(card.getByText("Nháp vào hộp thư")).toBeHidden();
@@ -1598,12 +1628,12 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   const body = await card.locator(".publish-card__body").boundingBox();
   expect(thumb!.width / (body!.width - 16)).toBeCloseTo(0.4, 1);
   expect(thumb!.height / thumb!.width).toBeCloseTo(16 / 9, 1);
-  // TikTok's API cannot schedule: with "Hẹn giờ" its tile is off and only Facebook is counted.
+  // With "Hẹn giờ" TikTok stays picked: its draft goes at once, Facebook at the time.
   await card.getByTestId("platform-option-tiktok").click();
   await expect(card.getByTestId("post-to-platforms")).toHaveText("Đăng lên 2 nền tảng");
   await card.getByRole("radio", { name: "Hẹn giờ" }).check();
-  await expect(card.getByRole("checkbox", { name: "TikTok" })).toBeDisabled();
-  await expect(card.getByTestId("post-to-platforms")).toHaveText("Hẹn đăng lên 1 nền tảng");
+  await expect(card.getByRole("checkbox", { name: "TikTok" })).toBeEnabled();
+  await expect(card.getByTestId("post-to-platforms")).toHaveText("Hẹn đăng lên 2 nền tảng");
   await card.getByRole("radio", { name: "Đăng ngay" }).check();
   await card.getByTestId("platform-option-tiktok").click();
   await expect(card.getByTestId("post-to-platforms")).toHaveText("Đăng lên 1 nền tảng");
@@ -1647,6 +1677,49 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   await expect(page.getByTestId("progress-post")).toContainText(/1\/1 nền tảng · \d{2}:\d{2}/);
 });
 
+test("Đăng bài: Instagram goes through the Page's linked account, at a time or now", async ({ page }) => {
+  test.setTimeout(240_000);
+  await renderedVideo(page);
+  const card = () => page.getByTestId("ready-card");
+  await card().getByTestId("platform-option-facebook").click();
+  await card().getByTestId("platform-option-instagram").click();
+  // The Page's account is read by the worker's check of the Page; the pick stays across a reload.
+  await expect(async () => {
+    await page.reload();
+    await expect(card().getByTestId("instagram-account")).toHaveText("Instagram: @duongsinh.ig", { timeout: 3_000 });
+  }).toPass({ timeout: 60_000 });
+  const confirmQc = async () => {
+    const ask = page.locator(".ant-modal-confirm").filter({ hasText: "MP4 chưa đạt kiểm tra chất lượng" });
+    await ask.getByRole("button", { name: "Vẫn đăng" }).click();
+  };
+
+  // At a time, like Facebook: the row says when, and "Hủy hẹn" takes it back before anything reaches Instagram.
+  await card().getByRole("radio", { name: "Hẹn giờ" }).check();
+  const inTwoHours = new Date(Date.now() + (2 + 7) * 3_600_000).toISOString().slice(0, 16);
+  await card().getByLabel("Giờ hẹn đăng").fill(inTwoHours);
+  await expect(card().getByTestId("post-to-platforms")).toHaveText("Hẹn đăng lên 1 nền tảng");
+  await card().getByTestId("post-to-platforms").click();
+  await confirmQc();
+  await expect(page.getByTestId("post-toast")).toContainText("Đã hẹn giờ trên Instagram", { timeout: 30_000 });
+  const row = page.getByTestId("platform-row-instagram");
+  await expect(row).toContainText("Hẹn đăng lúc");
+  await expect(card()).toHaveAttribute("data-state", "scheduled");
+  await row.getByRole("button", { name: "Hủy hẹn" }).click();
+  await page.locator(".ant-popconfirm").getByRole("button", { name: "Hủy hẹn" }).click();
+  await expect(row).toHaveCount(0);
+
+  // Now: the worker posts it and the row links to the Reel.
+  await card().getByRole("radio", { name: "Đăng ngay" }).check();
+  await card().getByTestId("post-to-platforms").click();
+  await confirmQc();
+  await expect(page.getByTestId("post-toast")).toContainText("Đã đăng lên Instagram", { timeout: 60_000 });
+  await expect(row).toHaveClass(/post-row--ok/);
+  await expect(row.getByRole("link", { name: "Xem bài trên Instagram (mở tab mới)" })).toHaveAttribute(
+    "href",
+    /^https:\/\/www\.instagram\.com\/reel\//,
+  );
+});
+
 test("the side panel: three tabs at its top, the blocks in order on each, the Logo block in two rows", async ({
   page,
 }) => {
@@ -1683,14 +1756,14 @@ test("the side panel: three tabs at its top, the blocks in order on each, the Lo
   await expect(engage).toHaveAttribute("aria-selected", "true");
   await expect(panel.locator('[data-post-block="products"]')).toBeInViewport();
   // A comment typed there stays when the member goes to another tab and back, and is saved.
-  const pinned = panel.getByLabel("Bình luận ghim");
+  const pinned = panel.getByLabel("Dòng khảo sát");
   await pinned.fill("Ghim thử khi đổi tab");
   await sideTab(page, "Đăng bài");
   await sideTab(page, "Bình luận & Sản phẩm");
   await expect(pinned).toHaveValue("Ghim thử khi đổi tab");
   const id = page.url().split("/videos/")[1];
   await expect
-    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_comment)
+    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_survey)
     .toBe("Ghim thử khi đổi tab");
   await sideTab(page, "Đăng bài");
   // The panel scrolls on its own; its tabs stay in view at its top.
@@ -1896,11 +1969,14 @@ test("a rendered video waits in Chưa đăng until its Facebook cell posts it", 
 test("Tải MP4 for TikTok waits for its link, and pasting it records the post", async ({ page }) => {
   test.setTimeout(240_000);
   await renderedVideo(page);
-  // A TikTok channel added from its link on Quản lý kênh.
-  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
-  await page.getByLabel("Link kênh TikTok hoặc YouTube").fill("https://www.tiktok.com/@kenhthu");
-  await page.getByRole("button", { name: "Thêm kênh" }).click();
-  await expect(page.getByTestId("channel-tiktok")).toContainText("@kenhthu");
+  // A TikTok channel added from its link on Cài đặt › Tài khoản và kênh.
+  await page.goto("/settings/affiliate-accounts");
+  await page.getByRole("button", { name: "Thêm kết nối" }).click();
+  await page.getByRole("menuitem", { name: "Thêm kênh bằng link" }).click();
+  const linkDrawer = page.getByRole("dialog", { name: "Thêm kênh bằng link" });
+  await linkDrawer.getByLabel("Link kênh TikTok hoặc YouTube").fill("https://www.tiktok.com/@kenhthu");
+  await linkDrawer.getByRole("button", { name: "Thêm kênh" }).click();
+  await expect(page.getByTestId("connection-tiktok")).toContainText("@kenhthu");
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   const groups = page.getByTestId("post-group");
@@ -2068,14 +2144,19 @@ test("a posted reel takes an approved product and its link goes in the pinned co
   await page.getByRole("menuitem", { name: "Affiliate" }).click();
   const picker = page.getByLabel(/^Sản phẩm của video/);
   await chooseOption(page, picker, "Vừng đen rang (~10.000đ)");
-  await expect(page.getByRole("button", { name: "Sao chép" })).toBeVisible();
+  await expect(page.getByRole("row").getByText("Vừng đen rang", { exact: true }).first()).toBeVisible();
   await page.keyboard.press("Escape");
   await chooseOption(page, picker, "Trà sen (~5.000đ)");
   await page.keyboard.press("Escape");
   await page.reload();
 
+  // "Sao chép bình luận và link" is under the row's ⋯ (decisions/2026-11-18-affiliate-comment-links.md).
   const copied = async () => {
-    await page.getByRole("button", { name: "Sao chép" }).click();
+    await expect(async () => {
+      await page.getByRole("button", { name: /^Thêm thao tác bình luận/ }).click();
+      await page.getByRole("menuitem", { name: "Sao chép bình luận và link" }).click({ timeout: 2_000 });
+    }).toPass();
+    await expect(page.getByText("Đã sao chép bình luận và link").last()).toBeVisible();
     return page.evaluate(() => navigator.clipboard.readText());
   };
   // The pinned comment (the title, the scenes one per line, the script's sentence), then one line per product.
@@ -2559,10 +2640,10 @@ test("an AI photo for one scene, then a new one in its place", async ({ page }) 
   await expect(preview).not.toHaveAttribute("src", first ?? "", { timeout: 30_000 });
 });
 
-test("AI image provider: the team default on Nguồn tư liệu, another one for a single press", async ({ page }) => {
+test("AI image provider: the team default on AI và nguồn tư liệu, another one for a single press", async ({ page }) => {
   test.setTimeout(240_000);
   await loginAsSeed(page);
-  await page.goto("/settings/sources");
+  await page.goto("/settings/ai");
   // The starting default depends on the server's .env (IMAGE_GEN_PROVIDER); choosing one here wins over it.
   const choice = page.getByTestId("ai-provider");
   await choice.getByLabel("Nguồn ảnh AI mặc định").getByText("Cloudflare (miễn phí)").click();
@@ -2612,7 +2693,7 @@ test("Tự tìm ảnh: after the script every scene gets a stock photo marked to
   test.setTimeout(240_000);
   await loginAsSeed(page);
   // Off for the other E2E tests (api/scripts/e2e_reset.py); on by default for a real team.
-  await page.goto("/settings/sources");
+  await page.goto("/settings/ai");
   const auto = page.getByRole("switch", { name: "Tự tìm ảnh sau khi viết kịch bản" });
   await expect(auto).not.toBeChecked();
   await auto.click();
@@ -2960,7 +3041,7 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
   await page.getByRole("menuitem", { name: "Cài đặt" }).click();
   // A tab clicked before /settings redirects to its first tab loses to that redirect.
   await expect(page).toHaveURL(/\/settings\/defaults$/);
-  await page.getByRole("tab", { name: "Mô hình AI" }).click();
+  await page.getByRole("tab", { name: "AI và nguồn tư liệu" }).click();
   await expect(page).toHaveURL(/\/settings\/ai$/);
   // With nothing set, the team writes with Claude from the server's environment.
   const claude = page.getByTestId("provider-anthropic");
@@ -3159,8 +3240,8 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
 
   await page.getByRole("menuitem", { name: "Cài đặt" }).click();
   await expect(page).toHaveURL(/\/settings\/defaults$/);
-  await page.getByRole("tab", { name: "Nguồn tư liệu" }).click();
-  await expect(page).toHaveURL(/\/settings\/sources$/);
+  await page.getByRole("tab", { name: "AI và nguồn tư liệu" }).click();
+  await expect(page).toHaveURL(/\/settings\/ai$/);
   await page.getByRole("switch", { name: "Bật Pexels" }).click();
   await expect(page.getByRole("switch", { name: "Bật Pexels" })).not.toBeChecked();
   // A key pasted here is stored encrypted and only its last characters come back.
@@ -3171,10 +3252,10 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await pixabayKey.getByRole("button", { name: "Lưu key" }).click();
   await expect(pixabayKey.getByTestId("key-status")).toHaveText("Đã lưu, kết thúc bằng …-key");
   // The team's settings say who changed them last, and their history never shows a key, only its last characters.
-  const stockSection = page.locator("section").filter({ hasText: "Kho ảnh và video miễn phí" });
+  const stockSection = page.getByTestId("group-stock");
   await expect(stockSection.getByTestId("last-edit")).toContainText(`Sửa lần cuối bởi ${SEED.name}`);
-  await page.getByRole("button", { name: "Lịch sử" }).click();
-  const history = page.getByRole("dialog", { name: "Lịch sử: Nguồn tư liệu" });
+  await page.getByTestId("history-stock").getByRole("button", { name: "Lịch sử" }).click();
+  const history = page.getByRole("dialog", { name: "Lịch sử: Kho ảnh và video miễn phí" });
   await expect(history.getByTestId("edit-history-entry")).toHaveCount(2);
   await expect(history).toContainText("Khoá (Pixabay): đã thêm khoá …-key");
   await expect(history).toContainText("Hiện trong hộp chọn (Pexels): Bật → Tắt");
@@ -3535,7 +3616,7 @@ test("30-day plan: an idea added for today becomes a video, linked both ways", a
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
   await plan.getByRole("button", { name: "Chọn ngày 1", exact: true }).click();
-  await idea.getByRole("button", { name: "Tạo video" }).click();
+  await idea.getByRole("link", { name: "Tạo video" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
   await expect(dialog.getByTestId("picked-idea")).toContainText("Theo kế hoạch, ngày 1");
@@ -3677,7 +3758,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
   const plan = health.getByTestId("plan-tab");
   await expect(plan.getByTestId("plan-strip")).toHaveCount(0);
-  await expect(plan.getByTestId("plan-legend")).toContainText("Đã lên lịch");
+  await expect(plan.getByTestId("plan-legend")).toContainText("Đã hẹn giờ");
 
   // Thiết lập: "Huỷ" drops what was changed, "Lưu" sends the changed fields once.
   let patches = 0;
@@ -3753,7 +3834,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await addToday.getByRole("button", { name: "Thêm" }).click();
   const todayIdea = strip.getByTestId("plan-today-idea").filter({ hasText: "Uống trà gừng sau bữa sáng" });
   await expect(todayIdea).toContainText("Ý tưởng");
-  await expect(todayIdea.getByRole("button", { name: "Tạo video" })).toBeVisible();
+  await expect(todayIdea.getByRole("link", { name: "Tạo video" })).toBeVisible();
   await expect(todayIdea.getByRole("button", { name: "Sửa" })).toBeVisible();
   await expect(plan.getByTestId("plan-summary")).toHaveText(/^Đã làm \d+\/\d+, đã lên lịch \d+, ngày còn trống \d+$/);
 
@@ -3790,11 +3871,14 @@ test("knowledge topics: a group's maker turns off Cho cả đội sửa, and a t
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   const health = page.locator('[data-topic="Sức khỏe"]');
   // Nobody is known to have made "Sức khỏe": it is claimed first, as a Page is.
-  await health.getByRole("button", { name: "Nhận nhóm" }).click();
-  const teamEdit = health.getByRole("switch", { name: "Cho cả đội sửa" });
+  await health.getByRole("button", { name: "Thao tác khác với nhóm" }).click();
+  await page.getByRole("menuitem", { name: "Nhận nhóm" }).click();
+  await health.getByRole("button", { name: "Thao tác khác với nhóm" }).click();
+  const teamEdit = page.getByRole("switch", { name: "Cho cả đội sửa" });
   await expect(teamEdit).toBeChecked();
   await teamEdit.click();
   await expect(teamEdit).not.toBeChecked();
+  await page.keyboard.press("Escape");
 
   const binh = await (await browser.newContext({ baseURL: "http://localhost:3100", locale: "vi-VN" })).newPage();
   await login(binh, "binh@doi.vn", "mat-khau-tam-1");
@@ -3806,22 +3890,27 @@ test("knowledge topics: a group's maker turns off Cho cả đội sửa, and a t
   await binh.getByRole("button", { name: /Sức khỏe/ }).click();
   const theirs = binh.locator('[data-topic="Sức khỏe"]');
   await expect(theirs.getByTestId("group-locked")).toContainText(`chỉ ${SEED.name} sửa được nhóm này`);
-  await expect(theirs.getByRole("switch", { name: "Cho cả đội sửa" })).toHaveCount(0);
-  await expect(theirs.getByRole("button", { name: "Đổi tên" })).toHaveCount(0);
+  await theirs.getByRole("button", { name: "Thao tác khác với nhóm" }).click();
+  await expect(binh.getByRole("switch", { name: "Cho cả đội sửa" })).toHaveCount(0);
+  await expect(binh.getByRole("menuitem", { name: "Đổi tên nhóm" })).toHaveAttribute("aria-disabled", "true");
+  await binh.keyboard.press("Escape");
   // Its videos are still made by anyone; its prompts are read, not edited.
-  await expect(theirs.getByRole("button", { name: "Tạo video" })).toBeEnabled();
+  await expect(theirs.getByRole("link", { name: "Tạo video" })).toBeEnabled();
   await theirs.getByRole("tab", { name: "Prompt", exact: true }).click();
   await expect(theirs.getByLabel("Prompt viết kịch bản", { exact: true })).toBeDisabled();
   await theirs.getByRole("tab", { name: "Cài đặt nhóm" }).click();
   await expect(theirs.getByLabel("Từ cấm", { exact: true })).toBeDisabled();
 
   // Turned back on, the teammate edits again.
+  await health.getByRole("button", { name: "Thao tác khác với nhóm" }).click();
   await teamEdit.click();
   await expect(teamEdit).toBeChecked();
+  await page.keyboard.press("Escape");
   await binh.reload();
   await binh.getByRole("button", { name: /Sức khỏe/ }).click();
   await expect(theirs.getByTestId("group-locked")).toHaveCount(0);
-  await expect(theirs.getByRole("button", { name: "Đổi tên" })).toBeVisible();
+  await theirs.getByRole("button", { name: "Thao tác khác với nhóm" }).click();
+  await expect(binh.getByRole("menuitem", { name: "Đổi tên nhóm" })).not.toHaveAttribute("aria-disabled", "true");
 });
 
 test("30-day plan: a file is loaded by overwriting, adding to its days, into the next empty days or replacing its days", async ({
@@ -3973,4 +4062,19 @@ test("Thẻ: a card uploaded over a scene, resized, cut into parts shown as they
   await panel.getByRole("button", { name: "Xoá thẻ" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Xoá" }).click();
   await expect(panel.getByRole("button", { name: "Tải ảnh thẻ" })).toBeVisible();
+});
+
+test("a video is renamed in place and the new name is kept", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "xương khớp sau 50 tuổi");
+  await page.getByRole("button", { name: "Đổi tên video" }).click();
+  const box = page.getByRole("textbox", { name: "Tên video" });
+  await box.fill("Tên mới (copy) (copy)");
+  await page.getByRole("button", { name: "Bỏ (copy)" }).click();
+  await expect(box).toHaveValue("Tên mới");
+  await box.press("Enter");
+  await expect(page.getByTestId("video-title")).toHaveText("Tên mới");
+  await page.reload();
+  await expect(page.getByTestId("video-title")).toHaveText("Tên mới");
 });

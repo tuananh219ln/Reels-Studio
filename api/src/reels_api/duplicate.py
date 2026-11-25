@@ -3,6 +3,7 @@ music, products), with no LLM call. Only its name in the app differs ("… (copy
 copy is rendered before it is posted (docs/decisions/2026-11-14-duplicate-video.md)."""
 
 import copy
+import re
 from pathlib import PurePosixPath
 
 from sqlalchemy import select
@@ -10,9 +11,8 @@ from sqlalchemy.orm import Session as DbSession
 
 from .models import Scene, SceneLayer, SceneSound, Video, VideoAffiliateProduct
 from .storage import DirectoryStorage
-from .videos import new_key, split_scenes, video_name
+from .videos import base_name, new_key, split_scenes, video_name
 
-COPY_SUFFIX = " (copy)"
 MAX_NAME_LENGTH = 200
 
 # What belongs to the source alone, or to its MP4: left to their defaults on the copy.
@@ -33,11 +33,26 @@ _VIDEO_SKIP = {
     "suggest_by_id",
     "suggested_at",
     "suggest_error",
+    # A "Nhân bản xáo cảnh" copy's own (shuffle.py): an exact copy of it is not a shuffle.
+    "shuffled_from_id",
+    "scene_order",
+    "review_title",
 }
 
 
-def copy_name(source_name: str) -> str:
-    return source_name[: MAX_NAME_LENGTH - len(COPY_SUFFIX)] + COPY_SUFFIX
+def with_suffix(source_name: str, suffix: str) -> str:
+    """The source's name without any copy suffix, plus the one `suffix`; the name is cut so the result fits."""
+    return base_name(source_name)[: MAX_NAME_LENGTH - len(suffix)].rstrip() + suffix
+
+
+def copy_name(db: DbSession, source_name: str) -> str:
+    """ "… (bản N)": N is one past the highest "(bản N)" any video already has on the same base name."""
+    base = base_name(source_name)
+    pattern = re.compile(rf"^{re.escape(base)} \(bản (\d+)\)$", re.IGNORECASE)
+    like = base.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    names = db.scalars(select(Video.name).where(Video.name.ilike(f"{like}%", escape="\\")))
+    found = [int(match.group(1)) for name in names if name and (match := pattern.match(name))]
+    return with_suffix(source_name, f" (bản {max(found, default=0) + 1})")
 
 
 class _Files:
@@ -78,27 +93,31 @@ def _with_files(values: dict, files: _Files) -> dict:
 
 def duplicate_video(db: DbSession, storage: DirectoryStorage, source: Video, user_id: int) -> Video:
     title, _ = split_scenes(db, source)
-    draft = Video(
-        **_columns(source, _VIDEO_SKIP),
-        name=copy_name(video_name(source, title)),
-        created_by_id=user_id,
-    )
+    return copy_video(db, storage, source, user_id, copy_name(db, video_name(source, title)))[0]
+
+
+def copy_video(
+    db: DbSession, storage: DirectoryStorage, source: Video, user_id: int, name: str
+) -> tuple[Video, dict[int, Scene]]:
+    """The copy, named `name`, and its scenes by the id of the source's scene each copies."""
+    draft = Video(**_columns(source, _VIDEO_SKIP), name=name, created_by_id=user_id)
     db.add(draft)
     db.flush()
     try:
-        _copy_into(db, source, draft, _Files(storage, draft.id))
+        scenes = _copy_into(db, source, draft, _Files(storage, draft.id))
     except BaseException:
         # Files only stay with the rows: a copy that failed half-way leaves nothing behind.
         storage.delete_prefix(f"videos/{draft.id}")
         raise
-    return draft
+    return draft, scenes
 
 
-def _copy_into(db: DbSession, source: Video, draft: Video, files: _Files) -> None:
+def _copy_into(db: DbSession, source: Video, draft: Video, files: _Files) -> dict[int, Scene]:
     for column in Video.__table__.columns:
         if column.key.endswith("_key"):
             setattr(draft, column.key, files(getattr(draft, column.key)))
     scenes = db.scalars(select(Scene).where(Scene.video_id == source.id).order_by(Scene.id)).all()
+    copied: dict[int, Scene] = {}
     for scene in scenes:
         values = _with_files(_columns(scene, {"id", "video_id"}), files)
         if isinstance(values.get("motion"), dict):
@@ -109,8 +128,34 @@ def _copy_into(db: DbSession, source: Video, draft: Video, files: _Files) -> Non
         ]
         new_scene.sounds = [SceneSound(**_columns(sound, {"id", "scene_id"})) for sound in scene.sounds]
         db.add(new_scene)
+        copied[scene.id] = new_scene
     for product_id in db.scalars(
         select(VideoAffiliateProduct.product_id).where(VideoAffiliateProduct.video_id == source.id)
     ):
         db.add(VideoAffiliateProduct(video_id=draft.id, product_id=product_id))
     db.flush()
+    return copied
+
+
+# "Tạo 3 biến thể" of a winner (docs/decisions/2026-11-24-winner-gate-docs.md): three exact copies, each named for what to
+# change in it, so whoever edits it (a member, or an assistant through MCP) knows the brief. No LLM call here.
+VARIANTS = ("đổi hook", "đổi 1–2 món", "đổi dạng")
+
+
+def variant_drafts(db: DbSession, storage: DirectoryStorage, source: Video, user_id: int) -> list[Video]:
+    """Three draft copies of `source` named "… (biến thể 1: đổi hook)", "… (biến thể 2: đổi 1–2 món)" and
+    "… (biến thể 3: đổi dạng)". All or none: one copy that fails leaves none of the three."""
+    title, _ = split_scenes(db, source)
+    name = video_name(source, title)
+    drafts: list[Video] = []
+    try:
+        for number, change in enumerate(VARIANTS, start=1):
+            drafts.append(
+                copy_video(db, storage, source, user_id, with_suffix(name, f" (biến thể {number}: {change})"))[0]
+            )
+    except BaseException:
+        for draft in drafts:
+            storage.delete_prefix(f"videos/{draft.id}")
+        db.rollback()
+        raise
+    return drafts

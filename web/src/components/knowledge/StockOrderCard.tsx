@@ -27,7 +27,7 @@ export default function StockOrderCard({
   const [sources, setSources] = useState<StockSource[]>([]);
   const [busy, setBusy] = useState(false);
 
-  // Labels and whether each source can be used now (a key pasted, not turned off on Cài đặt › Nguồn tư liệu).
+  // Labels and whether each source can be used now (a key pasted, not turned off on Cài đặt › AI và nguồn tư liệu).
   useEffect(() => {
     let open = true;
     api<StockSource[]>("/stock/sources").then(

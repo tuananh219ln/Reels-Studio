@@ -29,7 +29,7 @@ VALUE_NOTES = {
     'chữ có viền (màu viền là "box_color"); dùng "box" hoặc "none"',
     "title_style": 'same = tiêu đề giống các cảnh, yellow = tiêu đề hộp vàng (khi "title_text_style" là "same")',
     "title_text_style": "same = theo title_style; hoặc một kiểu như text_style cho riêng tiêu đề",
-    "box_opacity": "auto = theo kiểu, solid = đặc, soft = hơi trong (88%), clear = trong (70%), none = không nền",
+    "box_opacity": "auto = theo kiểu, solid = đặc, soft = hơi trong (88%), clear = trong (70%), faint = rất trong (45%), none = không nền",
     "text_size": "large = lớn, medium = vừa, small = nhỏ",
     "title_text_size": "large = lớn, medium = vừa, small = nhỏ",
     "text_case": "upper = viết HOA hết, keep = giữ chữ như kịch bản viết",

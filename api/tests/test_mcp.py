@@ -587,6 +587,34 @@ def test_claude_code_loopback_matches_any_port_but_the_exchange_needs_the_one_us
         assert authorize(mcp_client, cid, redirect_uri=other).status_code == 400
 
 
+def test_gemini_cli_loopback_connects_on_its_own_path_and_is_named_gemini(mcp_client, db):
+    # Gemini CLI listens on http://localhost:<port>/oauth/callback (its docs), a port of its own each time.
+    cid, details, code = grant_to(
+        mcp_client, db, "http://localhost:7777/oauth/callback", "http://localhost:40555/oauth/callback"
+    )
+    assert details["app"] == "Gemini" and details["loopback"] is True
+    tokens = exchange(mcp_client, cid, code, "http://localhost:40555/oauth/callback")
+    assert tokens.status_code == 200, tokens.text
+    assert [row["app"] for row in mcp_client.get("/api/mcp/connections").json()] == ["Gemini"]
+    # A client registered on one loopback path may not go back to the other.
+    assert authorize(mcp_client, cid, redirect_uri="http://localhost:40555/callback").status_code == 400
+
+
+# Antigravity CLI (agy): its hosted callback, from https://antigravity.google/oauth/client-metadata.json.
+ANTIGRAVITY_CALLBACK = "https://antigravity.google/oauth-callback"
+
+
+def test_antigravity_connects_through_its_hosted_callback_and_is_named_on_consent(mcp_client, db):
+    cid, details, code = grant_to(mcp_client, db, ANTIGRAVITY_CALLBACK, ANTIGRAVITY_CALLBACK)
+    assert details["app"] == "Antigravity"
+    assert details["redirect_host"] == "antigravity.google" and details["loopback"] is False
+    tokens = exchange(mcp_client, cid, code, ANTIGRAVITY_CALLBACK)
+    assert tokens.status_code == 200, tokens.text
+    assert [row["app"] for row in mcp_client.get("/api/mcp/connections").json()] == ["Antigravity"]
+    # Only that exact address on its host.
+    assert register(mcp_client, "https://antigravity.google/other").status_code == 400
+
+
 # Muse (Meta's assistant): the exact callback it sent, read from the "MCP registration refused" log line.
 MUSE_CALLBACK = "https://agent.meta.ai/api/hatch/oauth/callback"
 
@@ -857,11 +885,8 @@ def test_a_script_written_from_the_group_prompt_is_saved_like_a_job_and_named_as
     assert video.has_script and not video.hand_written and video.written_via == "assistant"
     assert video.created_by_id == user.id
     assert video.title_options == GROUP_SCRIPT["titles"]
-    # The AI's question follows the title and the scenes, filled in from the video (pinned.py).
-    assert (video.caption, video.pinned_comment) == (
-        "Nhà bạn hay ăn rau gì?",
-        "{title}\n{items}\nBạn thích rau nào nhất?",
-    )
+    # The AI's question is the survey line, under the title and the scenes taken from the video (pinned.py).
+    assert (video.caption, video.pinned_survey) == ("Nhà bạn hay ăn rau gì?", "Bạn thích rau nào nhất?")
     assert video.self_review == GROUP_SCRIPT["self_review"]
     scenes = db.scalars(select(Scene).where(Scene.video_id == video.id).order_by(Scene.position)).all()
     assert [(s.is_title, s.text, s.voice_text) for s in scenes] == [
@@ -1115,3 +1140,21 @@ def test_a_script_sent_over_mcp_is_offered_the_types_and_keeps_the_one_picked(mc
     )
     assert not made.get("isError"), made
     assert payload(made)["content_type"] == "Mẹo"
+
+
+def test_update_scene_sets_the_photo_frame_and_auto_clears_it(mcp_client, db, storage):
+    """ "Khung ảnh" through the assistant: a fit and the square's place are set, "auto" and the reset clear them."""
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    video = make_video(db, storage, user)
+    scene = db.scalar(select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False)))
+    edited = call(mcp_client, token, "update_scene", scene_id=scene.id, image_fit="square", image_crop_offset=0.25)
+    assert not edited.get("isError"), edited
+    db.refresh(scene)
+    assert (scene.image_fit, scene.image_crop_offset) == ("square", 0.25)
+    back = call(mcp_client, token, "update_scene", scene_id=scene.id, image_fit="auto", reset_image_crop_offset=True)
+    assert not back.get("isError"), back
+    db.refresh(scene)
+    assert (scene.image_fit, scene.image_crop_offset) == (None, None)
+    title = db.scalar(select(Scene).where(Scene.video_id == video.id, Scene.is_title))
+    assert call(mcp_client, token, "update_scene", scene_id=title.id, image_fit="whole")["isError"]

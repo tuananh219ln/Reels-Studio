@@ -1,7 +1,8 @@
 "use client";
 
+import StatusText from "@/components/StatusText";
 import { EditOutlined, UndoOutlined } from "@ant-design/icons";
-import { App, Button, Col, Flex, Popconfirm, Row, Spin, Tag, Typography } from "antd";
+import { App, Button, Col, Flex, Popconfirm, Row, Spin, Typography } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DefaultMusicCard from "@/components/settings/DefaultMusicCard";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
@@ -89,7 +90,7 @@ export default function VideoDefaultsPage() {
           saved !== null &&
           (editing ? (
             <>
-              {dirty && <Tag color="warning">Có thay đổi chưa lưu</Tag>}
+              {dirty && <StatusText tone="warning">Có thay đổi chưa lưu</StatusText>}
               <Button disabled={busy} onClick={() => setDraft(null)}>
                 Huỷ
               </Button>

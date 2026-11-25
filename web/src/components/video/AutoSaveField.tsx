@@ -1,5 +1,6 @@
 "use client";
 
+import { COLORS } from "@/app/theme";
 import { QuestionCircleOutlined } from "@ant-design/icons";
 import { Button, Flex, Input, Tooltip, Typography } from "antd";
 import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
@@ -72,7 +73,6 @@ export default function AutoSaveField({
   help,
   words,
   onTextChange,
-  insertions,
 }: {
   label: string;
   value: string;
@@ -89,8 +89,6 @@ export default function AutoSaveField({
   words?: { min?: number; max: number };
   /** Called with the text as it is typed, before it is saved: a live preview follows it. */
   onTextChange?: (text: string) => void;
-  /** Small buttons under the field that put their text where the cursor is (the pinned comment's variables). */
-  insertions?: { label: string; text: string; title?: string }[];
 }) {
   const editor = useEditor();
   const field = useId();
@@ -102,8 +100,6 @@ export default function AutoSaveField({
   // The same as dirty, as state, for rendering: refs are read only in handlers and effects.
   const [unsaved, setUnsaved] = useState(false);
   const latest = useRef(value);
-  // Where the cursor was last, for `insertions`; null puts the text at the end.
-  const caret = useRef<number | null>(null);
   // Saves of this field run one after another, so an older text can never land after a newer one.
   const queue = useRef<Promise<void>>(Promise.resolve());
 
@@ -124,16 +120,6 @@ export default function AutoSaveField({
     latest.current = next;
     setText(next);
     onTextChange?.(next);
-  }
-
-  function insert(piece: string) {
-    const at = Math.min(caret.current ?? latest.current.length, latest.current.length);
-    edit(latest.current.slice(0, at) + piece + latest.current.slice(at));
-    caret.current = at + piece.length;
-    // Typed into right now: saved when the field is left, as typing is; otherwise saved at once.
-    if (!focused.current) {
-      commit();
-    }
   }
 
   function commit() {
@@ -182,9 +168,6 @@ export default function AutoSaveField({
       focused.current = false;
       commit();
     },
-    onSelect: (event: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      caret.current = event.currentTarget.selectionStart;
-    },
   };
 
   return (
@@ -195,7 +178,7 @@ export default function AutoSaveField({
           {label}
           {help && (
             <Tooltip title={help}>
-              <QuestionCircleOutlined aria-label="Cách viết" style={{ marginLeft: 6, color: "#8c8c8c" }} />
+              <QuestionCircleOutlined aria-label="Cách viết" style={{ marginLeft: 6, color: COLORS.textSecondary }} />
             </Tooltip>
           )}
         </Typography.Text>
@@ -231,22 +214,6 @@ export default function AutoSaveField({
         )}
         {status.kind !== "error" && hint && !viewing && <Typography.Text type="secondary">{hint}</Typography.Text>}
       </Flex>
-      {insertions && !editor.locked && !editor.readOnly && (
-        <Flex wrap gap={4} data-testid="field-insertions">
-          {insertions.map((item) => (
-            <Tooltip key={item.text} title={item.title}>
-              <Button
-                size="small"
-                // Pressing keeps the cursor in the field, so the text goes where it was.
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => insert(item.text)}
-              >
-                {item.label}
-              </Button>
-            </Tooltip>
-          ))}
-        </Flex>
-      )}
     </div>
   );
 }

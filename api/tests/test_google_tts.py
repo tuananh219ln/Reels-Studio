@@ -1,4 +1,4 @@
-"""Google Cloud Text-to-Speech voices: the key on Cài đặt › Mô hình AI, its voices in the picker, and narration read by
+"""Google Cloud Text-to-Speech voices: the key on Cài đặt › AI và nguồn tư liệu, its voices in the picker, and narration read by
 Google."""
 
 import pytest
@@ -72,6 +72,7 @@ def test_a_google_key_change_is_logged_on_the_ai_page_without_the_key(an, fakes)
 
 def test_google_alone_lists_its_voices_and_says_elevenlabs_has_no_key(an, fakes, monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "")
+    monkeypatch.setenv("IMAGE_GEN_API_KEY", "")  # Gemini's voices come with the AI photo key
     monkeypatch.setenv("GOOGLE_TTS_API_KEY", GOOGLE_TTS_KEY)
     payload = an.get("/api/settings/voices").json()
     assert {voice["service"] for voice in payload["voices"]} == {"google"}
@@ -79,18 +80,22 @@ def test_google_alone_lists_its_voices_and_says_elevenlabs_has_no_key(an, fakes,
 
 
 def test_a_wrong_google_key_still_shows_the_other_voices_with_the_reason(an, fakes, monkeypatch):
+    monkeypatch.setenv("IMAGE_GEN_API_KEY", "")
     monkeypatch.setenv("GOOGLE_TTS_API_KEY", "AIzaWrongKey-wrong-wrong")
     payload = an.get("/api/settings/voices").json()
     assert {voice["service"] for voice in payload["voices"]} == {"elevenlabs"}
-    assert payload["problems"] == ["Key Google Cloud không hợp lệ: kiểm tra lại ở Cài đặt › Mô hình AI"]
+    assert payload["problems"] == [
+        "Key Google Cloud không hợp lệ hoặc đã bị thu hồi: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu"
+    ]
 
 
 def test_with_no_voice_key_at_all_the_voice_list_names_both_pages(an, fakes, monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "")
+    monkeypatch.setenv("IMAGE_GEN_API_KEY", "")
     refused = an.get("/api/settings/voices")
     assert refused.status_code == 422
     message = refused.json()["message"]
-    assert "Nguồn tư liệu" in message and "Mô hình AI" in message and "Google" in message
+    assert "AI và nguồn tư liệu" in message and "Google" in message
 
 
 def test_a_google_voice_name_is_a_valid_voice_id_and_reads_with_the_google_key():
@@ -145,7 +150,7 @@ def test_render_with_a_google_voice_and_no_key_says_where_to_paste_one(committed
     user, storage, video_id = voiced
     use_achernar(committed, video_id)
     job = render(committed, storage, video_id, user.id)
-    assert job.status == "failed" and "Chưa có key Google" in job.error and "Mô hình AI" in job.error
+    assert job.status == "failed" and "Chưa có key Google" in job.error and "AI và nguồn tư liệu" in job.error
     assert fakes.google_tts_requests == [] and fakes.tts_requests == []
 
 

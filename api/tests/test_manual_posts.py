@@ -125,3 +125,28 @@ def test_the_video_list_links_each_platform_to_its_post(an, db, me, storage):
         "youtube": "https://youtu.be/AbCdEf12345",
     }
     assert an.get(f"/api/videos/{video.id}").json()["posted_links"] == row["posted_links"]
+
+
+def test_a_tiktok_draft_is_marked_as_a_draft(an, db, me, storage):
+    """TikTok's inbox draft is "published" for the worker, but the video is not public until its owner posts it."""
+    video = rendered(db, storage, me)
+    db.add(
+        Publication(video_id=video.id, platform="tiktok", status="published", publish_mode="draft", created_by_id=me.id)
+    )
+    db.commit()
+    row = next(row for row in an.get("/api/videos").json() if row["id"] == video.id)
+    assert row["posted_on"] == ["tiktok"]
+    assert row["posted_states"] == {"tiktok": "draft"}
+    assert an.get(f"/api/videos/{video.id}").json()["posted_states"] == {"tiktok": "draft"}
+
+
+def test_a_direct_or_hand_recorded_tiktok_post_is_not_a_draft(an, db, me, storage):
+    video = rendered(db, storage, me)
+    db.add(
+        Publication(
+            video_id=video.id, platform="tiktok", status="published", publish_mode="direct", created_by_id=me.id
+        )
+    )
+    db.commit()
+    row = next(row for row in an.get("/api/videos").json() if row["id"] == video.id)
+    assert row["posted_on"] == ["tiktok"] and row["posted_states"] == {}

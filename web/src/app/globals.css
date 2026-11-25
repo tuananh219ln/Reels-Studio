@@ -133,15 +133,34 @@ body {
 
 .scene-body {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: fit-content(510px) minmax(260px, 1fr);
   gap: 16px;
   align-items: start;
 }
 
-@container (max-width: 700px) {
+@container (max-width: 820px) {
   .scene-body {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* The motion title's slot names wrap onto as many rows as fit, so the picture's column stays narrow. */
+.title-cells {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 6px 12px;
+}
+
+.title-cells__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.title-cells__item .ant-input {
+  min-width: 0;
+  width: 100%;
 }
 
 @container (max-width: 440px) {
@@ -623,10 +642,10 @@ body {
 /* Video preview ("Xem trước"): the render's motion, crossfade and slide, played in the browser. */
 @keyframes preview-motion {
   from {
-    transform: translateX(var(--x0)) scale(var(--z0));
+    transform: translate(var(--x0), var(--y0, 0%)) scale(var(--z0));
   }
   to {
-    transform: translateX(var(--x1)) scale(var(--z1));
+    transform: translate(var(--x1), var(--y1, 0%)) scale(var(--z1));
   }
 }
 
@@ -668,4 +687,82 @@ body {
 .stock-tile:focus-visible {
   outline: 2px solid #c2410c;
   outline-offset: 1px;
+}
+
+/* "Phân tích đối thủ": a row that opens on click, and the open one marked on its left edge. */
+.competitor-row {
+  cursor: pointer;
+}
+.competitor-row--open > td:first-child {
+  box-shadow: inset 3px 0 0 var(--ant-color-primary);
+}
+
+/* A Segmented control with many choices ("Chuyển cảnh", "Chuyển động ảnh"): its choices wrap onto more lines
+   instead of running off a phone's screen. */
+.segmented-wrap.ant-segmented {
+  max-width: 100%;
+}
+
+.segmented-wrap .ant-segmented-group {
+  flex-wrap: wrap;
+}
+
+/* A card that is one link: its title's <a class="stretched-link"> is stretched over the whole card, so a click,
+ * Ctrl-click, middle click and right-click "Mở trong tab mới" work anywhere on it. Links, buttons and fields inside
+ * stay above it and keep their own click. */
+.stretch-host {
+  position: relative;
+}
+.stretch-host .stretched-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.stretch-host :is(a, button, input, .ant-select, .ant-switch, .ant-dropdown-trigger):not(.stretched-link) {
+  position: relative;
+  z-index: 1;
+}
+
+/* The pencil beside a video's name (VideoNameEditor): it shows, and takes clicks, while the name is hovered or the
+ * pencil has keyboard focus; an unseen pencil never catches a click meant for its row. Always there on touch screens
+ * and where the page asks for it. */
+.name-edit-btn:not(.always, .armed) {
+  opacity: 0;
+  pointer-events: none;
+}
+.name-edit-btn.armed,
+.name-edit-btn:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .name-edit-btn {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
+
+/* "Tài liệu" of Kho kiến thức: the Markdown a document renders to. */
+.doc-markdown table {
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+.doc-markdown th,
+.doc-markdown td {
+  border: 1px solid var(--ant-color-border-secondary, #d9d9d9);
+  padding: 4px 10px;
+  text-align: left;
+}
+.doc-markdown pre,
+.doc-markdown code {
+  background: var(--ant-color-fill-tertiary, rgba(0, 0, 0, 0.04));
+  border-radius: 4px;
+}
+.doc-markdown pre {
+  padding: 8px 12px;
+  overflow-x: auto;
+}
+.doc-markdown code {
+  padding: 0 4px;
 }

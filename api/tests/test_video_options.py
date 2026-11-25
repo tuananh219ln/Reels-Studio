@@ -73,6 +73,33 @@ def test_bad_defaults_are_refused(an):
         assert refused.status_code == 422 and refused.json()["message"].startswith(message), values
 
 
+def test_the_added_image_effects_are_saved_and_given_back(an, db, me, storage):
+    values = {"transition": "smooth_slide", "motion": "handheld", "zoom": "extreme"}
+    for transition in ("zoom", "flash", "black", "blur", "smooth_slide"):
+        for motion in ("kenburns_diagonal", "pan_vertical", "handheld", "punch_in"):
+            saved = an.put(DEFAULTS_URL, json={"values": {"transition": transition, "motion": motion}})
+            assert saved.status_code == 200, (transition, motion)
+    an.put(DEFAULTS_URL, json={"values": values})
+    shown = an.get(DEFAULTS_URL).json()
+    assert {name: shown[name] for name in values} == values
+    video = make_video(db, storage, me)
+    payload = an.patch(f"/api/videos/{video.id}", json={"options": values}).json()
+    assert {name: payload["options"][name] for name in values} == values
+    db.refresh(video)
+    options = video_options.render_options(video)
+    assert (options.transition, options.motion, options.zoom_end) == ("smooth_slide", "handheld", 1.6)
+    choices = video_options.choices()
+    assert "punch_in" in choices["motion"] and "extreme" in choices["zoom"] and "smooth_slide" in choices["transition"]
+
+
+def test_a_stored_default_no_longer_accepted_falls_back_alone(an, db, me):
+    # A value the app does not know (removed since, or written by newer code) is the built-in one; the rest stays.
+    db.add(UserVideoDefaults(user_id=me.id, value={"motion": "spin", "zoom": "huge", "transition": "black"}))
+    db.commit()
+    shown = an.get(DEFAULTS_URL).json()
+    assert (shown["motion"], shown["zoom"], shown["transition"]) == ("zoom_in", "medium", "black")
+
+
 def test_a_video_changes_its_own_settings_and_later_defaults_never_change_them(an, db, me, storage):
     video = make_video(db, storage, me)
     before = an.get(f"/api/videos/{video.id}").json()["title_scene"]["preview_url"]
@@ -155,7 +182,8 @@ def test_a_clone_takes_its_sources_settings(an, db, me, storage, fakes):
     assert draft["options"]["zoom"] == "strong" and draft["voice_enabled"] is False
 
 
-def test_the_voice_list_comes_from_elevenlabs(an, fakes):
+def test_the_voice_list_comes_from_elevenlabs(an, fakes, monkeypatch):
+    monkeypatch.setenv("IMAGE_GEN_API_KEY", "")  # Gemini's voices come with its key
     payload = an.get("/api/settings/voices").json()
     assert payload["default_id"] == config.DEFAULT_VOICE_ID
     assert [voice["name"] for voice in payload["voices"]] == ["Adam", "Mai"]
@@ -166,11 +194,12 @@ def test_without_an_elevenlabs_key_the_voice_list_says_so(an, monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "")
     refused = an.get("/api/settings/voices")
     assert refused.status_code == 422
-    assert "Chưa có key ElevenLabs" in refused.json()["message"] and "Nguồn tư liệu" in refused.json()["message"]
+    assert "Chưa có key ElevenLabs" in refused.json()["message"] and "AI và nguồn tư liệu" in refused.json()["message"]
 
 
 def test_an_elevenlabs_key_pasted_on_the_sources_page_lists_the_voices(an, fakes, monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "")
+    monkeypatch.setenv("IMAGE_GEN_API_KEY", "")  # Gemini's voices come with its key
     before = an.get("/api/settings/sources").json()["voices"]
     assert (before["configured"], before["key"]["origin"]) == (False, None)
 
@@ -181,11 +210,17 @@ def test_an_elevenlabs_key_pasted_on_the_sources_page_lists_the_voices(an, fakes
     assert [voice["name"] for voice in an.get("/api/settings/voices").json()["voices"]] == ["Adam", "Mai"]
 
 
-def test_a_wrong_elevenlabs_key_says_where_to_fix_it(an, fakes):
+def test_a_wrong_elevenlabs_key_says_where_to_fix_it(an, fakes, monkeypatch):
+    monkeypatch.setenv("IMAGE_GEN_API_KEY", "")  # with Gemini's voices there would be voices to show
+    # The .env key is tried after a saved one that fails (source_keys.chain), so leave the wrong key alone.
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "")
     an.put("/api/settings/sources/elevenlabs/key", json={"api_key": "not-the-fake-key"})
     refused = an.get("/api/settings/voices")
     assert refused.status_code == 422
-    assert "Key ElevenLabs không hợp lệ" in refused.json()["message"] and "Nguồn tư liệu" in refused.json()["message"]
+    assert (
+        "Key ElevenLabs không hợp lệ" in refused.json()["message"]
+        and "AI và nguồn tư liệu" in refused.json()["message"]
+    )
 
 
 @needs_ffmpeg

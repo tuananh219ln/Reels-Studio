@@ -8,6 +8,7 @@ import { COLORS } from "@/app/theme";
 import FilterSelect from "@/components/FilterSelect";
 import FormDrawer from "@/components/FormDrawer";
 import { useMe } from "@/components/MeContext";
+import GuideButton from "@/components/GuideButton";
 import PageHeader from "@/components/PageHeader";
 import StatusText from "@/components/StatusText";
 import SampleFields, { type SampleValues } from "@/components/video/SampleFields";
@@ -15,6 +16,7 @@ import { groupVideoModeLabel, VIDEO_MODES, videoModeLabel } from "@/components/v
 import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import VideoThumbnail from "@/components/VideoThumbnail";
+import VideoNameEditor from "@/components/VideoNameEditor";
 import VideoTitleCell from "@/components/VideoTitleCell";
 import {
   api,
@@ -69,6 +71,7 @@ import {
   theme,
   Typography,
 } from "antd";
+import { rowLink } from "@/lib/rowLink";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, Suspense, useCallback, useEffect, useState } from "react";
@@ -357,9 +360,12 @@ function Videos() {
       <PageHeader
         title="Video"
         actions={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => startFrom(null)}>
-            Tạo video
-          </Button>
+          <>
+            <GuideButton screen="videos" />
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => startFrom(null)}>
+              Tạo video
+            </Button>
+          </>
         }
       >
         <Input
@@ -520,21 +526,13 @@ function CardChip({
   testId: string;
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const { token } = theme.useToken();
-  const open = (event: React.SyntheticEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    router.push(href);
-  };
   return (
-    <span
-      role="link"
-      tabIndex={0}
+    <Link
+      href={href}
+      prefetch={false}
       aria-label={label}
       data-testid={testId}
-      onClick={open}
-      onKeyDown={(event) => event.key === "Enter" && open(event)}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -544,12 +542,12 @@ function CardChip({
         borderRadius: 11,
         border: `1px solid ${token.colorBorderSecondary}`,
         fontSize: 12,
-        cursor: "pointer",
+        color: "inherit",
         whiteSpace: "nowrap",
       }}
     >
       {children}
-    </span>
+    </Link>
   );
 }
 
@@ -637,9 +635,10 @@ function VideoCard({
   versions: VideoRow[];
   onChanged: () => Promise<void>;
 }) {
-  const router = useRouter();
   const { token } = theme.useToken();
   const name = row.name || row.title || row.topic;
+  // "Đổi tên" in the card's menu opens the name editor in place of the title link.
+  const [renaming, setRenaming] = useState(false);
   const post = row.post;
   const standout = post?.times_median != null && post.times_median >= STANDOUT_TIMES;
   // A job's stage or a warning, said in words after the status rather than as more tags.
@@ -648,11 +647,7 @@ function VideoCard({
   return (
     <div
       role="group"
-      tabIndex={0}
-      onClick={() => router.push(`/videos/${row.id}`)}
-      onKeyDown={(event) => {
-        if (event.target === event.currentTarget && event.key === "Enter") router.push(`/videos/${row.id}`);
-      }}
+      className="stretch-host"
       aria-label={name}
       data-testid="video-card"
       style={{ display: "flex", flex: 1, minWidth: 0 }}
@@ -699,22 +694,34 @@ function VideoCard({
         </div>
         <Flex vertical style={{ minWidth: 0, flex: 1 }}>
           <Flex justify="space-between" gap={4}>
-            <Link href={`/videos/${row.id}`} prefetch={false}>
-              <Typography.Paragraph
-                strong
-                ellipsis={{ rows: 2, tooltip: name }}
-                style={{ margin: 0, lineHeight: "20px" }}
-              >
-                {name}
-              </Typography.Paragraph>
-            </Link>
-            <VideoActions video={row} onChanged={onChanged} />
+            {renaming ? (
+              <VideoNameEditor
+                videoId={row.id}
+                name={row.name}
+                title={row.title || row.topic}
+                maxWidth={400}
+                editing
+                onEditingChange={setRenaming}
+                onSaved={onChanged}
+              />
+            ) : (
+              <Link href={`/videos/${row.id}`} prefetch={false} className="stretched-link">
+                <Typography.Paragraph
+                  strong
+                  ellipsis={{ rows: 2, tooltip: name }}
+                  style={{ margin: 0, lineHeight: "20px" }}
+                >
+                  {name}
+                </Typography.Paragraph>
+              </Link>
+            )}
+            <VideoActions video={row} onChanged={onChanged} onRename={() => setRenaming(true)} />
           </Flex>
           {/* Its kind on the left; where it is out on the right, every platform's icon in colour once posted there. */}
           <Flex justify="space-between" align="flex-start" gap={8} style={{ marginTop: 6 }}>
             <VideoKindTags video={row} />
             <div style={{ flex: "none", paddingTop: 2 }}>
-              <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} size={13} />
+              <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} size={13} />
             </div>
           </Flex>
           {post ? (
@@ -812,6 +819,8 @@ function VideoTable({
   // The table's page is in the address too, back to 1 when a filter changes.
   const tablePage = useUrlPage();
   const router = useRouter();
+  // One row's name is open for editing at a time; opening another closes (cancels) it.
+  const [renaming, setRenaming] = useState<number | null>(null);
   return (
     <Card styles={{ body: { padding: 0 } }}>
       <Table<VideoRow>
@@ -820,7 +829,7 @@ function VideoTable({
         pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
         scroll={{ x: 1100 }}
         onRow={(row) => ({
-          onClick: () => router.push(`/videos/${row.id}`),
+          ...rowLink((href) => router.push(href), `/videos/${row.id}`),
           style: { cursor: "pointer" },
           "data-testid": "video-row",
         })}
@@ -830,7 +839,7 @@ function VideoTable({
             title: "Thao tác",
             fixed: "right",
             width: 120,
-            render: (_, row) => <VideoActions video={row} onChanged={onChanged} />,
+            render: (_, row) => <VideoActions video={row} onChanged={onChanged} onRename={() => setRenaming(row.id)} />,
           },
           {
             title: "Video",
@@ -842,6 +851,18 @@ function VideoTable({
                 title={row.name || row.title || row.topic}
                 thumbnailUrl={row.thumbnail_url}
                 maxWidth={340}
+                editor={
+                  <VideoNameEditor
+                    videoId={row.id}
+                    name={row.name}
+                    title={row.title || row.topic}
+                    href={`/videos/${row.id}`}
+                    maxWidth={340}
+                    editing={renaming === row.id}
+                    onEditingChange={(on) => setRenaming(on ? row.id : null)}
+                    onSaved={onChanged}
+                  />
+                }
                 sub={
                   row.post ? (
                     postLine(row.post)
@@ -864,10 +885,10 @@ function VideoTable({
                   <VideoStatusTags video={row} />
                   {row.post && (
                     <StatusText tone={row.post.state === "posted" ? "success" : "waiting"} style={{ fontSize: 13 }}>
-                      {row.post.state === "posted" ? "Đã đăng" : "Đã lên lịch"}
+                      {row.post.state === "posted" ? "Đã đăng" : "Đã hẹn giờ"}
                     </StatusText>
                   )}
-                  <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} />
+                  <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} />
                 </Flex>
                 <VideoKindTags video={row} />
                 <VersionLinks versions={versions.get(row.id) ?? []} />
@@ -1193,7 +1214,7 @@ function NewVideoModal({
               <>
                 {llm.problem}.{" "}
                 <Link prefetch={false} href="/settings/ai">
-                  Mở Cài đặt › Mô hình AI
+                  Mở Cài đặt › AI và nguồn tư liệu
                 </Link>
               </>
             ) : (

@@ -7,11 +7,13 @@ import CloneModal, { type CloneTarget } from "@/components/video/CloneModal";
 import MoveGroupDrawer from "@/components/video/MoveGroupDrawer";
 import { PublishButton } from "@/components/video/PublishCard";
 import QueueButton from "@/components/video/QueueButton";
+import ShuffleModal from "@/components/video/ShuffleModal";
 import type { VideoRow } from "@/lib/api";
 import { api, errorMessage, type VideoDetail } from "@/lib/api";
 import { MoreOutlined } from "@ant-design/icons";
 import { App, Button, Dropdown, Flex, Spin, Typography } from "antd";
 import type { MenuProps } from "antd";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import JobActions from "./JobActions";
@@ -21,10 +23,13 @@ import ApproveVideoButton from "./ApproveVideoButton";
 export default function VideoActions({
   video,
   onChanged,
+  onRename,
 }: {
   video: Pick<VideoRow, "id" | "title" | "topic"> &
     Partial<Pick<VideoRow, "name" | "plan_day" | "post_stage" | "queue" | "suggested_post_at">>;
   onChanged?: () => void | Promise<void>;
+  /** Adds "Đổi tên" first in the menu, opening the name editor of the row. */
+  onRename?: () => void;
 }) {
   const { me } = useMe();
   const { message, modal } = App.useApp();
@@ -34,6 +39,7 @@ export default function VideoActions({
   const [failed, setFailed] = useState(false);
   const [clone, setClone] = useState<CloneTarget | null>(null);
   const [moving, setMoving] = useState(false);
+  const [shuffling, setShuffling] = useState(false);
   async function read() {
     setFailed(false);
     try {
@@ -68,7 +74,7 @@ export default function VideoActions({
       },
     });
   }
-  /** "Nhân bản y hệt": an exact copy named "… (copy)", no AI call; it opens so the member renders it. */
+  /** "Nhân bản y hệt": an exact copy named "… (bản N)", no AI call; it opens so the member renders it. */
   async function duplicate() {
     try {
       const copy = await api<VideoDetail>(`/videos/${video.id}/duplicate`, "POST");
@@ -89,7 +95,15 @@ export default function VideoActions({
     const mine = detail.created_by_id === me.id;
     const posting = Boolean(detail.mp4) || Boolean(detail.active_job ?? detail.failed_job);
     return [
-      { key: "open", label: "Mở video", onClick: () => router.push(`/videos/${video.id}`) },
+      ...(onRename ? [{ key: "rename", label: "Đổi tên", onClick: onRename }] : []),
+      {
+        key: "open",
+        label: (
+          <Link href={`/videos/${video.id}`} prefetch={false}>
+            Mở video
+          </Link>
+        ),
+      },
       ...(posting ? [{ key: "post", label: "Đăng bài, hàng chờ, job…", onClick: () => setOpen(true) }] : []),
       ...(detail.mp4
         ? [{ key: "mp4", label: "Tải MP4", onClick: () => window.location.assign(detail.mp4!.download_url) }]
@@ -98,6 +112,7 @@ export default function VideoActions({
         ? [
             { key: "clone", label: "Nhân bản", onClick: () => setClone("same") },
             { key: "duplicate", label: "Nhân bản y hệt", onClick: () => void duplicate() },
+            { key: "shuffle", label: "Nhân bản xáo cảnh", onClick: () => setShuffling(true) },
             ...(detail.platform === "facebook"
               ? [{ key: "tiktok", label: "Tạo bản TikTok", onClick: () => setClone("tiktok") }]
               : []),
@@ -209,6 +224,12 @@ export default function VideoActions({
             </Flex>
           </FormDrawer>
           <CloneModal videoId={video.id} target={clone} onClose={() => setClone(null)} />
+          <ShuffleModal
+            videoId={video.id}
+            open={shuffling}
+            onClose={() => setShuffling(false)}
+            onCreated={() => changed()}
+          />
           <MoveGroupDrawer
             video={detail}
             open={moving}

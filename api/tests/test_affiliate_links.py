@@ -151,6 +151,32 @@ def test_a_short_link_to_a_product_already_listed_says_so(an, db, fakes):
     assert "đã có trong danh sách" in failed["lookup_error"]
 
 
+def test_a_teammates_product_of_the_same_item_does_not_block_my_lookup(an, db, me, fakes):
+    with_shopee_account(an)
+    fakes.shopee_items[45113237093] = shopee_offer(45113237093, "Hạt giống rau muống")
+    fakes.shopee_short_links["4LKghKN3cR"] = REDIRECT
+    binh = make_user(db, email="binh@doi.vn", name="Trần Bình")
+    db.add(
+        AffiliateProduct(
+            knowledge_topic_id=first_topic(db).id,
+            name="Hạt giống",
+            shopee_item_id=45113237093,
+            shop_name="Shop",
+            shop_type="mall",
+            rating=4.9,
+            sold=1000,
+            price=1,
+            commission_rate=8,
+            created_by_id=binh.id,
+        )
+    )
+    db.commit()
+    paste(an, db, SHORT)
+    run_lookups(db)
+    mine = db.scalar(select(AffiliateProduct).where(AffiliateProduct.created_by_id == me.id))
+    assert mine.lookup_error is None and mine.shopee_item_id == 45113237093
+
+
 def test_a_failed_lookup_is_shown_kept_and_can_be_asked_again(an, db, fakes):
     with_shopee_account(an)
     paste(an, db, SHORT)  # the fake has no redirect for it yet
@@ -188,9 +214,9 @@ def test_without_an_app_id_a_link_pasted_on_a_video_is_a_draft_holding_only_the_
     (row,) = pasted["products"]
     assert (row["url"], row["status"], row["lookup"]) == (SHORT, "draft", None)
     assert row["knowledge_topic_id"] == first_topic(db).id
-    assert row["problems"], "the rest is filled in by hand before it can be chosen"
+    assert row["problems"] == [], "stars and sales not being filled in does not block choosing it"
     chosen = an.post(f"{PRODUCTS}/videos/{video.id}/choose", json={"product_id": row["id"]})
-    assert chosen.status_code == 409
+    assert chosen.status_code == 200, chosen.text
 
 
 def test_with_an_app_id_a_link_pasted_on_a_video_is_read_by_the_worker_and_can_be_chosen(an, db, me, storage, fakes):
@@ -240,14 +266,14 @@ def test_only_shopee_links_are_pasted_on_a_video(an, db, me, storage, link):
 def test_the_file_from_shopee_affiliate_is_imported_as_drafts(an, db):
     response = import_file(an, db, f"﻿{FILE_HEADER}{FILE_ROW}\n")
     assert response.status_code == 201, response.text
-    assert response.json() == {"added": 1, "updated": 0, "kept": 0, "others": [], "errors": [], "lookup": False}
+    assert response.json() == {"added": 1, "updated": 0, "shared": 0, "errors": [], "lookup": False}
     product = only_product(an)
     assert product["name"] == "Combo 3 Gói Hạt Giống Rau Ăn Lá (Rau Muống, Mồng Tơi)"
     assert (product["price"], product["commission_rate"], product["shop_name"]) == (45000, 2.5, "HỒNG HÀ F1 SEEDS")
     assert product["url"] == SHORT and product["page_url"] == "https://shopee.vn/product/1346703635/45113237093"
     assert product["status"] == "draft" and product["lookup"] is None
-    # Stars, sales and the shop's type are not in the file: a member fills them in before approving.
-    assert product["problems"]
+    # Stars, sales and the shop's type are not in the file: they stay unfilled and do not block approving.
+    assert (product["rating"], product["sold"]) == (0, 0) and product["problems"] == []
 
 
 def test_an_imported_product_is_completed_by_the_worker_when_the_team_has_a_shopee_account(an, db, fakes):
@@ -303,3 +329,17 @@ def test_editing_by_hand_clears_a_failed_lookup(an, db, fakes):
         "commission_rate": 2.5,
     }
     assert an.put(f"{PRODUCTS}/{product['id']}", json=body).json()["lookup"] is None
+
+
+def test_the_file_may_carry_short_names_groups_and_tags_for_the_comment_sets(an, db):
+    header = FILE_HEADER.rstrip("\n") + ",Tên ngắn,Nhóm,Tags\n"
+    row = FILE_ROW.rstrip("\n") + ',Hạt rau muống,Hạt giống,"rau, Hạt giống ; rau"\n'
+    assert import_file(an, db, header + row).json()["added"] == 1
+    product = db.scalar(select(AffiliateProduct))
+    assert (product.short_name, product.category, product.tags) == ("Hạt rau muống", "Hạt giống", ["rau", "hạt giống"])
+
+    blank = FILE_ROW.rstrip("\n") + ",,,\n"
+    assert import_file(an, db, header + blank).json()["updated"] == 1
+    db.expire_all()
+    product = db.scalar(select(AffiliateProduct))
+    assert (product.short_name, product.tags) == ("Hạt rau muống", ["rau", "hạt giống"]), "empty cells keep them"

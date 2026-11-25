@@ -10,7 +10,7 @@ from reels_render.captions import plan_captions
 from reels_render.errors import InputError
 from reels_render.ffmpeg import probe
 from reels_render.graph import CaptionInput, build_filter_graph, zoom_expression
-from reels_render.options import DEFAULT_OPTIONS, RenderOptions
+from reels_render.options import DEFAULT_OPTIONS, ZOOMS, RenderOptions
 from reels_render.render import render_video
 from reels_render.script import load_script
 from reels_render.textbox import (
@@ -78,6 +78,79 @@ def test_motion_presets():
     assert zoom_expression(31, "static") == "1"
     graph = build_filter_graph(BOXES, build_timeline([2, 2, 2]), None, options=RenderOptions(motion="pan"))
     assert "x='(iw-iw/zoom)*on/" in graph
+
+
+def test_the_original_motions_and_zooms_render_as_before():
+    # Videos saved before the 2026-11-19 presets must render the same graph: linear motion, the same zoom values.
+    assert ZOOMS["light"] == 1.06 and ZOOMS["medium"] == 1.12 and ZOOMS["strong"] == 1.18
+    graph = build_filter_graph(BOXES, build_timeline([2, 2, 2]), None)
+    assert "zoompan=z='1+0.1200*on/65':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'" in graph
+    assert "cos(" not in graph and "sin(" not in graph
+
+
+def test_the_extreme_zoom():
+    assert RenderOptions(zoom="extreme").zoom_end == 1.6
+    assert zoom_expression(31, "zoom_in", 1.6) == "1+0.6000*on/30"
+
+
+def test_kenburns_diagonal_zooms_and_drifts_down_and_right_eased():
+    assert zoom_expression(31, "kenburns_diagonal", 1.18) == "1+0.1800*(1-cos(PI*on/30))/2"
+    options = RenderOptions(motion="kenburns_diagonal")
+    graph = build_filter_graph(BOXES, build_timeline([2, 2, 2]), None, options=options)
+    assert "x='(iw-iw/zoom)*(1-cos(PI*on/" in graph and "y='(ih-ih/zoom)*(1-cos(PI*on/" in graph
+
+
+def test_pan_vertical_holds_the_zoom_and_travels_down_eased():
+    assert zoom_expression(31, "pan_vertical", 1.12) == "1.1200"
+    graph = build_filter_graph(BOXES, build_timeline([2, 2, 2]), None, options=RenderOptions(motion="pan_vertical"))
+    assert "x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)*(1-cos(PI*on/" in graph
+
+
+def test_handheld_zooms_half_way_and_shakes_inside_the_room_left():
+    assert zoom_expression(31, "handheld", 1.6) == "1.3000"
+    graph = build_filter_graph(BOXES, build_timeline([2, 2, 2]), None, options=RenderOptions(motion="handheld"))
+    assert "x='iw/2-(iw/zoom/2)+(iw-iw/zoom)/2*0.6*(sin(on/7)+0.5*sin(on/13))/1.5'" in graph
+    assert "y='ih/2-(ih/zoom/2)+(ih-ih/zoom)/2*0.6*(cos(on/9)+0.5*cos(on/17))/1.5'" in graph
+
+
+def test_punch_in_reaches_the_zoom_in_a_third_of_a_second_and_holds():
+    assert zoom_expression(60, "punch_in", 1.18) == "if(lt(on,9),1+0.1800*(1-pow(1-on/9,3)),1.1800)"
+    # A backdrop photo punches in once, at the video's start.
+    assert "lt((on+40),9)" in zoom_expression(60, "punch_in", 1.18, span=(40, 200))
+
+
+@pytest.mark.parametrize(
+    ("transition", "xfade"),
+    [
+        ("zoom", "zoomin"),
+        ("flash", "fadewhite"),
+        ("black", "fadeblack"),
+        ("blur", "hblur"),
+        ("smooth_slide", "smoothleft"),
+    ],
+)
+def test_the_added_video_transitions(transition, xfade):
+    graph = build_filter_graph(BOXES, build_timeline([2, 2, 2]), None, options=RenderOptions(transition=transition))
+    # Still the 0.4 s crossfade, so the length and every narration stay where the timeline put them.
+    assert graph.count(f"xfade=transition={xfade}:duration=0.400000") == 2
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("motion", ["kenburns_diagonal", "pan_vertical", "handheld", "punch_in"])
+def test_the_added_motions_never_show_an_edge_at_the_extreme_zoom(tmp_path, motion):
+    # A bright photo: any black border the motion let in would darken a frame's edges.
+    make_image(tmp_path / "a.jpg", (1080, 1920), (230, 230, 230))
+    data = script_data(scene_count=2, image="a.jpg", seconds=2)
+    for item in data["scenes"]:
+        item["seconds"] = 2
+    script = load_script(write_script(tmp_path, data))
+    options = RenderOptions(transition="smooth_slide", motion=motion, zoom="extreme")
+    output = render_video(script, tmp_path / "out.mp4", options=options)
+    assert float(probe("ffprobe", output)["format"]["duration"]) == pytest.approx(6.0, abs=1 / 30)
+    for second in (0.1, 1.0, 3.0, 5.9):
+        frame = extract_frame(output, second, tmp_path / "frame.png").convert("L")
+        for edge in ((0, 0, 8, 1920), (1072, 0, 1080, 1920), (0, 0, 1080, 8), (0, 1912, 1080, 1920)):
+            assert ImageStat.Stat(frame.crop(edge)).mean[0] > 150, (motion, second, edge)
 
 
 def test_voice_level_and_ducking_only_touch_the_audio_with_narration_and_music():
@@ -250,6 +323,8 @@ def test_a_team_box_style_draws_its_own_colours_and_opacity():
     assert palette_for("box", "#FFFFFF", "#1D4ED8", "auto", "solid") == Palette("#1D4ED8", "#FFFFFF", "#FFD60A")
     assert palette_for("box", "#FFFFFF", "#1D4ED8", "auto", "soft").box == (29, 78, 216, 224)
     assert palette_for("box", "#FFFFFF", "#111111", "#FF7A00", "clear").box == (17, 17, 17, 178)
+    # "Rất trong": 45% of the box colour, so a black one dims only the photo behind the text.
+    assert palette_for("box", "#FFFFFF", "#111111", "auto", "faint").box == (17, 17, 17, 115)
     # An opacity of its own applies to the older boxes too; "auto" keeps theirs (Tối stays 88%).
     assert palette_for("dark").box == (17, 17, 17, 224)
     assert palette_for("dark", box_opacity="solid").box == (17, 17, 17, 255)

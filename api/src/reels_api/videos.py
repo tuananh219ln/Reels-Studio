@@ -9,11 +9,13 @@ from datetime import date, datetime
 from pathlib import Path
 
 from PIL import Image, ImageOps
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
 from reels_render.blur import blur_image
+from reels_render.framing import COVER
 from reels_render.layers import HALF, HALF_HEIGHT_DEFAULT, HALF_X, half_height, half_y, is_card, is_half
+from reels_render.logo import TEXT_TOP_MIN
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 from reels_render.timeline import VOICE_LEAD, VOICE_TAIL, fit_seconds
 
@@ -21,6 +23,7 @@ from . import (
     affiliate,
     analytics,
     brands,
+    competitors,
     facebook,
     fanpages,
     hashtags,
@@ -33,7 +36,7 @@ from . import (
 )
 from .clips import ClipError, frame_at
 from .errors import ApiError
-from .frames import thumbnail_bytes
+from .frames import is_framed, photo_blurry, plan_photo, text_height, thumbnail_bytes
 from .models import (
     ACTIVE_JOB_STATUSES,
     Fanpage,
@@ -56,7 +59,7 @@ from .script_rules import MAX_SECONDS as MAX_SCENE_SECONDS
 from .script_rules import MIN_SECONDS as MIN_SCENE_SECONDS
 from .script_rules import Checks, Issue, SceneInput, check_script, plain_title, text_problem
 from .sessions import now
-from .storage import DirectoryStorage
+from .storage import DirectoryStorage, get_storage
 from .tts import voice_signature
 from .video_options import (
     effective,
@@ -86,7 +89,6 @@ STATUS_LABELS = {
     "done": "Xong",
     "failed": "Lỗi",
 }
-POST_FIELDS = {"caption": "Caption", "pinned_comment": "Bình luận ghim"}
 # How a video is built (Video.mode): each scene over its own photo or clip, or one backdrop ("Video xuyên suốt").
 MODES = {"slides": "Slide ảnh", "single": "Video xuyên suốt"}
 # A topic group's "Kiểu video" (KnowledgeTopic.video_mode): one of MODES, or by turns on the Vietnam calendar day.
@@ -158,8 +160,11 @@ JOB_KINDS = {
     "rework": "Nâng cấp kịch bản và tư liệu",
     "article_caption": "Viết bài viết",
     "article_image": "Tạo ảnh AI cho bài viết",
+    "slot_comments": "Tạo bình luận ghim",
     "motion": "Cảnh động",
     "tiktok_publish": "Đăng TikTok",
+    "youtube_publish": "Tải lên YouTube",
+    "ig_publish": "Đăng Instagram",
 }
 # What a post can still be cancelled or deleted from; `cancelled` and `deleted` are final.
 LIVE_POST_STATUSES = ("scheduled", "published")
@@ -177,8 +182,10 @@ def new_key(video_id: int, name: str, extension: str) -> str:
 
 def drop_original(scene: Scene) -> str | None:
     """The photo kept from before "Sửa ảnh" (image_edit.py), forgotten when the scene gets another photo or a clip or
-    loses its photo: the caller deletes the returned file with the ones it replaces."""
+    loses its photo: the caller deletes the returned file with the ones it replaces. Where the square was cut
+    ("Khung ảnh") belongs to the old photo too."""
     key, scene.image_original_key = scene.image_original_key, None
+    scene.image_crop_offset = None
     return key
 
 
@@ -230,6 +237,10 @@ def ensure_unlocked(db: DbSession, video: Video) -> None:
         raise ApiError(409, "video_locked", "Video đang kiểm tra bài trên Facebook, chưa lưu")
     if job.kind == "tiktok_publish":
         raise ApiError(409, "video_locked", "Video đang đăng lên TikTok, chưa lưu")
+    if job.kind == "youtube_publish":
+        raise ApiError(409, "video_locked", "Video đang tải lên YouTube, chưa lưu")
+    if job.kind == "ig_publish":
+        raise ApiError(409, "video_locked", "Video đang đăng lên Instagram, chưa lưu")
     if job.kind == "voice":
         raise ApiError(409, "video_locked", "Video đang tạo giọng đọc, chưa lưu")
     if job.kind == "revise":
@@ -374,6 +385,79 @@ def text_position(video: Video, scene: Scene) -> list[int] | None:
     return effective(video)["text_position"] or opposite_the_inset(video, scene)
 
 
+def framable(video: Video, scene: Scene) -> bool:
+    """A content scene's photo on a slide video, which "Khung ảnh" frames (reels_render.framing). The title (the
+    cover) and a backdrop video's photo always fill the frame."""
+    return not scene.is_title and not is_backdrop(video) and bool(scene.image_key) and not scene.video_key
+
+
+def photo_fit(video: Video, scene: Scene) -> str:
+    """The scene's "image_fit" for the render: its own, "auto" when none was chosen, "cover" when it is not framed."""
+    return (scene.image_fit or "auto") if framable(video, scene) else COVER
+
+
+def text_floor(video: Video, scene: Scene) -> int | None:
+    """Where a content scene's text may start while the channel's logo is on, as the render keeps it."""
+    return TEXT_TOP_MIN if not scene.is_title and brands.logo_signature(video) is not None else None
+
+
+def text_reserve(storage: DirectoryStorage, video: Video, scenes: list[Scene]) -> int | None:
+    """The tallest text box among the video's scenes whose photo is laid over its blurred copy: every such photo starts
+    on one line below it (reels_render.framing), as the render works it out. None when no scene has one."""
+    options = render_options(video)
+    heights = [
+        text_height(scene.text, False, options)
+        for scene in scenes
+        if framable(video, scene)
+        and storage.exists(scene.image_key)
+        and is_framed(storage.path(scene.image_key), photo_fit(video, scene))
+    ]
+    return max(heights, default=0) or None
+
+
+def photo_framing(
+    storage: DirectoryStorage, video: Video, scene: Scene, centre: object = "placed", reserve: int | None = None
+):
+    """How the render frames the scene's photo and the photo's size (frames.plan_photo), with the text where it is
+    placed (or at `centre`) and the video's tallest `reserve`; None when it is not framed or its file is not there."""
+    fit = photo_fit(video, scene)
+    if fit == COVER or not storage.exists(scene.image_key):
+        return None
+    return plan_photo(
+        storage.path(scene.image_key),
+        fit,
+        scene.text,
+        False,
+        render_options(video),
+        text_position(video, scene) if centre == "placed" else centre,
+        text_floor(video, scene),
+        scene.image_crop_offset,
+        reserve,
+    )
+
+
+def blurry_photo(storage: DirectoryStorage, video: Video, scene: Scene) -> bool:
+    """ "Ảnh mờ, nên thay ảnh khác" on a framed photo ("Khung ảnh", the spec's quality check): measured once per photo."""
+    return framable(video, scene) and storage.exists(scene.image_key) and photo_blurry(storage.path(scene.image_key))
+
+
+def frame_payload(video: Video, scene: Scene, reserve: int | None = None) -> dict | None:
+    """ "Khung ảnh" for the scene's card: what was chosen (`fit`, None: "Tự động"), what the render does (`kind`), the
+    photo's `shape`, where the square is cut (`offset`), and where the text goes when nobody placed it (`text_at`).
+    None for a scene that is not framed."""
+    if not framable(video, scene):
+        return None
+    planned = photo_framing(get_storage(), video, scene, centre=None, reserve=reserve)
+    framing, shape = planned if planned else (None, None)
+    return {
+        "fit": scene.image_fit,
+        "kind": framing.kind if framing else COVER,
+        "shape": list(shape) if shape else None,
+        "offset": scene.image_crop_offset,
+        "text_at": list(framing.text_centre) if framing and framing.text_centre else None,
+    }
+
+
 def opposite_the_inset(video: Video, scene: Scene) -> list[int] | None:
     """Where a content scene's text goes when nobody placed it (its own, the video's) and the scene has an inset photo:
     the side facing away from it, so it does not sit on the photo. An inset flush with the top edge leaves the text at
@@ -472,13 +556,26 @@ def layer_payload(layer: SceneLayer, case: str = "upper", video: Video | None = 
     }
 
 
+AUTO_TITLE_REVEAL = "auto_title_reveal"  # SceneSound.origin of the title motion's ting (title_motion.sync_title_sfx)
+TING_GAIN_DB = -3.0  # the render plays each of those 3 dB under their "soft" level, so seven in a row do not pile up
+
+
 def sound_fields(sound: SceneSound) -> dict:
     """A sound effect as the render script reads it (reels_render.sounds.SceneSound)."""
-    return {"sound": sound.sound, "start": sound.start, "volume": sound.volume}
+    fields = {"sound": sound.sound, "start": sound.start, "volume": sound.volume}
+    if sound.origin == AUTO_TITLE_REVEAL:
+        fields["gain_db"] = TING_GAIN_DB
+    return fields
 
 
 def sound_payload(sound: SceneSound) -> dict:
-    return {"id": sound.id, **sound_fields(sound), "url": f"/api/sounds/library/{sound.sound}.mp3"}
+    return {
+        "id": sound.id,
+        **sound_fields(sound),
+        "origin": sound.origin,
+        "slot_index": sound.slot_index,
+        "url": f"/api/sounds/library/{sound.sound}.mp3",
+    }
 
 
 def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> str:
@@ -501,6 +598,12 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             # The studio's effects join only when set, so MP4s rendered before they existed stay current.
             *([["transition", scene.transition]] if scene.transition else []),
             *([["color", scene.color]] if scene.color else []),
+            # "Khung ảnh" joins only when chosen, so MP4s rendered before it existed stay current.
+            *(
+                [["image_fit", photo_fit(video, scene), scene.image_crop_offset]]
+                if framable(video, scene) and (scene.image_fit or scene.image_crop_offset is not None)
+                else []
+            ),
             *(
                 # A half-frame photo's own photo joins too; other layers have none, so their fingerprint stays.
                 [["layers", [layer_fields(layer) | _own_photo(layer) for layer in layers]]]
@@ -539,13 +642,36 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
-def scene_still(storage: DirectoryStorage, scene: Scene) -> Path | Image.Image | None:
-    """What the scene's first frame is drawn from: the clip's frame at its start time, or the photo."""
+# A "Tiêu đề động" (title_motion.py) pops its slots in from 0.1 s to 1.7 s and has settled by 2.4 s, so its first frame
+# is nearly empty: the thumbnail and the Facebook cover show this second instead.
+TITLE_POSTER_SECOND = 2.6
+
+
+def title_poster_second(scene: Scene) -> float | None:
+    """The second of the scene's motion title where every slot is in place; None for a scene that is not one (or
+    whose clip is not the motion any more), which stands for itself at its first frame."""
+    made = scene.motion
+    if not (scene.is_title and made and made.get("title") and made.get("clip_key") == scene.video_key):
+        return None
+    return round(max(0.0, min(TITLE_POSTER_SECOND, (scene.seconds or 3.0) - 0.2)), 2)
+
+
+def motion_cover_second(db: DbSession, video: Video) -> float | None:
+    """Where a platform's cover is taken in the MP4 when the video's title is a motion title (`title_poster_second`);
+    None for any other title, which keeps the platform's own pick (or the first frame)."""
+    title, _ = split_scenes(db, video)
+    return title_poster_second(title) if title is not None else None
+
+
+def scene_still(storage: DirectoryStorage, scene: Scene, poster: bool = False) -> Path | Image.Image | None:
+    """What the scene's first frame is drawn from: the clip's frame at its start time, or the photo. With `poster`
+    (the thumbnail) a motion title is drawn from its settled frame."""
     if scene.video_key:
         if not storage.exists(scene.video_key):
             return None
         try:
-            frame = frame_at(storage.path(scene.video_key), scene.video_start)
+            second = title_poster_second(scene) if poster else None
+            frame = frame_at(storage.path(scene.video_key), scene.video_start if second is None else second)
         except ClipError:
             return None
         if blurred := blur_of(scene):
@@ -561,7 +687,7 @@ def scene_still(storage: DirectoryStorage, scene: Scene) -> Path | Image.Image |
 def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, title: Scene | None) -> None:
     """The thumbnail is the title scene's preview; it follows every change of that photo, clip or text."""
     old = video.thumbnail_key
-    still = scene_still(storage, title) if title is not None else None
+    still = scene_still(storage, title, poster=True) if title is not None else None
     if still is None:
         video.thumbnail_key = None
     else:
@@ -594,19 +720,21 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             text_case(video, scene.is_title),
             photo_credit(scene),
             bool(scene.video_key and scene.video_loop),
+            blurry_photo(storage, video, scene),
         )
 
+    storage = get_storage()
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
 
 
 def run_checks(db: DbSession, video: Video, title: Scene | None, scenes: list[Scene]) -> Checks:
     title_input, scene_input = scene_inputs(video, title, scenes)
-    posts = {name: getattr(video, name) for name in POST_FIELDS}
-    # The pinned comment is checked as it reads now, its variables filled from these scenes (pinned.py).
+    # Of the pinned comment, only its survey line is checked for banned words: its title and its list are the title
+    # scene and the scenes, which warn by themselves; a word there would otherwise warn twice (pinned.py).
     source = pinned.scenes_source(title, scenes, pinned.product_names(db, video.id), video.topic)
-    posts["pinned_comment"] = pinned.render(video.pinned_comment, source)
+    posts = {"caption": video.caption, "pinned_comment": video.pinned_survey}
     checks = check_script(title_input, scene_input, posts, knowledge.banned_words(db, video))
-    checks.warnings.extend(pinned.validate(video.pinned_comment, source, video.extra_comments))
+    checks.warnings.extend(pinned.validate(video.pinned_survey, source, video.extra_comments))
     for scene in scenes:
         # A photo layer without a photo of its own shows its scene's: a clip, or no picture, leaves it nothing.
         drawn = drawn_layers(video, scene)
@@ -635,7 +763,7 @@ def queue_position(db: DbSession, job: Job) -> int:
 
 
 # A video with its MP4 and no job, by where its posts stand: "Xong" said nothing about posting (2026-11-12).
-POST_STAGE_LABELS = {"ready": "Chờ đăng", "scheduled": "Đã lên lịch", "posted": "Đã đăng"}
+POST_STAGE_LABELS = {"ready": "Chờ đăng", "scheduled": "Đã hẹn giờ", "posted": "Đã đăng"}
 
 
 def post_stage(extras: dict) -> str:
@@ -662,6 +790,7 @@ def _status(db: DbSession, video: Video, job: Job | None, failed: Job | None) ->
             "render": "rendering",
             "publish": "publishing",
             "tiktok_publish": "publishing",
+            "youtube_publish": "publishing",
             "unpublish": "unpublishing",
             "check": "checking",
             "image": "imaging",
@@ -737,7 +866,8 @@ def tiktok_posts_of(db: DbSession, video_id: int) -> list[Publication]:
     )
 
 
-# Platforms a video is posted to only by hand, its post recorded with its link (routes_manual_posts.py).
+# Platforms whose post may also be recorded by hand with its link (routes_manual_posts.py); the app also sends to them
+# through their API (YouTube private upload, Instagram through its Page).
 MANUAL_PLATFORMS = {"youtube": "YouTube Shorts", "instagram": "Instagram Reels"}
 
 
@@ -746,14 +876,16 @@ POST_PLATFORMS = ("facebook", "tiktok", "youtube", "instagram")
 
 
 def manual_posts_of(db: DbSession, video_id: int) -> list[Publication]:
-    """The video's posts on YouTube Shorts and Instagram Reels, recorded by hand, newest first."""
+    """The video's posts on YouTube Shorts and Instagram Reels, newest first: recorded by hand, uploaded private to
+    YouTube through the member's own connection (routes_youtube.py), or posted to Instagram through its Page
+    (routes_instagram.py). A post that never reached the platform and was replaced or cancelled is left out."""
     return list(
         db.scalars(
             select(Publication)
             .where(
                 Publication.video_id == video_id,
                 Publication.platform.in_(MANUAL_PLATFORMS),
-                Publication.status != "pending_link",
+                Publication.status.not_in(("pending_link", "cancelled")),
             )
             .order_by(Publication.id.desc())
         )
@@ -769,6 +901,22 @@ def manual_post_payload(post: Publication) -> dict:
         "at": live_at(post).isoformat(),
         "created_by": post.created_by.name,
         "created_by_id": post.created_by_id,
+        # pending (uploading to YouTube) | private (uploaded, waiting to be made public in YouTube Studio) | published
+        # | deleted; one recorded by hand is published.
+        "status": post.status,
+        "channel": post.channel.name if post.channel else None,
+        # "app_api": sent by the app (YouTube upload, Instagram through its Page), "manual_link": recorded by hand.
+        "source": post.source,
+        # An Instagram post through the API: its Page, and its time while it waits for it ("Hủy hẹn").
+        "fanpage": post.fanpage.name if post.fanpage else None,
+        "scheduled_at": post.scheduled_at.isoformat() if post.status == "scheduled" and post.scheduled_at else None,
+        # A private upload: when its member planned to make it public (a reminder), and where to do it.
+        "planned_at": post.scheduled_at.isoformat() if post.status == "private" and post.scheduled_at else None,
+        "studio_url": (
+            f"https://studio.youtube.com/video/{post.external_id}/edit"
+            if post.platform == "youtube" and post.external_id and post.source == "app_api"
+            else None
+        ),
     }
 
 
@@ -899,6 +1047,41 @@ def motion_payload(scene: Scene) -> dict | None:
     return {"html": motion["html"], "seconds": motion["seconds"], "pending": bool(motion.get("pending"))}
 
 
+def title_motion_payload(scene: Scene) -> dict | None:
+    """The title scene's "Tiêu đề động" (title_motion.py): its layout, how many dishes, whether the scene shows it
+    (`mode`) and whether its clip is made (`ready`) or being made (`pending`); None for a scene without one."""
+    made = scene.motion
+    if not scene.is_title or not made or not made.get("title"):
+        return None
+    shown = bool(made.get("clip_key") and made["clip_key"] == scene.video_key)
+    return {
+        "layout": made["title"]["layout"],
+        "requested": made["title"].get("requested", "auto"),
+        "count": made["title"]["count"],
+        "mode": "motion" if shown or made.get("pending") else "classic",
+        "ready": bool(made.get("clip_key")) and not made.get("pending"),
+        "pending": bool(made.get("pending")),
+        "has_classic": bool(made.get("classic")),
+        "labels": made["title"].get("labels", []),
+        "reveal_times": made["title"].get("reveal_times"),
+        # Per slot: its own photo's address (None while it follows its scene's photo) and the scene it was told to
+        # take from (None: the scene in the same place below the title).
+        "slots": [
+            {
+                "photo_url": (
+                    f"/api/title-motion/{scene.id}/slots/{index}/photo?v={_version(slot['image_key'])}"
+                    if slot.get("image_key")
+                    else None
+                ),
+                "from_scene": slot.get("from_scene"),
+            }
+            for index, slot in enumerate(
+                [*(made["title"].get("slots") or []), *([{}] * made["title"]["count"])][: made["title"]["count"]]
+            )
+        ],
+    }
+
+
 def photo_credit(scene: Scene) -> dict | None:
     """The credit the scene's shown photo asks for, without its url; None for no photo, a clip, or a photo that needs
     none. Kept only while the photo it was noted for is still the scene's (any other photo ends it)."""
@@ -910,7 +1093,7 @@ def photo_credit(scene: Scene) -> dict | None:
     return {name: value for name, value in credit.items() if name != "url"}
 
 
-def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
+def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | None = None) -> dict:
     image = f"/api/scenes/{scene.id}"
     size, case = text_size(video, scene.is_title), text_case(video, scene.is_title)
     voice_seconds = made_voice_seconds(video, scene)
@@ -918,6 +1101,13 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     position = text_position(video, scene)
     if position:
         style = [*style, "text_position", *position]
+    # A framed photo's preview also follows its fit, its square, the logo's row and its text's height.
+    frame_look = (
+        ["fit", photo_fit(video, scene), scene.image_crop_offset, text_floor(video, scene), scene.text, reserve]
+        if framable(video, scene)
+        else []
+    )
+    style = [*style, *frame_look]
     still = scene.video_key or scene.image_key
     return {
         "id": scene.id,
@@ -973,7 +1163,11 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "text_position": [scene.text_x, scene.text_y] if scene.text_x is not None else None,
         "placed_at": position,  # where it goes after all: its own place, the video's, or None (the template's)
         # The drag is drawn from the frame without text and the exact box image the renderer overlays.
-        "frame_url": f"{image}/frame.jpg?v={_version(still, scene.video_start, blur_of(scene))}" if still else None,
+        "frame_url": (
+            f"{image}/frame.jpg?v={_version(still, scene.video_start, blur_of(scene), *frame_look)}" if still else None
+        ),
+        # "Khung ảnh": how the photo fills the frame; None for a title, a clip or a backdrop video's scene.
+        "image_frame": frame_payload(video, scene, reserve),
         "textbox_url": (
             f"{image}/textbox.png?v={_version(scene.text, *preview_look(video, scene.is_title))}"
             if scene.text.strip() and text_problem(scene.text, scene.is_title, size, case) is None
@@ -988,6 +1182,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "voice_id": scene.voice_id,  # its own voice; None: the video's
         # A "Cảnh động" (motion.py): its markup and seconds while the scene shows its clip or it is being made.
         "motion": motion_payload(scene),
+        "title_motion": title_motion_payload(scene),
         "blocking": [issue.message for issue in checks.blocking if issue.scene_id == scene.id],
         "warnings": [issue.message for issue in checks.warnings if issue.scene_id == scene.id],
         # The same, each with the field it is about, so the page can offer the fix beside it ("Lặp clip").
@@ -1069,8 +1264,54 @@ def title_of(video: Video, title: Scene | None) -> str:
 
 
 def video_name(video: Video, title: Scene | None) -> str:
-    """How lists name a video: its own name ("… (copy)"), else its title scene's text, else its topic."""
+    """How lists name a video: its own name ("… (bản 2)"), else its title scene's text, else its topic."""
     return video.name or title_of(video, title) or video.topic
+
+
+# What "Nhân bản" and "Nhân bản xáo cảnh" add to a name: "(copy)" (older copies), "(bản N)", "(xáo N)", "(biến thể N: …)".
+NAME_SUFFIX = re.compile(r"(\s*\((?:copy|bản \d+|xáo \d+|biến thể \d+[^)]*)\))+\s*$", re.IGNORECASE)
+
+
+def base_name(name: str | None) -> str:
+    """The name without the copy suffixes at its end, so a copy of a copy carries one suffix, not a pile."""
+    return NAME_SUFFIX.sub("", name or "").strip()
+
+
+def _plain_title(text: str | None) -> str:
+    return " ".join((text or "").replace("*", "").split()).casefold()
+
+
+def title_review(video: Video, title: Scene | None) -> bool:
+    """A "Nhân bản xáo cảnh" copy (shuffle.py) whose title scene still says what its source's did: the app asks for a
+    new title until it changes or a member presses "Bỏ qua"."""
+    return video.review_title is not None and _plain_title(title_of(video, title)) == _plain_title(video.review_title)
+
+
+def shuffle_payload(db: DbSession, video: Video, title: Scene | None) -> dict | None:
+    """The video page's banner on a "Nhân bản xáo cảnh" copy: its source, whether a new title is still asked for, and
+    the other copies (or the source) whose title is the same as this one's."""
+    if video.scene_order is None:
+        return None
+    source = db.get(Video, video.shuffled_from_id) if video.shuffled_from_id else None
+    mine = _plain_title(title_of(video, title))
+    same = []
+    if source is not None and mine:
+        rows = db.execute(
+            select(Video, Scene)
+            .join(Scene, (Scene.video_id == Video.id) & Scene.is_title.is_(True))
+            .where(or_(Video.shuffled_from_id == source.id, Video.id == source.id), Video.id != video.id)
+            .order_by(Video.id)
+        ).all()
+        same = [
+            {"id": other.id, "name": video_name(other, other_title)}
+            for other, other_title in rows
+            if _plain_title(title_of(other, other_title)) == mine
+        ]
+    return {
+        "source": {"id": source.id, "name": video_name(source, split_scenes(db, source)[0])} if source else None,
+        "review": title_review(video, title),
+        "same_title": same,
+    }
 
 
 def notes_payload(db: DbSession, video: Video, title: Scene | None, scenes: list[Scene]) -> list[dict]:
@@ -1110,6 +1351,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
     job = active_job(db, video.id)
     failed = _last_failed(db, video.id)
     checks = run_checks(db, video, title, scenes) if video.has_script else Checks()
+    # Every framed photo starts on one line below the tallest text box of the video's framed scenes.
+    reserve = text_reserve(get_storage(), video, scenes)
     topic = knowledge.topic_of(db, video)
     posts = publications_of(db, video.id)
     # One small query, and only for a video that has posts: this payload answers every save and poll of the editor.
@@ -1121,6 +1364,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "topic": video.topic,
         "title": title_of(video, title),
         "name": video.name,
+        "title_review": title_review(video, title),
         "has_script": video.has_script,
         "hand_written": video.hand_written,
         "title_options": video.title_options,
@@ -1137,6 +1381,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
             _video_link(db, variant)
             for variant in db.scalars(select(Video).where(Video.variant_of_id == video.id).order_by(Video.id))
         ],
+        # A "Nhân bản xáo cảnh" copy's banner; None for any other video.
+        "shuffle": shuffle_payload(db, video, title),
         "tiktok_posts": [tiktok_post_payload(post) for post in tiktok_posts_of(db, video.id)],
         # YouTube Shorts and Instagram Reels, posted by hand from the same MP4.
         "manual_posts": [manual_post_payload(post) for post in manual_posts_of(db, video.id)],
@@ -1147,11 +1393,10 @@ def video_payload(db: DbSession, video: Video) -> dict:
         },
         # The products whose links go in the comment under the video's reels (post_comments.py).
         "affiliate_product_ids": [product.id for product in affiliate.products_of(db, video.id)],
-        # The template a member edits, and what it reads as now: "Copy ghim" and the Page's comment use the latter.
-        "pinned_comment": video.pinned_comment,
-        "pinned_comment_text": pinned.render(video.pinned_comment, pinned_source),
-        # The attached products' names, for `{products}` in the web's live preview (web/src/lib/pinned.ts).
-        "pinned_products": pinned_source.product_names,
+        # "Dòng khảo sát", the part a member types, and the whole comment as it reads now: "Copy ghim" and the
+        # Page's comment use the latter (pinned.py).
+        "pinned_survey": video.pinned_survey,
+        "pinned_comment_text": pinned.render(video.pinned_survey, pinned_source),
         "extra_comments": video.extra_comments,
         "self_review": video.self_review,
         "music_suggestions": video.music_suggestions,
@@ -1207,6 +1452,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         # Where it is out, as on the list: the page's row of platform icons.
         "posted_on": extras["posted_on"],
         "posted_links": extras["posted_links"],
+        "posted_states": extras["posted_states"],
         "fanpages": [
             {
                 "id": page.id,
@@ -1218,6 +1464,12 @@ def video_payload(db: DbSession, video: Video) -> dict:
                 "knowledge_topic_id": page.knowledge_topic_id,
                 # The TikTok account picked for the Page on /fanpages: its videos' Đăng TikTok card opens with it.
                 "tiktok_account_id": page.tiktok_account_id,
+                # The YouTube channel picked for the Page: its videos' "Tải lên YouTube" opens with it.
+                "youtube_channel_id": page.youtube_channel_id,
+                # The Instagram account linked to the Page, where "Đăng bài" › Instagram posts; None when none.
+                "instagram_username": (page.instagram_username or page.instagram_user_id)
+                if page.instagram_user_id
+                else None,
                 "error": page.check_error,
             }
             for page in fanpages.in_use(db)
@@ -1239,8 +1491,10 @@ def video_payload(db: DbSession, video: Video) -> dict:
         if video.clone_source
         else None,
         "reference": reference_payload(db, video),
+        # "Clone" from "Phân tích đối thủ": the competitor's video it was built from, and its sample comments.
+        "competitor_source": competitors.source_payload(db, video),
         "title_scene": scene_payload(video, title, checks) if title else None,
-        "scenes": [scene_payload(video, scene, checks) for scene in scenes],
+        "scenes": [scene_payload(video, scene, checks, reserve) for scene in scenes],
         "video_blocking": [issue.message for issue in checks.blocking if issue.scene_id is None],
         "video_warnings": [
             {"field": issue.field, "message": issue.message} for issue in checks.warnings if issue.scene_id is None
@@ -1335,16 +1589,22 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
     elsewhere: dict[int, set[str]] = {}
     # The link of each platform's newest post, for the icon to open it.
     links: dict[int, dict[str, str]] = {}
-    for video_id, platform, url in db.execute(
-        select(Publication.video_id, Publication.platform, Publication.post_url)
+    # A TikTok post the video is on only as a draft in its owner's inbox: out for the worker, not yet public.
+    tiktok_modes: dict[int, set[str | None]] = {}
+    for video_id, platform, url, mode in db.execute(
+        select(Publication.video_id, Publication.platform, Publication.post_url, Publication.publish_mode)
         .where(
             Publication.video_id.in_(ids),
             Publication.platform != "facebook",
             Publication.status.in_(LIVE_POST_STATUSES),
+            # An Instagram post set for later is not out until the worker posts it at its time.
+            ~((Publication.platform == "instagram") & (Publication.status == "scheduled")),
         )
         .order_by(Publication.id)
     ):
         elsewhere.setdefault(video_id, set()).add(platform)
+        if platform == "tiktok":
+            tiktok_modes.setdefault(video_id, set()).add(mode)
         if url:
             links.setdefault(video_id, {})[platform] = url
     by_video: dict[int, list[tuple[Publication, str]]] = {}
@@ -1374,6 +1634,8 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
                 if (platform == "facebook" and live) or platform in elsewhere.get(video.id, set())
             ],
             "posted_links": _posted_links(live, links.get(video.id, {})),
+            # What a platform's icon must not hide: "draft" while the only TikTok posts are inbox drafts.
+            "posted_states": {"tiktok": "draft"} if tiktok_modes.get(video.id) == {"draft"} else {},
         }
     return extras
 
@@ -1412,6 +1674,7 @@ def _post_summary(
             "share_rate": None,
             "share_met": None,
             "times_median": None,
+            "is_winner": False,
         }
 
     def latest_views(item: tuple[Publication, str]) -> int:
@@ -1436,6 +1699,7 @@ def _post_summary(
         "share_rate": analysis["share_rate"],
         "share_met": analysis["share_rate"] >= analytics.SHARE_GOAL if analysis["share_rate"] is not None else None,
         "times_median": analysis["times_median"],
+        "is_winner": analysis["is_winner"],
     }
 
 
@@ -1452,6 +1716,7 @@ def list_payload(
         "tiktok_posted": False,
         "posted_on": [],
         "posted_links": {},
+        "posted_states": {},
         "product_count": 0,
     }
     title, scenes = split_scenes(db, video)
@@ -1476,6 +1741,8 @@ def list_payload(
         "assistant_app": video.assistant_app,
         "mode": video.mode,
         "content_type": video.content_type,
+        # A "Nhân bản xáo cảnh" copy still showing its source's title: the card says to change it.
+        "title_review": title_review(video, title),
         **_labels(video, title, scenes, job, failed),
         "thumbnail_url": thumbnail_url(video),
         **extras,

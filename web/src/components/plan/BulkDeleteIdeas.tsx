@@ -1,7 +1,8 @@
 "use client";
 
+import Hint from "@/components/Hint";
 import { DeleteOutlined } from "@ant-design/icons";
-import { Alert, Button, Flex, Select, Tree, Typography, type TreeDataNode } from "antd";
+import { Button, Flex, Select, Tree, Typography, type TreeDataNode } from "antd";
 import dayjs from "dayjs";
 import "dayjs/locale/vi";
 import { useState } from "react";
@@ -131,11 +132,10 @@ export default function BulkDeleteIdeas({
         onOk={remove}
       >
         <Flex vertical gap={12} data-testid="plan-bulk-delete">
-          <Alert
-            type="info"
-            showIcon
-            title="Tích cả tuần, cả ngày hoặc từng ý tưởng. Chỉ xóa được ý tưởng do bạn tạo; video đã làm từ ý tưởng vẫn giữ nguyên."
-          />
+          <Hint>
+            Tích cả tuần, cả ngày hoặc từng ý tưởng. Chỉ xóa được ý tưởng do bạn tạo; video đã làm từ ý tưởng vẫn giữ
+            nguyên.
+          </Hint>
           <Flex gap={8} wrap align="center">
             <Select<PlanItemStatus>
               allowClear

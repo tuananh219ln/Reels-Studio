@@ -29,6 +29,8 @@ PERMISSION_ERRORS = {10, 200}
 RATE_LIMIT_ERRORS = {4, 17, 32, 613}
 # _http_error's message for a refusal it cannot name; it speaks of posting, so a read replaces it.
 REFUSED = "Facebook từ chối đăng video này"
+# What the upload server (rupload.facebook.com) answers when it will not take the file, in its own `debug_info` shape.
+UPLOAD_REFUSED = "Facebook không nhận file video"
 
 
 class FacebookError(Exception):
@@ -91,6 +93,16 @@ def _send(request: urllib.request.Request, timeout: float) -> dict:
         raise FacebookError("Facebook trả dữ liệu không đọc được, thử lại sau", str(err)) from None
 
 
+def _upload_refusal(body: str) -> str:
+    """ "Type: message" of an upload server refusal (`{"debug_info": {"type", "message"}}`), "" for any other body."""
+    try:
+        info = json.loads(body)["debug_info"]
+        kind, message = str(info.get("type") or ""), str(info.get("message") or "")
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return ""
+    return ": ".join(part for part in (kind, message) if part)[:200]
+
+
 def _http_error(status: int, body: str) -> FacebookError:
     detail = f"HTTP {status}: {body}"
     try:
@@ -98,6 +110,8 @@ def _http_error(status: int, body: str) -> FacebookError:
         code, subcode = error["code"], error.get("error_subcode")
     except (ValueError, KeyError, TypeError, AttributeError):
         code, subcode = None, None
+    if code is None and (upload := _upload_refusal(body)):
+        return FacebookError(f"{UPLOAD_REFUSED} ({upload})", detail, status)
     if code == 100 and subcode == 33:
         message = "Facebook không cho token này truy cập Page, hãy dán token mới trong Kết nối Fanpage"
     elif code in TOKEN_ERRORS:
@@ -469,6 +483,12 @@ def page_comment(page: Page, object_id: str, message: str) -> str | None:
 def visitor_comments(page: Page, object_id: str) -> list[dict]:
     """The newest 100 top-level comments under the reel that are not the Page's own: each `id`, `message`, `author`,
     `created` (UTC), `hidden`, and `answered` when the Page replied under it. Needs `pages_read_user_content`."""
+    return reel_comments(page, object_id)[0]
+
+
+def reel_comments(page: Page, object_id: str) -> tuple[list[dict], list[str], bool]:
+    """One reading of the newest 100 top-level comments under the reel: the visitors' (as `visitor_comments`), the
+    texts of the Page's own, and whether there may be older ones this reading did not reach."""
     query = urllib.parse.urlencode(
         {
             "fields": "id,message,from{id,name},created_time,is_hidden,comments.limit(25){from{id}}",
@@ -493,10 +513,14 @@ def visitor_comments(page: Page, object_id: str) -> list[dict]:
         if err.status == 404 or err.code == 100:
             raise _unreadable_comments(page, object_id, err) from None
         raise
-    found = []
-    for item in reply.get("data") or []:
+    found, own = [], []
+    items = reply.get("data") or []
+    for item in items:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
         author = item.get("from") or {}
-        if not isinstance(item, dict) or not item.get("id") or str(author.get("id")) == page.id:
+        if str(author.get("id")) == page.id:
+            own.append(str(item.get("message") or ""))
             continue
         replies = (item.get("comments") or {}).get("data") or []
         found.append(
@@ -509,7 +533,7 @@ def visitor_comments(page: Page, object_id: str) -> list[dict]:
                 "answered": any(str((one.get("from") or {}).get("id")) == page.id for one in replies),
             }
         )
-    return found
+    return found, own, len(items) >= 100 or bool((reply.get("paging") or {}).get("next"))
 
 
 def _unreadable_comments(page: Page, object_id: str, err: FacebookError) -> FacebookError:
@@ -726,6 +750,20 @@ def post_status(page: Page, post_id: str) -> dict | None:
         if isinstance(moment, (int, float, str)) and str(moment).isdigit()
         else None,
     }
+
+
+def settle_post(page: Page, post_id: str, message: str) -> tuple[str, dict] | None:
+    """`(post id, post_status)` of a feed post Facebook was told to make, or None when it has no such post. A scheduled
+    photo can be answered with the photo's id, which `post_status` cannot read; the post is then found on the Page by
+    its text and that id is the one to keep."""
+    status = post_status(page, post_id)
+    if status is not None:
+        return post_id, status
+    found = find_post(page, message) if message.strip() else None
+    if found is None or found == post_id:
+        return None
+    status = post_status(page, found)
+    return (found, status) if status is not None else None
 
 
 def find_post(page: Page, message: str) -> str | None:

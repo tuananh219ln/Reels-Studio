@@ -9,10 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import joinedload
 
-from . import affiliate, brands, facebook, fanpages, page_dashboard, tiktok_connections
+from . import aff_sets, affiliate, brands, facebook, fanpages, page_dashboard, tiktok_connections, youtube_connections
 from .db import get_db
 from .errors import ApiError
-from .models import AffiliateAccount, Brand, Fanpage, FanpageFollowers, Session, TikTokConnection
+from .models import AffiliateAccount, Brand, Channel, Fanpage, FanpageFollowers, Session, TikTokConnection
 from .ownership import ensure_owner
 from .routes_videos import invalid
 from .sessions import current_member
@@ -42,8 +42,20 @@ class TikTokAccountBody(BaseModel):
     account_id: int | None
 
 
+class YouTubeChannelBody(BaseModel):
+    channel_id: int | None
+
+
 class TikTokAutoModeBody(BaseModel):
     mode: Literal["draft", "direct"]
+
+
+class InstagramAutoBody(BaseModel):
+    auto: bool
+
+
+class YouTubeAutoBody(BaseModel):
+    auto: bool
 
 
 def _clean_token(token: str) -> str:
@@ -94,6 +106,22 @@ def _tiktok_account(db: DbSession, row: Fanpage, me: Session) -> dict | None:
     }
 
 
+def _youtube_channel(db: DbSession, row: Fanpage, me: Session) -> dict | None:
+    """The Page's YouTube channel, shown only to the Page's owner, who connected it."""
+    if row.owner_id != me.user_id or row.youtube_channel_id is None:
+        return None
+    channel = db.get(Channel, row.youtube_channel_id)
+    connection = youtube_connections.of_channel(db, row.youtube_channel_id)
+    if channel is None:
+        return None
+    mine = connection is not None and connection.owner_id == me.user_id
+    return {
+        "id": channel.id,
+        "name": channel.name,
+        "connected": mine and not youtube_connections.needs_reconnect(connection),
+    }
+
+
 def _brand(brand: Brand | None) -> dict | None:
     if brand is None:
         return None
@@ -102,6 +130,7 @@ def _brand(brand: Brand | None) -> dict | None:
         "name": brand.name,
         "logo_badge_url": brands.badge_url(brand),
         "logo_default_on": brand.logo_default_on,
+        "title_style": brand.title_style,
         "owner_id": brand.owner_id,
     }
 
@@ -116,8 +145,10 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
     )
     checks = fanpages.check_payload(db, rows)
     insights = fanpages.insights_summary(db, rows)
+    alerts = fanpages.trend_alerts(db, rows)
     scheduled = fanpages.scheduled_counts(db)
     posts = fanpages.post_counts(db)
+    aff = aff_sets.summaries(db, rows)
     brand_of_page = {
         brand.fanpage_id: brand for brand in db.scalars(select(Brand).where(Brand.fanpage_id.is_not(None)))
     }
@@ -137,13 +168,26 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
             "shopee_account": _shopee_account(db, row, me),
             "tiktok_account": _tiktok_account(db, row, me),
             "tiktok_auto_mode": row.tiktok_auto_mode,
+            "instagram_auto": row.instagram_auto,
+            "youtube_auto": row.youtube_auto,
+            "youtube_channel": _youtube_channel(db, row, me),
+            # The Instagram account linked to the Page (read at its check), where "Đăng bài" › Instagram posts.
+            "instagram": {"id": row.instagram_user_id, "username": row.instagram_username}
+            if row.instagram_user_id
+            else None,
+            # Why the last check could not read it (a token without instagram_basic...); None when it read.
+            "instagram_error": row.instagram_error,
             # The Page's brand ("Kênh") and its logo, laid on the videos made for it (brands.py).
             "brand": _brand(brand_of_page.get(row.id)),
             "check": checks[row.id],
             "insights": insights[row.id],
+            # Views that fell by half or more against the week before, per platform: the card says so.
+            "alerts": alerts[row.id],
             "scheduled_posts": scheduled.get(row.id, 0),
             # Every post ever made to the Page, cancelled and deleted ones too: a Page with any is kept for history.
             "posts": posts.get(row.id, 0),
+            # Its "Bộ bình luận" (aff_sets.summaries): on or off, how many sets, how many usable, how many a reel.
+            "aff_sets": aff[row.id],
         }
         for row in rows
     ]
@@ -257,6 +301,23 @@ def set_tiktok_account(
     return _rows(db, me)
 
 
+@router.put("/{fanpage_id}/youtube-channel")
+def set_youtube_channel(
+    fanpage_id: int, body: YouTubeChannelBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
+    """The YouTube channel the Page's videos open with on their "Tải lên YouTube": one its owner connected."""
+    row = _fanpage(db, fanpage_id)
+    if row.owner_id != me.user_id:
+        raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới gắn được kênh YouTube")
+    if body.channel_id is not None:
+        connection = youtube_connections.of_channel(db, body.channel_id)
+        if connection is None or connection.owner_id != me.user_id:
+            raise invalid("Hãy chọn một kênh YouTube bạn đã kết nối")
+    row.youtube_channel_id = body.channel_id
+    db.commit()
+    return _rows(db, me)
+
+
 @router.put("/{fanpage_id}/tiktok-auto-mode")
 def set_tiktok_auto_mode(
     fanpage_id: int, body: TikTokAutoModeBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
@@ -266,6 +327,42 @@ def set_tiktok_auto_mode(
     if row.owner_id != me.user_id:
         raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới đổi được cách tự đăng TikTok")
     row.tiktok_auto_mode = body.mode
+    db.commit()
+    return _rows(db, me)
+
+
+@router.put("/{fanpage_id}/instagram-auto")
+def set_instagram_auto(
+    fanpage_id: int, body: InstagramAutoBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
+    """Whether a video of the Page that goes live on Facebook at its slot is also posted to its linked Instagram."""
+    row = _fanpage(db, fanpage_id)
+    if row.owner_id != me.user_id:
+        raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới đổi được cách tự đăng Instagram")
+    if body.auto and not row.instagram_user_id:
+        raise invalid("Page chưa liên kết tài khoản Instagram, hãy liên kết rồi bật lại")
+    row.instagram_auto = body.auto
+    db.commit()
+    return _rows(db, me)
+
+
+@router.put("/{fanpage_id}/youtube-auto")
+def set_youtube_auto(
+    fanpage_id: int, body: YouTubeAutoBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
+    """Whether a video of the Page that goes live on Facebook at its slot is also uploaded, private, to its channel."""
+    row = _fanpage(db, fanpage_id)
+    if row.owner_id != me.user_id:
+        raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới đổi được cách tự đăng YouTube")
+    if body.auto:
+        if row.youtube_channel_id is None:
+            raise invalid("Page chưa chọn kênh YouTube, hãy chọn kênh rồi bật lại")
+        connection = youtube_connections.of_channel(db, row.youtube_channel_id)
+        if connection is None or connection.owner_id != me.user_id:
+            raise invalid("Page chưa chọn kênh YouTube, hãy chọn kênh rồi bật lại")
+        if youtube_connections.needs_reconnect(connection):
+            raise invalid(youtube_connections.RECONNECT)
+    row.youtube_auto = body.auto
     db.commit()
     return _rows(db, me)
 
@@ -324,6 +421,66 @@ def page_dashboard_view(
     if row is None:
         raise ApiError(404, "fanpage_not_found", "Không tìm thấy Fanpage")
     return page_dashboard.dashboard(db, row, days)
+
+
+@router.get("/{fanpage_id}/gate")
+def page_gate_view(fanpage_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Cửa đo 48h" of one Page: median views and share/view at 48 hours, progress towards 14 and 30 videos, the gate's
+    state and the winners."""
+    row = db.get(Fanpage, fanpage_id)
+    if row is None:
+        raise ApiError(404, "fanpage_not_found", "Không tìm thấy Fanpage")
+    return page_dashboard.gate(db, row)
+
+
+@router.get("/{fanpage_id}/instagram-dashboard")
+def page_instagram_dashboard_view(
+    fanpage_id: int, days: int = 28, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """The Page's linked Instagram account for the last `days` days (7, 28 or 90), each figure against the period before."""
+    if days not in page_dashboard.PERIODS:
+        raise invalid("Khoảng thời gian chỉ được là 7, 28 hoặc 90 ngày")
+    row = db.get(Fanpage, fanpage_id)
+    if row is None:
+        raise ApiError(404, "fanpage_not_found", "Không tìm thấy Fanpage")
+    if not row.instagram_user_id:
+        raise ApiError(404, "instagram_not_linked", "Page này chưa liên kết tài khoản Instagram")
+    return page_dashboard.instagram_dashboard(db, row, days)
+
+
+def _page_for_dashboard(db: DbSession, fanpage_id: int, days: int | None = None, instagram: bool = False) -> Fanpage:
+    if days is not None and days not in page_dashboard.PERIODS:
+        raise invalid("Khoảng thời gian chỉ được là 7, 28 hoặc 90 ngày")
+    row = db.get(Fanpage, fanpage_id)
+    if row is None:
+        raise ApiError(404, "fanpage_not_found", "Không tìm thấy Fanpage")
+    if instagram and not row.instagram_user_id:
+        raise ApiError(404, "instagram_not_linked", "Page này chưa liên kết tài khoản Instagram")
+    return row
+
+
+@router.get("/{fanpage_id}/instagram-content")
+def page_instagram_content_view(
+    fanpage_id: int, days: int = 28, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """The Instagram "Nội dung" tab: the Reels the app posted to the Page's Instagram that went live in the last `days` days."""
+    return page_dashboard.instagram_content(db, _page_for_dashboard(db, fanpage_id, days, True), days)
+
+
+@router.get("/{fanpage_id}/compare")
+def page_compare_view(
+    fanpage_id: int, days: int = 28, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """The same videos on Facebook and Instagram side by side, for the last `days` days."""
+    return page_dashboard.compare(db, _page_for_dashboard(db, fanpage_id, days), days)
+
+
+@router.get("/{fanpage_id}/best-times")
+def page_best_times_view(
+    fanpage_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """The hours the Page's posts were watched most on each platform (last 90 days), for choosing its posting times."""
+    return page_dashboard.best_times(db, _page_for_dashboard(db, fanpage_id))
 
 
 @router.get("/{fanpage_id}/content")

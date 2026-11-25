@@ -460,3 +460,99 @@ def test_script_without_images_renders_with_stock_photos(tmp_path, pixabay, isol
     assert (stream["width"], stream["height"]) == (1080, 1920)
     assert len(pixabay.downloads) == 3
     assert list(isolated_tmp.iterdir()) == []
+
+
+@needs_ffmpeg
+def test_auto_fit_lays_a_wide_photo_under_its_text_over_a_blurred_copy(tmp_path):
+    """A 5:4 photo is cut square and laid across the frame under the text, which goes on the blurred copy above it
+    instead of the template's place near the bottom (framing.py)."""
+    make_image(tmp_path / "ngang.jpg", (1000, 800), (220, 40, 40))
+    make_image(tmp_path / "title.jpg", (1080, 1920), (60, 90, 160))
+    data = script_data(scene_count=1, image="title.jpg", seconds=1)
+    data["scenes"][0].update(image="ngang.jpg", seconds=1.5, image_fit="auto")
+    path = render_video(load_script(write_script(tmp_path, data)), tmp_path / "video.mp4")
+
+    frame = extract_frame(path, 1.75, tmp_path / "scene.png")
+    column = [(y, frame.getpixel((540, y))) for y in range(0, 1920, 8)]
+    boxed = [y for y, (r, g, b) in column if r > 200 and g > 170 and b < 100]
+    red = [y for y, (r, g, b) in column if r > 170 and g < 90 and b < 90]
+    # The photo is the longest unbroken red run (the box's marked words are red too, but short).
+    runs = [[red[0]]] if red else []
+    for y in red[1:]:
+        runs[-1].append(y) if y - runs[-1][-1] == 8 else runs.append([y])
+    photo = max(runs, key=len)
+    assert boxed and photo[-1] - photo[0] > 900
+    # The yellow text box sits high, on the blurred copy above the photo.
+    assert min(boxed) < 600 and max(boxed) < photo[0]
+
+
+@needs_ffmpeg
+def test_a_framed_photo_zooms_inside_its_box_which_stays_put(tmp_path):
+    """The photo zooms inside its box (framing.PHOTO_ZOOM_SHARE) while its blurred copy moves under it: the box's
+    edge stays on the same row, so it never runs under the text, and a thin stripe along the photo's top edge is
+    zoomed out of view by the scene's end."""
+    from PIL import Image
+
+    photo = Image.new("RGB", (1000, 1000), (220, 40, 40))
+    photo.paste((30, 60, 230), (0, 0, 1000, 12))  # a thin blue stripe along the top
+    photo.save(tmp_path / "vuong.jpg")
+    make_image(tmp_path / "title.jpg", (1080, 1920), (60, 90, 160))
+    data = script_data(scene_count=1, image="title.jpg", seconds=1)
+    data["scenes"][0].update(image="vuong.jpg", seconds=2, image_fit="auto")
+    path = render_video(load_script(write_script(tmp_path, data)), tmp_path / "video.mp4")
+
+    def red_top(frame):
+        return next(
+            y for y in range(540, 1920) if (lambda r, g, b: r > 170 and g < 90 and b < 90)(*frame.getpixel((540, y)))
+        )
+
+    def blue_rows(frame, top):
+        return [
+            y for y in range(top - 30, top + 30) if (lambda r, g, b: b > 150 and r < 120)(*frame.getpixel((540, y)))
+        ]
+
+    early = extract_frame(path, 1.15, tmp_path / "early.png")
+    late = extract_frame(path, 2.9, tmp_path / "late.png")
+    # The box: red right under the blue stripe at first; at the end the stripe is gone and red starts at the top.
+    top = blue_rows(early, red_top(early))
+    assert top, "the stripe shows at the start"
+    assert not blue_rows(late, top[0] + 6), "the stripe is zoomed out of view by the end"
+    assert abs(red_top(late) - top[0]) <= 4, "the box has not moved"
+
+
+@needs_ffmpeg
+def test_framed_scenes_share_one_photo_line_and_a_full_frame_photo_keeps_the_templates_text_place(tmp_path):
+    """A one-line text, a three-line text and a 9:16 photo: the framed photos start on the same row and their texts
+    share a middle line; the 9:16 scene's text box stays where the template puts it, near the bottom."""
+    make_image(tmp_path / "ngang.jpg", (1000, 800), (220, 40, 40))
+    make_image(tmp_path / "doc.jpg", (540, 960), (40, 60, 220))
+    make_image(tmp_path / "title.jpg", (1080, 1920), (60, 90, 160))
+    data = script_data(scene_count=3, image="title.jpg", seconds=1)
+    data["scenes"][0].update(image="ngang.jpg", seconds=1, image_fit="auto", text="Một dòng")
+    data["scenes"][1].update(
+        image="ngang.jpg", seconds=1, image_fit="auto", text="Ba dòng chữ dài\nhơn nhiều\nso với cảnh trước"
+    )
+    data["scenes"][2].update(image="doc.jpg", seconds=1, image_fit="auto", text="Ảnh dọc")
+    path = render_video(load_script(write_script(tmp_path, data)), tmp_path / "video.mp4")
+
+    def photo_top(frame, colour):
+        return next(y for y in range(0, 1920) if colour(*frame.getpixel((20, y))))
+
+    def red(r, g, b):
+        return r > 170 and g < 90 and b < 90
+
+    def boxed(frame):
+        return [
+            y for y in range(0, 1920, 4) if (lambda r, g, b: r > 200 and g > 170 and b < 100)(*frame.getpixel((540, y)))
+        ]
+
+    first = extract_frame(path, 1.7, tmp_path / "first.png")  # the title lasts 1 s
+    second = extract_frame(path, 2.8, tmp_path / "second.png")
+    third = extract_frame(path, 3.9, tmp_path / "third.png")
+    assert abs(photo_top(first, red) - photo_top(second, red)) <= 2
+    # The framed scenes' text middles are the same whatever the text's height; the 9:16 scene's box ends at the
+    # template's line (SCENE_BOX_BOTTOM), as it always did.
+    middles = [(min(rows) + max(rows)) / 2 for rows in (boxed(first), boxed(second))]
+    assert max(middles) - min(middles) <= 12, middles
+    assert max(middles) < 600
+    assert abs(max(boxed(third)) - SCENE_BOX_BOTTOM) <= 8

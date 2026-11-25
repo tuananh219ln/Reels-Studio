@@ -22,7 +22,7 @@ from reels_render.errors import InputError
 from reels_render.layers import card_corner, render_card
 from reels_render.script import MAX_VIDEO_SPEED, MIN_VIDEO_SPEED
 from reels_render.sounds import MUSIC_LEVELS
-from reels_render.textbox import FRAME_WIDTH
+from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 
 from . import (
     affiliate_rounds,
@@ -40,9 +40,12 @@ from . import (
     knowledge,
     llm,
     music_topics,
+    outro,
     pinned,
     plans,
+    post_comments,
     remote_media,
+    slot_comments,
     source_keys,
     stock_clips,
     text_looks,
@@ -51,12 +54,13 @@ from . import (
 )
 from .claude import GeneratedScript
 from .db import get_db
-from .duplicate import duplicate_video
+from .duplicate import MAX_NAME_LENGTH, duplicate_video, variant_drafts
 from .errors import ApiError
 from .models import (
     AffiliateProduct,
     AppSetting,
     Article,
+    ArticlePlanSlot,
     EditTemplate,
     Fanpage,
     Job,
@@ -66,6 +70,7 @@ from .models import (
     Publication,
     Scene,
     Session,
+    TopicDoc,
     TopicPlanItem,
     User,
     Video,
@@ -99,6 +104,7 @@ from .videos import (
     drop_original,
     ensure_unlocked,
     follow_narration,
+    framable,
     group_video_mode,
     is_card_layer,
     list_extras,
@@ -109,6 +115,7 @@ from .videos import (
     made_voice_seconds,
     new_key,
     pending_publication,
+    photo_fit,
     posted_fanpage_ids,
     publications_of,
     refresh_thumbnail,
@@ -118,7 +125,9 @@ from .videos import (
     scene_still,
     split_scenes,
     spoken,
+    text_floor,
     text_position,
+    text_reserve,
     thumbnail_url,
     video_name,
     video_not_found,
@@ -139,11 +148,11 @@ MAX_LONG_TEXT_LENGTH = 5000
 MAX_KEYWORDS = 10
 MAX_KEYWORD_LENGTH = 100
 MAX_LIST_ITEMS = 20
-MAX_EXTRA_COMMENTS = 5
+MAX_EXTRA_COMMENTS = 12
 NEW_SCENE_SECONDS = 4
 MAX_MUSIC_START = 600  # seconds into a song; past its end the song loops from its start
 TITLE_SECONDS = 3  # as the script job gives the title scene
-# "Tự viết": a pasted script's limits, well past what a 90-second video can hold.
+# "Tự viết": a pasted script's limits, well past what a 150-second video can hold.
 MAX_SCRIPT_LENGTH = 5000
 MAX_HAND_SCENES = 20
 VOICE_LINE = re.compile(r"^đọc\s*:\s*(.*)$", re.IGNORECASE)
@@ -173,10 +182,11 @@ class NewVideoBody(BaseModel):
 
 
 class VideoPatchBody(BaseModel):
+    name: str | None = None  # "Tên video" in the lists; "" or null: back to the title's text. Metadata only.
     caption: str | None = None
     hashtags: list[str] | None = None
     affiliates: list[str] | None = None
-    pinned_comment: str | None = None
+    pinned_survey: str | None = None  # "Dòng khảo sát", the pinned comment's last line (pinned.py); "" for none
     extra_comments: list[str] | None = None  # "Bình luận thêm", at most MAX_EXTRA_COMMENTS
     music_suggestions: list[str] | None = None
     music_volume: int | None = None
@@ -205,6 +215,13 @@ class ScenePatchBody(BaseModel):
     transition: object = None  # the transition into this scene (reels_render.effects); null: the video's
     color: object = None  # its colour preset; null: as shot
     music_level: object = None  # the music's level during the scene (reels_render.sounds); null: the video's
+    # "Khung ảnh" (reels_render.framing): "cover", "whole", "square"; null: "Tự động", by the photo's shape.
+    image_fit: object = None
+    image_crop_offset: object = None  # where the square is cut along the photo's longer side, 0–1; null: the middle
+
+
+# What "Khung ảnh" may be set to; null is "Tự động".
+IMAGE_FIT_CHOICES = ("cover", "whole", "square")
 
 
 class PublishBody(BaseModel):
@@ -303,18 +320,32 @@ def list_videos(
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     knowledge_topic_id: int | None = None,
+    fanpage_id: int | None = None,
 ) -> list[dict]:
-    """Every video, newest first; `q` searches the topic and the title, `knowledge_topic_id` keeps one topic group's
-    (its "Video" tab in Kho kiến thức)."""
+    """Every video, newest first; `q` searches the name, the topic and the title, `knowledge_topic_id` keeps one topic group's
+    (its "Video" tab in Kho kiến thức) and `fanpage_id` the ones posted on, or waiting in the queue of, one Page."""
     query = select(Video).order_by(Video.created_at.desc(), Video.id.desc())
     if knowledge_topic_id is not None:
         query = query.where(Video.knowledge_topic_id == knowledge_topic_id)
+    if fanpage_id is not None:
+        query = query.where(
+            or_(
+                Video.id.in_(select(Publication.video_id).where(Publication.fanpage_id == fanpage_id)),
+                Video.id.in_(select(PageQueueItem.video_id).where(PageQueueItem.fanpage_id == fanpage_id)),
+            )
+        )
     if q.strip():
         literal = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{unicodedata.normalize('NFC', literal)}%"
         plain = func.replace(func.replace(Scene.text, "*", ""), "\n", " ")
         title_match = select(Scene.video_id).where(Scene.is_title, plain.ilike(pattern, escape="\\"))
-        query = query.where(or_(Video.topic.ilike(pattern, escape="\\"), Video.id.in_(title_match)))
+        query = query.where(
+            or_(
+                Video.topic.ilike(pattern, escape="\\"),
+                Video.name.ilike(pattern, escape="\\"),
+                Video.id.in_(title_match),
+            )
+        )
     family = made_from(db)
     videos = db.scalars(query).all()
     extras = list_extras(db, videos)
@@ -377,11 +408,13 @@ def start_video(
     if manual:
         _write_by_hand(db, video, topic, scenes)
         autoedit.apply_default(db, video)
+        outro.add(db, get_storage(), video)
     elif written is not None:
         # Imported here: the job module loads the render core, which the routes otherwise do not need at import.
         from . import jobs
 
         jobs.save_script(db, video, written)
+        outro.add(db, get_storage(), video)
         affiliate_rounds.ask_after_script(db, video, me.user_id)
         # As after a script job: "Tự tìm ảnh" looks for the scenes' photos, unless it is turned off.
         if auto_photos.enabled(db):
@@ -489,14 +522,22 @@ def patch_video(
     video = lock_video(db, video_id)
     ensure_unlocked(db, video)
     fields = body.model_fields_set
+    comments = video.pinned_survey, list(video.extra_comments)
+    if "name" in fields:
+        name = " ".join(unicodedata.normalize("NFC", body.name or "").split())
+        if len(name) > MAX_NAME_LENGTH:
+            raise invalid(f"Tên video tối đa {MAX_NAME_LENGTH} ký tự")
+        video.name = name or None
     if "caption" in fields and body.caption is not None:
         video.caption = _clean_text(body.caption, MAX_LONG_TEXT_LENGTH, "Caption").strip()
-    if "pinned_comment" in fields and body.pinned_comment is not None:
-        video.pinned_comment = _clean_text(body.pinned_comment, MAX_LONG_TEXT_LENGTH, "Bình luận ghim").strip()
+    if "pinned_survey" in fields and body.pinned_survey is not None:
+        video.pinned_survey = pinned.normalize(_clean_text(body.pinned_survey, MAX_TEXT_LENGTH, "Dòng khảo sát"))
     if "extra_comments" in fields and body.extra_comments is not None:
         video.extra_comments = _clean_list(
             body.extra_comments, MAX_LONG_TEXT_LENGTH, "Bình luận thêm", max_items=MAX_EXTRA_COMMENTS
         )
+    if (video.pinned_survey, list(video.extra_comments)) != comments:
+        post_comments.ask_after_edit(db, video)
     if "hashtags" in fields and body.hashtags is not None:
         video.hashtags = _clean_list(body.hashtags, MAX_KEYWORD_LENGTH, "Hashtag")
     if "affiliates" in fields and body.affiliates is not None:
@@ -534,7 +575,14 @@ def patch_video(
             changes = video_options.clean(rest)
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
+        sfx = video_options.effective(video)["title_sfx"]
         video.options = video_options.effective(video) | changes
+        if video_options.effective(video)["title_sfx"] != sfx:
+            from . import title_motion
+
+            title, _ = split_scenes(db, video)
+            if title is not None:
+                title_motion.sync_title_sfx(video, title)
     if video_options.voice_pause(video) != pause:
         title, scenes = split_scenes(db, video)
         follow_narration(video, [scene for scene in (title, *scenes) if scene is not None])
@@ -639,7 +687,7 @@ def render(video_id: int, me: Session = Depends(current_member), db: DbSession =
 
 @router.post("/videos/{video_id}/voices")
 def make_narration(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """ "Tạo giọng thật" in the preview: the video's voice (ElevenLabs, VieNeu or Google) reads the scenes whose narration is
+    """ "Tạo giọng thật" in the preview: the video's voice (ElevenLabs, VieNeu, Gemini or Google) reads the scenes whose narration is
     missing or out of date.
     It costs credit once per text; the render reuses those MP3s, so a render after it pays nothing more."""
     video = lock_video(db, video_id)
@@ -717,7 +765,7 @@ def edit_scene_image(
         raise invalid(str(err)) from None
     if body.engine != "lama" and not image_providers.configured(db, body.engine):
         name = image_edit.LABELS[body.engine]
-        raise invalid(f"Chưa cài đặt {name}: nhập key ở Cài đặt › Nguồn tư liệu")
+        raise invalid(f"Chưa cài đặt {name}: nhập key ở Cài đặt › AI và nguồn tư liệu")
     video, scene = lock_scene(db, scene_id)
     if not scene.image_key or scene.video_key:
         raise ApiError(409, "no_image", "Cảnh này chưa có ảnh để sửa")
@@ -848,6 +896,9 @@ def take_down(post_id: int, me: Session = Depends(current_member), db: DbSession
         raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
     video = lock_video(db, video_id)
     post = db.scalar(select(Publication).where(Publication.id == post_id).execution_options(populate_existing=True))
+    if post.platform != "facebook":
+        # Instagram's own "Hủy hẹn" is routes_instagram.cancel; nothing here may ask Facebook about another platform.
+        raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
     ensure_can_take_down(db, post, me.user_id)
     if post.status not in OPEN_POST_STATUSES:
         raise ApiError(409, "post_closed", "Bài này đã hủy hoặc đã xóa")
@@ -872,7 +923,7 @@ def check_post(post_id: int, me: Session = Depends(current_member), db: DbSessio
         raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
     video = lock_video(db, video_id)
     post = db.scalar(select(Publication).where(Publication.id == post_id).execution_options(populate_existing=True))
-    if post.status not in (*LIVE_POST_STATUSES, "deleted") or post.remote_id is None:
+    if post.platform != "facebook" or post.status not in (*LIVE_POST_STATUSES, "deleted") or post.remote_id is None:
         raise ApiError(409, "post_not_checkable", "Chỉ kiểm tra được bài đã lên Facebook, đã hẹn giờ hoặc đã xóa")
     if active_job(db, video.id) is not None:
         raise ApiError(409, "video_locked", "Video đang có job chạy, hãy đợi xong rồi kiểm tra bài")
@@ -1079,6 +1130,22 @@ def duplicate(
     return _saved(db, draft)
 
 
+@router.post("/videos/{video_id}/variants", status_code=201)
+def variants(
+    video_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Tạo 3 biến thể" of a winner: three draft copies named for what to change (hook, 1-2 dishes, format), with no
+    LLM call; the member (or an assistant) edits each, then renders it. Only a video that went live and is a winner at
+    48 hours is offered it, but the source is only read."""
+    source = duplicable(db, video_id)
+    drafts = variant_drafts(db, storage, source, me.user_id)
+    db.commit()
+    return {"videos": [video_payload(db, draft) for draft in drafts]}
+
+
 def duplicable(db: DbSession, video_id: int) -> Video:
     """The source of "Nhân bản y hệt": any member's video with a script."""
     source = db.get(Video, video_id)
@@ -1214,6 +1281,12 @@ def patch_scene(
             raise invalid("Số giây không hợp lệ")
         scene.seconds = round(body.seconds, 2)
         scene.seconds_auto = False
+        if scene.is_title:
+            from . import motion as motion_module
+            from . import title_motion
+
+            if motion_module.shows_motion(scene):
+                title_motion.sync_title_sfx(video, scene)  # a ting past the new end goes
     if body.seconds_auto is not None:
         scene.seconds_auto = body.seconds_auto
     if "keywords" in fields and body.keywords is not None:
@@ -1271,6 +1344,21 @@ def patch_scene(
         if body.video_loop and scene.video_sound:
             raise invalid("Tắt tiếng gốc của video trước khi lặp clip")
         scene.video_loop = body.video_loop
+    if "image_fit" in fields:
+        if body.image_fit is not None and body.image_fit not in IMAGE_FIT_CHOICES:
+            raise invalid(f"Khung ảnh không hợp lệ: {body.image_fit!r}")
+        if body.image_fit is not None and not framable(video, scene):
+            raise invalid("Chỉ ảnh của cảnh nội dung trong video từng cảnh mới chọn được khung ảnh")
+        scene.image_fit = body.image_fit
+    if "image_crop_offset" in fields:
+        offset = body.image_crop_offset
+        if offset is not None:
+            if isinstance(offset, bool) or not isinstance(offset, (int, float)) or not 0 <= offset <= 1:
+                raise invalid("Vị trí khung vuông phải từ 0 đến 1")
+            if not framable(video, scene):
+                raise invalid("Chỉ ảnh của cảnh nội dung trong video từng cảnh mới chọn được khung ảnh")
+            offset = round(float(offset), 3)
+        scene.image_crop_offset = offset
     moved = False
     if "text_position" in fields:
         try:
@@ -1670,7 +1758,7 @@ def find_other_image(
     source = source or first_stock_source(db, video)
     client, error_type = stock_client(source, db)
     if source in stock_turned_off(db):
-        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+        raise invalid("Nguồn này đang tắt trong Cài đặt › AI và nguồn tư liệu")
     # Each source is searched in the language it indexes: Wikimedia and Openverse in Vietnamese, the others in
     # English; the other list is the fallback (scenes scripted before English keywords existed).
     keywords = stock_keywords(source, list(scene.keywords), list(scene.keywords_en))
@@ -1813,7 +1901,7 @@ def first_stock_source(db: DbSession, video: Video | None) -> str:
 
 
 def stock_turned_off(db: DbSession) -> set[str]:
-    """The sources the team turned off on Cài đặt › Nguồn tư liệu."""
+    """The sources the team turned off on Cài đặt › AI và nguồn tư liệu."""
     setting = db.get(AppSetting, STOCK_OFF_KEY)
     return (
         {item for item in setting.value if item in STOCK_SOURCES}
@@ -1831,7 +1919,7 @@ def stock_sources(
     video_id: int | None = None, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> list[dict]:
     """The picker's sources, in the video's topic group's order (the app's without a video); `clips` says which also
-    offer video clips, `missing_key` which cannot be used until a key is pasted on Cài đặt › Nguồn tư liệu."""
+    offer video clips, `missing_key` which cannot be used until a key is pasted on Cài đặt › AI và nguồn tư liệu."""
     video = db.get(Video, video_id) if video_id is not None else None
     return [
         {
@@ -1862,7 +1950,7 @@ def search_stock_clips(
     if len(keyword) > MAX_KEYWORD_LENGTH:
         raise invalid(f"Từ khóa dài quá {MAX_KEYWORD_LENGTH} ký tự")
     if source in stock_turned_off(db):
-        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+        raise invalid("Nguồn này đang tắt trong Cài đặt › AI và nguồn tư liệu")
     db.rollback()
     try:
         hits = stock_clips.search(source, keyword, FIND_IMAGE_SECONDS, source_keys.get(db, source))
@@ -1893,7 +1981,7 @@ def choose_stock_clip(
     video, _ = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     if body.source in stock_turned_off(db):
-        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+        raise invalid("Nguồn này đang tắt trong Cài đặt › AI và nguồn tư liệu")
     db.rollback()
     try:
         hit = next(
@@ -1946,7 +2034,7 @@ def search_stock(
     if len(keyword) > MAX_KEYWORD_LENGTH:
         raise invalid(f"Từ khóa dài quá {MAX_KEYWORD_LENGTH} ký tự")
     if source in stock_turned_off(db):
-        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+        raise invalid("Nguồn này đang tắt trong Cài đặt › AI và nguồn tư liệu")
     client, error_type = stock_client(source, db)
     db.rollback()
     try:
@@ -1985,7 +2073,7 @@ def choose_stock(
     video, _ = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     if body.source in stock_turned_off(db):
-        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+        raise invalid("Nguồn này đang tắt trong Cài đặt › AI và nguồn tư liệu")
     client, error_type = stock_client(body.source, db)
     db.rollback()
     deadline = time.monotonic() + FIND_IMAGE_SECONDS
@@ -2027,10 +2115,17 @@ def list_jobs(
     for job in jobs:
         # A plan job has no video: it is named after its topic group; an article's job after the article.
         owner = job.video_id or (
-            f"article-{job.article_id}" if job.article_id else f"topic-{job.knowledge_topic_id}-{job.kind}"
+            f"article-{job.article_id}"
+            if job.article_id
+            else f"slot-{job.plan_slot_id}"
+            if job.plan_slot_id
+            else f"topic-{job.knowledge_topic_id}-{job.kind}"
         )
         if owner not in titles:
-            if job.article_id is not None:
+            if job.plan_slot_id is not None:
+                slot = db.get(ArticlePlanSlot, job.plan_slot_id)
+                titles[owner] = f"Bình luận ghim · {slot.hook}" if slot else "Bình luận ghim"
+            elif job.article_id is not None:
                 article = db.get(Article, job.article_id)
                 titles[owner] = f"Bài viết · {article.topic or articles.KIND_LABELS[article.kind]}"
             elif job.video_id is None:
@@ -2068,6 +2163,7 @@ def list_jobs(
                     job.image_provider or "", job.image_provider
                 ),
                 "error": job.error,
+                "error_detail": job.error_detail,
                 "retry_of_id": job.retry_of_id,
                 "waited_seconds": round((job.started_at - job.created_at).total_seconds(), 1)
                 if job.started_at
@@ -2101,6 +2197,8 @@ def cancel_job(job_id: int, me: Session = Depends(current_member), db: DbSession
         if job.kind == "motion":
             motion.fail_pending(db, job)
         render_nodes.clean(get_storage(), job.id)
+    if job.plan_slot_id is not None:
+        return {"id": job.id, "status": job.status}
     if job.article_id is not None:
         return article_posts.payload(db, db.get(Article, job.article_id))
     if job.video_id is None and job.kind == text_looks.JOB_KIND:
@@ -2112,10 +2210,14 @@ def cancel_job(job_id: int, me: Session = Depends(current_member), db: DbSession
 
 @router.post("/jobs/{job_id}/retry")
 def retry_job(job_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    owner = db.execute(select(Job.video_id, Job.knowledge_topic_id, Job.article_id).where(Job.id == job_id)).first()
+    owner = db.execute(
+        select(Job.video_id, Job.knowledge_topic_id, Job.article_id, Job.plan_slot_id).where(Job.id == job_id)
+    ).first()
     if owner is None:
         raise ApiError(404, "job_not_found", "Không tìm thấy job")
-    video_id, topic_id, article_id = owner
+    video_id, topic_id, article_id, slot_id = owner
+    if slot_id is not None:
+        return _retry_slot_comments(db, job_id, slot_id, me)
     if article_id is not None:
         return _retry_article(db, job_id, article_id, me)
     if video_id is None:
@@ -2140,6 +2242,20 @@ def retry_job(job_id: int, me: Session = Depends(current_member), db: DbSession 
         edit_prompt=job.edit_prompt,
     )
     return _saved(db, video)
+
+
+def _retry_slot_comments(db: DbSession, job_id: int, slot_id: int, me: Session) -> dict:
+    job = db.get(Job, job_id)
+    if job.status != "failed":
+        raise ApiError(409, "job_not_failed", "Chỉ thử lại được job bị lỗi")
+    slot = db.get(ArticlePlanSlot, slot_id)
+    params = job.params or {}
+    if not slot_comments.queue(
+        db, [slot], me.user_id, overwrite=bool(params.get("overwrite")), index=params.get("index")
+    ):
+        raise ApiError(409, "slot_comments_busy", "Kịch bản đang có bình luận chờ hoặc đang tạo")
+    db.commit()
+    return {"id": job.id, "status": job.status}
 
 
 def _retry_plan(db: DbSession, job_id: int, topic_id: int, me: Session) -> dict:
@@ -2238,6 +2354,7 @@ def scene_preview(
         video_options.render_options(video),
         text_position(video, scene),
         under=_card_under(storage, scene),
+        **_framed(db, storage, video, scene),
     )
     return Response(
         frames.jpeg_bytes(frame), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
@@ -2256,18 +2373,47 @@ def _card_under(storage: DirectoryStorage, scene: Scene) -> list:
     return [(picture, card_corner(picture.width, picture.height, card.y))]
 
 
+def _framed(db: DbSession, storage: DirectoryStorage, video: Video, scene: Scene) -> dict:
+    """How the preview frames the scene's photo, as the render does ("Khung ảnh"): with the video's tallest framed
+    text box, so every scene's photo starts on the same line."""
+    if not framable(video, scene):
+        return {}
+    return {
+        "fit": photo_fit(video, scene),
+        "min_top": text_floor(video, scene),
+        "crop_offset": scene.image_crop_offset,
+        "reserve": text_reserve(storage, video, split_scenes(db, video)[1]),
+    }
+
+
 @router.get("/scenes/{scene_id}/frame.jpg")
 def scene_frame(
     scene_id: int,
+    anchor: str = "top",
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> Response:
-    """The scene's first frame without its text box, which the text box is dragged over."""
-    still = scene_still(storage, _scene(db, scene_id))
+    """The scene's first frame without its text box, which the text box is dragged over. A framed photo
+    ("Khung ảnh") moves with the box: `anchor` "bottom" lays it out for a box in the lower half, else the upper."""
+    scene = _scene(db, scene_id)
+    still = scene_still(storage, scene)
     if still is None:
         raise ApiError(404, "file_not_found", "Cảnh chưa có ảnh hoặc không lấy được khung hình từ video")
-    frame = frames.compose_frame(still, "", is_title=False)
+    video = db.get(Video, scene.video_id)
+    if framable(video, scene):
+        centre = [FRAME_WIDTH // 2, FRAME_HEIGHT - 1] if anchor == "bottom" else None
+        frame = frames.compose_frame(
+            still,
+            scene.text,
+            scene.is_title,
+            video_options.render_options(video),
+            centre,
+            show_text=False,
+            **_framed(db, storage, video, scene),
+        )
+    else:
+        frame = frames.compose_frame(still, "", is_title=False)
     return Response(
         frames.jpeg_bytes(frame), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
     )
@@ -2371,6 +2517,7 @@ class TopicPatchBody(BaseModel):
     analyze_prompt: str | None = None
     article_prompt: str | None = None  # "Bài viết": empty brings back the default prompt.
     voice_id: str | None = None  # the group's own voice; "" leaves it to each maker's defaults
+    voice_backup_id: str | None = None  # the voice read instead when the voice above cannot; "" for none
     templates: list[int] | None = None  # the group's own "Mẫu dựng" (saved ones' ids)
     stock_order: list[str] | None = None  # "Thứ tự nguồn ảnh"; [] goes back to the app's order
     edit_template_default: object = None  # "app", one of `templates`, or null: what its new videos take (if sent)
@@ -2379,6 +2526,7 @@ class TopicPatchBody(BaseModel):
     text_look: dict | None = None  # "Chữ & phụ đề" (text_looks.FIELDS); null or {} (when sent): the maker's
     text_ai: bool | None = None  # "AI chọn kiểu chữ cho từng video"
     no_people: bool | None = None  # "Không dùng cảnh có người"
+    outro_cta: bool | None = None  # "Cảnh kết Theo dõi & Chia sẻ" (outro.py)
     media_folder: str | None = None  # "Tư liệu": its folder in the "Kho tư liệu"; null or "" (when sent) unlinks
 
 
@@ -2401,6 +2549,31 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
     mine = my_topic_ids(db, user_id)
     last = edit_log.last_edits(db, edit_log.TOPIC)
     makers = dict(db.execute(select(User.id, User.name)).all())
+    # What each group has towards "Sẵn sàng tạo video": active Pages that post it, documents, approved products.
+    pages = dict(
+        db.execute(
+            select(Fanpage.knowledge_topic_id, func.count())
+            .where(Fanpage.active.is_(True), Fanpage.knowledge_topic_id.is_not(None))
+            .group_by(Fanpage.knowledge_topic_id)
+        ).all()
+    )
+    page_rows: dict[int, list[dict]] = {}
+    for row in db.scalars(
+        select(Fanpage)
+        .where(Fanpage.active.is_(True), Fanpage.knowledge_topic_id.is_not(None))
+        .order_by(Fanpage.name, Fanpage.id)
+    ):
+        page_rows.setdefault(row.knowledge_topic_id, []).append({"id": row.id, "name": row.name})
+    docs = dict(
+        db.execute(select(TopicDoc.knowledge_topic_id, func.count()).group_by(TopicDoc.knowledge_topic_id)).all()
+    )
+    products = dict(
+        db.execute(
+            select(AffiliateProduct.knowledge_topic_id, func.count())
+            .where(AffiliateProduct.status == "approved")
+            .group_by(AffiliateProduct.knowledge_topic_id)
+        ).all()
+    )
     return {
         "topics": [
             {
@@ -2415,6 +2588,7 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "analyze_prompt": topic.analyze_prompt,
                 "article_prompt": topic.article_prompt,
                 "voice_id": topic.voice_id,
+                "voice_backup_id": topic.voice_backup_id,
                 # "Kiểu video" and the mode a video made now takes by it ("Xen kẽ theo ngày" resolved for today).
                 "video_mode": topic.video_mode,
                 "video_mode_today": group_video_mode(topic),
@@ -2423,6 +2597,7 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "text_look": text_looks.group_look(topic) or None,
                 "text_ai": topic.text_ai,
                 "no_people": topic.no_people,
+                "outro_cta": topic.outro_cta,
                 "text_suggestions": topic.text_suggestions,
                 "text_job": text_looks.job_payload(text_looks.job_of(db, topic.id)),
                 "created_by_id": topic.created_by_id,
@@ -2437,6 +2612,14 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 # "Tư liệu": the folder of the team's library the group's view shows; None: none linked yet.
                 "media_folder": topic.media_folder,
                 "video_count": counts.get(topic.id, 0),
+                # The active Pages that post the group, to read its videos and revenue for one of them.
+                "page_list": page_rows.get(topic.id, []),
+                "readiness": {
+                    "pages": pages.get(topic.id, 0),
+                    "docs": docs.get(topic.id, 0),
+                    "products": products.get(topic.id, 0),
+                    "plan_started": topic.plan_start_date is not None,
+                },
                 # A group of a Page the member owns: listed first where a group is picked.
                 "mine": topic.id in mine,
                 # "Sửa lần cuối" under the group's name; None until its first logged change.
@@ -2517,6 +2700,69 @@ def create_topic(body: NewTopicBody, me: Session = Depends(current_member), db: 
     return _knowledge_payload(db, me.user_id)
 
 
+# What "Nhân bản nhóm" copies: the prompts and the settings a group's new videos start from. Not its videos, plan,
+# documents, text suggestions or linked folder (a folder belongs to one group).
+COPIED_TOPIC_FIELDS = (
+    "script_prompt",
+    "clone_prompt",
+    "revise_prompt",
+    "learn_prompt",
+    "analyze_prompt",
+    "article_prompt",
+    "plan_prompt",
+    "photo_hint",
+    "voice_id",
+    "voice_backup_id",
+    "video_mode",
+    "text_ai",
+    "no_people",
+    "outro_cta",
+    "edit_template_default",
+)
+
+
+def _copy_name(db: DbSession, name: str) -> str:
+    """ "<name> (bản sao)", then "(bản sao 2)" and so on, cut to fit the name's length."""
+    taken = {topic.name.casefold() for topic in knowledge.all_topics(db)}
+    for number in range(1, 1000):
+        suffix = " (bản sao)" if number == 1 else f" (bản sao {number})"
+        candidate = name[: MAX_TOPIC_NAME_LENGTH - len(suffix)].rstrip() + suffix
+        if candidate.casefold() not in taken:
+            return candidate
+    raise invalid("Có quá nhiều bản sao của nhóm này")
+
+
+@router.post("/knowledge/topics/{topic_id}/duplicate", status_code=201)
+def duplicate_topic(topic_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Nhân bản nhóm": a new group of the member's with the prompts and settings of this one. Using a group is open to
+    everyone, so any member may copy any group; the copy is theirs, and open to the team."""
+    source = _topic(db, topic_id)
+    topic = KnowledgeTopic(
+        name=_copy_name(db, source.name),
+        created_by_id=me.user_id,
+        updated_by_id=me.user_id,
+        banned_words=list(source.banned_words),
+        plan_post_times=list(source.plan_post_times),
+        stock_order=list(source.stock_order) if source.stock_order else None,
+        text_look=dict(source.text_look) if source.text_look else None,
+        **{field: getattr(source, field) for field in COPIED_TOPIC_FIELDS},
+    )
+    topic.edit_templates = list(source.edit_templates)
+    db.add(topic)
+    db.flush()
+    edit_log.record(
+        db,
+        edit_log.TOPIC,
+        topic.id,
+        "create",
+        me.user_id,
+        label=topic.name,
+        changes={"name": {"old": None, "new": topic.name}},
+    )
+    db.commit()
+    return _knowledge_payload(db, me.user_id)
+
+
 @router.patch("/knowledge/topics/{topic_id}")
 def patch_topic(
     topic_id: int, body: TopicPatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
@@ -2559,6 +2805,11 @@ def patch_topic(
             topic.voice_id = video_options.clean({"voice_id": body.voice_id})["voice_id"]
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
+    if body.voice_backup_id is not None:
+        try:
+            topic.voice_backup_id = video_options.clean({"voice_id": body.voice_backup_id})["voice_id"]
+        except video_options.OptionError as err:
+            raise invalid(str(err)) from None
     if body.video_mode is not None:
         topic.video_mode = body.video_mode
     if "text_look" in body.model_fields_set:
@@ -2570,6 +2821,8 @@ def patch_topic(
         topic.text_ai = body.text_ai
     if body.no_people is not None:
         topic.no_people = body.no_people
+    if body.outro_cta is not None:
+        topic.outro_cta = body.outro_cta
     if "media_folder" in body.model_fields_set:
         from .routes_media import link_folder
 

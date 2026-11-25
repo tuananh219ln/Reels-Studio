@@ -6,6 +6,31 @@ import type { CSSProperties, ReactNode } from "react";
 /** What a status means, which sets its dot: nothing yet, a job running, done, out or waiting, needs a look, failed. */
 export type StatusTone = "idle" | "active" | "done" | "success" | "waiting" | "warning" | "danger";
 
+/** The tone for the colour name a status table already carries (an Ant Design tag colour), so those tables can keep
+ * their colours and still draw the status as a dot and a word. */
+export function toneOf(color: string | undefined): StatusTone {
+  switch (color) {
+    case "green":
+    case "success":
+      return "success";
+    case "orange":
+    case "gold":
+    case "warning":
+      return "warning";
+    case "red":
+    case "error":
+    case "magenta":
+      return "danger";
+    case "processing":
+    case "blue":
+    case "cyan":
+    case "geekblue":
+      return "active";
+    default:
+      return "idle";
+  }
+}
+
 /** A status as a small dot and a word, the way every list in the app shows one, instead of a tinted tag. */
 export default function StatusText({
   tone,

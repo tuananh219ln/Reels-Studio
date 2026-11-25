@@ -1,7 +1,8 @@
 "use client";
 
+import StatusText from "@/components/StatusText";
 import { InboxOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Flex, Form, Input, Segmented, Select, Tag, Typography, Upload } from "antd";
+import { Alert, App, Button, Flex, Form, Input, Segmented, Select, Typography, Upload } from "antd";
 import Link from "next/link";
 import { useState } from "react";
 import { api, errorMessage, type AffiliateImport, type AffiliateImportPreview, type AffiliateOptions } from "@/lib/api";
@@ -45,6 +46,8 @@ export default function AddProductDrawer({
   const [busy, setBusy] = useState(false);
   const [openedAs, setOpenedAs] = useState<AddMode | null>(null);
 
+  const addable = (id: number | null) => id !== null && (options.topics.find((one) => one.id === id)?.can_add ?? false);
+
   // Each opening starts clean on the tab it was opened for (state adjusted while rendering, not in an effect).
   if (mode !== openedAs) {
     setOpenedAs(mode);
@@ -55,19 +58,24 @@ export default function AddProductDrawer({
       setResult(null);
       setPreview(null);
       // From a group on the list, that group; else my first Page that posts a group, else a group by name.
-      const myPage = options.pages.find((page) => page.mine && page.knowledge_topic_id !== null);
-      setTarget(startTopicId === undefined && myPage ? "page" : "topic");
+      const myPage = options.pages.find(
+        (page) => page.mine && page.knowledge_topic_id !== null && addable(page.knowledge_topic_id),
+      );
+      const start = startTopicId !== undefined && addable(startTopicId) ? startTopicId : undefined;
+      setTarget(start === undefined && myPage ? "page" : "topic");
       setPageId(myPage?.id);
-      setTopicId(startTopicId);
+      setTopicId(start);
     }
   }
 
+  // Only the member who made a group adds products to it, so only those groups and the Pages that post them are offered.
+  const addableTopics = options.topics.filter((one) => one.can_add);
   // A Page's products go into the group it posts; with one topic group there is nothing to choose.
   const chosenPage = options.pages.find((page) => page.id === pageId);
   const topic =
     target === "page"
       ? (chosenPage?.knowledge_topic_id ?? undefined)
-      : (topicId ?? (options.topics.length === 1 ? options.topics[0].id : undefined));
+      : (topicId ?? (addableTopics.length === 1 ? addableTopics[0].id : undefined));
   const topicName = options.topics.find((one) => one.id === topic)?.name;
 
   /** What "Nhập" would do with the file in this group, row by row; nothing is written. */
@@ -87,7 +95,7 @@ export default function AddProductDrawer({
       message.error(errorMessage(err));
     }
   }
-  const taking = preview ? preview.rows.filter((row) => row.state !== "others").length : 0;
+  const taking = preview ? preview.rows.length : 0;
   const pasted = links
     .split(/\s+/)
     .map((link) => link.trim())
@@ -120,7 +128,7 @@ export default function AddProductDrawer({
       const counts = [`thêm ${done.added}`, done.updated > 0 ? `cập nhật ${done.updated}` : ""].filter(Boolean);
       message.success(`Đã nhập vào “${topicName}”: ${counts.join(", ")} sản phẩm`);
       setPreview(null);
-      if (done.errors.length > 0 || done.kept > 0 || !done.lookup) {
+      if (done.errors.length > 0 || done.shared > 0 || !done.lookup) {
         // Stay open so the member reads which rows were left out and what is still to fill in.
         setResult(done);
         setFile(null);
@@ -193,11 +201,15 @@ export default function AddProductDrawer({
                       .sort((a, b) => Number(b.mine) - Number(a.mine))
                       .map((page) => ({
                         value: page.id,
-                        disabled: page.knowledge_topic_id === null,
+                        disabled: page.knowledge_topic_id === null || !addable(page.knowledge_topic_id),
                         label:
                           page.name +
                           (page.mine ? "" : ` (${page.owner_name ?? "chưa có chủ"})`) +
-                          (page.knowledge_topic_id === null ? " (chưa gắn nhóm chủ đề)" : ""),
+                          (page.knowledge_topic_id === null
+                            ? " (chưa gắn nhóm chủ đề)"
+                            : addable(page.knowledge_topic_id)
+                              ? ""
+                              : " (nhóm của người khác)"),
                       }))}
                     notFoundContent="Chưa có Page nào"
                   />
@@ -216,7 +228,7 @@ export default function AddProductDrawer({
                     setTopicId(id);
                     void loadPreview(file?.text ?? "", id);
                   }}
-                  options={[...options.topics]
+                  options={[...addableTopics]
                     .sort((a, b) => Number(b.mine) - Number(a.mine))
                     .map((one) => ({ value: one.id, label: one.name }))}
                 />
@@ -234,7 +246,7 @@ export default function AddProductDrawer({
                   description={
                     <>
                       Thêm App ID và Secret ở{" "}
-                      <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản affiliate</Link>. Chưa có thì dùng{" "}
+                      <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản và kênh</Link>. Chưa có thì dùng{" "}
                       <Typography.Link onClick={() => setTab("file")}>Nhập file</Typography.Link> từ Shopee Affiliate.
                     </>
                   }
@@ -257,7 +269,7 @@ export default function AddProductDrawer({
           ) : (
             <Form.Item
               label="File từ Shopee Affiliate"
-              extra="Trong Shopee Affiliate, mở Lấy link hàng loạt, tạo link rồi tải file CSV về và thả vào đây. Sản phẩm bạn đã thêm trước đó được cập nhật link và hoa hồng; sản phẩm của người khác giữ nguyên link của họ."
+              extra="Trong Shopee Affiliate, mở Lấy link hàng loạt, tạo link rồi tải file CSV về và thả vào đây. Sản phẩm bạn đã thêm trước đó được cập nhật link và hoa hồng; sản phẩm của người khác giữ nguyên link của họ. Có thể thêm cột “Tên ngắn”, “Nhóm”, “Tags” cho Bộ bình luận."
             >
               <Upload.Dragger
                 accept=".csv,text/csv"
@@ -289,25 +301,30 @@ export default function AddProductDrawer({
         </Form>
         {tab === "file" && preview && (
           <Alert
-            type={preview.rows.some((row) => row.state === "others") || preview.errors.length > 0 ? "warning" : "info"}
+            type={preview.errors.length > 0 ? "warning" : "info"}
             showIcon
             title="Xem trước"
             description={
               <Flex vertical gap={6} data-testid="import-preview">
                 <Flex wrap gap={6}>
-                  <Tag color="green">Mới {preview.rows.filter((row) => row.state === "new").length}</Tag>
-                  <Tag>Đã có của bạn {preview.rows.filter((row) => row.state === "mine").length}</Tag>
-                  <Tag color="gold">Của người khác {preview.rows.filter((row) => row.state === "others").length}</Tag>
-                  <Tag color="red">Lỗi {preview.errors.length}</Tag>
+                  <StatusText tone="success">Mới {preview.rows.filter((row) => row.state === "new").length}</StatusText>
+                  <StatusText tone="idle">
+                    Của bạn, cập nhật {preview.rows.filter((row) => row.state === "mine").length}
+                  </StatusText>
+                  <StatusText tone="active">
+                    Trùng người khác, tạo riêng {preview.rows.filter((row) => row.state === "copy").length}
+                  </StatusText>
+                  <StatusText tone="danger">Lỗi {preview.errors.length}</StatusText>
                 </Flex>
                 {preview.rows.some((row) => row.state === "mine") && (
                   <span>Sản phẩm đã có của bạn được cập nhật giá, hoa hồng và link.</span>
                 )}
                 {preview.rows
-                  .filter((row) => row.state === "others")
+                  .filter((row) => row.state === "copy")
                   .map((row) => (
                     <span key={row.row}>
-                      Dòng {row.row}: “{row.name}” của {row.by} (nhóm {row.topic}) được giữ nguyên link của họ.
+                      Dòng {row.row}: “{row.name}” {row.by} đã thêm (nhóm {row.topic}); bạn vẫn được thêm bản riêng với
+                      link của bạn.
                     </span>
                   ))}
                 {preview.errors.map((error) => (
@@ -328,11 +345,11 @@ export default function AddProductDrawer({
             }`}
             description={
               <Flex vertical gap={4}>
-                {result.others.map((other) => (
-                  <span key={`other-${other.row}`}>
-                    Dòng {other.row}: “{other.name}” của {other.by} được giữ nguyên link của họ.
+                {result.shared > 0 && (
+                  <span>
+                    {result.shared} sản phẩm trùng với người khác được thêm riêng cho bạn, link của họ giữ nguyên.
                   </span>
-                ))}
+                )}
                 {result.errors.map((error) => (
                   <span key={error.row}>
                     Dòng {error.row}: {error.message}

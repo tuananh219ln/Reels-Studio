@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AimOutlined,
   BookOutlined,
   ClockCircleOutlined,
   FolderOpenOutlined,
@@ -8,6 +9,7 @@ import {
   KeyOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
+  MobileOutlined,
   MenuOutlined,
   MenuUnfoldOutlined,
   EditOutlined,
@@ -27,6 +29,7 @@ import { ApiError, api, type Me } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 import { useStoredChoice } from "@/lib/storedChoice";
 import { ChangePasswordModal, RenameModal } from "./AccountModals";
+import InstallAppModal, { useCanInstall } from "./InstallAppModal";
 import Logo from "./Logo";
 import { MeContext } from "./MeContext";
 import UserAvatar from "./UserAvatar";
@@ -59,6 +62,7 @@ const NAV: { key: string; label: string; children: { key: string; icon: React.Re
       { key: "/knowledge", icon: <BookOutlined />, label: "Kho kiến thức" },
       { key: "/media", icon: <FolderOpenOutlined />, label: "Kho tư liệu" },
       { key: "/music", icon: <CustomerServiceOutlined />, label: "Thư viện nhạc" },
+      { key: "/competitors", icon: <AimOutlined />, label: "Phân tích đối thủ" },
     ],
   },
   {
@@ -93,7 +97,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const onVideo = /^\/videos\/\d+/.test(pathname);
   const [railOpen, setRailOpen] = useState(false);
 
-  const [modal, setModal] = useState<"password" | "name" | null>(null);
+  const [modal, setModal] = useState<"password" | "name" | "install" | null>(null);
+  const canInstall = useCanInstall();
   // "Báo cho người tạo" (decisions 2026-11-15, "article posting retries"): a red count on "Bài viết".
   const [failedArticles, setFailedArticles] = useState(0);
   const pollAttention = useCallback(async () => {
@@ -146,7 +151,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const pageItem = (item: { key: string; icon: React.ReactNode; label: string }) => ({
     key: item.key,
-    icon: item.icon,
+    // On a rail only the icon shows, so the icon is the link (new tab, right-click); a plain click is the Menu's.
+    icon: rail ? (
+      <Link
+        href={item.key}
+        prefetch={false}
+        aria-label={item.label}
+        onClick={(event) => {
+          if (!event.metaKey && !event.ctrlKey && !event.shiftKey) event.preventDefault();
+        }}
+      >
+        {item.icon}
+      </Link>
+    ) : (
+      item.icon
+    ),
     // No prefetch: each would render that page on the web worker (about a second or more each) while the
     // current page is still loading; a click renders it then.
     label: (
@@ -179,10 +198,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       selectedKeys={[selected]}
       style={{ border: "none", padding: "0 6px" }}
       items={NAV.map((group) => ({ type: "group" as const, ...group, children: group.children.map(pageItem) }))}
-      onClick={({ key }) => {
+      onClick={({ key, domEvent }) => {
         setDrawerOpen(false);
-        // A rail shows only the icons: the click on one is the link.
-        if (rail) router.push(key);
+        // A rail shows only the icons: the click on one is the link (Ctrl/Cmd/Shift-click is the link's own).
+        if (rail && !domEvent.metaKey && !domEvent.ctrlKey && !domEvent.shiftKey) router.push(key);
       }}
     />
   );
@@ -199,7 +218,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             onClick: () => setModal("password"),
           },
           { key: "name", icon: <EditOutlined />, label: "Sửa tên", onClick: () => setModal("name") },
-          { type: "divider" },
+          ...(canInstall
+            ? [
+                {
+                  key: "install",
+                  icon: <MobileOutlined />,
+                  label: "Cài app lên điện thoại",
+                  onClick: () => setModal("install"),
+                },
+              ]
+            : []),
+          { type: "divider" as const },
           { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", onClick: logout },
         ],
       }}
@@ -340,6 +369,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </Layout>
       </Layout>
       <ChangePasswordModal open={modal === "password"} onClose={() => setModal(null)} />
+      <InstallAppModal open={modal === "install"} onClose={() => setModal(null)} />
       <RenameModal open={modal === "name"} onClose={() => setModal(null)} />
     </MeContext.Provider>
   );

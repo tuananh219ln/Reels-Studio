@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { App, Button, Card, Flex, Input, Popconfirm, Progress, Space, Switch, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
+import ApiKeyList from "@/components/settings/ApiKeyList";
 import StatusText from "@/components/StatusText";
 import { forgetVoices } from "@/components/video/VideoSettings";
 import { api, errorMessage } from "@/lib/api";
@@ -83,7 +83,7 @@ function FreeTierLimit({ state, onChange }: { state: VoiceKey; onChange: (data: 
   );
 }
 
-/** The narration services whose key is pasted on Cài đặt › Mô hình AI, by their api source_keys name. */
+/** The narration services whose key is pasted on Cài đặt › AI và nguồn tư liệu, by their api source_keys name. */
 export const VOICE_KEY_SERVICES = {
   vieneu: {
     name: "VieNeu",
@@ -108,7 +108,7 @@ export const VOICE_KEY_SERVICES = {
 
 export type VoiceKeyService = keyof typeof VOICE_KEY_SERVICES;
 
-/** A voice service's key card on Cài đặt › Mô hình AI: paste, replace or remove its API key. Its voices then join the
+/** A voice service's key card under "Giọng đọc" on Cài đặt › AI và nguồn tư liệu: paste, replace or remove its API key. Its voices then join the
  * "Giọng" picker of Thiết lập mặc định and of each video. Stored like the other keys (api source_keys.py).
  * `footer`: shown under the card's text (the "Sửa lần cuối" line); `onSaved` after a key is saved or removed. */
 export default function VoiceKeyCard({
@@ -169,6 +169,7 @@ export default function VoiceKeyCard({
     <Card
       size="small"
       data-testid={`${service}-key`}
+      style={{ height: "100%" }}
       title={
         <Flex wrap gap={8} align="center">
           <span>{text.title}</span>
@@ -187,11 +188,7 @@ export default function VoiceKeyCard({
           <a href={state.key.signup_url} target="_blank" rel="noreferrer">
             {text.signup}
           </a>
-          .{text.note && ` ${text.note}`} Key giọng ElevenLabs ở{" "}
-          <Link prefetch={false} href="/settings/sources">
-            Cài đặt › Nguồn tư liệu
-          </Link>
-          .
+          .{text.note && ` ${text.note}`}
         </Typography.Text>
         {origin === "unreadable" && (
           <Typography.Text type="warning">
@@ -244,6 +241,7 @@ export default function VoiceKeyCard({
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Key được mã hoá khi lưu và không bao giờ hiện lại.
         </Typography.Text>
+        <ApiKeyList service={service} onChanged={onSaved} />
       </Flex>
       {footer}
     </Card>

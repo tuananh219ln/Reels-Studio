@@ -1,6 +1,6 @@
 "use client";
 import { useMe } from "@/components/MeContext";
-import { MakeReelButton, PublishButton } from "@/components/article/ArticlePosting";
+import { PublishButton } from "@/components/article/ArticlePosting";
 import { api, errorMessage, type Article } from "@/lib/api";
 import { App, Button, Flex, Popconfirm } from "antd";
 
@@ -44,7 +44,7 @@ export default function ArticleActions({
   onChanged: () => void | Promise<void>;
 }) {
   return (
-    <Flex gap={4} wrap onClick={(event) => event.stopPropagation()}>
+    <Flex gap={8} wrap={false} onClick={(event) => event.stopPropagation()}>
       <PublishButton
         article={article}
         label="Đăng bài"
@@ -53,7 +53,6 @@ export default function ArticleActions({
         onSaved={() => void onChanged()}
         beforePublish={async () => {}}
       />
-      <MakeReelButton article={article} />
       <DeleteArticleButton article={article} onDeleted={onChanged} />
     </Flex>
   );

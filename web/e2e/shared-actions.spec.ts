@@ -8,7 +8,7 @@ test.afterEach(async ({ page }, info) => {
     await page.screenshot({ path: info.outputPath("shared-actions.png"), animations: "disabled" });
 });
 
-test("shared actions: article list offers posting, making a Reel and deletion", async ({ page }) => {
+test("shared actions: article list offers posting and deletion, and no longer making a Reel", async ({ page }) => {
   await loginAsSeed(page);
   let releaseKnowledge: () => void = () => {};
   const knowledgeReady = new Promise<void>((resolve) => {
@@ -32,7 +32,7 @@ test("shared actions: article list offers posting, making a Reel and deletion", 
   await page.goto("/articles");
   const row = page.getByRole("row").filter({ hasText: "Bài kiểm tra thao tác dùng chung" });
   await expect(row.getByRole("button", { name: "Đăng bài", exact: true })).toBeVisible();
-  await expect(row.getByRole("button", { name: "Làm reel từ bài này" })).toBeVisible();
+  await expect(row.getByRole("button", { name: "Làm reel từ bài này" })).toHaveCount(0);
   await row.getByRole("button", { name: "Xoá bài viết" }).click();
   await page.getByRole("button", { name: "Xoá", exact: true }).last().click();
   await expect(row).toHaveCount(0);
@@ -53,7 +53,9 @@ test("shared actions: Page logo controls are shared by cards and the dashboard",
   await loginAsSeed(page);
   await connectFacebook(page);
   await page.goto("/fanpages");
-  await expect(page.getByTestId("fanpage-card").getByTestId("fanpage-logo")).toBeVisible();
+  await page.getByRole("button", { name: "Cài đặt Trang Dưỡng Sinh" }).click();
+  await expect(page.getByRole("dialog", { name: /Tài khoản và chủ Page/ }).getByTestId("fanpage-logo")).toBeVisible();
+  await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
   await page.getByRole("button", { name: "Thao tác với Trang Dưỡng Sinh" }).click();
   await page.getByText("Tài khoản và chủ Page", { exact: true }).click();

@@ -1,5 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addUser, chooseOption, connectFacebook, login, loginAsSeed, openPanel, resetDatabase } from "./helpers";
+import {
+  addUser,
+  chooseOption,
+  connectFacebook,
+  importExportItem,
+  login,
+  loginAsSeed,
+  openPanel,
+  resetDatabase,
+} from "./helpers";
 
 // Issue #47. Shopee is the fake one (api/scripts/fake_services.py), which knows this App ID and Secret.
 const APP_ID = "1000001";
@@ -9,7 +18,8 @@ test.beforeEach(() => resetDatabase());
 
 async function addShopeeAccount(page: Page) {
   await page.goto("/settings/affiliate-accounts");
-  await page.getByRole("button", { name: "Thêm tài khoản" }).click();
+  await page.getByRole("button", { name: "Thêm kết nối" }).click();
+  await page.getByRole("menuitem", { name: "Thêm tài khoản" }).click();
   const dialog = page.getByRole("dialog", { name: "Thêm tài khoản affiliate" });
   await dialog.getByLabel("Tên tài khoản").fill("Shopee của An");
   await dialog.getByLabel("App ID").fill(APP_ID);
@@ -31,8 +41,12 @@ test("a member's Shopee account: added, checked, set on their Page, and hidden f
   await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
   await expect(owner).toContainText("Thuộc: bạn");
-  await chooseOption(page, owner.getByLabel("Tài khoản Shopee của Trang Dưỡng Sinh"), "Shopee: Shopee của An");
-  await expect(owner.getByLabel("Tài khoản Shopee của Trang Dưỡng Sinh")).toBeVisible();
+  await expect(owner).toContainText("Shopee: dùng link dán tay");
+  await page.getByRole("button", { name: "Cài đặt Trang Dưỡng Sinh" }).click();
+  const settings = page.getByRole("dialog", { name: /Tài khoản và chủ Page/ });
+  await chooseOption(page, settings.getByLabel("Tài khoản Shopee của Trang Dưỡng Sinh"), "Shopee: Shopee của An");
+  await expect(settings.getByLabel("Tài khoản Shopee của Trang Dưỡng Sinh")).toBeVisible();
+  await expect(owner).toContainText("Shopee: Shopee của An");
   await page.reload();
   await expect(page.getByTestId("fanpage-owner")).toContainText("Shopee: Shopee của An");
 
@@ -44,9 +58,14 @@ test("a member's Shopee account: added, checked, set on their Page, and hidden f
   await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
   await expect(binh).toHaveURL(/\/videos$/);
   await binh.goto("/settings/affiliate-accounts");
-  await expect(binh.getByText("Chưa có tài khoản nào")).toBeVisible();
+  await expect(binh.getByText("Chưa có tài khoản Shopee nào")).toBeVisible();
   await binh.goto("/fanpages");
-  await expect(binh.getByTestId("fanpage-owner")).toHaveText("Thuộc: Nguyễn Văn An");
+  // A teammate sees whose Page it is and what is public about it, never the owner's Shopee or TikTok account.
+  const theirs = binh.getByTestId("fanpage-owner");
+  await expect(theirs).toContainText("Thuộc: Nguyễn Văn An");
+  await expect(theirs).not.toContainText("Shopee");
+  await expect(theirs).not.toContainText("TikTok");
+  await expect(theirs.getByRole("button", { name: /^Cài đặt/ })).toHaveCount(0);
   await binh.goto("/affiliate");
   await binh.getByRole("tab", { name: "Doanh thu" }).click();
   await expect(binh.getByText("Chưa có tài khoản Shopee nào của bạn")).toBeVisible();
@@ -82,7 +101,9 @@ test("a new script finds Shopee products with the writer's account, and one is c
   await expect(row).toContainText("Tìm qua API");
 });
 
-test("without an App ID, an affiliate link pasted on the video is filled in by hand and chosen", async ({ page }) => {
+test("without an App ID, an affiliate link pasted on the video can be chosen, and filled in by hand first", async ({
+  page,
+}) => {
   test.setTimeout(120_000);
   await loginAsSeed(page);
   await page.goto("/videos");
@@ -98,7 +119,8 @@ test("without an App ID, an affiliate link pasted on the video is filled in by h
   await suggestions.getByRole("button", { name: "Thêm link" }).click();
   const pasted = suggestions.getByTestId("suggested-product");
   await expect(pasted).toContainText("Chưa có thông tin sản phẩm");
-  await expect(pasted.getByRole("button", { name: "Chọn" })).toHaveCount(0);
+  // Stars and sales not being filled in does not block choosing it; they can still be filled in by hand.
+  await expect(pasted.getByRole("button", { name: "Chọn" })).toHaveCount(1);
 
   await pasted.getByRole("button", { name: "Sửa thông tin" }).click();
   const form = page.getByRole("dialog", { name: "Sửa sản phẩm" });
@@ -203,7 +225,8 @@ test("a member connects their TikTok account through TikTok's consent page, then
     return route.fulfill({ status: 302, headers: { location: `http://localhost:3100${back}` } });
   });
   await page.goto("/settings/affiliate-accounts");
-  await page.getByRole("button", { name: "Kết nối TikTok" }).first().click();
+  await page.getByRole("button", { name: "Thêm kết nối" }).click();
+  await page.getByRole("menuitem", { name: "Kết nối TikTok" }).click();
   await expect(page.getByText("Đã kết nối tài khoản TikTok")).toBeVisible();
   await expect(page).toHaveURL(/\/settings\/affiliate-accounts$/);
   // The account is made from the TikTok profile and shows the connection, never a token.
@@ -228,20 +251,29 @@ test("a member's TikTok account: set on their Page, and shown there after a relo
     return route.fulfill({ status: 302, headers: { location: `http://localhost:3100${back}` } });
   });
   await page.goto("/settings/affiliate-accounts");
-  await page.getByRole("button", { name: "Kết nối TikTok" }).first().click();
+  await page.getByRole("button", { name: "Thêm kết nối" }).click();
+  await page.getByRole("menuitem", { name: "Kết nối TikTok" }).click();
   await expect(page.getByText("Đã kết nối tài khoản TikTok")).toBeVisible();
 
   await connectFacebook(page);
   await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
   await expect(owner).toContainText("Thuộc: bạn");
-  await chooseOption(page, owner.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"), "TikTok: An Lành SK (@anlanhsk)");
+  await page.getByRole("button", { name: "Cài đặt Trang Dưỡng Sinh" }).click();
+  const settings = page.getByRole("dialog", { name: /Tài khoản và chủ Page/ });
+  await chooseOption(
+    page,
+    settings.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"),
+    "TikTok: An Lành SK (@anlanhsk)",
+  );
   await page.reload();
-  await expect(page.getByTestId("fanpage-owner")).toContainText("TikTok: An Lành SK (@anlanhsk)");
+  await expect(page.getByTestId("fanpage-owner")).toContainText("TikTok: An Lành SK");
 
   // The auto-post mode shows once an account is linked, starts on the draft, and "Đăng thẳng" stays after a reload.
-  const mode = page.getByTestId("fanpage-owner").getByLabel("Tự đăng TikTok của Trang Dưỡng Sinh");
   await expect(page.getByTestId("fanpage-owner")).toContainText("đẩy nháp đúng giờ");
+  await page.getByRole("button", { name: "Cài đặt Trang Dưỡng Sinh" }).click();
+  const modeDrawer = page.getByRole("dialog", { name: /Tài khoản và chủ Page/ });
+  const mode = modeDrawer.getByLabel("Tự đăng TikTok của Trang Dưỡng Sinh");
   await chooseOption(page, mode, "Tự đăng TikTok: đăng thẳng công khai");
   await page.reload();
   await expect(page.getByTestId("fanpage-owner")).toContainText("đăng thẳng công khai");
@@ -305,7 +337,7 @@ test("an article's products show even when its page never saw the search pending
 test("Video đã đăng starts on the member's own and says whose commission each product earns", async ({ page }) => {
   await loginAsSeed(page);
   const me = (await (await page.request.get("/api/me")).json()) as { id: number };
-  const post = (name: string, ownerId: number, owner: string) => ({
+  const post = (name: string, ownerId: number, owner: string, links = "missing") => ({
     platform: "facebook",
     fanpage_id: ownerId,
     name,
@@ -315,6 +347,7 @@ test("Video đã đăng starts on the member's own and says whose commission eac
     has_shopee_account: false,
     comment: "off",
     comment_error: null,
+    links,
   });
   const video = (id: number, title: string, mine: boolean, posts: object[], products: object[]) => ({
     id,
@@ -378,7 +411,7 @@ test("Video đã đăng starts on the member's own and says whose commission eac
         },
       ],
     ),
-    video(2, "Bài của đồng đội", false, [post("Trang Bình", me.id + 1, "Trần Bình")], []),
+    video(2, "Bài của đồng đội", false, [post("Trang Bình", me.id + 1, "Trần Bình", "yes")], []),
   ];
   await page.route("**/api/affiliate-products/videos", (route) => route.fulfill({ json: rows() }));
   // "Đã dán link tay" answers with the video marked, as the api does.
@@ -396,11 +429,20 @@ test("Video đã đăng starts on the member's own and says whose commission eac
   ]);
   await expect(page.getByRole("row", { name: /Bài của đồng đội/ })).toHaveCount(0);
 
-  // Pasted by hand: the comment is the member's, and the video moves to its own tab.
-  await expect(mine.getByTestId("comment-status")).toHaveText("Chưa bình luận");
-  await mine.getByRole("button", { name: "Đã dán link tay" }).click();
-  await expect(mine.getByTestId("comment-status")).toHaveText("Dán tay");
+  // The Page commented without a link: the row and the Page's dot say so, and "Thiếu link" lists it.
+  await expect(mine.getByTestId("comment-status")).toHaveText("Đã bình luận, thiếu link");
+  await expect(mine.getByTestId("link-dot")).toHaveAttribute("data-links", "missing");
   const linked = page.getByLabel("Lọc theo sản phẩm đã gắn");
+  await linked.getByText("Thiếu link (1)").click();
+  await expect(mine).toBeVisible();
+  await expect(mine.getByRole("button", { name: "Thêm link" })).toBeVisible();
+
+  // Pasted by hand (⋯): the comment is the member's, and the video moves to its own tab.
+  await expect(async () => {
+    await mine.getByRole("button", { name: "Thêm thao tác bình luận: Trà gừng cho người trên 50" }).click();
+    await page.getByRole("menuitem", { name: "Đã dán link tay" }).click({ timeout: 2_000 });
+  }).toPass();
+  await expect(mine.getByTestId("comment-status")).toHaveText("Dán tay · đã bình luận, thiếu link");
   await linked.getByText("Dán tay (1)").click();
   await expect(mine).toBeVisible();
   await linked.getByText("Tất cả (1)").click();
@@ -417,6 +459,8 @@ test("Video đã đăng starts on the member's own and says whose commission eac
   await page.getByLabel("Của ai").getByText("Cả đội (2)").click();
   const theirs = page.getByRole("row", { name: /Bài của đồng đội/ });
   await expect(theirs.getByTestId("video-post")).toHaveText("Trang Bình (Trần Bình)");
+  await expect(theirs.getByTestId("comment-status")).toHaveText("Có link");
+  await expect(theirs.getByRole("button", { name: "Xem bình luận" })).toBeVisible();
 });
 
 test("Sản phẩm: my groups first, who added each product, and stars or sales fixed on the row", async ({ page }) => {
@@ -432,9 +476,11 @@ test("Sản phẩm: my groups first, who added each product, and stars or sales 
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
   // My groups first, each with the Pages that post it.
-  const groups = page.getByRole("navigation", { name: "Nhóm chủ đề" });
+  await page.getByLabel("Lọc theo nhóm").click();
+  const groups = page.locator(".ant-select-dropdown:visible");
   await expect(groups).toContainText("Nhóm của tôi");
-  await expect(groups.getByRole("button", { name: /Sức khỏe/ })).toContainText("Trang Dưỡng Sinh");
+  await expect(groups.locator(".ant-select-item-option", { hasText: "Sức khỏe" })).toContainText("Trang Dưỡng Sinh");
+  await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: "Thêm sản phẩm" }).click();
   const adding = page.getByRole("dialog", { name: "Thêm sản phẩm" });
@@ -465,7 +511,10 @@ test("Sản phẩm: my groups first, who added each product, and stars or sales 
   await expect(product).toContainText("Đã duyệt");
 });
 
-test("Nhập file: a preview first, and a teammate's product keeps their link", async ({ page, browser }) => {
+test("Nhập file: a preview first, and a teammate's product is added again with my link, theirs untouched", async ({
+  page,
+  browser,
+}) => {
   await loginAsSeed(page);
   await addUser(page, "binh@doi.vn", "Trần Bình", "mat-khau-tam-1");
   const binh = await (await browser.newContext({ baseURL: "http://localhost:3100", locale: "vi-VN" })).newPage();
@@ -493,7 +542,7 @@ test("Nhập file: a preview first, and a teammate's product keeps their link", 
 
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
-  await page.getByRole("button", { name: "Nhập file" }).click();
+  await importExportItem(page, /Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   await dialog.locator('input[type="file"]').setInputFiles({
@@ -505,16 +554,25 @@ test("Nhập file: a preview first, and a teammate's product keeps their link", 
   });
   const preview = dialog.getByTestId("import-preview");
   await expect(preview).toContainText("Mới 1");
-  await expect(preview).toContainText("Của người khác 1");
-  await expect(preview).toContainText("“Gối của Bình” của Trần Bình (nhóm Sức khỏe) được giữ nguyên link của họ");
-  await dialog.getByRole("button", { name: "Nhập 1 sản phẩm" }).click();
-  await expect(dialog.getByText("“Gối của Bình” của Trần Bình được giữ nguyên link của họ")).toBeVisible();
+  await expect(preview).toContainText("Trùng người khác, tạo riêng 1");
+  await expect(preview).toContainText("“Gối của Bình” Trần Bình đã thêm (nhóm Sức khỏe)");
+  await dialog.getByRole("button", { name: "Nhập 2 sản phẩm" }).click();
+  await expect(dialog.getByText("1 sản phẩm trùng với người khác được thêm riêng cho bạn")).toBeVisible();
   await dialog.getByRole("button", { name: "Huỷ" }).click();
   await expect(dialog).toBeHidden();
-  await page
-    .getByLabel("Của ai")
-    .getByText(/Cả đội/)
-    .click();
-  await expect(page.getByRole("row", { name: /Gối của Bình/ })).toContainText("Người thêm: Trần Bình");
+  const rows = page.getByRole("row", { name: /Gối của Bình/ });
+  await expect(rows).toHaveCount(2);
+  await expect(rows.filter({ hasText: "Người thêm: Trần Bình" })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "Người thêm: bạn" })).toHaveCount(1);
   await expect(page.getByRole("row", { name: /Nồi của An/ })).toContainText("Người thêm: bạn");
+});
+
+test("Affiliate has a Hướng dẫn: the screen's guides open in a drawer, one at a time", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.goto("/affiliate");
+  await page.getByRole("button", { name: "Hướng dẫn" }).click();
+  const drawer = page.getByRole("dialog", { name: "Hướng dẫn" });
+  await expect(drawer.getByRole("heading", { name: "Hướng dẫn: màn Affiliate" })).toBeVisible();
+  await drawer.getByText("gắn link affiliate hàng loạt").click();
+  await expect(drawer.getByRole("heading", { name: /Custom Link của Shopee/ })).toBeVisible();
 });

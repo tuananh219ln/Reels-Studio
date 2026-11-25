@@ -16,6 +16,7 @@ from . import (
     image_style,
     llm,
     routes_videos,
+    service_usage,
     settings_log,
     source_keys,
     tts,
@@ -258,21 +259,23 @@ def delete_my_video_defaults(me: Session = Depends(current_member), db: DbSessio
 
 @router.get("/voices")
 def get_voices(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """The voices to choose from: ElevenLabs', VieNeu's and Google Cloud's, each listed once its key is set, and the
-    server's default one. A service that cannot list its voices is named in `problems` while the others' voices still
-    come; with no voice at all, the reason is the error."""
+    """The voices to choose from: ElevenLabs', VieNeu's, Gemini's and Google Cloud's, each listed once its key is set (Gemini's is the
+    one that makes AI photos), and the server's default one. A service that cannot list its voices is named in
+    `problems` while the others' voices still come; with no voice at all, the reason is the error. A service with more
+    than one key (the team's backups) lists with the first of them that answers."""
     listings = (
         ("elevenlabs", tts.list_voices),
         ("vieneu", tts.list_vieneu_voices),
+        ("gemini", tts.list_gemini_voices),
         ("google_tts", tts.list_google_voices),
     )
-    keys = {name: source_keys.get(db, name) for name, _ in listings}
+    keys = {name: source_keys.chain(db, name) for name, _ in listings}
     if not any(keys.values()):
         raise ApiError(
             422,
             "voices_unavailable",
-            "Chưa có key giọng đọc nào nên chưa chọn được giọng đọc: nhập key ElevenLabs ở Cài đặt › "
-            "Nguồn tư liệu, hoặc key VieNeu hay Google ở Cài đặt › Mô hình AI",
+            "Chưa có key ElevenLabs, Gemini, VieNeu hay Google nên chưa chọn được giọng đọc: nhập key ElevenLabs, "
+            "Gemini, VieNeu hay Google ở Cài đặt › AI và nguồn tư liệu",
         )
     voices: list[dict] = []
     problems: list[str] = []
@@ -282,16 +285,22 @@ def get_voices(me: Session = Depends(current_member), db: DbSession = Depends(ge
                 # The server's default voice is an ElevenLabs one, so say why it cannot be read.
                 problems.append(tts.NO_KEY.format("chưa dùng được giọng ElevenLabs (cả giọng mặc định)"))
             continue
-        try:
-            voices += listing(keys[name])
-        except tts.TtsError as err:
-            problems.append(err.message)
+        failure: tts.TtsError | None = None
+        for ref in keys[name]:
+            try:
+                voices += listing(ref.key)
+                failure = None
+                break
+            except tts.TtsError as err:
+                failure = failure or err
+        if failure:
+            problems.append(failure.message)
     if not voices:
         raise ApiError(422, "voices_unavailable", problems[0])
     return {"default_id": config.voice_id(), "voices": voices, "problems": problems}
 
 
-# --- Cài đặt › Nguồn tư liệu ---
+# --- Cài đặt › AI và nguồn tư liệu ---
 
 SOURCE_KINDS = {
     "pixabay": "Ảnh và video",
@@ -357,13 +366,13 @@ def _sources(db: DbSession) -> dict:
             "key": _key(db, "cloudflare"),
         },
         # Narration (ElevenLabs): the render job and the voice picker use this key.
-        "voices": {"configured": bool(source_keys.get(db, "elevenlabs")), "key": _key(db, "elevenlabs")},
-        # Narration (VieNeu), its key pasted on Cài đặt › Mô hình AI: voices whose id starts with "vieneu:".
-        "vieneu": {"configured": bool(source_keys.get(db, "vieneu")), "key": _key(db, "vieneu")},
-        # Narration (Google Cloud Text-to-Speech), its key pasted on Cài đặt › Mô hình AI: voices "google:<name>".
+        "voices": {"configured": bool(source_keys.chain(db, "elevenlabs")), "key": _key(db, "elevenlabs")},
+        # Narration (VieNeu), its key pasted on Cài đặt › AI và nguồn tư liệu: voices whose id starts with "vieneu:".
+        "vieneu": {"configured": bool(source_keys.chain(db, "vieneu")), "key": _key(db, "vieneu")},
+        # Narration (Google Cloud Text-to-Speech), its key pasted on Cài đặt › AI và nguồn tư liệu: voices "google:<name>".
         # With this month's characters by voice kind and "Chỉ dùng mức miễn phí" (google_tts_quota.py).
         "google_tts": {
-            "configured": bool(source_keys.get(db, "google_tts")),
+            "configured": bool(source_keys.chain(db, "google_tts")),
             "key": _key(db, "google_tts"),
             **google_tts_quota.payload(db),
         },
@@ -376,11 +385,20 @@ def get_image_providers(me: Session = Depends(current_member), db: DbSession = D
     return image_providers.offered(db)
 
 
+@router.get("/sources/usage")
+def get_sources_usage(
+    fresh: bool = False, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """How much of each AI service's allowance is used (service_usage.py); read apart from /sources so the page shows
+    at once while the services answer. `fresh`: ask them again instead of the answer kept a few minutes."""
+    return service_usage.payload(db, fresh)
+
+
 @router.put("/image-provider")
 def set_image_provider(
     body: ImageProviderBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
-    """The team's default AI image provider ("Nguồn ảnh AI mặc định" on Cài đặt › Nguồn tư liệu)."""
+    """The team's default AI image provider ("Nguồn ảnh AI mặc định" on Cài đặt › AI và nguồn tư liệu)."""
     if body.provider not in image_providers.PROVIDERS:
         raise invalid("Nguồn ảnh AI không hợp lệ")
     before = settings_log.snapshot(db)

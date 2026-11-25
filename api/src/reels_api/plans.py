@@ -54,7 +54,7 @@ STATUS_LABELS = {
     "started": "Đã tạo video",
     "scripted": "Đã viết kịch bản",
     "done": "Chờ đăng",
-    "scheduled": "Đã lên lịch",
+    "scheduled": "Đã hẹn giờ",
     "posted": "Đã đăng",
 }
 

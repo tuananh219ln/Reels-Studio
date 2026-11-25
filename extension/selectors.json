@@ -1,0 +1,44 @@
+{
+  "note": "Facebook's markup changes often: the scan follows links, labels and text, never Facebook's generated class names. Edit here, not in facebook-reels.js. counts: regular expressions over aria-labels whose first group is the number as written.",
+  "reelLink": "a[href*=\"/reel/\"]",
+  "reelId": "/reel/(\\d{5,30})",
+  "views": "^\\s*\\d[\\d.,\\s]*\\s*(K|N|M|Tr|B|Tỷ|nghìn|triệu)?\\s*(lượt xem|lượt phát|views?|plays?)?\\s*$",
+  "videoLink": "a[href*=\"/videos/\"], a[href*=\"/watch/?v=\"]",
+  "videoId": "(?:/videos/(?:[^/?#]+/)*|[?&]v=)(\\d{5,30})",
+  "postedCandidates": "a[role=\"link\"] span, a span, abbr, span[dir=\"auto\"]",
+  "posted": "^(?:[Vv]ừa xong|[Jj]ust now|(?:[Hh]ôm qua|[Yy]esterday)(?: (?:lúc|at) \\d{1,2}:\\d{2}(?: ?[AaPp][Mm])?)?|\\d{1,3} ?(?:giây|phút|giờ|ngày|tuần|tháng|năm|s|m|h|d|w|y|mins?|hrs?|hours?|days?|weeks?|months?|years?)(?: trước| ago)?|\\d{1,2} [Tt]háng \\d{1,2}(?:,? \\d{4})?(?: lúc \\d{1,2}:\\d{2})?|\\d{1,2}/\\d{1,2}(?:/\\d{4})?|(?:[Jj]an|[Ff]eb|[Mm]ar|[Aa]pr|[Mm]ay|[Jj]un|[Jj]ul|[Aa]ug|[Ss]ep|[Oo]ct|[Nn]ov|[Dd]ec)[a-z]* \\d{1,2}(?:,? \\d{4})?(?: at \\d{1,2}:\\d{2}(?: ?[AaPp][Mm])?)?)$",
+  "pageName": "h1",
+  "messengerMarkers": ["Các đoạn chat của bạn chưa được sao lưu", "Your chats aren't backed up", "Đoạn chat", "Chats", "Tin nhắn", "Messages"],
+  "messengerClose": ["Đóng", "Close", "Không phải bây giờ", "Not now", "Để sau", "Đóng đoạn chat", "Close chat", "Thu nhỏ đoạn chat", "Minimize chat"],
+  "followers": "(\\d[\\d.,\\s]*\\s*(?:K|N|M|Tr|B|Tỷ|nghìn|triệu)?)\\s*(?:người theo dõi|lượt theo dõi|followers?)",
+  "verified": "[aria-label*=\"xác minh\" i], [aria-label*=\"verified\" i]",
+  "avatarImage": "svg image, img[alt][src*=\"fbcdn\"]",
+  "loginUrl": ["/login"],
+  "loginForm": "form input[name=\"pass\"]",
+  "checkpointUrl": ["/checkpoint/", "/two_step_verification/"],
+  "checkpointText": ["Bạn tạm thời bị chặn", "You're Temporarily Blocked", "Xác nhận đó là bạn", "Confirm it's you"],
+  "button": "[role=\"button\"]",
+  "seeMore": ["Xem thêm", "See more"],
+  "comment": "[role=\"article\"]",
+  "captionCandidates": "div[dir=\"auto\"], span[dir=\"auto\"]",
+  "captionMinLength": 15,
+  "audioLink": "a[href*=\"/reels/audio/\"]",
+  "commentOpeners": ["Bình luận", "Viết bình luận", "Comment", "Leave a comment"],
+  "commentText": "div[dir=\"auto\"]",
+  "commentsPerVideo": 30,
+  "commentScrolls": 6,
+  "counts": {
+    "reactions": [
+      "^(\\d[\\d.,]*\\s*(?:K|N|M|Tr)?)\\s+(?:cảm xúc|lượt thích|reactions?|likes?)",
+      "(?:Thích|Like)[:\\s]+(\\d[\\d.,]*\\s*(?:K|N|M|Tr)?)"
+    ],
+    "comments": [
+      "^(\\d[\\d.,]*\\s*(?:K|N|M|Tr)?)\\s+(?:bình luận|comments?)",
+      "(?:Bình luận|Comment)[:\\s]+(\\d[\\d.,]*\\s*(?:K|N|M|Tr)?)"
+    ],
+    "shares": [
+      "^(\\d[\\d.,]*\\s*(?:K|N|M|Tr)?)\\s+(?:lượt chia sẻ|chia sẻ|shares?)",
+      "(?:Chia sẻ|Share)[:\\s]+(\\d[\\d.,]*\\s*(?:K|N|M|Tr)?)"
+    ]
+  }
+}

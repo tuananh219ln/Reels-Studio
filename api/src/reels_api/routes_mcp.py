@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session as DbSession
 from .db import get_db
 from .mcp_auth import (
     CONNECTION_LIFETIME,
+    LOCAL_APPS,
     MAX_REDIRECTS,
     SCOPES,
     Enabled,
@@ -114,7 +115,7 @@ def register(body: Registration, db: DbSession = Depends(get_db)) -> JSONRespons
         )
         raise oauth_error(
             "invalid_client_metadata",
-            "Chỉ hỗ trợ kết nối ChatGPT, Claude, Claude Code và Muse với callback đã cho phép",
+            "Chỉ hỗ trợ kết nối ChatGPT, Claude, Claude Code, Gemini CLI, Antigravity và Muse với callback đã cho phép",
         )
     client = McpClient(id=new_session_token(), redirect_uri=" ".join(redirects))
     db.add(client)
@@ -202,8 +203,8 @@ def consent_page(session: Session, ticket: str, redirect: str, scopes: list[str]
     host = urlsplit(redirect)
     loopback = (
         '<p class="warn"><strong>Kết nối với một chương trình trên máy tính.</strong> Chỉ cho phép nếu bạn vừa tự kết '
-        "nối Reels Studio trong Claude Code trên máy này. Một chương trình khác trên máy cũng có thể nhận địa chỉ này.</p>"
-        if app == "Claude Code"
+        "nối Reels Studio trong Claude Code hoặc Gemini CLI trên máy này. Một chương trình khác trên máy cũng có thể nhận địa chỉ này.</p>"
+        if app in LOCAL_APPS
         else ""
     )
     write = (
@@ -213,13 +214,21 @@ def consent_page(session: Session, ticket: str, redirect: str, scopes: list[str]
         if "reels:write" in scopes
         else ""
     )
+    publish = (
+        f'<p class="warn"><strong>Quyền đăng bài lên Page.</strong> {escape(app)} còn được đăng ngay hoặc hẹn giờ '
+        "một Bài viết lên Fanpage của bạn, và bỏ hẹn bài đã hẹn. Bài đăng là bài thật trên Facebook, không đăng "
+        "trên Page của người khác.</p>"
+        if "reels:publish" in scopes
+        else ""
+    )
     response = page(
         f"Cho phép {app} kết nối?",
         f"<p>Bạn đang dùng tài khoản <strong>{escape(session.user.email)}</strong>. Quyền sẽ được gửi về "
         f"<code>{escape(host.netloc)}</code>.</p>{loopback}"
         f"<p>{escape(app)} được đọc video, kịch bản, nhóm chủ đề, sản phẩm affiliate và trạng thái công việc của cả "
-        f"nhóm.</p>{write}"
-        "<p>Kết nối không được đăng bài, xóa video hoặc thay đổi tài khoản và API key. Quyền hết hạn sau tối đa 30 "
+        f"nhóm.</p>{write}{publish}"
+        "<p>Kết nối không được xóa video hoặc thay đổi tài khoản và API key"
+        f"{'' if 'reels:publish' in scopes else ', và không được đăng bài'}. Quyền hết hạn sau tối đa 30 "
         "ngày và mất hiệu lực khi phiên đăng nhập này bị thu hồi.</p>"
         f'<form method="post" action="{PREFIX}/consent">'
         f'<input type="hidden" name="ticket" value="{escape(ticket, quote=True)}">'
@@ -261,7 +270,7 @@ def authorization_details(
             "app": app_of(redirect),
             # The MCP spec asks the consent screen to show where the grant goes, and to warn for a loopback one.
             "redirect_host": urlsplit(redirect).netloc,
-            "loopback": app_of(redirect) == "Claude Code",
+            "loopback": app_of(redirect) in LOCAL_APPS,
         },
         headers=PRIVATE_HEADERS,
     )

@@ -36,12 +36,15 @@ from . import (
     footage,
     google_tts_quota,
     hashtags,
+    ig_publish,
     image_edit,
     image_providers,
     image_style,
+    instagram,
     knowledge,
     llm,
     motion,
+    outro,
     pinned,
     plans,
     qc,
@@ -49,9 +52,13 @@ from . import (
     render_nodes,
     revise,
     rework,
+    service_usage,
+    slot_comments,
     source_keys,
     text_looks,
     tiktok_publish,
+    youtube_connections,
+    youtube_publish,
 )
 from .claude import (
     BACKDROP_FORMAT,
@@ -80,7 +87,7 @@ from .models import (
 )
 from .sessions import now
 from .storage import DirectoryStorage
-from .tts import TtsError, is_google, service_name, synthesize, voice_signature
+from .tts import TtsError, all_keys_failed, is_google, service_name, synthesize, voice_signature
 from .tts import key_name as tts_key_name
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
 from .video_options import render_options, scene_voice, voice_pause, voice_speed
@@ -102,6 +109,7 @@ from .videos import (
     made_voice_seconds,
     new_key,
     pending_publication,
+    photo_fit,
     refresh_thumbnail,
     render_signature,
     reveal_steps,
@@ -111,6 +119,8 @@ from .videos import (
     split_scenes,
     spoken,
     text_position,
+    title_of,
+    title_poster_second,
 )
 from .videos import content_types as team_content_types
 
@@ -155,7 +165,7 @@ def run_job(
         log.info("Job %s (%s) for %s started", job.id, job.kind, owner)
         try:
             if job.kind in ("script", "clone"):
-                run_script_job(db, job, call)
+                run_script_job(db, job, call, storage)
             elif job.kind == "learn":
                 run_learn_job(db, job, storage, call)
             elif job.kind == "plan":
@@ -164,6 +174,9 @@ def run_job(
                 run_text_look_job(db, job, call)
             elif job.kind == "article_caption":
                 run_article_caption_job(db, job, call)
+            elif job.kind == slot_comments.JOB_KIND:
+                llm_call, count_call = _llm(db, job, call)
+                slot_comments.run_job(db, job, llm_call, count_call)
             elif job.kind == "render":
                 run_render_job(db, job, storage)
             elif job.kind == "image":
@@ -182,6 +195,16 @@ def run_job(
                 try:
                     tiktok_publish.run(db, job, storage)
                 except tiktok_publish.PublishFailed as err:
+                    raise JobFailure(err.message, err.detail) from None
+            elif job.kind == "ig_publish":
+                try:
+                    ig_publish.run(db, job, storage)
+                except ig_publish.PublishFailed as err:
+                    raise JobFailure(err.message, err.detail) from None
+            elif job.kind == "youtube_publish":
+                try:
+                    youtube_publish.run(db, job, storage)
+                except youtube_publish.PublishFailed as err:
                     raise JobFailure(err.message, err.detail) from None
             elif job.kind == "check":
                 run_check_job(db, job)
@@ -279,7 +302,9 @@ def _finish(db: DbSession, job_id: int, status: str, error: str | None = None, d
 # --- Script ---
 
 
-def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | None) -> None:
+def run_script_job(
+    db: DbSession, job: Job, call: Callable[[str, str], str] | None, storage: DirectoryStorage | None = None
+) -> None:
     video = db.get(Video, job.video_id)
     # A retried job whose script was already saved has nothing to do: no new Claude call,
     # and nothing the members edited meanwhile is overwritten.
@@ -296,6 +321,8 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
                 topic.photo_hint,
                 content_types=team_content_types(db),
             )
+            if topic.outro_cta:
+                prompt = f"{prompt}\n\n{outro.SCRIPT_FORMAT}"
         else:
             idea = plans.idea_of_video(db, video.id)
             prompt = script_prompt(topic, video.topic, idea, video.ai_effects, False, team_content_types(db))
@@ -308,6 +335,11 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
         except ClaudeError as err:
             raise JobFailure(err.message, err.detail) from None
         save_script(db, video, script)
+        if storage is None:
+            from .storage import get_storage
+
+            storage = get_storage()
+        outro.add(db, storage, video)
         affiliate_rounds.ask_after_script(db, video, job.created_by_id)
         db.commit()
 
@@ -334,6 +366,8 @@ def script_prompt(
         prompt = f"{prompt}\n\n{autoedit.EFFECTS_FORMAT}"
     if group.text_ai:
         prompt = f"{prompt}\n\n{text_looks.SCRIPT_FORMAT}"
+    if group.outro_cta:
+        prompt = f"{prompt}\n\n{outro.SCRIPT_FORMAT}"
     if backdrop:
         prompt = f"{prompt}\n\n{BACKDROP_FORMAT}"
     return prompt
@@ -417,6 +451,8 @@ def run_learn_job(db: DbSession, job: Job, storage: DirectoryStorage, call: Call
     reference.attach_clips(storage, sample, title, scenes, learned, folder, lambda name: new_key(video.id, name, "mp4"))
     if title is not None and title.video_key:
         refresh_thumbnail(db, storage, video, title)
+    # After the sample's clips are matched to the scenes, so none of them lands on the outro.
+    outro.add(db, storage, video)
     affiliate_rounds.ask_after_script(db, video, job.created_by_id)
     db.commit()
     shutil.rmtree(folder, ignore_errors=True)
@@ -436,6 +472,8 @@ def _make_from_footage(
     title, _ = split_scenes(db, video)
     if title is not None:
         refresh_thumbnail(db, storage, video, title)
+    # After the sample's clips are matched to the scenes, so none of them lands on the outro.
+    outro.add(db, storage, video)
     affiliate_rounds.ask_after_script(db, video, job.created_by_id)
     db.commit()
     shutil.rmtree(folder, ignore_errors=True)
@@ -546,8 +584,8 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
     video.caption = script.caption
     video.hashtags = script.hashtags
     video.affiliates = script.affiliates
-    # The title and the scenes come from the video itself (pinned.py), so the comment follows every later edit.
-    video.pinned_comment = pinned.default_template(script.pinned_comment)
+    # The AI writes only the survey line; the title and the scenes come from the video itself (pinned.py).
+    video.pinned_survey = pinned.survey_of_script(script.pinned_comment)
     video.self_review = script.self_review
     video.music_suggestions = script.music_suggestions
     # The AI's "Loại nội dung", unless a member already gave the video one.
@@ -652,6 +690,7 @@ def reveal_layers(fields: dict, steps: list[dict], folder: Path, stem: str) -> l
 def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: DirectoryStorage) -> None:
     """Narration for every scene that has something to read but no MP3 made from it yet. Each MP3 is committed at once,
     so a retry after a failure pays the voice's service only for the scenes still missing."""
+    failed: set[str] = set()  # keys found wrong or spent in this job: the scenes after skip them
     for index, scene in enumerate(scenes):
         voice = scene_voice(video, scene)
         text = spoken(video, scene)
@@ -662,7 +701,7 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
             if is_google(voice):
                 # Google bills past its free tier with no way to stop there, so the app stops first.
                 google_tts_quota.check(db, voice, text)
-            data = synthesize(text, source_keys.get(db, tts_key_name(voice)), voice, voice_speed(video))
+            data = narrate(db, video, text, voice, failed)
         except TtsError as err:
             raise JobFailure(f"{label}: {err.message}", err.detail) from None
         if is_google(voice):
@@ -692,6 +731,67 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
         if old and old != key:
             storage.delete(old)
         log.info("Narration for video %s %s: %.1fs", video.id, label, seconds)
+
+
+def narrate(db: DbSession, video: Video, text: str, voice: str | None, failed: set[str]) -> bytes:
+    """One scene's narration in its voice; when every key of that voice's service is wrong or spent, in the video's
+    group's backup voice (`voice_backup_id`) if it has one, which may be of another service."""
+    try:
+        return _narrate_with_keys(db, video, text, voice, failed)
+    except TtsError as err:
+        group = db.get(KnowledgeTopic, video.knowledge_topic_id) if video.knowledge_topic_id else None
+        backup = group.voice_backup_id if group is not None else ""
+        if not err.key_fault or not backup or backup == (voice or config.voice_id()):
+            raise
+        log.warning("Narration for video %s: %s cannot read (%s), using the backup voice", video.id, voice, err.message)
+        try:
+            return _narrate_with_keys(db, video, text, backup, failed)
+        except TtsError as backup_err:
+            raise TtsError(
+                f"{err.message}. Giọng phụ của nhóm cũng không đọc được: {backup_err.message}",
+                f"{err.detail} | backup: {backup_err.detail}",
+            ) from None
+
+
+def _narrate_with_keys(db: DbSession, video: Video, text: str, voice: str | None, failed: set[str]) -> bytes:
+    """One scene's narration, trying the service's keys in order (source_keys.chain: the team's main key, then its
+    backups): a key that is wrong, not allowed or out of quota passes the scene to the next, and its row on Cài đặt
+    says why at once (source_keys.mark); a busy or broken service fails at once, as with one key. A key that failed
+    earlier in the job (`failed`) is not asked again; one that reads again loses its old error."""
+    service = tts_key_name(voice)
+    keys = source_keys.chain(db, service)
+    if not keys:
+        return synthesize(text, "", voice, voice_speed(video))  # fails with "Chưa có key …"
+    last: TtsError | None = None
+    for ref in keys:
+        if ref.key in failed:
+            continue
+        if service == "gemini":
+            # Counted before each request, a backup key's too (Cài đặt › AI và nguồn tư liệu shows Gemini's today).
+            service_usage.record(db, "gemini", "voice")
+            db.commit()
+        try:
+            data = synthesize(text, ref.key, voice, voice_speed(video))
+        except TtsError as err:
+            if not err.key_fault:
+                raise
+            failed.add(ref.key)
+            source_keys.mark(db, service, ref, err.message)
+            db.commit()
+            if len(keys) == 1:
+                raise
+            last = err
+            log.warning(
+                "Narration for video %s: %s key %s failed (%s), trying the next",
+                video.id,
+                service,
+                ref.shown,
+                err.message,
+            )
+            continue
+        source_keys.mark(db, service, ref, None)
+        return data
+    raise TtsError(all_keys_failed(service, len(keys)), last.detail if last else "", True)
 
 
 def run_voice_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
@@ -752,6 +852,11 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                     scene.image_key, folder / f"image-{index:02d}.{scene.image_key.rsplit('.', 1)[-1]}"
                 )
                 data = {"text": scene.text, "seconds": scene.seconds, "image": image.name}
+                # "Khung ảnh" (reels_render.framing): a content scene's photo on a slide video; "cover" is the default.
+                if (fit := photo_fit(video, scene)) != "cover":
+                    data["image_fit"] = fit
+                    if scene.image_crop_offset is not None:
+                        data["image_crop_offset"] = scene.image_crop_offset
             if position := text_position(video, scene):
                 data["text_position"] = position
             if scene.transition and not scene.is_title:
@@ -907,7 +1012,8 @@ def run_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     post.scheduled_at = (facebook.scheduled_time(status) or post.scheduled_at) if post.status == "scheduled" else None
     post.published_at = now()
     db.commit()
-    _set_cover(page, post, storage)
+    title, _ = split_scenes(db, video)
+    _set_cover(page, post, storage, (title_poster_second(title) if title is not None else None) or 0)
     log.info("Job %s posted video %s to Facebook as %s", job.id, video.id, post.remote_id)
 
 
@@ -920,7 +1026,7 @@ def run_article_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) 
         return
     try:
         page = fanpages.load_page(db, post.fanpage_id)
-        status = facebook.post_status(page, post.remote_id) if post.remote_id else None
+        status = _settled_status(db, page, post) if post.remote_id else None
         if post.remote_id is None and post.finish_sent_at is not None:
             found = facebook.find_post(page, post.post_text or "")
             if found is not None:
@@ -952,7 +1058,7 @@ def run_article_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) 
                     raise
             post.remote_id = remote
             db.commit()
-            status = facebook.post_status(page, remote)
+            status = _settled_status(db, page, post)
             if status is None:
                 raise JobFailure("Facebook không còn giữ bài vừa đăng, hãy xem Page rồi Thử lại")
     except FacebookError as err:
@@ -963,6 +1069,17 @@ def run_article_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) 
     post.published_at = now()
     db.commit()
     log.info("Job %s posted article %s to Facebook as %s", job.id, article.id, post.remote_id)
+
+
+def _settled_status(db: DbSession, page: facebook.Page, post: Publication) -> dict | None:
+    """The status of the article's post, keeping the id of the post itself when Facebook first gave another."""
+    settled = facebook.settle_post(page, post.remote_id, post.post_text or "")
+    if settled is None:
+        return None
+    if settled[0] != post.remote_id:
+        post.remote_id = settled[0]
+        db.commit()
+    return settled[1]
 
 
 def _check_article_publishable(article: Article, post: Publication) -> None:
@@ -984,14 +1101,14 @@ def _article_photos(
         raise JobFailure(f"Không thấy {str(err).lower()} của bài trong storage, hãy chọn lại ảnh rồi đăng") from None
 
 
-def _set_cover(page: facebook.Page, post: Publication, storage: DirectoryStorage) -> None:
-    """The reel's cover is the title scene: the first frame of the MP4 the reel holds, so it matches what was posted
-    even when the title changed since. Set once the reel is live or scheduled, since Facebook may not take a cover
+def _set_cover(page: facebook.Page, post: Publication, storage: DirectoryStorage, second: float = 0) -> None:
+    """The reel's cover is the title scene: the first frame of the MP4 the reel holds (a motion title's settled frame,
+    `second`), so it matches what was posted even when the title changed since. Set once the reel is live or scheduled, since Facebook may not take a cover
     for a reel it is still processing. A cover that cannot be set leaves Facebook's own pick: the post stands."""
     try:
         if not post.remote_mp4_key or not storage.exists(post.remote_mp4_key):
             raise ClipError("MP4 của bài đăng không còn trong storage")
-        cover = jpeg_bytes(frame_at(storage.path(post.remote_mp4_key), 0))
+        cover = jpeg_bytes(frame_at(storage.path(post.remote_mp4_key), second))
         facebook.set_cover(page, post.remote_id, cover)
     except (ClipError, FacebookError) as err:
         log.warning("Reel %s keeps the cover Facebook picked: %s", post.remote_id, err)
@@ -1038,6 +1155,7 @@ def queue_post_checks(db: DbSession) -> None:
     is not shown as posted. Once per scheduled time, failed or not: a member retries it or presses "Kiểm tra"."""
     due = db.scalars(
         select(Publication).where(
+            Publication.platform == "facebook",
             Publication.status == "scheduled",
             Publication.remote_id.is_not(None),
             Publication.scheduled_at <= now() - CHECK_DELAY,
@@ -1130,6 +1248,189 @@ def queue_tiktok_posts(db: DbSession) -> None:
         except IntegrityError:
             continue
         log.info("Queued a TikTok %s post of video %s for Page %s", mode, video.id, page.name)
+
+
+def queue_instagram_auto_posts(db: DbSession) -> None:
+    """Post each video whose Facebook post has reached its slot to the Instagram account linked to its Page, when the
+    Page's owner turned `instagram_auto` on. Like `queue_tiktok_posts`, this round (about once a minute) is the clock,
+    so Instagram follows Facebook by about a minute. Only a scheduled slot of the last day counts: an "Đăng ngay" post
+    has no slot. A video with any Instagram post but a cancelled one is left alone, a failed one too, so an error that
+    repeats (a token without permission) is not retried every minute: its member presses "Thử lại"."""
+    due = db.scalars(
+        select(Publication).where(
+            Publication.video_id.is_not(None),
+            Publication.platform == "facebook",
+            Publication.status.in_(("scheduled", "published")),
+            Publication.scheduled_at <= now(),
+            Publication.scheduled_at >= now() - TIKTOK_SWEEP_WINDOW,
+        )
+    ).all()
+    for post in due:
+        video = db.get(Video, post.video_id)
+        page = db.get(Fanpage, post.fanpage_id) if post.fanpage_id else None
+        if video is None or not video.mp4_key or page is None or page.owner_id is None:
+            continue
+        if not page.instagram_auto or not page.instagram_user_id:
+            continue
+        if active_job(db, video.id) is not None:
+            continue  # the next round tries again
+        already = db.scalar(
+            select(Publication.id).where(
+                Publication.video_id == video.id,
+                Publication.platform == "instagram",
+                Publication.status != "cancelled",
+            )
+        )
+        if already is not None:
+            continue
+        try:
+            with db.begin_nested():
+                made = Publication(
+                    video_id=video.id,
+                    platform="instagram",
+                    status="pending",
+                    fanpage_id=page.id,
+                    created_by_id=page.owner_id,
+                    remote_mp4_key=video.mp4_key,
+                    post_text=instagram.caption(hashtags.post_text(video.caption, video.hashtags)),
+                )
+                db.add(made)
+                db.flush()
+                db.add(
+                    Job(
+                        video_id=video.id,
+                        kind="ig_publish",
+                        status="queued",
+                        created_by_id=page.owner_id,
+                        publication_id=made.id,
+                    )
+                )
+        except IntegrityError:
+            continue
+        log.info("Queued an Instagram post of video %s for Page %s", video.id, page.name)
+
+
+def queue_youtube_auto_posts(db: DbSession) -> None:
+    """Upload each video whose Facebook post has reached its slot, private, to the YouTube channel of its Page, when the
+    Page's owner turned `youtube_auto` on: the same upload as the "Tải lên YouTube" card, started by this round (about
+    once a minute) instead of a click. Like Instagram's round, only a scheduled slot of the last day counts, and a
+    video with any YouTube post but a cancelled one on that channel is left alone, a failed one too, so an error that
+    repeats is not retried every minute: its member presses "Thử lại". A channel whose connection ran out is skipped
+    without a word here (its Page shows the warning); a slot missed that way is not made up after a day."""
+    due = db.scalars(
+        select(Publication).where(
+            Publication.video_id.is_not(None),
+            Publication.platform == "facebook",
+            Publication.status.in_(("scheduled", "published")),
+            Publication.scheduled_at <= now(),
+            Publication.scheduled_at >= now() - TIKTOK_SWEEP_WINDOW,
+        )
+    ).all()
+    for post in due:
+        video = db.get(Video, post.video_id)
+        page = db.get(Fanpage, post.fanpage_id) if post.fanpage_id else None
+        if video is None or not video.mp4_key or page is None or page.owner_id is None:
+            continue
+        if not page.youtube_auto or page.youtube_channel_id is None:
+            continue
+        connection = youtube_connections.of_channel(db, page.youtube_channel_id)
+        if (
+            connection is None
+            or connection.owner_id != page.owner_id
+            or youtube_connections.needs_reconnect(connection)
+        ):
+            continue
+        if active_job(db, video.id) is not None:
+            continue  # the next round tries again
+        already = db.scalar(
+            select(Publication.id).where(
+                Publication.video_id == video.id,
+                Publication.platform == "youtube",
+                Publication.channel_id == page.youtube_channel_id,
+                Publication.status != "cancelled",
+            )
+        )
+        if already is not None:
+            continue
+        title_scene, _ = split_scenes(db, video)
+        try:
+            with db.begin_nested():
+                made = Publication(
+                    video_id=video.id,
+                    platform="youtube",
+                    status="pending",
+                    fanpage_id=page.id,
+                    created_by_id=page.owner_id,
+                    channel_id=page.youtube_channel_id,
+                    remote_mp4_key=video.mp4_key,
+                    caption=title_of(video, title_scene),
+                    post_text=hashtags.post_text(video.caption, video.hashtags),
+                )
+                db.add(made)
+                db.flush()
+                db.add(
+                    Job(
+                        video_id=video.id,
+                        kind="youtube_publish",
+                        status="queued",
+                        created_by_id=page.owner_id,
+                        publication_id=made.id,
+                    )
+                )
+        except IntegrityError:
+            continue
+        log.info("Queued a YouTube upload of video %s for Page %s", video.id, page.name)
+
+
+# An Instagram post this late (the worker was down) is not posted any more: its member decides again.
+INSTAGRAM_LATE_LIMIT = timedelta(hours=24)
+
+
+def queue_instagram_posts(db: DbSession) -> None:
+    """Start each Instagram post set for later whose time has come: Instagram has no scheduled time through its API, so
+    this round, which runs about once a minute, is the clock. A post more than `INSTAGRAM_LATE_LIMIT` late is
+    cancelled instead, with the reason on it, so a worker back after a long stop does not post old videos by itself."""
+    due = db.scalars(
+        select(Publication).where(
+            Publication.platform == "instagram",
+            Publication.status == "scheduled",
+            Publication.video_id.is_not(None),
+            Publication.scheduled_at <= now(),
+        )
+    ).all()
+    for post in due:
+        if post.scheduled_at < now() - INSTAGRAM_LATE_LIMIT:
+            post.status, post.closed_at = "cancelled", now()
+            log.warning("Instagram post %s missed its time by over a day: cancelled", post.id)
+            db.add(
+                Job(
+                    video_id=post.video_id,
+                    kind="ig_publish",
+                    status="failed",
+                    created_by_id=post.created_by_id,
+                    publication_id=post.id,
+                    error="Quá giờ hẹn hơn 24 giờ nên chưa đăng Instagram, hãy đăng lại nếu vẫn muốn",
+                    finished_at=now(),
+                )
+            )
+            continue
+        if active_job(db, post.video_id) is not None:
+            continue  # the next round tries again
+        try:
+            with db.begin_nested():
+                post.status = "pending"
+                db.add(
+                    Job(
+                        video_id=post.video_id,
+                        kind="ig_publish",
+                        status="queued",
+                        created_by_id=post.created_by_id,
+                        publication_id=post.id,
+                    )
+                )
+        except IntegrityError:
+            continue
+        log.info("Queued the Instagram post %s of video %s at its time", post.id, post.video_id)
 
 
 def run_check_job(db: DbSession, job: Job) -> None:
@@ -1231,6 +1532,7 @@ def run_article_image_job(db: DbSession, job: Job, storage: DirectoryStorage) ->
         raise JobFailure(f"Bài đã đủ {article_images.MAX_IMAGES} ảnh, hãy bỏ bớt ảnh rồi tạo lại")
     provider = job.image_provider or image_providers.default(db)
     db.execute(update(Job).where(Job.id == job.id).values(image_calls=Job.image_calls + 1))
+    service_usage.record(db, provider, "image")
     db.commit()
     try:
         data = generate_image(
@@ -1292,6 +1594,7 @@ def run_image_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 raise ImageGenError("Cảnh chưa có prompt ảnh, cũng chưa có chữ để tạo ảnh")
             # Counted before the call, like the script job counts Claude: a killed job keeps the count.
             db.execute(update(Job).where(Job.id == job.id).values(image_calls=Job.image_calls + 1))
+            service_usage.record(db, provider, "image")
             db.commit()
             data = generate_image(image_style.styled(prompt, style), source_keys.get(db, provider), provider)
             if len(data) > MAX_IMAGE_BYTES:
@@ -1349,6 +1652,7 @@ def run_image_edit_job(db: DbSession, job: Job, storage: DirectoryStorage) -> No
     if engine != "lama":
         # Counted before the call, like the image job: a killed job keeps the count.
         db.execute(update(Job).where(Job.id == job.id).values(image_calls=Job.image_calls + 1))
+        service_usage.record(db, engine, "edit")
         db.commit()
     try:
         data = image_edit.edit(

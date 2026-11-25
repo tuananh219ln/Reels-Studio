@@ -67,7 +67,7 @@ words. Each scene with keywords gets a half-frame photo ("Ảnh chèn nửa khun
 "Tự tìm ảnh" fills like any scene photo. The answer is not called again when the AI fills keywords where it should
 not: a member removes that scene's half-frame photo.
 
-One LLM call per topic (the provider chosen on Cài đặt › Mô hình AI, Claude by default) returns JSON with:
+One LLM call per topic (the provider chosen on Cài đặt › AI và nguồn tư liệu, Claude by default) returns JSON with:
 
 1. 5 title options, each ≤ 12 words, written as ordinary sentences: the video draws them in capitals
    unless its "Dạng chữ tiêu đề" keeps the text as typed.
@@ -75,7 +75,7 @@ One LLM call per topic (the provider chosen on Cài đặt › Mô hình AI, Cla
    breaks), and an AI image prompt in English that describes only what is in the photo (the dish
    or ingredient, how it is laid out, the angle). The title scene gets one too
    (`title_image_prompt`). Light, the vertical frame and "no text" are not in these prompts: the
-   image job adds the team's shared style ("Phong cách ảnh AI", Cài đặt › Nguồn tư liệu, app data,
+   image job adds the team's shared style ("Phong cách ảnh AI", Cài đặt › AI và nguồn tư liệu, app data,
    [image_style.py](../api/src/reels_api/image_style.py)) after each one as "<prompt>. <style>".
    Scripts from before keep their Vietnamese prompts, and a title scene without a prompt uses its
    first line of text.
@@ -83,20 +83,18 @@ One LLM call per topic (the provider chosen on Cài đặt › Mô hình AI, Cla
    does not say, plus 5 hashtags kept apart from it. Hashtag-only lines a script still puts at the
    end of the caption move to the hashtags, and a post adds only the hashtags its caption does not
    already hold ([hashtags.py](../api/src/reels_api/hashtags.py)), so none is posted twice.
-4. 2 affiliate product suggestions plus the pinned comment's closing question. The app saves the pinned comment as
-   the template `{title}
-{items}
-<question>` ([pinned.py](../api/src/reels_api/pinned.py)): the title and the
-   scenes are filled in from the video whenever the comment is shown, copied or posted, so editing, adding,
-   deleting or reordering a scene changes it with no AI call. Variables: `{title}` (the title scene's text, else
-   the topic), `{hook}` (the title scene's narration, else the title), `{items}` (each content scene on its own
-   line, "1. first line – the other lines"), `{item_names}` (the first lines, comma-separated), `{count}` (the
-   number of content scenes), `{products}` (the attached products' names, one per line; their links still follow
-   the comment); an unknown `{name}` stays as typed and a comment without variables reads as itself. Warnings,
-   none blocking: a title counting other than the scenes ("7 món" over 6 scenes); "link" in the pinned comment or
-   a "Bình luận thêm" while no product is attached; more than 1,500 characters; and, in a comment typed without
-   `{items}`/`{item_names}`, a numbered line that matches no scene, a scene missing from it, or the scenes out of
-   order.
+4. 2 affiliate product suggestions plus the pinned comment's closing question. The pinned comment always has the
+   same three parts ([pinned.py](../api/src/reels_api/pinned.py), decisions 2026-11-19-pinned-comment-fixed-shape):
+   the title (the title scene's text, else the topic), then each content scene on its own line as "1. name" (the
+   first line of its on-screen text, with any number the script put before it dropped: "1.", "2)", "3 -", "#4:",
+   "Cặp 5:", only when a mark follows the number, so "5 loại rau" keeps its 5; then numbered again from 1, so adding,
+   deleting or reordering a scene renumbers the list and a name that already said "1." is not numbered twice), then
+   "Dòng khảo sát" (`videos.pinned_survey`), the only part a member types. A new script's survey line is the AI's
+   question; a video with none starts with "Bạn hay ăn cặp nào nhất? Bình luận số thứ tự nhé". A member may empty
+   it; an empty part is left out, never left as a blank line. The comment is built whenever it is shown, copied or
+   posted, never stored, so it cannot go stale. Warnings, none blocking: a title counting other than the scenes ("7
+   món" or "7 cặp" over 6 scenes); "link" in the pinned comment or a "Bình luận thêm" while no product is attached;
+   more than 1,500 characters.
 5. A safety self-review that lists the sentences it changed.
 6. 2–3 instrumental music suggestions that fit the topic, to pick in TikTok or Facebook when
    posting (those libraries cannot be used outside their apps).
@@ -145,7 +143,7 @@ How the prompt is built (built, compact version):
   after the banned words, before the format, of both its script and clone prompts, telling the AI to
   write the keywords and AI image prompts by it; empty adds nothing. Only scripts written after a
   change follow it.
-  For automatic footage (Cài đặt › Nguồn tư liệu) the **first** keyword of each list is the clip search query,
+  For automatic footage (Cài đặt › AI và nguồn tư liệu) the **first** keyword of each list is the clip search query,
   so the format asks for the object plus a visible action or state ("múc canh bí đỏ", "serving pumpkin soup"),
   then the object's name for the photo fallback; never a benefit or a disease name, one main object per scene.
   The action only illustrates: the voice text still speaks of the dish, not of cooking steps. The default script
@@ -196,6 +194,11 @@ How the prompt is built (built, compact version):
   writes it, so it costs no extra call; it goes over the group's look, values outside the presets left out. A named
   box style (yellow, white, dark, red) becomes a box of its colours, as the studio now picks a box by its colours. A
   clone and a hand-written video take the group's look.
+- **"Cảnh kết Theo dõi & Chia sẻ" (a switch on the group's "Cài đặt nhóm", `knowledge_topics.outro_cta`):** the
+  script and clone prompts get one more part (code, `outro.SCRIPT_FORMAT`) telling the AI to write no closing call to
+  action, and the app ends each new video on the shared outro scene, with its fixed narration "Theo dõi và chia sẻ để
+  cả nhà cùng biết thêm điều bổ ích nhé!" ([architecture](architecture.md#motion-scenes-hyperframes)). A last scene
+  that still asks to follow, share, like, save or comment (a hand-written script, a prompt that insists) is dropped.
 - **"AI gợi ý" of a group's "Chữ & phụ đề" (`text_look` job, `text_looks.suggest_prompt`):** the group's name, the
   first 1,500 characters of its script prompt, its photo hint and its current look go to the team's LLM, which
   answers three looks, each a name, a reason and the look, read like the per-video one. Nothing is saved on the

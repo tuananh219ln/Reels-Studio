@@ -14,7 +14,7 @@ export const VIDEO_STATUS_FILTERS: { value: VideoStatusFilter; label: string; ma
     match: (row) => !["draft", "done", "failed"].includes(row.status),
   },
   { value: "ready", label: "Chờ đăng", match: (row) => row.post_stage === "ready" },
-  { value: "scheduled", label: "Đã lên lịch", match: (row) => row.post_stage === "scheduled" },
+  { value: "scheduled", label: "Đã hẹn giờ", match: (row) => row.post_stage === "scheduled" },
   { value: "posted", label: "Đã đăng", match: (row) => row.post_stage === "posted" },
   { value: "failed", label: "Lỗi", match: (row) => row.status === "failed" || row.rerender_failed },
   { value: "outdated", label: "MP4 cần render lại", match: (row) => row.mp4_outdated },

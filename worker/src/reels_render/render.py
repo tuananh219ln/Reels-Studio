@@ -10,6 +10,7 @@ from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplac
 from .graph import (
     MAX_CLIP_PIXELS,
     CaptionInput,
+    FramedInput,
     InsetInput,
     LayerInput,
     LogoInput,
@@ -19,7 +20,7 @@ from .graph import (
     build_ffmpeg_args,
     clip_lead,
 )
-from .images import normalize_image
+from .images import Fitted, fit_image, photo_is_framed
 from .layers import card_corner, layer_corner, render_layer
 from .logo import TEXT_TOP_MIN, corner_placement
 from .markup import Run, cased
@@ -101,7 +102,23 @@ def render_video(
         script = found.script
         inputs, captions, layers, sounds = [], [], [], []
         scene_start = 0
+        # Framed photos (framing.py) all start on one line, below the tallest text box of the video's framed scenes.
+        framed_heights = [
+            layout.height
+            for scene, layout in zip(script.all_scenes, layouts)
+            if layout is not None
+            and scene.image is not None
+            and scene.video is None
+            and not (options.backdrop and scene is not script.title)
+            and photo_is_framed(scene.image, scene.label, scene.image_fit)
+        ]
+        reserve = max(framed_heights, default=None)
         for index, (scene, layout) in enumerate(zip(script.all_scenes, layouts)):
+            # Room for the corner badge's row on the content scenes; the title scene has no logo.
+            min_top = TEXT_TOP_MIN if script.logo is not None and index > 0 else None
+            # A framed photo (framing.py): where it puts the text when nobody placed it, and the photo laid over its
+            # blurred copy; none for every other picture.
+            fitted = Fitted()
             if scene.video is not None:
                 image, video_start = scene.video.resolve(), scene.video_start
                 if options.backdrop:
@@ -111,17 +128,29 @@ def render_video(
                 image, video_start = work_dir / "scene-00.jpg", None
             else:
                 image, video_start = work_dir / f"scene-{index:02d}.jpg", None
-                normalize_image(scene.image, image, scene.label)
+                fitted = fit_image(
+                    scene.image,
+                    image,
+                    scene.label,
+                    scene.image_fit,
+                    layout.height if layout is not None else 0,
+                    scene.text_position,
+                    min_top,
+                    scene.image_crop_offset,
+                    reserve,
+                )
             box = work_dir / f"text-{index:02d}.png"
             if layout is None:
                 empty_box().save(box)
                 box_x, box_y = 0, 0
             else:
                 render_box(layout, first_palette if index == 0 else palette).save(box)
-                # Room for the corner badge's row on the content scenes; the title scene has no logo.
-                min_top = TEXT_TOP_MIN if script.logo is not None and index > 0 else None
                 box_x, box_y = place_box(
-                    layout.width, layout.height, scene.text_position, is_title=index == 0, min_top=min_top
+                    layout.width,
+                    layout.height,
+                    scene.text_position or fitted.text_centre,
+                    is_title=index == 0,
+                    min_top=min_top,
                 )
             # Captions sit just above a content scene's text box; the title scene keeps its hook box alone. The
             # narration's are timed by estimate; a clip's own sound has each word's real seconds.
@@ -178,9 +207,8 @@ def render_video(
             # Each sound effect from its second of the scene, unless that is past the scene's end.
             for sound in scene.sounds:
                 if scene_start / FPS + sound.start < scene_end:
-                    sounds.append(
-                        SoundInput(sound.sound, scene_start / FPS + sound.start, SOUND_VOLUMES[sound.volume].gain)
-                    )
+                    gain = SOUND_VOLUMES[sound.volume].gain * 10 ** (sound.gain_db / 20)
+                    sounds.append(SoundInput(sound.sound, scene_start / FPS + sound.start, gain))
             scene_start += timeline.scene_frames[index]
             voice = scene.voice.resolve() if scene.voice is not None else None
             inputs.append(
@@ -199,6 +227,7 @@ def render_video(
                     loop=video_start is not None and (options.backdrop or scene.video_loop),
                     blur=scene.video_blur if video_start is not None else (),
                     insets=tuple(insets),
+                    framed=FramedInput(fitted.picture, *fitted.box) if fitted.picture is not None else None,
                     motion_span=(
                         (scene_start - timeline.scene_frames[index], timeline.total_frames)
                         if options.backdrop and video_start is None

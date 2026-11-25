@@ -9,6 +9,7 @@ from .blur import parse_blur
 from .captions import Word
 from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .errors import InputError
+from .framing import COVER, IMAGE_FITS
 from .layers import (
     ANIMATIONS,
     CARD,
@@ -62,6 +63,10 @@ class Scene:
     words: tuple[Word, ...] = ()  # what the clip's sound says, each word's seconds in the clip's own time
     # Boxes of the clip blurred for the whole scene (blur.py): [x, y, width, height] fractions of the 1080x1920 frame.
     video_blur: tuple[tuple[float, float, float, float], ...] = ()
+    # How the photo fills the frame (framing.py): "cover" as always, "auto" by its shape, "whole" or "square" forced.
+    image_fit: str = COVER
+    # Where the square is cut along the photo's longer side, 0 to 1; None: the middle.
+    image_crop_offset: float | None = None
 
 
 @dataclass(frozen=True)
@@ -174,6 +179,14 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
     if video_blur and video is None:
         raise InputError(f'{label}: "video_blur" chỉ dùng cho cảnh có "video"')
     keywords = _parse_keywords(item.get("keywords"), label)
+    image_fit = item.get("image_fit", COVER)
+    if image_fit not in IMAGE_FITS:
+        raise InputError(f'{label}: "image_fit" không hợp lệ: {image_fit!r} (chọn một trong {", ".join(IMAGE_FITS)})')
+    crop_offset = item.get("image_crop_offset")
+    if crop_offset is not None:
+        crop_offset = float(_number(crop_offset, "image_crop_offset", label, 0, 1))
+    if (image_fit != COVER or crop_offset is not None) and video is not None:
+        raise InputError(f'{label}: "image_fit" và "image_crop_offset" chỉ dùng cho cảnh có ảnh')
 
     lines = []
     if text.strip():
@@ -218,6 +231,8 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         video_sound=video_sound,
         words=words,
         video_blur=video_blur,
+        image_fit=image_fit,
+        image_crop_offset=crop_offset,
     )
 
 
@@ -326,6 +341,7 @@ def _parse_sounds(value: object, label: str) -> tuple[SceneSound, ...]:
                 sound=_parse_preset(item.get("sound"), "sound", SOUNDS, where),
                 start=float(_number(item.get("start", 0), "start", where, 0, 1e6)),
                 volume=_parse_preset(item.get("volume", "normal"), "volume", SOUND_VOLUMES, where),
+                gain_db=float(_number(item.get("gain_db", 0), "gain_db", where, -24, 12)),
             )
         )
     return tuple(sounds)

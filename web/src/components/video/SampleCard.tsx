@@ -206,7 +206,14 @@ export default function SampleCard({
                 size="small"
                 type="text"
                 icon={<PlusOutlined />}
-                onClick={() => router.push(`/videos?reference=${sample.id}`)}
+                href={`/videos?reference=${sample.id}`}
+                onClick={(event) => {
+                  // A real link (new tab, right-click); a plain click stays in the app.
+                  if (!event.metaKey && !event.ctrlKey && !event.shiftKey) {
+                    event.preventDefault();
+                    router.push(`/videos?reference=${sample.id}`);
+                  }
+                }}
               >
                 Tạo thêm video từ mẫu này
               </Button>

@@ -6,9 +6,17 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from conftest import client_for, first_topic, login, make_user, make_video
 from fake_services import FACEBOOK_TOKEN, SHOPEE_APP_ID, SHOPEE_SECRET
+from sqlalchemy import select
 
 from reels_api import affiliate, crypto, fanpages, post_comments
-from reels_api.models import AffiliateAccount, AffiliateProduct, Fanpage, Publication, VideoAffiliateProduct
+from reels_api.models import (
+    AffiliateAccount,
+    AffiliateProduct,
+    Fanpage,
+    KnowledgeTopic,
+    Publication,
+    VideoAffiliateProduct,
+)
 
 URL = "/api/affiliate-products"
 
@@ -146,6 +154,7 @@ def test_a_tiktok_post_belongs_to_the_owner_of_its_tiktok_account(an, binh, db, 
         "has_shopee_account": False,
         "comment": "off",
         "comment_error": None,
+        "links": "off",
     }
     assert videos(binh)[video.id]["mine"] is True
 
@@ -358,49 +367,80 @@ def file_row(item_id: int, name: str, link: str) -> str:
     return f'{item_id},{name},"45,0k",0,Shop,"2,5%",₫900,https://shopee.vn/product/1/{item_id},{link}\n'
 
 
-def test_importing_a_teammates_product_keeps_their_link_and_says_so(an, binh, db, me, other):
-    theirs = binh.post(
-        f"{URL}/import",
-        json={
-            "knowledge_topic_id": first_topic(db).id,
-            "text": FILE_HEADER + file_row(11, "Gối", "https://s.shopee.vn/binh"),
-        },
-    ).json()
-    assert theirs["added"] == 1
-
-    text = FILE_HEADER + file_row(11, "Gối", "https://s.shopee.vn/an") + file_row(12, "Nồi", "https://s.shopee.vn/an-2")
-    done = an.post(f"{URL}/import", json={"knowledge_topic_id": first_topic(db).id, "text": text}).json()
-    assert (done["added"], done["updated"], done["kept"]) == (1, 0, 1)
-    assert done["others"] == [{"row": 2, "name": "Gối", "by": "Trần Bình", "topic": "Sức khỏe"}]
-    rows = {row["name"]: row for row in an.get(URL).json()}
-    assert rows["Gối"]["url"] == "https://s.shopee.vn/binh" and rows["Gối"]["created_by"] == "Trần Bình"
+def import_file(client, topic: int, text: str) -> dict:
+    return client.post(f"{URL}/import", json={"knowledge_topic_id": topic, "text": FILE_HEADER + text}).json()
 
 
-def test_reimporting_my_own_product_updates_it(an, db):
+def test_importing_a_teammates_product_makes_my_own_with_my_link_and_leaves_theirs(an, binh, db, me, other):
     topic = first_topic(db).id
-    an.post(
-        f"{URL}/import",
-        json={"knowledge_topic_id": topic, "text": FILE_HEADER + file_row(11, "Gối", "https://s.shopee.vn/a")},
+    assert import_file(binh, topic, file_row(11, "Gối", "https://s.shopee.vn/binh"))["added"] == 1
+    theirs = db.scalar(select(AffiliateProduct).where(AffiliateProduct.created_by_id == other.id))
+    theirs.commission_rate = 7.5
+    db.commit()
+
+    text = file_row(11, "Gối", "https://s.shopee.vn/an") + file_row(12, "Nồi", "https://s.shopee.vn/an-2")
+    done = import_file(an, topic, text)
+    assert (done["added"], done["updated"], done["shared"]) == (2, 0, 1)
+    rows = {(row["name"], row["created_by"]): row for row in an.get(URL).json()}
+    assert rows[("Gối", "Trần Bình")]["url"] == "https://s.shopee.vn/binh"
+    assert rows[("Gối", me.name)]["url"] == "https://s.shopee.vn/an"
+    assert len(rows) == 3
+    db.refresh(theirs)
+    assert (theirs.url, theirs.commission_rate, theirs.knowledge_topic_id) == ("https://s.shopee.vn/binh", 7.5, topic)
+
+
+def test_reimporting_my_own_product_updates_it_without_a_copy(an, binh, db):
+    topic = first_topic(db).id
+    import_file(binh, topic, file_row(11, "Gối", "https://s.shopee.vn/binh"))
+    import_file(an, topic, file_row(11, "Gối", "https://s.shopee.vn/a"))
+    done = import_file(an, topic, file_row(11, "Gối mới", "https://s.shopee.vn/b"))
+    assert (done["added"], done["updated"], done["shared"]) == (0, 1, 0)
+    mine = [row for row in an.get(URL).json() if row["created_by"] != "Trần Bình"]
+    assert [(row["name"], row["url"]) for row in mine] == [("Gối mới", "https://s.shopee.vn/b")]
+
+
+def test_my_product_can_sit_in_another_group_as_its_own_row(an, db):
+    first = first_topic(db).id
+    second = KnowledgeTopic(name="Làm vườn")
+    db.add(second)
+    db.commit()
+    import_file(an, first, file_row(11, "Gối", "https://s.shopee.vn/a"))
+    done = import_file(an, second.id, file_row(11, "Gối", "https://s.shopee.vn/a2"))
+    assert (done["added"], done["updated"]) == (1, 0)
+    assert import_file(an, second.id, file_row(11, "Gối", "https://s.shopee.vn/a3"))["updated"] == 1
+    rows = an.get(URL).json()
+    assert {(row["knowledge_topic_id"], row["url"]) for row in rows} == {
+        (first, "https://s.shopee.vn/a"),
+        (second.id, "https://s.shopee.vn/a3"),
+    }
+
+
+def test_a_file_of_fifty_with_seven_of_a_teammates_adds_all_fifty(an, binh, db):
+    topic = first_topic(db).id
+    import_file(binh, topic, "".join(file_row(n, f"SP {n}", f"https://s.shopee.vn/b{n}") for n in range(1, 8)))
+    done = import_file(an, topic, "".join(file_row(n, f"SP {n}", f"https://s.shopee.vn/a{n}") for n in range(1, 51)))
+    assert (done["added"], done["updated"], done["shared"]) == (50, 0, 7)
+    assert len(an.get(URL).json()) == 57
+
+
+def test_each_owners_own_link_goes_in_the_comment(an, binh, db, me, other):
+    topic = first_topic(db).id
+    import_file(binh, topic, file_row(11, "Gối", "https://s.shopee.vn/binh"))
+    import_file(an, topic, file_row(11, "Gối", "https://s.shopee.vn/an"))
+    theirs = db.scalar(select(AffiliateProduct).where(AffiliateProduct.created_by_id == other.id))
+    mine = db.scalar(select(AffiliateProduct).where(AffiliateProduct.created_by_id == me.id))
+    assert theirs.id != mine.id and theirs.shopee_item_id == mine.shopee_item_id == 11
+    assert affiliate.commission_to(None, theirs) == affiliate.commission_to(None, mine) == "saved_link"
+    assert (affiliate.link_for(db, theirs, None, None), affiliate.link_for(db, mine, None, None)) == (
+        "https://s.shopee.vn/binh",
+        "https://s.shopee.vn/an",
     )
-    done = an.post(
-        f"{URL}/import",
-        json={"knowledge_topic_id": topic, "text": FILE_HEADER + file_row(11, "Gối mới", "https://s.shopee.vn/b")},
-    ).json()
-    assert (done["added"], done["updated"], done["kept"]) == (0, 1, 0)
-    (row,) = an.get(URL).json()
-    assert (row["name"], row["url"]) == ("Gối mới", "https://s.shopee.vn/b")
 
 
 def test_the_preview_sorts_the_files_rows_and_writes_nothing(an, binh, db, me, other):
     topic = first_topic(db).id
-    binh.post(
-        f"{URL}/import",
-        json={"knowledge_topic_id": topic, "text": FILE_HEADER + file_row(11, "Gối", "https://s.shopee.vn/binh")},
-    )
-    an.post(
-        f"{URL}/import",
-        json={"knowledge_topic_id": topic, "text": FILE_HEADER + file_row(12, "Nồi", "https://s.shopee.vn/an")},
-    )
+    import_file(binh, topic, file_row(11, "Gối", "https://s.shopee.vn/binh"))
+    import_file(an, topic, file_row(12, "Nồi", "https://s.shopee.vn/an"))
     text = (
         FILE_HEADER
         + file_row(11, "Gối", "https://s.shopee.vn/an")
@@ -410,7 +450,7 @@ def test_the_preview_sorts_the_files_rows_and_writes_nothing(an, binh, db, me, o
     )
     preview = an.post(f"{URL}/import/preview", json={"knowledge_topic_id": topic, "text": text}).json()
     assert [(row["row"], row["name"], row["state"]) for row in preview["rows"]] == [
-        (2, "Gối", "others"),
+        (2, "Gối", "copy"),
         (3, "Nồi", "mine"),
         (4, "Trà", "new"),
     ]

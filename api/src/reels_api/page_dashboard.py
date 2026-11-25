@@ -7,6 +7,7 @@ is compared with the period of the same length just before it. Numbers Facebook 
 non-followers, traffic sources, unfollows, 3-second views) are left out rather than guessed.
 """
 
+import statistics
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -14,12 +15,21 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session as DbSession
 
 from . import analytics, facebook, fanpages, page_queue
-from .models import Fanpage, FanpageFollowers, FanpageInsights, PostMetrics, Publication, Video
+from .models import (
+    Fanpage,
+    FanpageFollowers,
+    FanpageInsights,
+    InstagramInsights,
+    PostMetrics,
+    PostMetricSnapshot,
+    Publication,
+    Video,
+)
 from .sessions import now
 from .videos import LIVE_POST_STATUSES, is_published, live_at, split_scenes, thumbnail_url, video_name
 
 PERIODS = (7, 28, 90)
-# How far ahead the "Đã lên lịch" strip and the "Lịch đăng" tab look.
+# How far ahead the "Đã hẹn giờ" strip and the "Lịch đăng" tab look.
 AHEAD = timedelta(days=7)
 
 
@@ -174,6 +184,24 @@ def _upcoming(db: DbSession, page: Fanpage, at: datetime) -> dict:
         )
         .order_by(Publication.scheduled_at, Publication.id)
     ).all()
+    # What Instagram does with each of them: its own post when there is one (not cancelled), "auto" when the Page's switch
+    # will send it a minute after Facebook, nothing for a Page without a linked account.
+    on_instagram = dict(
+        db.execute(
+            select(Publication.video_id, Publication.status).where(
+                Publication.video_id.in_([post.video_id for post in posts]),
+                Publication.platform == "instagram",
+                Publication.fanpage_id == page.id,
+                Publication.status.in_(("pending", "scheduled", "published")),
+            )
+        ).all()
+    )
+
+    def instagram_of(post: Publication) -> str | None:
+        if not page.instagram_user_id:
+            return None
+        return on_instagram.get(post.video_id) or ("auto" if page.instagram_auto else None)
+
     return {
         "posts": [
             {
@@ -181,6 +209,8 @@ def _upcoming(db: DbSession, page: Fanpage, at: datetime) -> dict:
                 "status": post.status,
                 "scheduled_at": post.scheduled_at.isoformat(),
                 "video": _video(db, db.get(Video, post.video_id)),
+                # The Page's Instagram for this post: "pending", "scheduled", "published", "auto" or None.
+                "instagram": instagram_of(post),
             }
             for post in posts
         ],
@@ -219,6 +249,7 @@ def _content_row(db: DbSession, post: Publication, median: analytics.Median | No
         else None,
         "views_48h": views_48h,
         "times_median": round(times, 1) if times is not None else None,
+        "is_winner": analytics.is_winner(times),
         # "Cập nhật view" (POST /api/posts/{id}/metrics) takes only a reel that is on Facebook.
         "can_refresh": published and post.remote_id is not None,
         "pending": asked is not None and (tried is None or tried < asked),
@@ -289,6 +320,10 @@ def dashboard(db: DbSession, page: Fanpage, days: int) -> dict:
             "token_tail": page.token_tail,
             "check": check,
             "insights_error": page.insights_error,
+            # The linked Instagram account: the dashboard's "Facebook | Instagram" switch shows only when there is one.
+            "instagram": {"id": page.instagram_user_id, "username": page.instagram_username}
+            if page.instagram_user_id
+            else None,
         },
         "days": days,
         "start": current.start.isoformat(),
@@ -320,4 +355,303 @@ def dashboard(db: DbSession, page: Fanpage, days: int) -> dict:
         # The newest post, even one older than both periods.
         "latest_post": _latest_post(db, posts or _posts(db, page.id, limit=1)),
         "upcoming": _upcoming(db, page, at),
+    }
+
+
+def _audience(shares: dict | None) -> dict | None:
+    """The stored shares as lists, the biggest first (a JSON column does not keep the order)."""
+    if not shares:
+        return None
+    return {
+        breakdown: [
+            {"key": key, "share": share} for key, share in sorted(rows.items(), key=lambda item: item[1], reverse=True)
+        ]
+        for breakdown, rows in shares.items()
+    }
+
+
+def instagram_dashboard(db: DbSession, page: Fanpage, days: int) -> dict:
+    """The Page's Instagram account for the last `days` days (7, 28 or 90), each figure against the period before it:
+    views, accounts reached, interactions and the follows of each day, read at the Page's check with
+    `instagram_manage_insights` (`instagram_insights_error` says when the token lacks it). Like the Facebook dashboard,
+    a day with no stored number is None, never 0."""
+    at = now()
+    current, previous = periods(days, _local_day(at))
+    rows = {
+        row.day: row
+        for row in db.scalars(
+            select(InstagramInsights).where(
+                InstagramInsights.fanpage_id == page.id,
+                InstagramInsights.day >= previous.start,
+                InstagramInsights.day <= current.end,
+            )
+        )
+    }
+
+    def total(period: Period, metric: str) -> int | None:
+        return _sum([getattr(rows[day], metric) for day in period.days() if day in rows])
+
+    return {
+        "page": {
+            "id": page.id,
+            "name": page.name,
+            "owner": {"id": page.owner.id, "name": page.owner.name} if page.owner else None,
+        },
+        "account": {"id": page.instagram_user_id, "username": page.instagram_username},
+        "days": days,
+        "start": current.start.isoformat(),
+        "end": current.end.isoformat(),
+        "series": [
+            {
+                "day": day.isoformat(),
+                "views": rows[day].views if day in rows else None,
+                "reach": rows[day].reach if day in rows else None,
+                "interactions": rows[day].interactions if day in rows else None,
+                "follows": rows[day].follows if day in rows else None,
+            }
+            for day in current.days()
+        ],
+        "totals": {
+            metric: figure(total(current, metric), total(previous, metric))
+            for metric in ("views", "reach", "interactions", "follows")
+        },
+        "followers": page.instagram_followers_count,
+        "audience": _audience(page.instagram_audience),
+        "audience_error": page.instagram_audience_error,
+        "insights_error": page.instagram_insights_error,
+    }
+
+
+def _instagram_numbers(db: DbSession, post: Publication) -> dict | None:
+    """The newest reading of an Instagram Reel (its snapshot's `numbers`), or None before the first."""
+    snap = db.scalars(
+        select(PostMetricSnapshot)
+        .where(PostMetricSnapshot.publication_id == post.id)
+        .order_by(PostMetricSnapshot.captured_at.desc())
+        .limit(1)
+    ).first()
+    if snap is None:
+        return None
+    numbers = dict((snap.raw or {}).get("numbers") or {})
+    watch = numbers.pop("avg_watch_ms", None)
+    return {
+        "views": numbers.get("views", snap.views),
+        "reach": numbers.get("reach"),
+        "likes": numbers.get("likes", snap.likes),
+        "comments": numbers.get("comments", snap.comments),
+        "shares": numbers.get("shares", snap.shares),
+        "saves": numbers.get("saves"),
+        "interactions": numbers.get("interactions"),
+        "avg_watch_seconds": round(watch / 1000, 1) if watch is not None else None,
+        "measured_at": snap.captured_at.isoformat(),
+    }
+
+
+def _instagram_posts(db: DbSession, page_id: int, since: datetime) -> list[Publication]:
+    at = func.coalesce(Publication.scheduled_at, Publication.published_at, Publication.created_at)
+    return list(
+        db.scalars(
+            select(Publication)
+            .where(
+                Publication.fanpage_id == page_id,
+                Publication.platform == "instagram",
+                Publication.video_id.is_not(None),
+                Publication.status == "published",
+                at >= since,
+                at <= now(),
+            )
+            .order_by(at.desc(), Publication.id.desc())
+        )
+    )
+
+
+def instagram_content(db: DbSession, page: Fanpage, days: int) -> dict:
+    """The Instagram "Nội dung" tab: every Reel the app posted to the Page's Instagram in the period, newest first, with
+    its latest reading (views, reach, likes, comments, shares, saves, watch time). A Reel posted outside the app is not
+    known."""
+    at = now()
+    current, _ = periods(days, _local_day(at))
+    since = datetime(current.start.year, current.start.month, current.start.day, tzinfo=analytics.VIETNAM)
+    rows = []
+    for post in _instagram_posts(db, page.id, since):
+        rows.append(
+            {
+                "id": post.id,
+                "live_at": live_at(post).isoformat(),
+                "url": post.post_url,
+                "video": _video(db, db.get(Video, post.video_id)),
+                "numbers": _instagram_numbers(db, post),
+                "pending": post.metrics_requested_at is not None
+                and (post.metrics_tried_at is None or post.metrics_tried_at < post.metrics_requested_at),
+                "error": post.metrics_error,
+            }
+        )
+    return {"days": days, "start": current.start.isoformat(), "end": current.end.isoformat(), "posts": rows}
+
+
+def compare(db: DbSession, page: Fanpage, days: int) -> dict:
+    """The same video on Facebook and on Instagram, side by side: every video the app posted to the Page on both in the
+    period (or on one of them), with each platform's views, reach and interactions, newest first."""
+    at = now()
+    current, _ = periods(days, _local_day(at))
+    since = datetime(current.start.year, current.start.month, current.start.day, tzinfo=analytics.VIETNAM)
+    facebook_by_video: dict[int, Publication] = {}
+    for post in _posts(db, page.id, since):
+        facebook_by_video.setdefault(post.video_id, post)
+    instagram_by_video: dict[int, Publication] = {}
+    for post in _instagram_posts(db, page.id, since):
+        instagram_by_video.setdefault(post.video_id, post)
+    rows = []
+    for video_id in {*facebook_by_video, *instagram_by_video}:
+        fb, ig = facebook_by_video.get(video_id), instagram_by_video.get(video_id)
+        latest = next((row for row in (fb.metrics if fb else []) if row.window == "latest"), None)
+        ig_numbers = _instagram_numbers(db, ig) if ig else None
+        rows.append(
+            {
+                "video": _video(db, db.get(Video, video_id)),
+                "facebook": None
+                if fb is None
+                else {
+                    "live_at": live_at(fb).isoformat(),
+                    "url": facebook.reel_url(fb.remote_id) if fb.remote_id else None,
+                    "views": latest.views if latest else None,
+                    "reach": latest.reach if latest else None,
+                    "interactions": (
+                        sum(value for value in (latest.reactions, latest.comments, latest.shares) if value is not None)
+                        if latest
+                        and any(value is not None for value in (latest.reactions, latest.comments, latest.shares))
+                        else None
+                    ),
+                },
+                "instagram": None
+                if ig is None
+                else {
+                    "live_at": live_at(ig).isoformat(),
+                    "url": ig.post_url,
+                    "views": ig_numbers["views"] if ig_numbers else None,
+                    "reach": ig_numbers["reach"] if ig_numbers else None,
+                    "interactions": ig_numbers["interactions"] if ig_numbers else None,
+                },
+                "_at": max(live_at(post) for post in (fb, ig) if post is not None),
+            }
+        )
+    rows.sort(key=lambda row: row["_at"], reverse=True)
+    for row in rows:
+        del row["_at"]
+    return {"days": days, "start": current.start.isoformat(), "end": current.end.isoformat(), "videos": rows}
+
+
+# Posting hours: at least this many posts with a reading on a platform before it says which hours work best, and this
+# many on an hour before that hour counts.
+BEST_MIN_POSTS = 6
+BEST_MIN_PER_HOUR = 2
+BEST_SHOWN = 3
+
+
+def _best_hours(samples: list[tuple[int, int]]) -> dict:
+    """Which hours (Vietnam time) the Page's posts were watched most: [(hour, views)] of posts with a reading, grouped by
+    the hour they went live, the average of each hour with enough posts, the best BEST_SHOWN. Too few posts say nothing."""
+    if len(samples) < BEST_MIN_POSTS:
+        return {"posts": len(samples), "hours": [], "enough": False}
+    by_hour: dict[int, list[int]] = {}
+    for hour, views in samples:
+        by_hour.setdefault(hour, []).append(views)
+    ranked = sorted(
+        (
+            {"hour": hour, "average_views": round(sum(values) / len(values)), "posts": len(values)}
+            for hour, values in by_hour.items()
+            if len(values) >= BEST_MIN_PER_HOUR
+        ),
+        key=lambda row: row["average_views"],
+        reverse=True,
+    )
+    return {"posts": len(samples), "hours": ranked[:BEST_SHOWN], "enough": True}
+
+
+def best_times(db: DbSession, page: Fanpage) -> dict:
+    """The hours the Page's Facebook reels and Instagram Reels (the app's posts of the last 90 days) were watched most,
+    to help choose the Page's posting times; each platform on its own, since their audiences differ."""
+    since = now() - timedelta(days=90)
+    facebook_samples = []
+    for post in _posts(db, page.id, since):
+        latest = next((row for row in post.metrics if row.window == "latest"), None)
+        if latest is not None and latest.views is not None:
+            facebook_samples.append((live_at(post).astimezone(analytics.VIETNAM).hour, latest.views))
+    instagram_samples = []
+    for post in _instagram_posts(db, page.id, since):
+        numbers = _instagram_numbers(db, post)
+        if numbers is not None and numbers["views"] is not None:
+            instagram_samples.append((live_at(post).astimezone(analytics.VIETNAM).hour, numbers["views"]))
+    return {
+        "days": 90,
+        "min_posts": BEST_MIN_POSTS,
+        "facebook": _best_hours(facebook_samples),
+        "instagram": _best_hours(instagram_samples) if page.instagram_user_id else None,
+    }
+
+
+# "Cửa đo 48h" (docs/decisions/2026-11-24-winner-gate-docs.md): the numbers a Page's first videos are judged by.
+GATE_FIRST = 14  # a first look at this many videos measured at 48 hours
+GATE_LAST = 30  # the verdict at this many
+GATE_MEDIAN = 1000  # pass: the median at 48 hours above this ...
+GATE_TOP = 10000  # ... and at least one video above this
+GATE_CHANGE_MEDIAN = 500  # after GATE_LAST videos: a median below this ...
+GATE_CHANGE_SHARE = 0.001  # ... and share/view below this means a new hook and pillar (not a new Page name)
+
+
+def gate(db: DbSession, page: Fanpage) -> dict:
+    """The Page's gate: the median views and median share/view of its videos measured at 48 hours, how many are
+    measured towards 14 and 30, the gate's state and the winners (10× the median). The median is the Page's 60-day
+    one (analytics.medians), the same as everywhere else; the count is of all its measured videos."""
+    marks = [mark for mark in analytics._marks(db) if mark.fanpage_id == page.id]
+    measured = len(marks)
+    median = analytics.medians(db).get(page.id)
+    rates = [rate for mark in marks if (rate := analytics.share_rate(mark.views, mark.shares)) is not None]
+    share = statistics.median(rates) if rates else None
+    top = max((mark.views for mark in marks), default=None)
+    enough = median is not None and median.samples >= analytics.MIN_SAMPLES
+    views = median.views if median else None
+    if measured >= GATE_LAST and views is not None and views < GATE_CHANGE_MEDIAN and (share or 0) < GATE_CHANGE_SHARE:
+        state, text = "change", "Đổi hook và trụ nội dung (không đổi tên Page)"
+    elif enough and views > GATE_MEDIAN and top is not None and top > GATE_TOP:
+        state, text = "pass", "Đạt cửa đo"
+    elif measured >= GATE_LAST:
+        state, text = "hold", "Chưa đạt cửa đo, chưa tới ngưỡng đổi hook và trụ"
+    else:
+        state = "measuring"
+        text = (
+            "Đang đo: chưa đạt trung vị hoặc chưa có video vượt mốc"
+            if enough
+            else f"Đang đo: cần ít nhất {analytics.MIN_SAMPLES} video đã đủ 48 giờ để so"
+        )
+    winners = []
+    for mark in marks:
+        times = analytics.times_median(mark.views, median)
+        if analytics.is_winner(times):
+            post = db.get(Publication, mark.publication_id)
+            winners.append(
+                {
+                    "post_id": post.id,
+                    "video": _video(db, db.get(Video, post.video_id)),
+                    "views_48h": mark.views,
+                    "times_median": round(times, 1),
+                }
+            )
+    winners.sort(key=lambda row: row["views_48h"], reverse=True)
+    return {
+        "measured": measured,
+        "first": GATE_FIRST,
+        "last": GATE_LAST,
+        "median_views": views,
+        "samples": median.samples if median else 0,
+        "median_share_rate": share,
+        "top_views": top,
+        "state": state,
+        "state_label": text,
+        "rules": {
+            "pass": "Trung vị 48 giờ trên 1.000 view và có ít nhất 1 video trên 10.000 view",
+            "change": f"Sau {GATE_LAST} video: trung vị dưới 500 view và share/view dưới 0,1% thì đổi hook và trụ",
+            "winner": f"Winner: từ {analytics.WINNER_TIMES} lần trung vị của Page",
+        },
+        "winners": winners,
     }

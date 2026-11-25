@@ -14,10 +14,20 @@ bản", "Render", "Tải MP4", "Thử lại", "Nhân bản".
 **Errors:** every refusal and failed job shows a plain Vietnamese reason where it happened (at the
 field, the scene, or the job banner); technical detail sits in a collapsed "Chi tiết lỗi".
 
+## Narration keys
+
+In "Giọng đọc" of Cài đặt › AI và nguồn tư liệu, the ElevenLabs, Gemini and VieNeu cards each keep the team's main key
+("API key"; Gemini's is the one under "Ảnh AI") with "Key dự phòng" under it: the backup keys in the order they are
+tried, each its name (renamed in place), "…" and its last four characters, "Lên" / "Xuống" / "Xoá" buttons, and a
+name field (optional, "Key dự phòng N" when empty) with "Thêm key". A key a narration could not use (wrong, not
+allowed, out of quota) shows its reason in red right under its row, with the Vietnam time and "Lời đọc đã tự chuyển
+sang key kế tiếp"; the main key's shows above "Key dự phòng". The line goes once the key reads again. A key is never
+shown again.
+
 ## ChatGPT and Claude connection
 
 Cài đặt › Kết nối MCP (`/settings/mcp`, a tab of "Của tôi"; `/chatgpt` sends there) shows the copyable server URL, how to add it in
-ChatGPT, Claude and Claude Code (with the copyable `claude mcp add` command), and the current
+ChatGPT, Claude, Claude Code, Gemini CLI and Antigravity (with the copyable `claude mcp add` and `gemini mcp add` commands), and the current
 member's connections, each named by its app, with scope, expiration in Vietnam time, and “Thu hồi kết nối”. An OAuth request
 opens the same page with a consent card titled “Cho phép <app> kết nối?”, naming the member and the
 callback's host (with a warning for Claude Code's loopback callback), explaining read/write access,
@@ -62,7 +72,7 @@ counts where the whole list is loaded), and Quản lý kênh has "Trang của t�
 member made; for a post or a comment, what is under a post they made or on a Page they own; for a job, what they
 started. The loaded lists start on "Của tôi" once the member has a row there and on "Cả đội" before, so a newcomer
 never opens an empty list; Jobs, read from the api a page at a time, starts on "Của tôi". "Cả đội"
-always shows everyone's work. Shared libraries (Kho tư liệu, Thư viện nhạc, Kho kiến thức) are not filtered. The logo in the menu and on the sign-in page is that icon beside "Reels Studio". Every page behind
+always shows everyone's work. Shared libraries (Kho tư liệu, Thư viện nhạc, Kho kiến thức) are not filtered. The logo in the menu and on the sign-in page is that icon beside "Reels Studio". The app is installable (manifest and icons, no offline mode; the account menu's "Cài app lên điện thoại" explains how, [decision](decisions/2026-11-20-installable-pwa.md)). Every page behind
 the login starts with the same header ([PageHeader](../web/src/components/PageHeader.tsx)): the
 title with the page's main action on its right ("Tạo video", "Tải nhạc lên", "Thêm Fanpage"…), a
 line saying what the page is for when it needs one, then its search and filters on one row;
@@ -98,8 +108,11 @@ why and does not report success.
   suggested time, missing/stale MP4, active job, unavailable own Page or duplicate MP4 refuses it
   with a reason. Approval sends the existing publish request with automatic comments, then reloads
   the surface. An ordinary video without a planned time uses "Đăng bài".
-- **Articles:** the list offers the detail page's publishing drawer, "Làm reel từ bài này" and the
-  maker's delete confirmation. Publishing loads Page options when opened; no request per list row.
+- **Articles:** the list offers the detail page's publishing drawer and the maker's delete confirmation,
+  side by side in one row ("Làm reel từ bài này" is on the detail page only). The table is `size="middle"` with
+  48 px thumbnails so a 1440×900 screen shows 7 rows or more; "Số 48h" reads "—" (draft), "Chưa đo" (posted, under
+  48 h) or the heart, comment and eye counts (reactions, comments, reach). Publishing loads Page options when
+  opened; no request per list row.
 - **Pages:** the dashboard reuses the card's token replacement and stop confirmation, and exposes
   the same account/owner and Page-logo controls through "Tài khoản và chủ Page". Token errors can be fixed in place.
 - **Posts:** the posts table exposes affiliate-comment actions; a Page's content library can open
@@ -206,7 +219,10 @@ is in App Look.
 
 - Actions are `<Button>` and navigation is a `<Link>` (so Ctrl/Cmd+click opens a new tab); no
   clickable `<div>` or `<span>`. A row that opens something on click also has a real link or
-  button in it.
+  button in it. A card that opens something is one link: its title is a `<Link className="stretched-link">`
+  inside a `.stretch-host` card (globals.css), so click, Ctrl/Cmd/middle click and right-click "Mở trong tab
+  mới" work anywhere on it; chips and buttons inside it are their own links. A table row cannot be a link: it uses
+  `rowLink` (lib/rowLink.ts, Ctrl/Cmd/Shift and middle click open a new tab) and its title cell is a real `<Link>`.
 - Every interactive element shows a visible focus ring when reached by keyboard
   (`:focus-visible`). `outline: none` is allowed only with a replacement ring on the same element.
 - An icon-only button has an `aria-label` and a `Tooltip` with the same words.
@@ -300,7 +316,7 @@ Built:
   opens the dialog (`/videos?reference=<id>`) on "Dùng mẫu đã học" with that sample chosen.
 - **Video list** (`/videos`): "Tạo video"; then, on one row, the search by title or topic and the filters:
   status (Cần làm: a draft older than 2 days, a failed job, an MP4 behind the edits, or a finished video not out
-  on Facebook or TikTok; Nháp, Đang xử lý, Chờ đăng, Đã lên lịch, Đã đăng, Lỗi, MP4 cần render lại: the same
+  on Facebook or TikTok; Nháp, Đang xử lý, Chờ đăng, Đã hẹn giờ, Đã đăng, Lỗi, MP4 cần render lại: the same
   choices as a group's "Video" tab, lib/videoStatus.ts), platform, Fanpage (any Page the video
   is out on or set for), topic group ("Sức khỏe (12)", its number of videos; remembered in the browser) and
   creator ("Của tôi" first, then the team; it starts on "Của tôi" once the member has made a video), each showing "Mọi trạng thái", "Mọi nền tảng", "Mọi Fanpage", "Mọi
@@ -326,13 +342,13 @@ Built:
     bold from 10×) and "N% share" (green once it reaches the goal); a warning on its own line (a job's
     "Render lại lỗi", "MP4 chưa cập nhật theo bản sửa"); then the status as a dot and a word, the api's
     `status_label` everywhere (Nháp / Chờ / Đang viết / Đang render… / Lỗi while there is no MP4 or a job runs; with
-    an MP4, by its posting: "Chờ đăng" (dark grey), "Đã lên lịch" (amber), "Đã đăng" (green); "Xong" said nothing
+    an MP4, by its posting: "Chờ đăng" (dark grey), "Đã hẹn giờ" (amber), "Đã đăng" (green); "Xong" said nothing
     about posting, 2026-11-12) and on
     the right the creator and the day it was made; under them, small, the topic group and its plan day.
     The kind tags sit under the title with the "Đã đăng" icons on their right;
   - a list, one row per video, in four columns (2026-11-14): **Video** (small thumbnail, the title on up to two lines, and
     under it the Page and time of its post, "hẹn" while scheduled, or "Chưa đăng"), **Trạng thái** (the status, "Đã đăng" or
-    "Đã lên lịch" and the platform icons on one line, the kind tags, TikTok versions and "Tạo bản TikTok" under it),
+    "Đã hẹn giờ" and the platform icons on one line, the kind tags, TikTok versions and "Tạo bản TikTok" under it),
     **Số liệu** (the views, sortable, with the 48h multiple or "chưa đủ dữ liệu" and the share rate under it; "—" before
     the first reading) and **Tạo** (group, plan day, creator, day), then the "⋮" button. Above the videos, one
   banner per topic group of the member's own (the groups their Pages in use post) whose plan has a today:
@@ -392,13 +408,17 @@ saying posting waits for the new MP4); in a card narrower than 400 px the MP4 (a
 as rows 6 px apart (34 px, radius 10, a 20 px square badge, the name and a ring at the end, nothing else; the row's hint
 is its tooltip and its control's description; the whole row toggles its checkbox, kept in the DOM under the ring; a
 picked row has a 2 px orange border on #fff2eb and a filled orange ring with a white ✓; Tab shows a 2 px orange
-outline): Facebook and TikTok ("Nháp vào hộp thư") are posted by the app, one
-after the other (one job per video at a time): Facebook to the member's Page (a "Fanpage" select when they have several)
-with the comment written when the reel is live, TikTok as a draft to the inbox of the member's connected account (a
-select when several); TikTok cannot be scheduled, so with "Hẹn giờ" its row is off ("Không hẹn giờ được"). The YouTube
-Shorts and Instagram rows are dashed on #fafaf9, with a grey export mark instead of a ring ("Đăng tay" as tooltip): they
-open the posting drawer on their tab, where a post made by hand is recorded with its link. That drawer, with every
-platform's own options (a Page's queue, TikTok posted directly, "Đã đăng tay"), has no button on the card: it is
+outline): all four are posted by the app, one after the other (one job per video at a time): Facebook to the
+member's Page (a "Fanpage" select when they have several, also shown when only Instagram is picked) with the comment
+written when the reel is live; Instagram to the Instagram account linked to that same Page (a line "Instagram:
+@<username>", or "Page này chưa liên kết tài khoản Instagram Business" in amber, which blocks the button); TikTok
+("Nháp vào hộp thư") as a draft to the inbox of the member's connected account (a select when several); YouTube Shorts
+("Tải lên riêng tư") uploaded private to the member's connected channel, the Page's channel first (a select when
+several), titled with the video's title. With "Hẹn giờ" Facebook and Instagram go at that time (Instagram's row then
+says "Hẹn đăng lúc …" with "Hủy hẹn"); TikTok and YouTube still go at once, the time kept as YouTube's reminder, and
+each counts as done ("✓") once its draft or private upload is through (2026-11-19, Instagram through the Page). The
+posting drawer, with every platform's own options (a Page's queue, TikTok posted directly, a YouTube title, "Đã đăng
+tay"), has no button on the card: it is
 "Tùy chọn đăng khác" just under the card on "Đăng bài" (2026-11-15, MCP clip flow), which opens it there. The member's last pick is kept in the browser. "Đăng ngay" / "Hẹn giờ",
 then a 40 px button "Đăng lên N nền tảng" ("Hẹn đăng lên N nền tảng", "Chọn nền tảng để đăng" and off with none) and
 a grey note: the newest MP4 goes with the saved caption and hashtags, Facebook comments when the post is up (when
@@ -412,13 +432,12 @@ included, is under "Lịch sử bài Facebook (N)", folded. A red QC check asks 
 chất lượng", "Vẫn đăng"); the checks themselves are in the header's **QC chip** popover. Under the card, each a block of its
 own: "Nội dung đăng" (Caption, with "Copy caption + hashtag" in its title, which copies both wherever the hashtags
 are typed; a hand-written video's "not reviewed by the AI" warning), then "Hashtag". The "Bình luận & Sản phẩm" tab
-holds, in the same kind of blocks 12 px apart: "Bình luận" ("Bình luận ghim" with "Copy ghim", which copies the
-comment as it reads now; the field is the comment's template, with a "?" listing the variables, a row of small
-buttons `{title}`, `{items}`, `{item_names}`, `{count}`, `{hook}`, `{products}` that put one at the cursor, then
-"Xem trước": the comment rendered from the scenes as the template is typed, in a grey box, with a grey line "Tự cập
-nhật theo tiêu đề và các cảnh." or, for a template without `{items}`/`{item_names}`, an orange line "Bình luận không
-còn tự cập nhật theo cảnh: chèn {items} để liệt kê các cảnh."; a member's own change to the scenes that changes the
-comment shows the toast "Bình luận ghim đã được cập nhật theo cảnh"; then "Bình luận thêm",
+holds, in the same kind of blocks 12 px apart: "Bình luận" ("Copy ghim" in its title, which copies the
+comment as it reads now; a one-line field "Dòng khảo sát", the comment's last line, empty for none; then "Xem
+trước": the whole comment, the title, the scenes numbered from 1 and the survey line, in a grey box that follows
+the line as it is typed, with a grey line "Tự cập nhật theo tiêu đề và các cảnh."; no template and no variable
+buttons; a member's own change to the scenes that changes the comment shows the toast "Bình luận ghim đã được cập
+nhật theo cảnh"; then "Bình luận thêm",
 then the comment's posting state with "Bình luận ngay") and "Sản phẩm Shopee" (the AI's product ideas, the Shopee
 suggestions and the approved products, whose links go after the pinned comment). While no product is attached, the
 tab's name carries an orange dot. Every tab stays mounted while hidden, so what is typed survives a tab change. "Gợi ý nhạc" and "Rà soát an toàn của AI" are not shown. When "Đăng lên N nền
@@ -430,7 +449,20 @@ when all went out and stays while something failed. Under "Bình luận ghim", "
 line saying the Page writes them under the reel after the pinned one, in order, and that Facebook does not let an app
 tag @ people, then each saved one as its own field "Bình luận 2", "Bình luận 3"… with a red bin "Bỏ bình luận N", and
 "Thêm bình luận", which opens a box with "Lưu bình luận" and "Huỷ", "Tối đa 5 bình luận thêm" at five; a post's
-comment line adds ", thêm N bình luận". From 1100 px wide the panel is beside the scenes, stuck under the header
+comment line adds ", thêm N bình luận". Under them, "Bình luận aff tự động": a switch "Không đăng cho video
+này" on the right, then per Page the video is or may be posted on a grey box with the Page's name, its state ("Tự
+động: 2 bộ", "Chọn tay: 1 bộ", orange "Page đang tắt" / "Tắt cho video này") and a link "Bộ bình luận của Page"; a
+multiple select of the Page's sets (empty: "Tự động (app chọn theo chủ đề và xoay vòng)", at most 3); and each
+planned comment folded as "Aff 1 · <set> · N link · 5–10 phút sau bình luận món ăn cuối", opening on its full text;
+then a line per live post ("Bài #N: đã đăng 1/2 bình luận aff, bình luận tiếp lúc 14:05"), its last error in orange,
+and "Đăng aff ngay" on the right while not all are up. A Page's card on "Quản lý kênh" has a grey line linking to its
+sets: "Bộ bình luận aff: 4/6 bộ dùng được, 2 bộ mỗi reel", "… đang tắt (6 bộ)" or "Chưa có bộ bình luận aff".
+Affiliate's tab "Bộ bình luận" (after "Sản phẩm"): "Chọn Page" (the member's own Page first), the Page's state
+(a green or orange "Đang bật" / "Đang tắt" and tags "10 bộ", "2 bộ mỗi bài", "10 link mỗi bình luận"), "Tạo tự động từ kho",
+"Thêm bộ" and "Thiết lập" on the right, an info box on the timing and Facebook hiding many-link comments; then the sets
+as cards (name and a Bật/Tắt switch; "x/10 sản phẩm" or orange "9/10 sản phẩm hợp lệ" with a "Ưu tiên N" tag, tags,
+"Dùng N lần · gần nhất …", warnings; a footer with "Sửa" and "Xem trước" on the left, Nhân bản and Xoá icons on the
+right; a switched-off set is dimmed) and a folded table of the group's products with "Tên ngắn", "Nhóm" and "Tags" edited in place. From 1100 px wide the panel is beside the scenes, stuck under the header
 (its height measured, since it wraps) and scrolling on its own, while the scenes scroll with the page. Narrower than
 1100 px the panel is a drawer from the right, opened by "Đăng bài / Thiết lập" in the header (the progress line's
 steps open the status card or the products block on its tab, the QC chip its popover).
@@ -591,7 +623,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
     tooltip, shown while the frame is pointed at (or tapped, or one of them has the keyboard): "Xem" (the only one in
     view mode: a centred dialog with the scene large in its 9:16 frame, the photo as the render crops it or the clip
     looping the part the scene plays, muted, at its speed, and the exact text box where the render puts it, with a
-    "Chữ trên màn hình" switch to hide it), "Chỉnh khung" for a photo or "Cắt video" for a clip, "Sửa ảnh" for a photo
+    "Chữ trên màn hình" switch to hide it; a framed photo as "Khung ảnh" lays it), "Chỉnh khung" for a photo or "Cắt video" for a clip, "Sửa ảnh" for a photo
     or "Làm mờ vùng" for a clip, "Vị trí chữ", and for a clip "Xoá video" (✕, confirmed). Beside the frame, while
     editing, the picture's tools are a column of their own, always shown (222 px, #fcfbfa, two columns, 36 px
     buttons), in three groups with small grey capitals: "LẤY ẢNH" ("Tải lên", a dashed area, and "Dán link"; "Chọn
@@ -652,6 +684,12 @@ steps open the status card or the products block on its tab, the QC chip its pop
   - "Chỉnh khung" and "Cắt video" open in the middle of the screen, the picture on the left and its
     controls in labelled groups beside it (under it on a phone), so "Áp dụng" needs no scrolling; the
     other picture dialogs (Vị trí chữ, the paste box, Chọn từ kho) are centred too.
+  - **"Khung ảnh"** (a content scene's photo on a slide video): under the picture, a small select "Tự động (what it
+    does for this photo) / Lấp đầy khung / Cắt vuông, nền mờ / Giữ nguyên ảnh, nền mờ", saved at once; when the
+    photo is cut square and is not square itself, a "Dịch khung vuông" slider (Trái–Phải or Trên–Dưới) moves the
+    square, saved when it is let go. "Vị trí chữ" shows the photo above or below the box as the box crosses the
+    frame's middle, and "Vị trí gốc" is where the framing puts the text. A framed photo that still looks soft at
+    the frame's width warns "Ảnh mờ, nên thay ảnh khác" (a warning, never blocking).
   - **"Chỉnh khung"** (photo): a dialog that crops the photo to 9:16 with a "Phóng to" slider
     (1–4×), "Xoay 90°", "Lật ngang" and "Đặt lại"; dragging moves the photo under the frame. "Áp dụng" cuts
     it in the browser to a JPEG of at most 1080×1920 and stores it in place of the photo, keeping
@@ -702,7 +740,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
     "Chọn từ kho ảnh/video") has an "Ảnh | Video" switch when a source offers clips: "Video" lists
     vertical stock clips from Pexels and Pixabay (English keyword first) as 9:16 stills with their
     length, playing muted when pointed at; clicking one stores it as the scene's clip, like
-    an uploaded clip, in place of its photo or clip. Sources turned off on Nguồn tư liệu are left out;
+    an uploaded clip, in place of its photo or clip. Sources turned off on AI và nguồn tư liệu are left out;
   - blocking reasons in red at the scene, warnings in yellow; a scene with neither a photo nor photo
     keywords (a script can leave them out) warns "Cảnh chưa có từ khóa tìm ảnh"; "Render" is disabled until nothing
     blocks;
@@ -720,14 +758,16 @@ steps open the status card or the products block on its tab, the QC chip its pop
     slider with its value beside it), "Âm lượng giọng", "Nghỉ sau lời" (0,4 / 0,7 / 1 giây); Cài đặt › Thiết lập mặc
     định keeps the stacked card. In "Chữ & phụ đề" the style cards are 56 px, on one row that scrolls sideways.
     The groups: "Âm thanh" (narration on/off, the
-    voice picked from the ElevenLabs account's voices, and VieNeu's and Google's once their key is set, grouped
-    "ElevenLabs", "VieNeu" and "Google" when two or more have voices, with "Nghe thử" playing ElevenLabs' free sample
-    (VieNeu and Google voices have none), the
+    voice picked from the ElevenLabs account's voices, and VieNeu's, Gemini's and Google's once their key is set (Gemini's
+    is the key that makes AI photos), grouped "ElevenLabs", "VieNeu", "Gemini" and "Google" when two or more have voices,
+    with "Nghe thử" playing ElevenLabs' free sample (VieNeu, Gemini and Google voices have none), the
     "Tốc độ đọc" slider (0,70× to 1,30×, marked Chậm/Vừa/Nhanh), voice level, "Nhỏ nhạc khi có giọng đọc"); the music card (from the library
     ("Chọn từ thư viện", filtered by topic, mood, and name) or an uploaded MP3, optionally saved to
     the library with its topics and mood, with a volume slider); "Hình ảnh" (Chuyển cảnh: Mờ dần,
-    Cắt thẳng, Trượt; Chuyển động ảnh: Zoom vào, Zoom ra, Lia ngang, Đứng yên; Độ zoom: Nhẹ, Vừa,
-    Mạnh); "Chữ & phụ đề" (a "Chỉnh chữ cho" switch at the top, Các cảnh or Tiêu đề: Tiêu đề shows
+    Cắt thẳng, Trượt, Phóng qua, Nháy sáng, Chớp đen, Nhoè lia, Lướt mượt; Chuyển động ảnh: Zoom vào, Zoom
+    ra, Lia ngang, Đứng yên, Ken Burns chéo, Lia dọc, Cầm tay, Đẩy nhanh; Độ zoom: Nhẹ, Vừa, Mạnh, Cực mạnh,
+    disabled while the motion is Đứng yên, with "Ảnh độ phân giải thấp có thể bị vỡ." under Cực mạnh; each
+    choice says what it looks like in a tooltip, and the eight choices wrap onto more lines at phone width); "Chữ & phụ đề" (a "Chỉnh chữ cho" switch at the top, Các cảnh or Tiêu đề: Tiêu đề shows
     "Tiêu đề giống các cảnh", ticked by default (and unticked, with the yellow box, for a video made
     with the older "Hộp vàng"); unticking starts the title's own look from the scenes' and shows the
     same cards and colour rows for the title only; ticking it again drops the title's look; the
@@ -738,14 +778,14 @@ steps open the status card or the products block on its tab, the QC chip its pop
     colours changed since), a chosen "Đang dùng" card drawn in its colours with "Màu riêng, chưa có trong kiểu chung
     của đội." (or "Kiểu có sẵn của app, …") and "Lưu thành kiểu của đội" under the cards, opening "Thêm kiểu hộp chữ"
     on those colours, then the team's own box styles, then a "Thêm kiểu" card with a dashed "+" preview, opening "Thêm kiểu hộp chữ" (Tên kiểu, Màu nền
-    hộp, Độ trong của hộp: Đặc, Hơi trong, Trong, Không nền; Màu chữ; Màu chữ đánh dấu, with a live sample and the
+    hộp, Độ trong của hộp: Đặc, Hơi trong, Trong, Rất trong, Không nền; Màu chữ; Màu chữ đánh dấu, with a live sample and the
     readability warnings); a new style is picked at once; under the cards the picked style's name with
     "Sửa kiểu" and "Xoá kiểu" (confirmed: "Video đã dùng kiểu này vẫn giữ màu của nó."); the styles are
     shared by the whole team and a video keeps a copy of the colours, so editing or deleting a style
     never changes a video; then three colour rows, Màu chữ, Màu chữ đánh dấu and Màu nền hộp (Màu viền chữ for
     Không hộp), each with Theo kiểu, eight swatches (Trắng, Đen, Vàng, Đỏ, Cam, Xanh lá, Xanh dương,
     Hồng) and "Tuỳ chỉnh" opening a colour picker; a faint pair is allowed with a warning under the
-    rows ("Chữ khó đọc trên nền hộp này. …"); Độ trong của hộp (Theo kiểu, Đặc, Hơi trong, Trong, Không nền) while
+    rows ("Chữ khó đọc trên nền hộp này. …"); Độ trong của hộp (Theo kiểu, Đặc, Hơi trong, Trong, Rất trong, Không nền) while
     the style has a box, Không nền turning the box colour row into Màu viền chữ; these rows change only the video (or the defaults), not the team style, whose card
     is then no longer marked; picking Không hộp puts the box colour and opacity back to Theo kiểu;
     Phụ đề theo giọng đọc: Tắt, Từng cụm, Từng từ, greyed out while narration is off); and a line linking
@@ -776,9 +816,16 @@ steps open the status card or the products block on its tab, the QC chip its pop
   - "Đăng bài" in the MP4 card, on every video, opens one drawer whose tabs are the platforms the MP4 may go to, each
     with how many posts it has ("YouTube Shorts (1)"), opening on the video's own platform (on Facebook when a
     suggestion's "Đăng" opened it): Facebook (below, with "Thêm vào hàng chờ" under its form; the drawer's own "Đăng"
-    button belongs to this tab only), TikTok (above), YouTube Shorts and Instagram Reels (the app has no connection
-    to either: "Tải MP4", "Copy caption + hashtag", then the post's link and "Ghi bài đã đăng", with the posts below
-    and a delete for the member who recorded each). Under the MP4, "Bài đăng của video" lists the posts on every
+    button belongs to this tab only), TikTok (above), YouTube Shorts and Instagram Reels ("Tải MP4", "Copy caption +
+    hashtag", then the post's link and "Ghi bài đã đăng", with the posts below and a delete for the member who
+    recorded each). YouTube Shorts starts with "Tải lên YouTube (riêng tư)": a select of the member's connected
+    channels (the Page's first), "Tiêu đề YouTube" (100 characters, counted), "Dự định công khai lúc" (a
+    `datetime-local` in Vietnam time, the Facebook time ahead or the next 07:00/11:00/18:00) and the primary button
+    "Tải lên YouTube"; with no channel connected, one warning line says to press "Kết nối YouTube" on Cài đặt › Tài khoản và kênh. An
+    upload's line says "Đang tải lên YouTube…", then "Đã tải lên riêng tư · nhớ công khai lúc dd/mm/yyyy hh:mm" with
+    "Mở YouTube Studio ↗", then its "Xem bài" once YouTube shows it public. Quản lý kênh's YouTube list has "Kết nối
+    YouTube" beside its heading, each channel's state ("Đã kết nối (tên)", "Cần kết nối lại", "Chưa kết nối") and
+    "Ngắt kết nối" for the member who connected it; a Page's owner picks its YouTube channel under its TikTok account. Under the MP4, "Bài đăng của video" lists the posts on every
     platform: TikTok's and the hand-recorded ones as a line with "Xem bài", Facebook's with their actions. On
     `/videos` a card says "+ TikTok, YouTube" beside its platform when its own MP4 is out elsewhere, and a Facebook
     video already on TikTok is not offered a TikTok version;
@@ -837,7 +884,9 @@ steps open the status card or the products block on its tab, the QC chip its pop
     - "Video mới của nhóm" (what every new video of the group starts with, over its maker's Thiết lập mặc định): on
       the left "Kiểu video của nhóm" (three radios: "Slide ảnh", "Video xuyên suốt", "Xen kẽ theo ngày (ngày lẻ:
       xuyên suốt, ngày chẵn: slide)", "Slide ảnh" for a new group; on "Xen kẽ" a grey line "Hôm nay (giờ Việt Nam):
-      …") with "Lưu kiểu video", "Giọng mặc định của nhóm" (the voice picker of Thiết lập mặc định, empty showing
+      …") with "Lưu kiểu video", the switches "Không dùng cảnh có người" and "Cảnh kết Theo dõi & Chia sẻ" (each saved
+      when turned, with a grey line on what it does; the outro's says it replaces the script's closing call to action
+      and leaves existing videos as they are), "Giọng mặc định của nhóm" (a second picker "Giọng phụ" below the main voice: read instead when the main voice's keys are all wrong or spent; the voice picker of Thiết lập mặc định, empty showing
       "Theo Thiết lập mặc định của người tạo", cleared with ×) with "Lưu giọng", and "Mẫu dựng của nhóm" (a multiple
       choice of the saved templates the group holds and the one its new videos take: "Không áp mẫu của nhóm", "Gợi ý
       của app" or one of the group's, with "Lưu mẫu dựng"; the order a new video's template is picked in is spelled
@@ -940,48 +989,71 @@ steps open the status card or the products block on its tab, the QC chip its pop
     is live on a Page or TikTok account of mine, starting on "Của tôi" once I have one, else on "Cả đội";
     "Tìm theo tiêu đề video", "Mọi Page", "Mọi nền tảng", "Mọi sản phẩm") and, at its end, "Kiểu hiển thị":
     a table (the default), cards with the cover, or a list beside the open video, remembered in the
-    browser. Under it, tabs with counts over the videos the filters leave ("Tất cả", "Chưa gắn", "Đã
+    browser. Under it, tabs with counts over the videos the filters leave ("Tất cả", "Thiếu link" in yellow
+    while it holds any: a Facebook post whose comments on Facebook have no Shopee link yet, "Chưa gắn", "Đã
     gắn", "Dán tay", "Cần xem lại" for a product that lost its approval or no longer meets the rules);
     "Không có video nào khớp" when nothing matches. Each video shows its cover, title, platform, time and
     "Xem Reel" on one line, then one chip per Page or TikTok account it is live on (a teammate's in gold
-    with its owner's name; the tooltip says whose commission it is). Its products are tags ("×" takes one
+    with its owner's name; the tooltip says whose commission it is), a Page's chip opening with a dot: green when
+    its comments hold a link, yellow when it commented without one or the app is about to update it, grey when it
+    has not commented or it is not known yet. Its products are tags ("×" takes one
     off) with "+ Gắn sản phẩm", a picker of approved products of the video's platform (labelled with the
     expected commission per order, and "Người thêm: <tên>" when a teammate added it); the script's ideas
-    show under it while nothing is attached. Under the tags, one short line per attached Shopee product
+    show under it on one line while nothing is attached (the whole list on hover). Under the tags, one short line per attached Shopee product
     and Page whose commission is not the member's own ("<sản phẩm> → hoa hồng về <tên> (link lưu sẵn)",
     the Page named only when the video is on several; the tooltip gives the whole reason): in yellow whose
     it is (the Page's own Shopee account, its owner's; or, on a Page without a Shopee account with App ID,
     the product's saved link, the member who added it), in red when the Page has no such account and the
     product has no saved link, so it is left out of that Page's comment. Nothing is refused for it. A
     product that lost its approval or no longer meets the rules stays attached in yellow, and its link is
-    left out of the copied text. The comment column tells how the app's comment stands ("Chờ gắn sản
-    phẩm", "Chưa bình luận", "Chờ app bình luận", "Đang bình luận", "App đã bình luận", "Lỗi bình luận"
-    with the error on hover, "Dán tay", "Gắn giỏ trong app TikTok"), with "Sao chép" for the pinned comment
-    and "Đã dán link tay" / "Bỏ dán tay": a video marked so is never commented by the app (nor edited),
-    and its products are only a record;
-  - "Sản phẩm": the topic groups on the left ("Tất cả nhóm", then "Nhóm của tôi", the groups of the Pages the member
-    owns and uses, and "Nhóm khác"), each with how many products it holds and the Pages that post it (one by name,
-    several as a logo and "+n" named on hover, gold when a teammate's is among them). On the right the open group's
-    name, "Dùng cho video của N Page", "Xuất CSV", "Nhập file" and "Thêm sản phẩm"; "Tôi thêm / Cả đội" (by who added
-    the product), search by name or shop and platform; tabs "Tất cả", "Cần điền sao, lượt bán", "Chờ duyệt", "Đã
-    duyệt" with counts. Products ranked by expected commission per order, each with its platform tag ("Tìm qua API"
-    for those Shopee's search found), its group when all groups show, "Người thêm: <tên>" ("bạn" for the member's
-    own; its tooltip says that saved link goes in the comment of a Page without its own Shopee account) and how many
-    videos carry it, shop and type, rating and sales, commission per order with its rate and price, and status.
+    left out of the copied text. The comment column says, as a dot and words, whether the comments on
+    Facebook hold a link ("Có link", "1/2 Page có link", "Đã bình luận, thiếu link", "Đang cập nhật link",
+    "Chưa bình luận", "Chưa rõ", "Lỗi bình luận" with the error on hover, "Dán tay · …" before them for a
+    video pasted by hand, "Gắn giỏ trong app TikTok"), then one button, "Thêm link" (or "Xem bình luận" once
+    every Page has one), and ⋯ with "Sao chép bình luận và link" and "Đã dán link tay" / "Bỏ dán tay": a video
+    marked so is never commented by the app (nor edited), and its products are only a record. Both buttons
+    open "Bình luận và bài đăng", a drawer with the video page's "Sản phẩm Shopee" block first (AI ideas,
+    Shopee suggestions and pasted links, attached products), then "Bình luận" (pinned comment, "Bình luận
+    thêm"), then "Bài đăng": each post with its link state and its comment's actions; the list reloads when
+    it closes;
+  - "Sản phẩm": a product goes through four steps, so the screen is that path (decision
+    [2026-11-25-products-board](decisions/2026-11-25-products-board.md)). On top, a group select (grouped "Nhóm của
+    tôi" and "Nhóm khác", each option with its Pages and product count; typing searches), "Dùng cho video của N
+    Page", then "Quy trình / Bảng" (the member's choice is kept in the browser; the table is the
+    default), "Nhập / Xuất ▾" ("Nhập file (Lấy link hàng loạt)" and "Xuất CSV") and "Thêm sản phẩm". Under it the search,
+    the platform filter and a progress line ("38 / 50 sẵn sàng dùng trong bình luận", "còn 12 món chưa có link") with a
+    bar. **Board:** four columns, each with its count and a hint: "1 · Cần điền" (drafts short on stars or sales, filled
+    in on the card itself), "2 · Chờ duyệt" (with "Duyệt tất cả (N)"), "3 · Cần link" (approved Shopee products with no
+    affiliate link, outlined in yellow, with "Xuất file Custom Link (N)", the group's approved products I added, and
+    "Nhập kết quả Shopee"; both need a group chosen, which has exactly one active Page, see
+    [decision](decisions/2026-11-24-custom-link-excel.md); the import is a modal of Shopee's result file, CSV or Excel,
+    previewed row by row as "Sẽ gắn link", "Của đồng đội" or "Lỗi" before "Gắn link cho N sản phẩm") and "4 · Sẵn
+    sàng". A column shows 5 cards, then "Xem thêm N món"; an empty one says "✓ Đã sạch". A card has the picture (a
+    placeholder without one), the name in bold on two lines, commission per order with rating and sales, problems in
+    yellow, shop (with who added it when a teammate did, and the group when all groups show) and the row actions
+    ("Sửa" as an icon, "Duyệt" / "Bỏ duyệt", "Xoá" as an icon). **Table** ("Bảng"): tabs "Tất cả", "Cần điền sao, lượt
+    bán", "Chờ duyệt", "Đã duyệt" with counts and a "Chưa có link (N)" tick, products ranked by expected commission per
+    order, each row with its picture, name in bold on two lines, shop and type, its platform tag ("Tìm qua API" for
+    those Shopee's search found), its group when all groups show, "Người thêm: <tên>" ("bạn" for the member's own; its
+    tooltip says that saved link goes in the comment of a Page without its own Shopee account) and how many videos
+    carry it; rating and sales, commission per order with its rate and price, status and "Link" ("Có link" with a copy
+    button, or yellow "Chưa có link"), with the same row actions.
+    Only the member who made a group adds products to it ([decision](decisions/2026-11-25-group-owner-adds-products.md)):
+    "Thêm sản phẩm" and "Nhập file" are disabled, with the reason on hover, in a group of someone else, and the drawer below
+    lists only the groups (and their Pages) the member may add to.
     "Thêm sản phẩm" opens a drawer: "Nhập vào" by Page (into the group it posts; a Page without a group cannot be
     picked) or by group (the open group to start with), then two tabs, "Dán link Shopee" (one link per line, up to
     50; the rest is read from Shopee, so it needs a Shopee account with App ID somewhere in the team and says so when
     there is none) and "Nhập file" (Shopee Affiliate's "Lấy link hàng loạt" CSV dropped in, previewed before anything
-    is written: new, already mine, a teammate's and rows in error; a teammate's product keeps their link and is
-    listed by row, a product of mine is updated; without an App ID the drawer says stars, sales and shop type are
-    still to fill in); "Nhập file" on the toolbar opens that tab. "Nhập tay" at the bottom opens the full form ("Nhập tay sản phẩm",
+    is written: new, mine (updated), the same as a teammate's (still added, as my own row with my link; theirs is
+    untouched and named by row) and rows in error; without an App ID the drawer says stars, sales and shop type are
+    still to fill in); "Nhập file" in the "Nhập / Xuất" menu opens that tab. "Nhập tay" at the bottom opens the full form ("Nhập tay sản phẩm",
     platform first; the link is optional for TikTok Shop). A row being read shows "Đang lấy thông tin từ
     Shopee…" and the list follows it every 3 seconds; one that could not be read shows why in red, with
     a "Lấy lại thông tin" button. A Shopee draft whose stars or sales are under the rule links its Shopee
     page and takes shop type, stars and sales on the row itself ("Lưu"; the same save as "Sửa"), so it can
     be approved without opening "Sửa" for each one: empty for one nobody has read (a row of the file, or
-    a link, with no App ID in the team, which it says), else holding what the product has. "Sửa", "Xoá", "Duyệt", "Bỏ duyệt",
-    "Xuất CSV". Rows ticked in their checkbox (only those the filters show) can be approved together with
+    a link, with no App ID in the team, which it says), else holding what the product has. "Sửa", "Xoá", "Duyệt", "Bỏ duyệt". Rows ticked in their checkbox (only those the filters show) can be approved together with
     "Duyệt đã chọn" (those not meeting the rules stay drafts and are counted in the message), deleted
     together with "Xoá đã chọn", after a confirmation, or cleared with "Bỏ chọn". A row that fails the rules shows why,
     in yellow;
@@ -990,13 +1062,19 @@ steps open the status card or the products block on its tab, the QC chip its pop
     videos it is attached to;
   - "Doanh thu": the signed-in member's own Shopee orders over 7, 30 or 90 days, with totals and one
     row per video and Page; nobody else's.
-- **Cài đặt › Tài khoản affiliate** (`/settings/affiliate-accounts`): the member's own Shopee
-  accounts (App ID, the Secret's last characters, "Kiểm tra kết nối") and TikTok accounts (profile
-  link, and the TikTok connection: "Đã kết nối @username, còn hạn tới …" with an avatar and "Ngắt
-  kết nối", "Chưa kết nối TikTok" with "Kết nối TikTok", or a warning with "Kết nối lại" when TikTok
-  refused a refresh), with "Đang dùng", "Sửa" (an empty Secret keeps the saved one) and "Xoá";
-  "Kết nối TikTok" (TikTok's consent page, then back here with a message; the account is found by
-  the TikTok username or made from it) and "Thêm tài khoản" are in the tab's header.
+- **Cài đặt › Tài khoản và kênh** (`/settings/affiliate-accounts`, "Tài khoản affiliate" before 2026-11-23; [decision](decisions/2026-11-23-connections-one-place.md)):
+  every account and channel the member connects, as rows of one kind (`ConnectionRow`: platform tag, name with
+  "Mở kênh ↗", grey lines, a status dot and the actions), in three cards: Shopee (App ID, the Secret's last
+  characters, "Kiểm tra kết nối"), TikTok (profile link and the connection: "Đã kết nối @username, còn hạn tới …" with
+  "Ngắt kết nối", "Chưa kết nối TikTok" with "Kết nối TikTok", or a warning with "Kết nối lại" when TikTok refused a
+  refresh) and YouTube (posts, "Ngắt kết nối", "Kết nối lại", "Xóa" for a channel added from a link). Each row also
+  says which of the member's Pages use it ("Dùng cho Page: …" or "Chưa gắn cho Page nào"), and has "Đang dùng", "Sửa"
+  (an empty Secret keeps the saved one) and "Xoá" where the account is the member's. "Của tôi / Cả đội" (in the
+  address) switches between them and a read-only list of every TikTok and YouTube channel of the team, with who owns
+  it and its posts; Shopee is never shown to others. The header has one button, "Thêm kết nối ▾": "Kết nối TikTok" and
+  "Kết nối YouTube" (the consent page, then back here with a message), "Thêm tài khoản" (Shopee or TikTok by hand) and
+  "Thêm kênh bằng link" (a drawer; a TikTok channel becomes the member's TikTok account). Nothing here is added
+  anywhere else; a Page only picks among them.
 - **Quản lý kênh**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
   and the Page's Shopee account, picked from their own; a Page that belongs to nobody has "Nhận Page
   này". A Page is not handed to another member from the app. Only the owner sets the Page's topic
@@ -1047,10 +1125,10 @@ steps open the status card or the products block on its tab, the QC chip its pop
       cả gợi ý (N)". An imported reel once matched shows "Meta Suite" on its cell; its opened line has "Đổi video
       khớp" and "Bỏ khớp" (back to "Chưa khớp") instead of the app's buttons.
     - **"Dán link bài đã đăng"**: 1–50 links, one per line, read 400 ms after typing stops. A row per link: the link,
-      "Nền tảng · Kênh" (a Page picker for Facebook: the member's own Pages), the video ("✓ Khớp N%" picked by itself
+      "Nền tảng và kênh" (a Page picker for Facebook: the member's own Pages), the video ("✓ Khớp N%" picked by itself
       at 85 % and 10 points ahead, else "? Cần chọn tay" with suggestions and every video to search), the posting time
-      (now by default, editable, Vietnam time) and the result ("✕ Kênh chưa khai báo" with "Thêm kênh", "✕ Link không
-      hợp lệ", "✕ Không truy cập được", "✕ Đã có trong hệ thống" with the video it is on). From a cell the video is
+      (now by default, editable, Vietnam time) and the result, a dot and a word (green, amber or red: "Kênh chưa khai báo" with "Thêm kênh", "Link không
+      hợp lệ", "Không truy cập được", "Đã có trong hệ thống" with the video it is on). From a cell the video is
       fixed. The video picker also offers "Video ngoài (không gắn video)". "Lưu N link" saves the lines ready;
       "Đã lưu N link".
   - **Lịch** (`/posts?view=calendar`; `/calendar` redirects there), after the content calendar of
@@ -1066,6 +1144,15 @@ steps open the status card or the products block on its tab, the QC chip its pop
     Vietnam time whatever the browser's time zone: the hour and day a reel sits under, the week and
     month it opens on, and today's mark. On a phone the month is compact, with a dot on each day that
     has a video; tapping a day opens the same drawer.
+  - **Bình luận** (`/posts?view=comments`): the Page's comments under the reels live within 3 days. A card
+    with each Page's "hôm nay đã bình luận N/100" (and "Page nghỉ tới hh:mm") and a grey line on the pacing,
+    then "Của tôi | Cả đội" ("Của tôi" by default, in the address as `owner=all` otherwise: the reels a member posted or
+    that are on a Page they own, and those Pages) and "Tất cả | Đang chờ đăng | Cần xử lý | Đã lên đủ" and a table: the video (link, its age "Mới" / "Ngày 2–3", Page, time live, "Mở
+    reel"), "Bình luận chi tiết đã lên" (written/saved with a thin bar and the scene count, or "Chưa có"),
+    "Còn chờ", the state tag ("Đang chờ đăng", "Mỗi ngày 1 bình luận" with "Bình luận tiếp theo dd/mm, hh:mm",
+    "Đã dừng (quá 3 ngày)", "Đã lên đủ", "Chưa nhờ đăng" with "Bấm “Bình luận ngay” trên
+    trang video", "Lỗi" with the reason, "Chưa có bình luận chi tiết", "Dán link tay"), "Lượt" (#N in the
+    worker's queue) and "Dự kiến lên đủ" (~dd/mm, hh:mm). It reads itself again every 30 seconds.
 - **Nhật ký job** (`/jobs`): every job, newest first, refreshed every 5 seconds. Filters over the loaded
   jobs: a search by video title first, a status Segmented with counts ("Tất cả", "Đang chạy" (waiting or
   running), "Lỗi", "Xong"), "Mọi loại" and "Mọi người" ("Không có job nào khớp" when nothing matches).
@@ -1076,18 +1163,18 @@ steps open the status card or the products block on its tab, the QC chip its pop
   last column with only a vertical "⋮" button. Its small menu holds "Mở video" (or "Mở bài viết", "Mở Kho kiến thức"),
   "Thử lại" on a failed job and "Hủy job" on a waiting one; retry and cancel ask first. A row opens its video.
 - **Cài đặt** (`/settings`, opening its first tab), last in the sidebar, is one page titled "Cài đặt" whose tabs come in two groups, each
-  headed by its name as a tag that cannot be chosen: **Của tôi** (blue: Thiết lập mặc định, Tài khoản affiliate,
-  Kết nối MCP) and **Chung cả nhóm** (cyan: Mô hình AI, Nguồn tư liệu, Mẫu dựng, Máy render). One tab
+  headed by its name as a tag that cannot be chosen: **Của tôi** (blue: Thiết lập mặc định, Tài khoản và kênh,
+  Kết nối MCP) and **Chung cả nhóm** (cyan: AI và nguồn tư liệu, Phân tích đối thủ, Mẫu dựng, Máy render). One tab
   per job; no tab is split between the groups. Each tab has its own address so a link or a reload keeps the tab; the
   menu keeps "Cài đặt" selected on all of them. No tab carries a tag beside its title or a banner saying whose it
   is: the group in the list says it.
   From 1200 px the tabs are a list down the left (240 px, staying in view), each with its icon and a
-  line on what it holds ("Video mới của tôi", "Shopee, TikTok của tôi", "ChatGPT, Claude của tôi", "AI viết kịch bản,
-  giọng VieNeu và Google", "Kho ảnh, ảnh AI, giọng ElevenLabs", "Thư viện mẫu của đội", "Chế độ render, các máy"), beside the tab;
-  narrower, a row above it. Every tab starts the
+  line on what it holds ("Video mới của tôi", "Shopee, TikTok của tôi", "ChatGPT, Claude của tôi", "Kịch bản, giọng
+  đọc, ảnh AI, kho ảnh", "Thư viện mẫu của đội", "Chế độ render, các máy"), wrapping inside the 240 px so a long line
+  never runs over the page beside it; narrower, a row above it. Every tab starts the
   same way ([SettingsBlocks](../web/src/components/settings/SettingsBlocks.tsx)): its name, a line on
   what it sets, and its main actions on the right; a tab's groups each have a heading and a line.
-  A tab of **Chung cả nhóm** has "Lịch sử" among its actions (the page's whole history, newest first, each change
+  A tab of **Chung cả nhóm** has "Lịch sử" among its actions (on AI và nguồn tư liệu, in each group's header) (the page's whole history, newest first, each change
   on a line: "Model (OpenAI): a → b", a key only as "Khoá (OpenAI): đã đổi khoá …k3P1" / "đã xoá khoá", never its value),
   and under each of its cards or groups a small "Sửa lần cuối bởi <tên>, <giờ VN>" that opens that card's history
   ([SharedHistory](../web/src/components/settings/SharedHistory.tsx)); nothing shows before a first logged change.
@@ -1102,45 +1189,40 @@ steps open the status card or the products block on its tab, the QC chip its pop
     tab's header, with "Huỷ" and "Lưu" while editing). While editing, the
     changes stay on the page ("Có thay đổi chưa lưu") until "Lưu" sends them together ("Đã lưu mặc
     định") or "Huỷ" drops them. They apply only to videos created afterwards.
-  - **Mô hình AI** (`/settings/ai`): "Đang dùng để viết kịch bản" picks the team's provider (a
-    provider not set up yet is greyed out, "chưa cấu hình"); from 1600 px it sits on the left,
-    staying in view, beside the providers. Below or beside it, one collapsible line per
-    provider with "Đang dùng", "Sẵn sàng" or "Chưa cấu hình" and its model; the one in use is open.
-    Opened: "API key" (pasted once with "Lưu key", then shown as "Đã lưu, kết thúc bằng …abcd" with
-    "Dán key mới" and "Xoá key"; Claude without a saved key says it uses the server's `.env` key),
-    "Base URL" (empty means the default shown as placeholder), "Model" (typed, or picked from the
-    names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết nối" (enabled once saved) and
-    "Dùng để viết kịch bản". What still stops a provider is shown in yellow under its fields.
-    Under the provider choice, the card "Giọng đọc VieNeu" ("Sẵn sàng" / "Chưa cấu hình") takes the VieNeu API key the
-    same way ("Lưu key", "Dán key mới", "Xoá key") with a link to VieNeu's developer page and one to Nguồn tư liệu
-    for ElevenLabs' key (whose card links back here); with a key, VieNeu's
-    voices join the "Giọng" picker. Under it, the card "Giọng đọc Google" does the same for a Google Cloud
-    Text-to-Speech API key, with a link to Google Cloud Console's credentials page and a line that the key's project
-    needs billing and the Cloud Text-to-Speech API on. Below the key, the switch "Chỉ dùng mức miễn phí" (on by
-    default) with a line saying what on and off mean, then "Đã dùng tháng MM/YYYY:" and one row per voice kind
-    (Standard, WaveNet, Neural2, Chirp-HD): a thin bar of the characters used against 90 % of its free tier, red once
-    reached, and "used / limit ký tự" in Vietnamese number format. A service whose voices cannot be listed is named in yellow under the picker.
-  - **Nguồn tư liệu** (`/settings/sources`): two groups, "Kho ảnh và video miễn phí" and "Dịch vụ AI". "Kho ảnh và video miễn phí": first the switch "Tự tìm ảnh sau khi viết kịch bản"
-    (on by default: a stock photo for every scene once a script or clone is written) with "Thứ tự
-    tìm: Pexels → Pixabay → Openverse" (the sources in use); then the stock libraries side by side
-    (Pexels, marked "Mặc định", and Pixabay: photos and clips; Openverse: photos, no key), each
-    with "Sẵn sàng" or "Chưa có key", a switch (titled "Hiện trong hộp chọn") that hides a source
-    from the picker and "Tìm ảnh" for the whole team, and its API
-    key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang dùng key trong file .env
-    của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, "Nguồn ảnh AI mặc định"
-    ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh AI" button uses, with one line saying
-    which is in use and whether it costs ("Đang dùng: Gemini, mỗi ảnh AI tốn phí"; when nobody chose one there,
-    that the app follows the server's setting), and
-    "Phong cách ảnh AI" (the text added after every scene's prompt, "Lưu phong cách", "Dùng mặc
-    định" once edited; empty adds nothing) in the first card of "Dịch vụ AI", then its keys side by
-    side (three across from 1600 px): Cloudflare (a Workers AI API token) and Gemini, each with its
-    model and "Mặc định" on the default one, and ElevenLabs, the narration key. A
-    missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
+  - **AI và nguồn tư liệu** (`/settings/ai`; the old `/settings/sources` and "Mô hình AI" / "Nguồn tư liệu" tabs merged
+    into it on 2026-11-18, the old address redirects here): four groups that open and close on their name, all open
+    the first time; which are closed is remembered in the browser. Each group's header has its name, a line on what it
+    holds and, for "AI viết kịch bản", "Ảnh AI" and "Kho ảnh và video miễn phí", its own "Lịch sử".
+    - **AI viết kịch bản**: "Đang dùng để viết kịch bản" picks the team's provider (a provider not set up yet is
+      greyed out, "chưa cấu hình"); from 1600 px it sits on the left beside the providers. One collapsible line per
+      provider with "Đang dùng", "Sẵn sàng" or "Chưa cấu hình" and its model; the one in use is open. Opened: "API
+      key" (pasted once with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" with "Dán key mới" and "Xoá key"; Claude
+      without a saved key says it uses the server's `.env` key), "Base URL" (empty means the default shown as
+      placeholder), "Model" (typed, or picked from the names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết
+      nối" (enabled once saved) and "Dùng để viết kịch bản". What still stops a provider is shown in yellow.
+    - **Giọng đọc**: ElevenLabs, Gemini, VieNeu and Google side by side (three across from 1600 px), each with "Sẵn sàng" or
+      "Chưa có key", its main key (ElevenLabs and VieNeu pasted here, Gemini's being the "Ảnh AI" one) and its backup
+      keys (see Narration keys); ElevenLabs' card also has its usage line (architecture, AI service usage). Google's card
+      links to Google Cloud Console's credentials page and says the key's project needs billing and the Cloud
+      Text-to-Speech API on; below its key, the switch "Chỉ dùng mức miễn phí" (on by default) with a line on what on
+      and off mean, then "Đã dùng tháng MM/YYYY:" and one row per voice kind (Standard, WaveNet, Neural2, Chirp-HD): a thin
+      bar of the characters used against 90 % of its free tier, red once reached, and "used / limit ký tự" in Vietnamese
+      number format. With a
+      key, a service's voices join the "Giọng" picker; a service whose voices cannot
+      be listed is named in yellow under the picker, a missing or rejected key with a link "Mở AI và nguồn tư liệu".
+    - **Ảnh AI**: first "Nguồn ảnh AI mặc định" ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh
+      AI" button uses, with one line saying which is in use and whether it costs (when nobody chose one, that the app
+      follows the server's setting), and "Phong cách ảnh AI" (the text added after every scene's prompt, "Lưu phong
+      cách", "Dùng mặc định" once edited; empty adds nothing); then Cloudflare (a Workers AI API token) and Gemini side
+      by side, each with its model, "Mặc định" on the default one and its usage line.
+    - **Kho ảnh và video miễn phí**: first the switches "Tự tìm ảnh sau khi viết kịch bản" (with "Thứ tự tìm chung:
+      Pexels → Pixabay → Openverse", the sources in use) and "Tự tìm và chọn clip theo kịch bản"; then the stock
+      libraries side by side (Pexels, marked "Mặc định", Pixabay, Unsplash, Wikimedia, Openverse), each with "Sẵn
+      sàng" or "Chưa có key", a switch (titled "Hiện trong hộp chọn") that hides a source from the picker and "Tìm
+      ảnh" for the whole team, and its API key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang
+      dùng key trong file .env của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link).
   - **Quản lý kênh** (`/fanpages`, under "Đăng và kiếm tiền" in the menu; "Quản lý Page" before 2026-11-14). Under the
-    Pages, "Kênh TikTok, YouTube và đồng bộ Facebook": first each Page with the switch "Đồng bộ bài ngoài app" (on by
-    default, its owner's), "Lần đồng bộ cuối …" or "Chưa đồng bộ", the last error in red and "Đồng bộ ngay"; then "Link kênh TikTok hoặc YouTube" and "Thêm kênh" (a TikTok channel becomes the
-    member's TikTok account; a YouTube one a channel, removed by whoever added it), each listed with its link, who
-    added it, its posts and, for TikTok, "Đã kết nối"/"Chưa kết nối". "Trang nào" chooses
+    Pages: "Trang nào" chooses
     "Trang của tôi (N)" (the member's own Pages; the default once they own one in use) or "Tất cả (N)"; on
     "Trang của tôi" without one, the empty card has "Xem tất cả Page", to take one. With no Page at all, it says
     "Chưa kết nối Fanpage nào" with "Kết nối Page đầu tiên", named apart from the header's "Thêm Fanpage". Then a line of counts (đang
@@ -1151,8 +1233,14 @@ steps open the status card or the products block on its tab, the QC chip its pop
     "Hoạt động", "Lỗi kết nối", "Đang kiểm tra…" or "Chưa kiểm tra". A broken Page has a one-line
     pale band with the reason, the scheduled posts it puts at risk and "Dán token mới". Four numbers
     in one row: followers (with this week's gain), views, reach and engagements of the last 7 days;
-    under the owner line one grey line on posting: its topic group, its posting times and "N video
-    trong hàng chờ" (all of it is on the dashboard's "Lịch đăng" tab);
+    under them a read-only block ([decision](decisions/2026-11-23-fanpage-card-read-only.md)): "Thuộc: bạn" (or the
+    owner's name, or "Chưa thuộc ai" with "Nhận Page này") and, for its owner, "Cài đặt"; then one line per
+    platform, each a dot and a few words (green linked, amber needs a look, grey not set): Shopee, TikTok (with
+    "đẩy nháp đúng giờ" or "đăng thẳng công khai"), Instagram, YouTube, Logo, and the "Bộ bình luận aff" link. Others
+    see only the owner, Instagram and "Bộ bình luận aff", as the api returns nothing else for them. Nothing on the
+    card is edited in place: "Cài đặt" opens the drawer "Tài khoản và chủ Page <tên>" (also on the dashboard's menu) with
+    the Shopee, TikTok, auto-post, YouTube and logo controls, the Facebook "Đồng bộ bài đăng ngoài app" switch with "Đồng bộ ngay" (moved from the old block under the cards) and a "Quản lý kết nối →" link; then one grey line on posting: its topic group, its
+    posting times and "N video trong hàng chờ" (all of it is on the dashboard's "Lịch đăng" tab);
     then a footer line with when it was last checked and the icon button "Kiểm tra ngay". A click
     anywhere on the card but its controls opens the Page's dashboard. Opening the page checks by itself the
     Pages not checked in 15 minutes. The "⋯" menu has "Mở trên Facebook",
@@ -1162,10 +1250,29 @@ steps open the status card or the products block on its tab, the QC chip its pop
     posts "Xóa" is greyed out with why. "Thêm Fanpage" says which permissions the token needs (only there, not on the page) and takes it, "Kiểm tra token" lists the
     Pages it manages (a sole Page is ticked, one it cannot post to is greyed out), and "Lưu" keeps
     the chosen ones. A stopped Page cannot be posted to.
+  - **A Page's dashboard, Instagram side** ([decision](decisions/2026-11-23-instagram-dashboard.md)): a Page with a
+    linked Instagram account has "Facebook | Instagram" (in the address, `?platform=instagram`) beside the period.
+    On Instagram the tabs are "Tổng quan" (four figures against the period before: Lượt xem, Tiếp cận, Tương tác,
+    Người theo dõi mới with "Hiện có N"; "Lượt xem theo ngày"; a grey note that Instagram's numbers lag up to 48 hours),
+    "Nội dung" (a table of the Reels the app posted: views, reach, likes, comments, shares, saves, watch time, "Mở bài ↗"),
+    "Đối tượng" (followers now; bars for gender, age and the top cities, or the reason there are none: Instagram gives it
+    only from 100 followers), "So sánh" and "Lịch đăng". A token without `instagram_manage_insights` is one warning alert
+    above the figures with the way to fix it ("Dán token mới"), never a broken connection.
+  - **Instagram in "Đã hẹn giờ"** (both sides, on a Page with a linked account): each scheduled post has a grey line "Instagram:
+    tự đăng sau Facebook" (the Page's switch will send it a minute after), "đang đăng", "đã hẹn giờ" or "đã đăng" (green)
+    when the video has its own Instagram post; nothing when the switch is off and there is none. Instagram has no time of its
+    own to show.
+  - **"So sánh"** (both sides of a Page with Instagram): one row per video the app posted to the Page in the period,
+    Facebook's and Instagram's views, reach and interactions side by side, "Chưa đăng" where it is not on one; a grey note
+    that the two count differently.
+  - **"Giờ đăng hiệu quả"** (on "Lịch đăng", both sides): per platform, the best three Vietnam hours of the last 90 days by
+    average views (two posts an hour at least), or "Mới có N bài đã đo, cần từ 6 bài".
+  - **Falling views** on a Page card, one amber line per platform: "Lượt xem Facebook giảm 62% so với tuần trước (140 so
+    với 700)" ([decision](decisions/2026-11-23-instagram-dashboard.md)).
   - **A Page's dashboard** (`/fanpages/[id]`, modelled on Facebook's Professional Dashboard, built from what the
     app already reads): "← Quản lý kênh" above the Page's name; at the title's right "7 ngày / 28 ngày / 90 ngày"
     (28 at first, hidden on "Lịch đăng", which looks ahead) and "Kiểm tra ngay"; on "Lịch đăng" the grey line says
-    that a queued video is scheduled at the nearest free posting time within 48 hours and moves to "Đã lên lịch";
+    that a queued video is scheduled at the nearest free posting time within 48 hours and moves to "Đã hẹn giờ";
     elsewhere a grey line naming the period (Vietnam time, today included) and that each
     number is set against the same number of days just before. Every figure is a tile: its name (an ⓘ tip where
     the number needs one), the value, and "↑ 12% so với 28 ngày trước" in green or "↓" in red, the arrow always
@@ -1174,7 +1281,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
     tooltip with the day and value on hover, and "Xem bảng" for the numbers as a table. Six tabs:
     - **Tổng quan**: tiles Lượt xem, Tiếp cận, Tương tác and Người theo dõi mới ("Hiện có N"); the daily views
       chart; "Bài đăng mới nhất" (cover, title opening the video, when it went live, its views, reach, reactions,
-      comments, shares, average watch time and when they were read); "Đã lên lịch, 7 ngày tới" (the next six of
+      comments, shares, average watch time and when they were read); "Đã hẹn giờ, 7 ngày tới" (the next six of
       the week's scheduled posts and free posting times, in time order, "Khung trống" for a free one); "Kết nối"
       (the token's status, its last check, and a Page Insights error if any).
     - **Lượt xem**: tiles Lượt xem, Tiếp cận and Thời gian xem TB (the average watch time of the period's posts,
@@ -1202,7 +1309,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
       đăng" above it) and its posting times ("Giờ đăng mỗi ngày (giờ Việt Nam)" above them; tags such as "20:00", typed or removed with ×; "Dùng giờ của nhóm" goes back to the group's), a small
       line saying whose times they are and the next three free times within 48 hours ("và N khung khác" for the
       rest), then "Hàng chờ (N)" in bold, always there, with a grey line on how it empties (the first video is
-      scheduled at a free time once that time is within 48 hours, then shows under "Đã lên lịch"): each waiting video's number, cover, title (opening the video), who added it
+      scheduled at a free time once that time is within 48 hours, then shows under "Đã hẹn giờ"): each waiting video's number, cover, title (opening the video), who added it
       and when, the reason in yellow when it could not be scheduled, "Lên"/"Xuống" for the owner and a bin ("Bỏ
       khỏi hàng chờ", confirmed); an empty queue says how to add one. Beside it the whole week of scheduled
       posts and free times.
@@ -1240,8 +1347,14 @@ One template, derived from the reference channel (see [content.md](content.md#vi
 with named presets a video can switch (its "Thiết lập" tab, defaults on Cài đặt › Thiết lập mặc
 định). The defaults below are the original template; [Presets](#presets) lists the others.
 
-- **Frame:** 9:16 vertical, 1080×1920 at 30 fps. Photos are cover-cropped from the centre, with
-  no black bars.
+- **Frame:** 9:16 vertical, 1080×1920 at 30 fps, never with black bars. A photo close to 9:16 is
+  cover-cropped from the centre. On a slide video, a content scene's wider photo follows its "Khung ảnh"
+  ([framing.py](../worker/src/reels_render/framing.py)): "Tự động" cuts a 3:4 to about 16:10 photo square and keeps
+  a wider one whole, laid across the full width over its own blurred, darkened copy with a soft shadow under it;
+  the text sits on the blurred part above it (below when the text was placed in the lower half). Every such photo
+  of a video starts on one line below the tallest text box of the video, with the text centred in that block. A
+  9:16 photo is not touched: its text goes where it always did (the scene's place, else the video's, else the
+  template's). "Tự động" cuts a photo square up to about 16:10. The title scene and a backdrop video always fill the frame.
 - **First frame = thumbnail** (and the cover of a reel the app posts to Facebook):
   - a close-up food photo filling the frame, with vivid color;
   - the chosen title in a text box centred in the frame, 3–5 lines, with no fade-in.
@@ -1288,8 +1401,10 @@ free colour or size sliders are not offered. A person watches a sample of each b
 relied on (samples in the PR that added them).
 
 - **Transition:** Mờ dần (the 0.4 s crossfade above), Cắt thẳng (hard cut; each scene is exactly its
-  seconds), Trượt (the next scene slides in from the right over 0.4 s). The total length is the
-  same for all three.
+  seconds), Trượt (the next scene slides in from the right over 0.4 s), and since 2026-11-19 Phóng qua
+  (`zoomin`), Nháy sáng (`fadewhite`), Chớp đen (`fadeblack`), Nhoè lia (`hblur`) and Lướt mượt (`smoothleft`),
+  the scene transitions `zoom`, `flash`, `black`, `blur` and `smooth_slide` below. Every one takes the same 0.4 s,
+  so the total length is the same for all of them; the studio's bar offers the same eight.
 - **Cỡ chữ** (`text_size` for the content scenes, `title_text_size` for the title; on "Thiết lập" › Chữ and on
   Cài đặt › Thiết lập mặc định): Lớn (the original template: the largest font that fits, the title 96 down to
   64 px in at most 5 lines, a scene 84 down to 60 px in 3), Vừa or Nhỏ. Vừa and Nhỏ start from the font Lớn would
@@ -1299,7 +1414,7 @@ relied on (samples in the PR that added them).
 - **A scene's own effects** ([reels_render/effects.py](../worker/src/reels_render/effects.py)), set in the
   studio's "Chỉnh cảnh N › Hiệu ứng", content scenes only (the title opens the video and is its cover):
   the transition into the scene, one of Mờ dần, Cắt thẳng, Trượt sang trái, Trượt lên, Quét ngang, Phóng
-  vào, Mở vòng tròn, Qua màu đen, Chớp trắng, Hoà tan, Nhoè ngang, Vỡ điểm ảnh ("Theo cả video" takes the
+  vào, Mở vòng tròn, Qua màu đen, Chớp trắng, Hoà tan, Nhoè ngang, Vỡ điểm ảnh, Lướt mượt ("Theo cả video" takes the
   video's); and a colour preset graded on the picture only, never the text box: Gốc (as shot), Tự nhiên,
   Tươi sáng, Rực rỡ, Điện ảnh, Xanh cam, Phim cũ, Phim mờ, Nắng vàng, Ấm, Lạnh, Đêm xanh, Trầm, Pastel,
   Đen trắng. Every transition takes 0.4 s around the boundary, so the length never changes; a Cắt thẳng among
@@ -1343,10 +1458,15 @@ relied on (samples in the PR that added them).
   scene's transition, colour, a sound and a few lines of text in the same call (see
   [content.md](content.md#script-generation-contract)), changeable in the studio like any effect.
 - **Motion (photos only):** Zoom vào (the default), Zoom ra (from the zoom back to 1.00), Lia ngang
-  (held at the zoom, travelling left to right), Đứng yên. **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18.
+  (held at the zoom, travelling left to right), Đứng yên; these four move at a steady rate. Added on 2026-11-19,
+  easing in and out (sine) like a camera operator's move: Ken Burns chéo (zooming in while drifting from the top
+  left to the bottom right), Lia dọc (held at the zoom, top to bottom), Cầm tay (held at half the zoom, shaking by
+  two waves of unrelated periods within 60% of the room that leaves, so no edge shows) and Đẩy nhanh (all the way
+  in over 0.3 s, easing out, then held). **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18, Cực mạnh 1.6 (a low-resolution
+  photo can look soft at it).
 - **Text box:** a team box style ("box": its box colour, opacity, text and keyword colours, copied
   into the video; with nothing chosen it is the yellow box) or Không hộp. Opacity: Đặc 100%, Hơi
-  trong 88%, Trong 70%, Không nền (drawn exactly as Không hộp, the box colour as the outline's). The older presets below are no longer offered on the page and stay only so
+  trong 88%, Trong 70%, Rất trong 45%, Không nền (drawn exactly as Không hộp, the box colour as the outline's). The older presets below are no longer offered on the page and stay only so
   videos made with them render as before: Vàng (the default above), Trắng (white box, black text, red keywords), Tối (near-black
   box at 88%, white text, yellow keywords), Đỏ (`#E10600` box, white text, yellow keywords), Không
   hộp (white letters with a black outline 9% of the font size, yellow keywords). **Colours:** the
@@ -1418,14 +1538,16 @@ next scene; its start and length can be typed in "Chỉnh cảnh". It sits under
 layers; the text gets no shade of its own, so a box style keeps it readable over a busy photo. One photo layer per
 scene.
 
-A content scene's card on a "Video xuyên suốt" (2026-11-12, scene card layout) is a grid from 576 px: a 150 px left
-column (220 px until 2026-11-14) and the rest, 16 px apart, rows 8 px apart. Row 1: the preview (the backdrop playing, the inset photo over it,
-the scene's text box on top, as the render lays them) beside the text, narration, "Số giây", "Bắt đầu từ giây", "Từ
-khóa tìm ảnh" and "Prompt ảnh AI", with a small yellow "Chữ đang đè lên ảnh chèn" when the saved text box covers part
-of the inset (never blocking). Row 2: **"Chỉnh vị trí chữ & ảnh chèn"** (the primary button, always there, with or
-without an inset). Row 3: the scene's own picture tools while the inset shows the scene's photo (or on an older
-scene's "Ảnh món"). The **"Ảnh chèn"** block sits on the right of rows 2 and 3, as wide as the column and only as tall
-as what it holds. Narrower than 576 px, one column: preview, button, picture tools, block, then the fields.
+A content scene's card on a "Video xuyên suốt" is laid out as a slide video's scene (2026-11-16; a 150 px grid from
+2026-11-12 until then): on the left the 182 × 324 preview (the backdrop playing, the inset photo over it, the scene's
+text box on top, as the render lays them) with **"Chỉnh vị trí chữ & ảnh chèn"** under it (the primary button, as wide
+as the preview, its label on two lines, always there, with or without an inset); beside the preview the scene's own
+picture tools in the same 222 px column as a slide video's scene ("Lấy ảnh", "Tìm ảnh", "Tạo mới"), while the inset
+shows the scene's photo (or on an older scene's "Ảnh món"), with "Chỉnh khung" and "Sửa ảnh" under it; on the right
+the text, narration, "Số giây", "Bắt đầu từ giây", "Từ khóa tìm ảnh" and "Prompt ảnh AI", with a small yellow "Chữ
+đang đè lên ảnh chèn" when the saved text box covers part of the inset (never blocking), then the **"Ảnh chèn"**
+block under them. A card narrower than 700 px puts the fields under the picture, and narrower than 440 px the tools
+under the preview, as on a slide video's scene.
 
 The block is its title and a switch on one row. Off, one line, "Đang tắt. Bật để chèn ảnh của cảnh.". On: the "Cỡ ảnh"
 slider (30–45, step 1, "Cỡ ảnh: 32% (hẹp hơn video)" under it, the preview resizing while it is dragged and keeping
@@ -1535,7 +1657,8 @@ pairing template and for later tuning.
 - **No zoom jitter (built):** photos are scaled to 2× the frame before `zoompan`, so its
   integer crop steps fall below one output pixel. Fine textures such as wood grain or a plate rim
   can still shimmer. The fix is a slower zoom or `PRESCALE = 3–4`, at the cost of render time.
-- **Slow, steady zoom:** zoom by 6–12% over the whole clip, at a steady rate (linear today).
+- **Slow, steady zoom:** zoom by 6–12% over the whole clip, at a steady rate (linear for the four original
+  motions; the ones added on 2026-11-19 ease in and out).
   Short clips need a smaller range: a pairing of 3.5 s should zoom from 1.00 to 1.06 at most,
   because a range that suits 5 s looks rushed at 3.5 s. The zoom must not restart within one
   continuous shot.
@@ -1587,19 +1710,40 @@ Where something is edited, its history is shown there, not on a page of its own
 On every list of videos the last column is a vertical "⋮" button (aria-label "Thao tác với video <tên>") that opens a
 small dropdown, not a drawer. The video is read once, when the menu is first opened. It holds "Mở video", "Đăng bài,
 hàng chờ, job…" (opens a drawer with the posting dialog, "Duyệt", the queue and retry/cancel, which need their own
-forms; shown when there is an MP4 or a job), "Tải MP4", "Nhân bản", "Nhân bản y hệt" (an exact copy named "… (copy)",
-opened at once to be rendered; the video page's "⋯" menu has it too), "Tạo bản TikTok" (a Facebook video), and, for the
+forms; shown when there is an MP4 or a job), "Tải MP4", "Nhân bản", "Nhân bản y hệt" (an exact copy named "… (bản N)",
+opened at once to be rendered; the video page's "⋯" menu has it too), "Nhân bản xáo cảnh" (below; in the video
+page's "⋯" menu too), "Tạo bản TikTok" (a Facebook video), and, for the
 maker only, "Chuyển sang nhóm khác" and "Xóa video" (red, after a divider; both off while a job runs). The maker of
 the group a teammate's video sits in sees "Chuyển về nhóm của <tên>" instead, which lists only groups made by the
 video's maker (the video page's "⋯" menu has the same item).
 
+"Nhân bản xáo cảnh" opens a drawer: "Số bản" (1–20, "Tối đa X bản khác nhau" beside it), "Giữ cố định cảnh cuối", "Ghim cảnh khác" (a folded
+list of the content scenes, each a checkbox; shown from 3 scenes; a pinned scene has a pin in the preview),
+"Đánh lại số thứ tự ở đầu chữ và lời đọc" (off and greyed when the scenes are not numbered), and "Xem trước": one
+line per copy, "Bản 1: 5 → 3 → 2 → 4 → 1" with the scenes' short names under it, and "Xáo lại" to draw again. "Tạo N
+bản" makes exactly the orders shown; one copy opens at once, several are listed as links in a notification that
+stays until closed. A video with fewer than 2 scenes to move says "Cần ít nhất 2 cảnh xáo được" instead. On a copy,
+a yellow banner under the header says "Bản xáo cảnh từ «nguồn» — hãy đổi Tiêu đề (cảnh tiêu đề) để tránh trùng
+lặp." with "Đổi tiêu đề" (opens the title scene by "Tiêu đề" and its suggestions) and "Bỏ qua", and names any copy
+or source with the same title; once changed it is a grey line. Lists say "Chưa đổi tiêu đề" under the status. Beside
+"Mở tất cả" a copy has "Xáo lại cảnh" ("Xáo tất cả cảnh nội dung" or "Giữ cố định cảnh cuối"), whose toast offers
+"Hoàn tác" for 8 seconds.
+
 
 ### Kho kiến thức: "Lịch đăng" and the video id
 
-A group has a "Lịch đăng" tab after "Backlog": the calendar of "Bài đăng" (day, week, month) limited to the group's posts,
-those on Facebook and those waiting for their time, whether a member scheduled them or a Page's queue did. The queue
-schedules a video only when its Page's next slot is within 48 hours, so a queued video shows there a day or two before
-it goes. The video table starts with an "ID" column, the number in the video's address (`/videos/<id>`).
+A group has a "Tài liệu" tab after the plan's tabs ("Kế hoạch 30 ngày", "Backlog"): its Markdown documents by section
+(Job, Mẫu, Kế hoạch, Prompt, Báo cáo), with search, pins, who changed each last and when; the document is shown as
+Markdown, and "Sửa", "Xoá", "Thêm tài liệu" and "Tải file .md" follow "Cho cả đội sửa". Then comes "Lịch đăng", which
+is only a link: the one calendar of what is out and what is set to go is the Page's "Lịch đăng" tab on Quản lý kênh
+(`/fanpages/{id}?tab=schedule`), so two copies never differ; the tab lists the Pages that post the group.
+A plan day also shows a dashed "Khung trống HH:MM" button for each posting time its ideas do not fill; it adds an idea
+to the day (the n-th idea takes the n-th time), whose "Tạo video" then opens the video flow.
+A video 10× its Page's median at 48 hours shows a gold "Winner" tag in the group's video list and "Tạo 3 biến thể":
+three draft copies named "(biến thể 1: đổi hook)", "(biến thể 2: đổi 1–2 món)" and "(biến thể 3: đổi dạng)", with no AI
+call. On Quản lý kênh every figure names its source and period ("Facebook, 28 ngày"; "Tool" for what the tool adds up
+from its posts' readings), and "Cửa đo 48h" above the tabs shows the median views and share/view at 48 hours, the
+videos measured towards 14 and 30, the gate's state and the winners. The video table starts with an "ID" column, the number in the video's address (`/videos/<id>`).
 
 
 ### Kho kiến thức: the groups bar and "Cập nhật view"
@@ -1627,4 +1771,71 @@ The same cell and merged columns as the Video list: a thumbnail and a title on u
 
 The bar over a group is flat on the page, no card: a round switch "Của tôi / Cả đội" (an icon and a grey count each, and "N nhóm" beside it), the add-group box as a filled pill with a round tick button and the history button on the right, and the groups as pills under them: a quiet grey fill, the chosen one white with a brand outline and a soft shadow, each ending in its video count (amber when the group has no prompt).
 
-On every list of videos and on a video's page, the platform icons beside "Đã đăng" open that platform's post in a new tab when the post has a link (the newest live Facebook reel, or the link recorded for TikTok, YouTube Shorts or Instagram); their tooltip then reads "Mở bài trên <nền tảng>", else "Đã đăng <nền tảng>". The api sends the links as `posted_links` next to `posted_on`. A click on an icon does not open the row.
+On every list of videos and on a video's page, the platform icons beside "Đã đăng" open that platform's post in a new tab when the post has a link (the newest live Facebook reel, or the link recorded for TikTok, YouTube Shorts or Instagram); their tooltip then reads "Mở bài trên <nền tảng>", else "Đã đăng <nền tảng>". The api sends the links as `posted_links` next to `posted_on`. A TikTok post that is only a draft in its owner's inbox (the worker's auto-post in "draft" mode) is still listed in `posted_on`, but `posted_states` says `{"tiktok": "draft"}` and its icon has a dashed outline and an amber dot, with the tooltip "TikTok: bản nháp trong hộp thư, mở TikTok để đăng" (2026-11-23); before, it looked like a public post. A YouTube upload that is still private is not in `posted_on` at all, as before. A click on an icon does not open the row.
+
+### Kho kiến thức: the groups in a column, "Sẵn sàng tạo video", tabs by the work, and the document reader (2026-11-25)
+
+Replaces the groups bar of 2026-11-14 ([decision](decisions/2026-11-25-knowledge-workspace.md)).
+
+- **The groups are a column on the left** (240 px; above the group on a phone): the "Của tôi (n) / Cả đội (m)" switch,
+  one line per group (a dot, its name on one line, its video count) and the add-group field with the history button.
+  The dot is green when the group has the two required steps below.
+  A «‹» button folds the column to a 56 px strip (the choice is kept in the browser): one square per group with its
+  first two initials and the status dot, the name, video count and what is missing in a tooltip; «›» opens it again.
+- **"Sẵn sàng tạo video"** under the group's name replaces the orange sentence, as one line that folds: with a required
+  step missing it is open ("Chưa sẵn sàng: thiếu 1/2 mục bắt buộc") and lists **Bắt buộc**: a Page that posts the group
+  ("Quản lý kênh") and the script prompt ("Thêm prompt", the Prompt tab; the card still says the group cannot make videos
+  with AI on the web), then **Nên có**: a document ("Thêm tài liệu"), a 30-day plan ("Lập kế hoạch") and an approved
+  affiliate product ("Mở Affiliate", on this group). With the two required done it is one green line, "Sẵn sàng tạo
+  video", with "nên có thêm: …" on the right, which a click unfolds (the member's choice holds until the page
+  reloads). The dot of a group in the column is green only when both required steps are done, amber otherwise (the line's
+  tooltip says what is missing). The api sends the counts as `readiness` of each group.
+- **Tabs in the order of the work**, a thin line between the three parts: "Video (N)", "Kế hoạch 30 ngày", "Backlog",
+  "Lịch đăng" | "Tư liệu", "Tài liệu", "Prompt" | "Cài đặt nhóm". The group still opens on "Video".
+- **"Tài liệu":** the list has "📌 Ghim" first, then the rest (a title and "<mục> · <người sửa>, <lúc>"); the reader keeps
+  its text in a column of at most 760 px, with "Sao chép" (the Markdown to the clipboard), and, for a document with
+  three or more headings, "Trên trang này", a sticky outline whose entries scroll to the heading.
+
+#### The group's own menu, "Quản lý nhóm" (2026-11-25)
+
+The pencil, the "Cho cả đội sửa" switch, "Nhận nhóm" and the history link are gathered in one menu, the button "Quản lý
+nhóm" (accessible name "Thao tác khác với nhóm") at the right of the group's name: "Đổi tên nhóm" (disabled for a member
+who only reads the group; a double click on the name does the same), "Nhân bản nhóm", "Lịch sử thay đổi" (disabled until
+the group has a logged change), "Cho cả đội sửa" as a switch that keeps the menu open (the maker only) or "Nhận nhóm"
+(a group nobody is known to have made), then "Mở Quản lý kênh" and "Sản phẩm của nhóm trong Affiliate" (on this group),
+then "Xoá nhóm" last, with its reason in the label while disabled. "Nhân bản nhóm" (`POST /api/knowledge/topics/{id}/duplicate`)
+makes a group of the member's, named "<tên> (bản sao)" ("(bản sao 2)"…), with the prompts, từ cấm, "Gợi ý tìm ảnh", voice,
+"Kiểu video", text and outro settings, "Mẫu dựng" and stock order of the source, none of its videos, plan, documents or linked
+folder; any member may copy any group, and the copy opens. The line under the name keeps "chỉ <người tạo> sửa được nhóm
+này" and the last change, in grey, a click on which still opens the history.
+
+#### A group several Pages post: read it for one Page (2026-11-25)
+
+With two or more active Pages posting a group, a line "Page: Tất cả Page | <Page> | <Page>" sits under the checklist (the
+Page is in the address as `page`, and stays across the tabs). A Page chosen keeps to that Page: the "Video" tab lists
+only the videos posted on, or waiting in the queue of, it (`GET /api/videos?fanpage_id=`), "Lịch đăng" only its link (the
+calendar itself stays on the Page, [decision](decisions/2026-11-24-winner-gate-docs.md)), and a strip under the line shows its
+orders of the last 30 days (`GET /api/affiliate-accounts/revenue?fanpage_id=`, the member's own orders whose sub id names
+the Page) with "Bộ bình luận của Page" and "Lịch đăng của Page". The group's api payload lists its Pages as `page_list`.
+In Affiliate › Sản phẩm, "Xuất file Custom Link" for such a group asks which Page the file is for.
+
+#### The group column as one card with the group (2026-11-25)
+
+The column and the group are one card, the column its left edge (a line between them). The column has a header ("Nhóm",
+the history of the groups, "‹" to fold), "Của tôi n / Cả đội m" as underlined tabs like the group's own, a row per group
+and a dashed "Thêm nhóm mới…" field (its tick shows once a name is typed). A row is the group's tile (two initials and a
+status dot, green when it can make videos, amber while it lacks a required step), its name on up to two lines, and a grey
+line "<n> video · <m> Page" (amber "<n> video · thiếu <prompt viết kịch bản | Page đăng nhóm>" while it lacks one). Folded,
+the tiles alone remain, each with the same dot and a tooltip.
+
+Under "Cả đội" the groups are listed under the member who made each, one small grey heading per member ("NamTC (bạn) · 4",
+"Looper · 2", "Chưa có người tạo · 1" for a group nobody is known to have made): the member's own first, then the others by
+name. "Của tôi" stays one list.
+
+### "Hướng dẫn" on a screen (2026-11-25)
+
+A "Hướng dẫn" button (a question mark) in the header of a screen opens a drawer with that screen's guides. With more than one
+a switch at the top picks it (Affiliate has "màn Affiliate" and "gắn link affiliate hàng loạt bằng Custom Link"). A guide is
+read like a document of Kho kiến thức: a text column of at most 760 px and, with three or more headings, a sticky "Trên
+trang này" outline. Affiliate (two guides), Kho kiến thức (one) and Video (two: creating and finding videos, and editing, rendering and posting one) have it.
+

@@ -57,7 +57,7 @@ def generate_image(prompt: str, key: str, provider: str = "gemini", aspect: str 
 def _generate_gemini(prompt: str, key: str, aspect: str = "9:16") -> bytes:
     if not key:
         raise ImageGenError(
-            "Chưa có key Gemini nên không tạo được ảnh AI: nhập key ở Cài đặt › Nguồn tư liệu", fatal=True
+            "Chưa có key Gemini nên không tạo được ảnh AI: nhập key ở Cài đặt › AI và nguồn tư liệu", fatal=True
         )
     # Ask for the frame's shape explicitly instead of cropping whatever comes back.
     return gemini_image([{"text": prompt}], key, {"aspectRatio": GEMINI_ASPECTS[aspect]})
@@ -112,7 +112,9 @@ def _http_error(status: int, body: str) -> ImageGenError:
     if status == 429 or "quota" in lowered or "resource_exhausted" in lowered:
         return ImageGenError("Tài khoản Gemini đã hết hạn mức (quota), cần đợi hoặc nâng gói", detail, fatal=True)
     if status in (401, 403):
-        return ImageGenError("Key Gemini không hợp lệ: kiểm tra lại ở Cài đặt › Nguồn tư liệu", detail, fatal=True)
+        return ImageGenError(
+            "Key Gemini không hợp lệ: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu", detail, fatal=True
+        )
     if status == 404:
         return ImageGenError("Gemini không có model đã cấu hình (IMAGE_GEN_MODEL)", detail, fatal=True)
     if status >= 500:
@@ -130,7 +132,8 @@ JPEG_QUALITY = 90
 def _generate_cloudflare(prompt: str, key: str) -> bytes:
     if not key:
         raise ImageGenError(
-            "Chưa có API token Cloudflare nên không tạo được ảnh AI: nhập token ở Cài đặt › Nguồn tư liệu", fatal=True
+            "Chưa có API token Cloudflare nên không tạo được ảnh AI: nhập token ở Cài đặt › AI và nguồn tư liệu",
+            fatal=True,
         )
     account = config.image_gen_cf_account_id()
     if not account:
@@ -206,7 +209,7 @@ def _cf_http_error(status: int, body: str) -> ImageGenError:
         messages = ""
     if status in (401, 403):
         return ImageGenError(
-            "API token Cloudflare không hợp lệ: kiểm tra lại ở Cài đặt › Nguồn tư liệu", detail, fatal=True
+            "API token Cloudflare không hợp lệ: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu", detail, fatal=True
         )
     if status == 429 or _cf_out_of_neurons(messages):
         return _cf_limit(detail)

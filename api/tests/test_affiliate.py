@@ -180,6 +180,15 @@ def test_a_product_below_the_bar_cannot_be_approved(an, db, fields, reason):
     assert an.get(URL).json()[0]["status"] == "draft"
 
 
+def test_a_product_whose_stars_and_sales_are_not_filled_in_can_be_approved(an, db):
+    product = add(an, db, rating=0, sold=0)
+    assert product["problems"] == []
+    assert an.post(f"{URL}/{product['id']}/approve").json()["status"] == "approved"
+    assert (
+        an.post(f"{URL}/approve", json={"product_ids": [add(an, db, rating=0, sold=0)["id"]]}).json()["approved"] == 1
+    )
+
+
 def test_a_shopee_product_from_an_ordinary_shop_can_be_approved(an, db):
     product = add(an, db, shop_type="other")
     assert product["problems"] == []
@@ -278,6 +287,9 @@ def test_csv_opens_in_excel_with_every_column(an, db, me):
         "Ngày kiểm tra": (checked + timedelta(hours=7)).strftime("%d/%m/%Y %H:%M"),
         "Người duyệt": me.name,
         "Nền tảng": "Shopee",
+        "Tên ngắn": "",
+        "Nhóm": "",
+        "Tags": "",
     }
 
 
@@ -326,7 +338,7 @@ def test_only_published_reels_are_listed_newest_first(an, db, me, storage):
 
     rows = an.get(f"{URL}/videos").json()
     assert [row["id"] for row in rows] == [went_live.id, newer.id, older.id]
-    assert rows[0]["reel_url"] and rows[0]["suggestions"] == ["sữa"] and rows[0]["pinned_comment"] == "ghim"
+    assert rows[0]["reel_url"] and rows[0]["suggestions"] == ["sữa"] and rows[0]["pinned_comment"].endswith("\nghim")
     # Its scheduled time, not the earlier end of the upload.
     assert datetime.fromisoformat(rows[0]["published_at"]) == now - timedelta(hours=1)
 
@@ -468,3 +480,139 @@ def test_affiliate_needs_a_login(app, an, db, me, storage):
     ):
         assert response.status_code == 401, response.request.url
     assert an.get(URL).json()[0]["status"] == "draft"
+
+
+def _with_written_comment(db, storage, me, an, **video_fields):
+    """A live reel with an approved product attached and a comment the worker already wrote under it."""
+    video = posted_video(db, storage, me, **video_fields)
+    product = add_approved(an, db)
+    assert an.put(f"{URL}/videos/{video.id}", json={"product_ids": [product["id"]]}).status_code == 200
+    post = db.query(Publication).filter_by(video_id=video.id).one()
+    post.comment_id, post.comment_text, post.comment_requested_at = "c1", "old", None
+    db.commit()
+    return video, product, post
+
+
+def _asked(db, post) -> bool:
+    db.refresh(post)
+    return post.comment_requested_at is not None
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda an, db, p: an.put(f"{URL}/{p['id']}", json=body(db, url="https://s.shopee.vn/new")),
+        lambda an, db, p: an.put(f"{URL}/{p['id']}", json=body(db, name="Vừng đen loại 2")),
+        lambda an, db, p: an.post(f"{URL}/{p['id']}/unapprove"),
+        lambda an, db, p: an.delete(f"{URL}/{p['id']}"),
+        lambda an, db, p: an.post(f"{URL}/delete", json={"product_ids": [p["id"]]}),
+    ],
+    ids=["new link", "new name", "unapprove", "delete", "bulk delete"],
+)
+def test_a_product_change_asks_for_the_comments_already_written_to_be_edited(an, db, me, storage, change):
+    _, product, post = _with_written_comment(db, storage, me, an)
+    assert change(an, db, product).status_code == 200
+    assert _asked(db, post)
+
+
+def test_saving_a_product_unchanged_asks_for_nothing(an, db, me, storage):
+    _, product, post = _with_written_comment(db, storage, me, an)
+    assert an.put(f"{URL}/{product['id']}", json=body(db)).status_code == 200
+    assert not _asked(db, post)
+
+
+def test_approving_a_product_again_puts_its_link_back_in_the_comment(an, db, me, storage):
+    _, product, post = _with_written_comment(db, storage, me, an)
+    an.post(f"{URL}/{product['id']}/unapprove")
+    post.comment_requested_at = None
+    db.commit()
+    assert an.post(f"{URL}/{product['id']}/approve").status_code == 200
+    assert _asked(db, post)
+
+
+def test_a_comment_pasted_by_hand_is_not_edited_when_a_product_changes(an, db, me, storage):
+    video, product, post = _with_written_comment(db, storage, me, an)
+    assert an.put(f"{URL}/videos/{video.id}/manual", json={"manual": True}).status_code == 200
+    an.put(f"{URL}/{product['id']}", json=body(db, url="https://s.shopee.vn/new"))
+    assert not _asked(db, post)
+
+
+def test_a_post_without_a_comment_or_not_live_is_left_to_write_its_first(an, db, me, storage):
+    _, product, post = _with_written_comment(db, storage, me, an)
+    post.comment_id = None
+    db.commit()
+    an.put(f"{URL}/{product['id']}", json=body(db, url="https://s.shopee.vn/new"))
+    assert not _asked(db, post)
+    post.comment_id, post.status = "c1", "cancelled"
+    db.commit()
+    an.put(f"{URL}/{product['id']}", json=body(db, url="https://s.shopee.vn/newer"))
+    assert not _asked(db, post)
+
+
+# Whether the Page's comments hold a link ("Thiếu link", decisions/2026-11-18-affiliate-comment-links.md)
+
+
+def _links(an, video) -> list[str]:
+    (row,) = [row for row in an.get(f"{URL}/videos").json() if row["id"] == video.id]
+    return [post["links"] for post in row["posts"]]
+
+
+def _post(db, video) -> Publication:
+    return db.query(Publication).filter_by(video_id=video.id).one()
+
+
+def test_a_comment_the_app_wrote_without_a_link_is_missing_one(an, db, me, storage):
+    video = posted_video(db, storage, me)
+    post = _post(db, video)
+    post.comment_id, post.comment_text = "c1", "Nếu là bạn, bạn sẽ đáp lại như thế nào?"
+    db.commit()
+    assert _links(an, video) == ["missing"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["ghim\nVừng đen: https://s.shopee.vn/abc", "ghim\nVừng đen: s.shopee.vn/abc", "https://shopee.vn/a-i.1.2"],
+)
+def test_a_comment_the_app_wrote_with_a_shopee_link_has_one(an, db, me, storage, text):
+    video = posted_video(db, storage, me)
+    post = _post(db, video)
+    post.comment_id, post.comment_text = "c1", text
+    db.commit()
+    assert _links(an, video) == ["yes"]
+
+
+def test_a_link_in_a_later_comment_counts(an, db, me, storage):
+    video = posted_video(db, storage, me)
+    post = _post(db, video)
+    post.comment_id, post.comment_text = "c1", "ghim"
+    post.extra_comment_ids, post.extra_comment_texts = ["c2"], ["Mua ở đây: shp.ee/xyz"]
+    db.commit()
+    assert _links(an, video) == ["yes"]
+
+
+def test_a_comment_about_to_be_edited_is_updating(an, db, me, storage):
+    video, _, post = _with_written_comment(db, storage, me, an)
+    post.comment_requested_at = datetime.now(UTC)
+    db.commit()
+    assert _links(an, video) == ["updating"]
+
+
+def test_a_link_pasted_by_hand_is_known_from_the_reading(an, db, me, storage):
+    video = posted_video(db, storage, me)
+    assert an.put(f"{URL}/videos/{video.id}/manual", json={"manual": True}).status_code == 200
+    assert _links(an, video) == ["unknown"]
+    post = _post(db, video)
+    post.own_comment = "link"
+    db.commit()
+    assert _links(an, video) == ["yes"]
+    post.own_comment = "none"
+    db.commit()
+    assert _links(an, video) == ["none"]
+
+
+def test_a_post_the_app_will_comment_on_has_none_yet(an, db, me, storage):
+    video = posted_video(db, storage, me)
+    post = _post(db, video)
+    post.auto_comment = True
+    db.commit()
+    assert _links(an, video) == ["none"]

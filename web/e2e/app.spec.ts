@@ -5,7 +5,10 @@ import {
   SEED,
   addUser,
   chooseOption,
+  closeImportExport,
   connectFacebook,
+  exportCsvLink,
+  importExportItem,
   login,
   loginAsSeed,
   openAccountMenu,
@@ -25,7 +28,7 @@ const appPages = readdirSync(path.resolve(__dirname, "../src/app/(app)"), { with
   .filter((entry) => entry.isDirectory())
   .map((entry) => `/${entry.name}`);
 
-for (const url of ["/", ...appPages, "/change-password"]) {
+for (const url of [...appPages, "/change-password"]) {
   test(`${url} redirects to login on the server when there is no session`, async ({ page }) => {
     const response = await page.goto(url);
     // A server redirect means the first request answered 307; the app page never rendered.
@@ -33,6 +36,36 @@ for (const url of ["/", ...appPages, "/change-password"]) {
     await expect(page).toHaveURL(/\/login$/);
   });
 }
+
+test("the homepage opens without a session, for TikTok's app review, and only it", async ({ page }) => {
+  const response = await page.goto("/");
+  expect(response?.status()).toBe(200);
+  await expect(page).toHaveURL(/localhost:3100\/$/);
+  await expect(page.getByRole("heading", { name: "Reels Studio", level: 1 })).toBeVisible();
+  await expect(
+    page.getByText(
+      "Reels Studio is a web app that helps creators make short vertical videos (9:16) and publish them to TikTok.",
+    ),
+  ).toBeVisible();
+  await expect(page).toHaveTitle("Reels Studio");
+  await page.getByRole("link", { name: "Privacy Policy" }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await page.goto("/");
+  await page.getByRole("link", { name: "Terms of Service" }).click();
+  await expect(page).toHaveURL(/\/terms$/);
+  await page.goto("/");
+  await page.getByRole("link", { name: "Đăng nhập" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  // The homepage is public, the tool is not.
+  await page.goto("/videos");
+  await expect(page).toHaveURL(/\/login$/);
+});
+
+test("a signed-in member opening the homepage goes to the videos", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/videos$/);
+});
 
 test("the privacy policy opens without a session, for Meta's app review, and only it", async ({ page }) => {
   const response = await page.goto("/privacy");
@@ -377,6 +410,7 @@ test("the menu is four headed groups in the order of the work, with no Bình lu�
     "Kho kiến thức",
     "Kho tư liệu",
     "Thư viện nhạc",
+    "Phân tích đối thủ",
     "Quản lý người dùng",
     "Nhật ký job",
     "Cài đặt",
@@ -403,6 +437,43 @@ test("the worker checks a connected Page's token and shows its followers", async
   await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
 });
 
+test("a Page's dashboard has an Instagram side with its own figures and chart", async ({ page }) => {
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
+  const card = page.getByTestId("fanpage-card").filter({ hasText: "Trang Dưỡng Sinh" });
+  await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await card.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
+  await expect(page.getByRole("heading", { name: "Trang Dưỡng Sinh" })).toBeVisible();
+  // The switch shows because the Page has a linked Instagram account; Facebook is the side it opens on.
+  const platform = page.getByRole("radiogroup", { name: "Nền tảng" });
+  await expect(platform.getByRole("radio", { name: "Facebook" })).toBeChecked();
+  await platform.getByText("Instagram", { exact: true }).click();
+  await expect(page).toHaveURL(/platform=instagram/);
+  const overview = page.getByTestId("instagram-overview");
+  await expect(overview.getByTestId("figure-tile")).toHaveCount(4, { timeout: 20_000 });
+  await expect(overview.getByTestId("figure-tile").filter({ hasText: "Người theo dõi mới" })).toContainText(
+    "Hiện có 1.204",
+  );
+  await expect(overview.getByTestId("instagram-chart")).toBeVisible();
+  await expect(page.getByTestId("instagram-insights-error")).toHaveCount(0);
+  // Instagram has its own tabs; the Facebook-only ones (Lượt xem, Tương tác) are gone.
+  await expect(page.getByRole("tab", { name: "Lượt xem" })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Nội dung" }).click();
+  await expect(page.getByTestId("instagram-content")).toContainText("Chưa có Reel nào app đăng lên Instagram");
+  await page.getByRole("tab", { name: "Đối tượng" }).click();
+  // The audience is read with the Page's check: gender, age and city, the biggest first.
+  await expect(page.getByTestId("instagram-audience")).toContainText("Nữ", { timeout: 20_000 });
+  await expect(page.getByTestId("instagram-audience")).toContainText("25-34");
+  await page.getByRole("tab", { name: "So sánh" }).click();
+  await expect(page.getByTestId("page-compare")).toContainText("Chưa có video nào app đăng lên Page");
+  await page.getByRole("tab", { name: "Lịch đăng" }).click();
+  await expect(page.getByTestId("best-times")).toContainText("Mới có 0 bài đã đo, cần từ 6 bài");
+  await platform.getByText("Facebook", { exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Lượt xem" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "So sánh" })).toBeVisible();
+});
+
 test("a Page's card opens its dashboard, with a period and six tabs", async ({ page }) => {
   await loginAsSeed(page);
   await connectFacebook(page);
@@ -414,8 +485,14 @@ test("a Page's card opens its dashboard, with a period and six tabs", async ({ p
     "Chưa gắn nhóm chủ đề, chưa có giờ đăng, 0 video trong hàng chờ",
   );
   await expect(card.getByTestId("page-queue")).toHaveCount(0);
+  // Its "Bộ bình luận" line links to the Page's sets.
+  await expect(card.getByTestId("fanpage-aff-sets")).toHaveText("Chưa có bộ bình luận aff");
+  await expect(card.getByRole("link", { name: "Chưa có bộ bình luận aff" })).toHaveAttribute(
+    "href",
+    /\/affiliate\?tab=sets&page=\d+/,
+  );
   // A click on the card itself, not on its controls, opens the Page.
-  await card.getByText("Số liệu 7 ngày", { exact: false }).click();
+  await card.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
   await expect(page).toHaveURL(/\/fanpages\/\d+$/);
   await expect(page.getByRole("heading", { name: "Trang Dưỡng Sinh" })).toBeVisible();
   // The menu still shows where the member is.
@@ -496,24 +573,32 @@ test("Cài đặt holds the defaults, AI model and sources as tabs, each with it
   expect(names.map((name) => name.split("\n")[0])).toEqual([
     "Của tôi",
     "Thiết lập mặc định",
-    "Tài khoản affiliate",
+    "Tài khoản và kênh",
     "Kết nối MCP",
     "Chung cả nhóm",
-    "Mô hình AI",
-    "Nguồn tư liệu",
+    "AI và nguồn tư liệu",
+    "Phân tích đối thủ",
     "Mẫu dựng",
     "Máy render",
   ]);
   await page.getByRole("tab", { name: "Kết nối MCP" }).click();
   await expect(page).toHaveURL(/\/settings\/mcp$/);
-  await page.getByRole("tab", { name: "Nguồn tư liệu" }).click();
-  await expect(page).toHaveURL(/\/settings\/sources$/);
+  await page.getByRole("tab", { name: "AI và nguồn tư liệu" }).click();
+  await expect(page).toHaveURL(/\/settings\/ai$/);
   await expect(page.getByTestId("source-elevenlabs")).toBeVisible();
+  // Each group closes on its name and stays closed after a reload, in this browser.
+  await page.getByRole("button", { name: /Kho ảnh và video miễn phí/ }).click();
+  await expect(page.getByTestId("source-pixabay")).toBeHidden();
   // A reload stays on the same tab, and the menu keeps Cài đặt selected.
   await page.reload();
-  await expect(page.getByRole("tab", { name: "Nguồn tư liệu" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "AI và nguồn tư liệu" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("menuitem", { name: "Cài đặt" })).toHaveClass(/ant-menu-item-selected/);
-  await page.getByRole("tab", { name: "Mô hình AI" }).click();
+  await expect(page.getByTestId("source-elevenlabs")).toBeVisible();
+  await expect(page.getByTestId("source-pixabay")).toBeHidden();
+  await page.getByRole("button", { name: /Kho ảnh và video miễn phí/ }).click();
+  await expect(page.getByTestId("source-pixabay")).toBeVisible();
+  // The old Nguồn tư liệu address lands on the merged page.
+  await page.goto("/settings/sources");
   await expect(page).toHaveURL(/\/settings\/ai$/);
 });
 
@@ -560,20 +645,20 @@ test("Affiliate Shopee: add a product, see why it cannot be approved, fix it and
   const stages = page.getByLabel("Lọc theo trạng thái");
   await stages.getByText("Chờ duyệt (0)").click();
   await expect(page.getByText("Không có sản phẩm nào khớp")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Xuất CSV" })).toHaveAttribute("href", /status=draft/);
-  await page
-    .getByRole("navigation", { name: "Nhóm chủ đề" })
-    .getByRole("button", { name: /Sức khỏe/ })
-    .click();
+  await expect(await exportCsvLink(page)).toHaveAttribute("href", /status=draft/);
+  await closeImportExport(page);
+  await chooseOption(page, page.getByLabel("Lọc theo nhóm"), "Sức khỏe");
   await expect(page.getByTestId("product-group")).toHaveText("Sức khỏe");
-  await expect(page.getByRole("link", { name: "Xuất CSV" })).toHaveAttribute("href", /topic_id=\d+/);
+  await expect(await exportCsvLink(page)).toHaveAttribute("href", /topic_id=\d+/);
+  await closeImportExport(page);
   await stages.getByText("Tất cả (1)").click();
   await page.getByRole("tab", { name: "Video đã đăng" }).click();
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
   await expect(product).toBeVisible();
 
+  const csv = await exportCsvLink(page);
   const download = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Xuất CSV" }).click();
+  await csv.click();
   expect((await download).suggestedFilename()).toBe("san-pham-affiliate.csv");
 });
 
@@ -581,7 +666,7 @@ test("Affiliate Shopee: import the file of Shopee Affiliate's Lấy link hàng l
   await loginAsSeed(page);
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
-  await page.getByRole("button", { name: "Nhập file" }).click();
+  await importExportItem(page, /Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   const csv =
@@ -604,11 +689,11 @@ test("Affiliate Shopee: import the file of Shopee Affiliate's Lấy link hàng l
   await expect(product).toContainText("45.000đ");
   await expect(product).toContainText("1.125đ/đơn");
 
-  // The three figures the file lacks are filled in on the row, and then it can be approved.
+  // The three figures the file lacks do not block approving; they can still be filled in on the row first.
   await dialog.getByRole("button", { name: "Huỷ" }).click();
   // Once closed the drawer gives the focus back to "Nhập file", which would close a dropdown opened before that.
   await expect(dialog).toBeHidden();
-  await expect(product.getByRole("button", { name: "Duyệt" })).toBeDisabled();
+  await expect(product.getByRole("button", { name: "Duyệt" })).toBeEnabled();
   const quick = product.getByTestId("quick-fill");
   await chooseOption(page, quick.getByLabel("Loại shop của Combo hạt giống rau mùa hè"), "Shop Yêu Thích");
   await quick.getByLabel("Số sao của Combo hạt giống rau mùa hè").fill("4.8");
@@ -625,7 +710,7 @@ const line = (id: number, name: string) =>
   `${id},${name},"45,0k",0,Shop,"2,5%",₫900,https://shopee.vn/product/1/${id},\n`;
 
 async function importRows(page: Page, ...rows: string[]) {
-  await page.getByRole("button", { name: "Nhập file" }).click();
+  await importExportItem(page, /Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   const header =
@@ -660,8 +745,16 @@ test("Affiliate: several products are ticked, then deleted or approved at once",
   await expect(row(page, "Hạt mồng tơi")).toBeVisible();
   await expect(selection).toHaveCount(0);
 
-  // Approving several at once: an ordinary shop passes, a row still missing its figures stays a draft.
+  // Approving several at once: an ordinary shop passes, a row whose filled-in stars are under the bar stays a draft.
   await importRows(page, line(14, "Hạt cải bẹ"));
+  const low = row(page, "Hạt cải bẹ").getByTestId("quick-fill");
+  await chooseOption(page, low.getByLabel("Loại shop của Hạt cải bẹ"), "Shop thường");
+  await low.getByLabel("Số sao của Hạt cải bẹ").fill("4.5");
+  await low.getByLabel("Lượt bán của Hạt cải bẹ").fill("250");
+  await low.getByRole("button", { name: "Lưu" }).click();
+  await expect(row(page, "Hạt cải bẹ")).toContainText("4.5 / 250");
+  // The next dropdown is opened only once this one has left, or two of them match the same option.
+  await expect(page.locator(".ant-select-dropdown:visible")).toHaveCount(0);
   const filled = row(page, "Hạt mồng tơi");
   const quick = filled.getByTestId("quick-fill");
   await chooseOption(page, quick.getByLabel("Loại shop của Hạt mồng tơi"), "Shop thường");
@@ -968,7 +1061,7 @@ test("a list's search, filters and tab are in the address, so a reload shows the
 test("a long table's page is in the address too, and a new filter goes back to page 1", async ({ page }) => {
   await loginAsSeed(page);
   await page.goto("/affiliate?tab=products");
-  await page.getByRole("button", { name: "Nhập file" }).click();
+  await importExportItem(page, /Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   // 51 products: one more than a page of the table.
@@ -1035,7 +1128,7 @@ test("Kho kiến thức and a Page's dashboard keep the group, tab, period and f
   await connectFacebook(page);
   await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const card = page.getByTestId("fanpage-card").filter({ hasText: "Trang Dưỡng Sinh" });
-  await card.getByText("Số liệu 7 ngày", { exact: false }).click();
+  await card.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
   await expect(page.getByRole("heading", { name: "Trang Dưỡng Sinh" })).toBeVisible();
   await page.getByText("7 ngày", { exact: true }).click();
   await page.getByRole("tab", { name: "Nội dung" }).click();
