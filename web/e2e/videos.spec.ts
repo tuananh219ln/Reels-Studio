@@ -463,7 +463,9 @@ test("knowledge topics: a group's Video tab lists its videos and makes a new one
   await page.getByRole("button", { name: "Áp dụng" }).click();
   await expect(videos.getByRole("columnheader", { name: "Nhóm chủ đề", exact: true })).toBeVisible();
   await expect(videos.getByRole("row").nth(1).getByRole("cell", { name: "Sức khỏe", exact: true })).toBeVisible();
-  await expect(videos.getByRole("row").nth(1).getByRole("cell", { name: "Hướng dẫn trồng", exact: true })).toBeVisible();
+  await expect(
+    videos.getByRole("row").nth(1).getByRole("cell", { name: "Hướng dẫn trồng", exact: true }),
+  ).toBeVisible();
   // "Thẻ" keeps the search, and is remembered in this browser.
   await videos.getByLabel("Kiểu hiển thị").getByText("Thẻ", { exact: true }).click();
   await expect(videos.getByTestId("video-card")).toHaveCount(1);
