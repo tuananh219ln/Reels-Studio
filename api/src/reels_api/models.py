@@ -211,6 +211,13 @@ class KnowledgeTopic(Base):
     # "Cảnh kết Theo dõi & Chia sẻ" (migration 0115, outro.py): its new videos end on the shared follow-and-share
     # scene, which takes the place of a closing call to action of their script.
     outro_cta: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # "Câu lưu ý y khoa" (migration 0126, disclaimer.py): its articles' fixed reminder, written by the worker at the end
+    # of the last pinned comment ("last_comment") or left to the caption as before ("caption").
+    medical_disclaimer_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    medical_disclaimer_text: Mapped[str] = mapped_column(Text, default="", server_default="")
+    medical_disclaimer_position: Mapped[str] = mapped_column(
+        String(16), default="last_comment", server_default="last_comment"
+    )
     text_suggestions: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # The group's "Mẫu dựng" (part 2 of docs/specs/per-user-settings-ownership), picked from the saved ones, and the
     # one its new videos take ("app" or one of them; None for none), over their maker's own (autoedit).

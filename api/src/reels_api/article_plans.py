@@ -19,7 +19,7 @@ from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import articles, slot_comments
+from . import articles, disclaimer, slot_comments
 from .article_posts import comparable
 from .models import (
     ARTICLE_KINDS,
@@ -439,6 +439,8 @@ class Row:
     # "Bình luận ghim" as the file gives them (slot_comments.py), and which one is pinned.
     pinned_comments: list[dict] = field(default_factory=list)
     pin_index: int = 0
+    # The group's medical reminder was taken out of the body (disclaimer.py): the badge of the preview.
+    disclaimer_removed: bool = False
     # What saving does with it: "add", "skip_posted" or "skip_used" (the slot already has an article), or "skip".
     action: str = "add"
     errors: list[str] = field(default_factory=list)
@@ -541,6 +543,10 @@ def read_rows(db: DbSession, plan: ArticlePlan, records: list[dict]) -> list[Row
     the same day and slot twice) stop a row; a warning (a hook like one posted on the Page in 60 days) does not."""
     groups = {plain(name): topic_id for topic_id, name in db.execute(select(KnowledgeTopic.id, KnowledgeTopic.name))}
     recent = recent_hooks(db, plan.fanpage_id)
+    # The group a script without one is made in (as routes_articles.create_from_slot picks it).
+    default_group = next(
+        (db.get(KnowledgeTopic, id_) for id_ in plan.topic_group_ids if db.get(KnowledgeTopic, id_)), None
+    )
     rows: list[Row] = []
     seen: dict[tuple[int, int], int] = {}
     for index, record in enumerate(records, start=1):
@@ -578,6 +584,13 @@ def read_rows(db: DbSession, plan: ArticlePlan, records: list[dict]) -> list[Row
             row.knowledge_topic_id = groups.get(plain(group_name))
             if row.knowledge_topic_id is None:
                 row.errors.append(f"Nhóm chủ đề “{group_name}” không tồn tại")
+        group = db.get(KnowledgeTopic, row.knowledge_topic_id) if row.knowledge_topic_id else default_group
+        if disclaimer.active(group):
+            cleaned = disclaimer.strip(row.body)
+            if cleaned != row.body:
+                row.body, row.disclaimer_removed = cleaned, True
+                if not cleaned:
+                    row.errors.append("Thiếu body")
         if row.slot is not None and row.day is None:
             row.errors.append("Có khung mà thiếu ngày")
         if row.slot is not None and not 1 <= row.slot <= plan.per_day:

@@ -22,7 +22,7 @@ from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
 
-from . import articles, facebook, fanpages
+from . import articles, disclaimer, facebook, fanpages
 from .claude import ClaudeError, ScriptOutputError, json_object
 from .facebook import FacebookError
 from .models import (
@@ -31,6 +31,7 @@ from .models import (
     ArticlePlanSlot,
     Fanpage,
     Job,
+    KnowledgeTopic,
     PostComment,
     Publication,
 )
@@ -43,6 +44,8 @@ MAX_COMMENTS = 5
 MIN_TEXT, MAX_TEXT = 20, 1000
 MAX_TYPE = 32
 JOB_KIND = "slot_comments"
+# The `post_comments.type` of a row that holds only the group's medical reminder (disclaimer.py).
+REMINDER_TYPE = "disclaimer"
 SOURCES = ("import", "ai", "manual")
 # Two sets of labels, in the order they are written: for a dish worth eating and for a warning.
 TYPES_FOOD = ("cong_dung", "cach_lam", "luu_y", "nen_dung", "han_che")
@@ -165,6 +168,23 @@ def comments_of(slot: ArticlePlanSlot) -> list[dict]:
 def pin_of(slot: ArticlePlanSlot) -> int:
     count = len(comments_of(slot))
     return slot.pin_index if 0 <= slot.pin_index < count else 0
+
+
+def planned_texts(db: DbSession, article: Article) -> list[str]:
+    """The comments as they will be written under the article's post, in that order (the pinned one first), the group's
+    reminder at the end of the last (disclaimer.py); the reminder alone when there are none or "Đăng kèm bình luận" is
+    off. What a member sees before posting; the worker (`start`, `attempt`) makes the same."""
+    group = articles.group_of(db, article)
+    slot = db.scalar(select(ArticlePlanSlot).where(ArticlePlanSlot.article_id == article.id))
+    items = comments_of(slot)[:MAX_COMMENTS] if slot is not None and article.post_comments_enabled else []
+    pin = pin_of(slot) if items else 0
+    texts = [items[pin]["text"]] + [item["text"] for place, item in enumerate(items) if place != pin] if items else []
+    if not disclaimer.active(group):
+        return texts
+    if not texts:
+        return [disclaimer.text_of(group)]
+    joined, own = disclaimer.attach(texts[-1], group)
+    return [*texts[:-1], joined] + ([disclaimer.text_of(group)] if own else [])
 
 
 def set_comments(slot: ArticlePlanSlot, checked: Checked, source: str, edited: bool) -> None:
@@ -466,20 +486,41 @@ def _live(post: Publication) -> bool:
     )
 
 
+def _reminder_group(db: DbSession, article: Article) -> KnowledgeTopic | None:
+    group = articles.group_of(db, article)
+    return group if disclaimer.active(group) else None
+
+
 def start(db: DbSession, post: Publication) -> bool:
     """Makes the post's `post_comments` from its script's comments, once: only when the article asks for them, the
-    script has some, and the post went live recently. Returns whether any were made. The caller commits."""
+    script has some, and the post went live recently. A group with a medical reminder in the last comment
+    (disclaimer.py) gets one row of its own, "disclaimer", when there is no other (no script comments, or "Đăng kèm
+    bình luận" off). Returns whether any were made. The caller commits."""
     if post.article_id is None or rows_of(db, post.id):
         return False
     article = db.get(Article, post.article_id)
+    if article is None:
+        return False
     slot = db.scalar(select(ArticlePlanSlot).where(ArticlePlanSlot.article_id == post.article_id))
-    if article is None or slot is None or not article.post_comments_enabled:
-        return False
-    items = comments_of(slot)[:MAX_COMMENTS]
-    if not items:
-        return False
+    items = comments_of(slot)[:MAX_COMMENTS] if slot is not None and article.post_comments_enabled else []
     if live_at(post) < now() - START_WITHIN:
         return False
+    if not items:
+        if _reminder_group(db, article) is None:
+            return False
+        # The text is left empty: the sentence is read from the group when it is written.
+        db.add(
+            PostComment(
+                publication_id=post.id,
+                script_id=slot.id if slot is not None else None,
+                order=0,
+                text="",
+                type=REMINDER_TYPE,
+                due_at=now() + _random_seconds(FIRST_DELAY),
+            )
+        )
+        db.flush()
+        return True
     pin = pin_of(slot)
     rows = [
         PostComment(
@@ -502,6 +543,34 @@ def start(db: DbSession, post: Publication) -> bool:
     return True
 
 
+def text_to_write(db: DbSession, post: Publication, row) -> str:
+    """What is written for the row: its text, the reminder at the end of the last comment, or the reminder itself for a
+    row of its own. A comment already written is not asked again, so a changed sentence never rewrites one."""
+    article = db.get(Article, post.article_id)
+    group = _reminder_group(db, article) if article is not None else None
+    if row.type == REMINDER_TYPE:
+        return disclaimer.text_of(group) or row.text
+    if group is None:
+        return row.text
+    regular = [other for other in _sequence(rows_of(db, post.id)) if other.type != REMINDER_TYPE]
+    if not regular or regular[-1].id != row.id:
+        return row.text
+    joined, own = disclaimer.attach(row.text, group)
+    if own and not any(other.type == REMINDER_TYPE for other in rows_of(db, post.id)):
+        # Too long to carry it: it follows as a comment of its own.
+        db.add(
+            PostComment(
+                publication_id=post.id,
+                script_id=row.script_id,
+                order=max(other.order for other in rows_of(db, post.id)) + 1,
+                text="",
+                type=REMINDER_TYPE,
+            )
+        )
+        db.flush()
+    return joined
+
+
 def _gone(err: FacebookError) -> bool:
     return err.status in (400, 404) and ((err.code == 100 and err.subcode == 33) or err.code == 803)
 
@@ -516,11 +585,17 @@ def attempt(db: DbSession, post: Publication, row) -> None:
         return
     before = row.attempts
     row.attempts += 1
+    text = text_to_write(db, post, row)
+    if not text.strip():
+        # A reminder row whose group no longer has one: nothing to write.
+        row.status, row.error = "skipped", "Nhóm đã tắt câu lưu ý y khoa"
+        _advance(db, post, row)
+        return
     db.commit()
     try:
         page = fanpages.load_page(db, post.fanpage_id)
-        found = facebook.page_comment(page, post.remote_id, row.text) if before else None
-        row.fb_comment_id = found or facebook.post_comment(page, post.remote_id, row.text)
+        found = facebook.page_comment(page, post.remote_id, text) if before else None
+        row.fb_comment_id = found or facebook.post_comment(page, post.remote_id, text)
     except FacebookError as err:
         _failed(db, post, row, err)
         return
@@ -572,6 +647,12 @@ def due_posts(db: DbSession, limit: int = BATCH) -> list[int]:
         ArticlePlanSlot.article_id == Publication.article_id,
         func.jsonb_array_length(ArticlePlanSlot.pinned_comments) > 0,
     )
+    # A group whose reminder goes to the last comment has one written even when the script has none or the switch is off.
+    reminder = exists().where(
+        KnowledgeTopic.id == Article.knowledge_topic_id,
+        KnowledgeTopic.medical_disclaimer_enabled.is_(True),
+        KnowledgeTopic.medical_disclaimer_position == "last_comment",
+    )
     live_since = func.coalesce(Publication.scheduled_at, Publication.published_at, Publication.created_at)
     posts = db.scalars(
         select(Publication)
@@ -580,10 +661,14 @@ def due_posts(db: DbSession, limit: int = BATCH) -> list[int]:
             Publication.platform == "facebook",
             Publication.remote_id.is_not(None),
             Publication.status.in_(("published", "scheduled")),
-            Article.post_comments_enabled.is_(True),
+            or_(Article.post_comments_enabled.is_(True), reminder),
             or_(
                 Publication.id.in_(waiting),
-                and_(Publication.id.not_in(started), has_comments, live_since >= at - START_WITHIN),
+                and_(
+                    Publication.id.not_in(started),
+                    or_(and_(Article.post_comments_enabled.is_(True), has_comments), reminder),
+                    live_since >= at - START_WITHIN,
+                ),
             ),
         )
         .order_by(Publication.id)
@@ -666,6 +751,7 @@ def post_payload(db: DbSession, post: Publication) -> dict | None:
     rows = rows_of(db, post.id)
     if not rows:
         return None
+    article = db.get(Article, post.article_id)
     waiting = next((row for row in rows if row.status == "need_manual_pin"), None)
     return {
         "items": [
@@ -673,8 +759,9 @@ def post_payload(db: DbSession, post: Publication) -> dict | None:
                 "id": row.id,
                 "order": row.order,
                 "type": row.type,
-                "type_label": TYPE_LABELS.get(row.type or ""),
-                "text": row.text,
+                "type_label": "Lưu ý y khoa" if row.type == REMINDER_TYPE else TYPE_LABELS.get(row.type or ""),
+                "text": row.text
+                or (disclaimer.text_of(_reminder_group(db, article)) if row.type == REMINDER_TYPE else ""),
                 "is_pinned": row.is_pinned,
                 "status": row.status,
                 "status_label": ROW_LABELS[row.status],

@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.textbox import FONT_PATH
 
-from . import article_images, knowledge
+from . import article_images, disclaimer, knowledge
 from . import hashtags as hashtag_rules
 from .claude import ClaudeError, ScriptOutputError, _assemble, _strings, fill_placeholders, json_object
 from .models import (
@@ -70,8 +70,7 @@ Chỉ trả về đúng một object JSON, không có chữ nào khác ngoài JS
 {{
   "hook": "1 dòng mở đầu",
   "body": "{body}",
-  "note": "1 câu nhắc nhẹ, hoặc chuỗi rỗng",
-  "question": "1 câu hỏi kết bài cho người xem trả lời trong bình luận",
+{note_json}  "question": "1 câu hỏi kết bài cho người xem trả lời trong bình luận",
   "hashtags": ["#tối_đa_5_hashtag"],
   "pinned_comment": "bình luận ghim của Page dưới bài",
   "affiliates": ["tối đa {max_ideas} sản phẩm để tìm trên Shopee"]
@@ -79,14 +78,25 @@ Chỉ trả về đúng một object JSON, không có chữ nào khác ngoài JS
 Quy tắc định dạng:
 - {hook_rule}
 - {body_rule}
-- "note": khi bài nói về sức khỏe, ăn uống hay thói quen cơ thể, viết 1 câu nhắc ngắn bằng giọng của bài, như người quen dặn nhau (ví dụ ý: ai có bệnh nền, đang mang thai hay đang dùng thuốc thì hỏi bác sĩ trước). Không dùng câu khuôn mẫu kiểu "tham khảo, không thay thế tư vấn bác sĩ". Bài không cần nhắc thì để chuỗi rỗng.
-- "pinned_comment": 1–2 câu Page tự bình luận dưới bài để ghim: gợi chuyện tiếp, mời người xem kể trải nghiệm hoặc hỏi thêm; nếu có sản phẩm hợp với bài thì nói nhẹ là link ở ngay bên dưới. Không link, không số điện thoại.
+{note_rule}- "pinned_comment": 1–2 câu Page tự bình luận dưới bài để ghim: gợi chuyện tiếp, mời người xem kể trải nghiệm hoặc hỏi thêm; nếu có sản phẩm hợp với bài thì nói nhẹ là link ở ngay bên dưới. Không link, không số điện thoại.
 - "affiliates": 0–{max_ideas} sản phẩm thật sự hợp với nội dung bài, mỗi cái là vài chữ để gõ vào ô tìm kiếm Shopee (ví dụ "bình giữ nhiệt", "gối cao su non"); không hợp thì để mảng rỗng.
 - Không viết link, tên miền hay số điện thoại trong bài; link sản phẩm (nếu có) nằm ở bình luận ghim.
 - Tối đa {max_tags} hashtag, mỗi hashtag bắt đầu bằng #, không dấu cách bên trong; không chèn hashtag vào câu."""
 
 
-def output_format(kind: str) -> str:
+_NOTE_JSON = '  "note": "1 câu nhắc nhẹ, hoặc chuỗi rỗng",\n'
+_NOTE_RULE = (
+    '- "note": khi bài nói về sức khỏe, ăn uống hay thói quen cơ thể, viết 1 câu nhắc ngắn bằng giọng của bài, như '
+    "người quen dặn nhau (ví dụ ý: ai có bệnh nền, đang mang thai hay đang dùng thuốc thì hỏi bác sĩ trước). Không "
+    'dùng câu khuôn mẫu kiểu "tham khảo, không thay thế tư vấn bác sĩ". Bài không cần nhắc thì để chuỗi rỗng.\n'
+)
+# A group whose reminder goes to the last comment (disclaimer.py): the caption has none.
+_NO_NOTE_RULE = (
+    "- Không viết câu lưu ý y khoa / miễn trừ trách nhiệm trong caption; app tự đăng câu này dưới bình luận.\n"
+)
+
+
+def output_format(kind: str, comment_disclaimer: bool = False) -> str:
     """The fixed shape of the AI's answer for this kind of article (code, not prompt: "Prompt text is app data")."""
     if kind == "cau_hoi":
         body = "để trống"
@@ -103,7 +113,13 @@ def output_format(kind: str) -> str:
         else "Dòng mở đầu là 1 câu, dưới 15 từ."
     )
     return _FORMAT.format(
-        body=body, body_rule=body_rule, hook_rule=hook_rule, max_tags=MAX_HASHTAGS, max_ideas=MAX_IDEAS
+        body=body,
+        body_rule=body_rule,
+        hook_rule=hook_rule,
+        max_tags=MAX_HASHTAGS,
+        max_ideas=MAX_IDEAS,
+        note_json="" if comment_disclaimer else _NOTE_JSON,
+        note_rule=_NO_NOTE_RULE if comment_disclaimer else _NOTE_RULE,
     )
 
 
@@ -120,7 +136,7 @@ def build_prompt(group: KnowledgeTopic | None, article: Article, comment: str = 
     return _assemble(
         fill_placeholders(template, placeholders),
         group.banned_words if group else [],
-        output_format=output_format(article.kind),
+        output_format=output_format(article.kind, disclaimer.active(group)),
         texts=ARTICLE_TEXTS,
     )
 
@@ -212,7 +228,7 @@ class Issue:
     field: str = "caption"
 
 
-def checks(article: Article, banned_words: list[str]) -> dict:
+def checks(article: Article, banned_words: list[str], comment_disclaimer: bool = False) -> dict:
     """`blocking` will stop "Đăng" (a link in the caption, no caption); `warnings` never do (decisions 2026-10-31)."""
     blocking: list[Issue] = []
     warnings: list[Issue] = []
@@ -230,10 +246,18 @@ def checks(article: Article, banned_words: list[str]) -> dict:
         blocking.append(Issue("Bình luận ghim có link: link sản phẩm do app tự thêm sau bình luận", "pinned_comment"))
     if article.kind == "tra_loi_binh_luan" and article.source_comment_id is None:
         warnings.append(Issue("Chưa chọn bình luận được trả lời", "source_comment_id"))
+    if comment_disclaimer and _may_keep_reminder(article.caption):
+        warnings.append(Issue("Caption có thể còn câu lưu ý y khoa, câu này đã tự đăng ở bình luận."))
     return {
         "blocking": [issue.__dict__ for issue in blocking],
         "warnings": [issue.__dict__ for issue in warnings],
     }
+
+
+def _may_keep_reminder(caption: str) -> bool:
+    """A reminder that `disclaimer.strip` did not know: "bác sĩ" or "y khoa" in the last two paragraphs left."""
+    paragraphs = [part for part in disclaimer.strip(caption).split("\n\n") if part.strip()]
+    return any(word in part.lower() for part in paragraphs[1:][-2:] for word in ("bác sĩ", "y khoa"))
 
 
 # --- Text card ("Thẻ chữ") ---
@@ -434,7 +458,7 @@ def payload(db: DbSession, article: Article) -> dict:
         "image_job": _job(image_job),
         # The AI writes the caption or makes a photo: the article is not edited meanwhile.
         "busy": any(item is not None and item.status in ACTIVE_JOB_STATUSES for item in (job, image_job)),
-        "checks": checks(article, group.banned_words if group else []),
+        "checks": checks(article, group.banned_words if group else [], disclaimer.active(group)),
         "created_by": article.created_by.name,
         "created_by_id": article.created_by_id,
         "created_at": article.created_at.isoformat(),

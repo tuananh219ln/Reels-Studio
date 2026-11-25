@@ -4,6 +4,7 @@ import Hint from "@/components/Hint";
 import { api, errorMessage, type Article, type PinnedComment } from "@/lib/api";
 import { HolderOutlined, ReloadOutlined, RobotOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Card, Flex, Input, Radio, Switch, Tag, Typography } from "antd";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const COUNT = 5;
@@ -117,6 +118,10 @@ export default function PinnedCommentsCard({
   }
 
   const places = Array.from({ length: COUNT }, (_, place) => place);
+  // The comment written last (the pinned one goes first, the others in order) gets the group's medical reminder.
+  const filledPlaces = places.filter((place) => items[place]?.text.trim());
+  const others = filledPlaces.filter((place) => place !== pin);
+  const reminderPlace = others.length ? others[others.length - 1] : filledPlaces.length ? filledPlaces[0] : null;
   const locked = disabled || pending || saving;
 
   return (
@@ -197,6 +202,12 @@ export default function PinnedCommentsCard({
                   autoSize={{ minRows: 2, maxRows: 6 }}
                   onChange={(event) => change(place, event.target.value)}
                 />
+                {article.disclaimer && reminderPlace === place && (
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="pinned-comment-reminder">
+                    + Tự thêm khi đăng: {article.disclaimer.text.slice(0, 60)}…{" "}
+                    <Link href={`/knowledge?group=${article.disclaimer.group_id}`}>Sửa ở cài đặt nhóm</Link>
+                  </Typography.Text>
+                )}
               </Flex>
               <Button
                 aria-label={`Tạo lại bình luận ${place + 1} bằng AI`}
