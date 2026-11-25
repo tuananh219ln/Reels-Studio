@@ -41,6 +41,9 @@ export default function PostActions({
   const mine = canTakeDownPost(post, me.id);
   const [busy, setBusy] = useState<Action | null>(null);
   const [linking, setLinking] = useState(false);
+  // The take-down button's tooltip stays shut while its confirmation is open: it would sit over the confirmation's own
+  // buttons.
+  const [confirming, setConfirming] = useState(false);
   const [link, setLink] = useState("");
   const closed = post.status === "cancelled" || post.status === "deleted";
   // A deleted post still gets "Kiểm tra": Facebook may have it after all (the app read it wrong, or a new token).
@@ -115,6 +118,7 @@ export default function PostActions({
   );
   const takeDown = (
     <Popconfirm
+      onOpenChange={setConfirming}
       title={published ? "Xóa bài này khỏi Facebook?" : "Hủy đăng bài này?"}
       description={
         published
@@ -129,6 +133,7 @@ export default function PostActions({
     >
       {compact ? (
         <Tooltip
+          open={confirming ? false : undefined}
           title={
             closed
               ? "Bài đã hủy hoặc đã xóa"
