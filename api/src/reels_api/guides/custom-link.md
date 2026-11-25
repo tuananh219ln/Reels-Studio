@@ -10,11 +10,11 @@ affiliate được. Cách làm hiện tại: app chuẩn bị file, bạn tải 
 
 ## Các bước trên web
 1. Vào **Affiliate › Sản phẩm**, chọn **nhóm chủ đề** (nút xuất cần biết nhóm).
-2. Bấm **Nhập / Xuất › Xuất file Custom Link** (hoặc nút ở cột "Cần link"). Nếu nhóm có nhiều Page, chọn Page.
+2. Bấm **Nhập / Xuất › Xuất file Custom Link (Excel)** (hoặc nút ở cột "Cần link" của dạng Quy trình). Nếu nhóm có nhiều Page, chọn Page.
    Tick "Gồm cả món đã có link" nếu muốn chuyển đổi lại cả những món đã có.
 3. Tải file `.xlsx` về, vào **Shopee Affiliate › Custom Link**, tải file đó lên (tối đa 10.000 link mỗi lần).
    Chờ trạng thái "Đã tạo" ở trang **Quản lý xuất dữ liệu**, tải **file CSV kết quả** về.
-4. Quay lại app, bấm **Nhập link đã chuyển đổi** (hoặc "Nhập kết quả Shopee"), chọn file CSV.
+4. Quay lại app, bấm **Nhập / Xuất › Nhập kết quả Shopee** (hoặc nút cùng tên ở cột "Cần link"), chọn file CSV.
 5. Đọc bảng xem trước: **Sẽ gắn link** (sẽ ghi), **Của đồng đội** (giữ nguyên), **Lỗi** (kèm lý do, gồm cả lý do Shopee ghi ở cột
    "Lí do thất bại"). Nếu ổn, bấm **Gắn link cho N sản phẩm**.
 
@@ -36,7 +36,7 @@ Trợ lý **không** tự tải lên Shopee và **không** ghi gì trước khi 
 ## Khi có lỗi
 | Thông báo | Nguyên nhân và cách xử lý |
 | --- | --- |
-| Shopee: "Đăng tải thất bại, vui lòng sử dụng bản mẫu có sẵn" | Không tải file tự làm hay file từ "Xuất CSV". Chỉ dùng file từ "Xuất file Custom Link". |
+| Shopee: "Đăng tải thất bại, vui lòng sử dụng bản mẫu có sẵn" | Không tải file tự làm hay file từ "Xuất danh sách (CSV)". Chỉ dùng file từ "Xuất file Custom Link (Excel)". |
 | "Nhóm này có N Page đăng… hãy chọn Page" | Nhóm có nhiều Page: chọn một Page trong hộp xuất. |
 | "Không có sản phẩm nào cần xuất" | Cần sản phẩm đã duyệt, do bạn thêm, có link sản phẩm gốc, chưa có link (hoặc tick "Gồm cả món đã có link"). |
 | Dòng **Lỗi**: "Link gốc không khớp sản phẩm nào của bạn" | Sản phẩm không thuộc bạn hoặc không ở nhóm đã chọn. |

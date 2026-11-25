@@ -590,3 +590,34 @@ test("Affiliate has a Hướng dẫn: the screen's guides open in a drawer, one 
   await drawer.getByText("gắn link affiliate hàng loạt").click();
   await expect(drawer.getByRole("heading", { name: /Custom Link của Shopee/ })).toBeVisible();
 });
+
+test("Nhập / Xuất has Shopee Custom Link's Excel file and its result import, once a group is open", async ({
+  page,
+}) => {
+  await loginAsSeed(page);
+  await page.goto("/affiliate");
+  await page.getByRole("tab", { name: "Sản phẩm" }).click();
+
+  // No group open: the Custom Link file is for one group, so both items wait for it.
+  await page.getByRole("button", { name: /Nhập \/ Xuất/ }).click();
+  await expect(page.getByRole("menuitem", { name: "Xuất file Custom Link (Excel)" })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+  await expect(page.getByRole("menuitem", { name: "Nhập kết quả Shopee" })).toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByRole("link", { name: "Xuất danh sách (CSV)" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await chooseOption(page, page.getByLabel("Lọc theo nhóm"), "Sức khỏe");
+  await importExportItem(page, "Xuất file Custom Link (Excel)");
+  const exporting = page.getByRole("dialog", { name: "Xuất file Custom Link" });
+  await expect(exporting.getByRole("checkbox", { name: "Gồm cả món đã có link" })).toBeVisible();
+  // The group has no Page yet, so the api says which Page the orders would go to is missing.
+  await exporting.getByRole("button", { name: "Tải file Excel" }).click();
+  await expect(page.getByText("Nhóm này chưa có Page nào đăng")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(exporting).toBeHidden();
+
+  await importExportItem(page, "Nhập kết quả Shopee");
+  await expect(page.getByRole("dialog", { name: "Nhập link đã chuyển đổi" })).toBeVisible();
+});

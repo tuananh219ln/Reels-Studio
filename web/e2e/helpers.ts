@@ -135,22 +135,22 @@ export async function openScene(scene: Locator) {
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
 }
 
-/** Opens "Nhập / Xuất" on Affiliate › Sản phẩm and picks one of its items ("Xuất CSV" is a link, the others menu items). */
+/** Opens "Nhập / Xuất" on Affiliate › Sản phẩm and picks one of its items ("Xuất danh sách (CSV)" is a link, the others menu items). */
 export async function importExportItem(page: Page, name: string | RegExp) {
   await page.getByRole("button", { name: /Nhập \/ Xuất/ }).click();
   const item = page.getByRole("menuitem", { name });
   await item.click();
 }
 
-/** The "Xuất CSV" link, with the "Nhập / Xuất" menu open; close it again with `closeImportExport`. */
+/** The "Xuất danh sách (CSV)" link, with the "Nhập / Xuất" menu open; close it again with `closeImportExport`. */
 export async function exportCsvLink(page: Page) {
   await page.getByRole("button", { name: /Nhập \/ Xuất/ }).click();
-  return page.getByRole("link", { name: "Xuất CSV" });
+  return page.getByRole("link", { name: "Xuất danh sách (CSV)" });
 }
 
 export async function closeImportExport(page: Page) {
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("link", { name: "Xuất CSV" })).toBeHidden();
+  await expect(page.getByRole("link", { name: "Xuất danh sách (CSV)" })).toBeHidden();
 }
 
 /**

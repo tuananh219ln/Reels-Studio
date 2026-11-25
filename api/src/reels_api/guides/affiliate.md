@@ -22,7 +22,7 @@ Màn **Affiliate** gom việc bán hàng liên kết: danh sách sản phẩm c�
 ## Thêm sản phẩm
 - **Chỉ người tạo nhóm mới thêm được sản phẩm vào nhóm đó.** Nút "Thêm sản phẩm" mờ ở nhóm của người khác; dòng cũ của đồng đội vẫn giữ nguyên.
 - Ba cách: **dán link Shopee** (cần ít nhất một tài khoản Shopee có App ID trong team để app đọc thông tin), **Nhập file** "Lấy link hàng loạt" của Shopee Affiliate (có bước xem trước), hoặc **Nhập tay**.
-- Nút **Nhập / Xuất** có thêm **Xuất CSV** (danh sách sản phẩm để đọc, *không* phải file để tải lên Shopee).
+- Nút **Nhập / Xuất** có thêm **Xuất file Custom Link (Excel)** và **Nhập kết quả Shopee** (cần chọn nhóm trước, xem hướng dẫn Custom Link), và **Xuất danh sách (CSV)** (danh sách sản phẩm để đọc, *không* phải file để tải lên Shopee).
 
 ## Link trong bình luận
 - Page **có tài khoản Shopee riêng** (có App ID và Secret): app tự tạo link riêng cho từng video và Page.

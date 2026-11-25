@@ -210,7 +210,7 @@ export default function Products() {
   const staged = stage === "all" ? allRows : allRows.filter((product) => stageOf(product) === stage);
   const shown = noLink ? staged.filter((product) => !product.url) : staged;
   const withoutLink = allRows.filter((product) => !product.url).length;
-  // "Xuất CSV" follows the group, platform and search, and the stage as far as the api knows it (draft or approved).
+  // "Xuất danh sách (CSV)" follows the group, platform and search, and the stage as far as the api knows it (draft or approved).
   const exportQuery = [query, stage === "approved" ? "status=approved" : stage === "all" ? "" : "status=draft"]
     .filter(Boolean)
     .join("&");
@@ -420,6 +420,7 @@ export default function Products() {
   const cannotAdd = open
     ? `Chỉ người tạo nhóm “${open.name}” mới thêm được sản phẩm`
     : "Bạn chưa có nhóm nào để thêm sản phẩm";
+  const needsGroup = "Chọn một nhóm chủ đề ở trên trước";
   const importExport = [
     {
       key: "file",
@@ -429,10 +430,28 @@ export default function Products() {
       title: canAdd ? undefined : cannotAdd,
       onClick: () => setAdding("file"),
     },
+    // Shopee's Custom Link page takes only its own Excel template; the CSV below is a list to read, not to upload.
+    {
+      key: "custom-link-export",
+      icon: <DownloadOutlined />,
+      label: "Xuất file Custom Link (Excel)",
+      disabled: topicId === undefined,
+      title: topicId === undefined ? needsGroup : undefined,
+      onClick: () => setCustomLink("export"),
+    },
+    {
+      key: "custom-link-import",
+      icon: <UploadOutlined />,
+      label: "Nhập kết quả Shopee",
+      disabled: topicId === undefined,
+      title: topicId === undefined ? needsGroup : undefined,
+      onClick: () => setCustomLink("import"),
+    },
+    { type: "divider" as const },
     {
       key: "csv",
       icon: <DownloadOutlined />,
-      label: <a href={`/api/affiliate-products/export.csv?${exportQuery}`}>Xuất CSV</a>,
+      label: <a href={`/api/affiliate-products/export.csv?${exportQuery}`}>Xuất danh sách (CSV)</a>,
     },
   ];
 
@@ -442,7 +461,6 @@ export default function Products() {
   >;
   for (const product of allRows) lanes[laneOf(product)].push(product);
   const mineToLink = lanes.link.filter((product) => product.created_by_id === me.id).length;
-  const needsGroup = "Chọn một nhóm chủ đề ở trên trước";
 
   /** The button at the head of a column: the one bulk step that column has. */
   function laneAction(lane: Lane) {
