@@ -666,7 +666,7 @@ test("Affiliate Shopee: import the file of Shopee Affiliate's Lấy link hàng l
   await loginAsSeed(page);
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
-  await importExportItem(page, /^Nhập file/);
+  await importExportItem(page, /Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   const csv =
@@ -710,7 +710,7 @@ const line = (id: number, name: string) =>
   `${id},${name},"45,0k",0,Shop,"2,5%",₫900,https://shopee.vn/product/1/${id},\n`;
 
 async function importRows(page: Page, ...rows: string[]) {
-  await importExportItem(page, /^Nhập file/);
+  await importExportItem(page, /Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   const header =
@@ -1061,7 +1061,7 @@ test("a list's search, filters and tab are in the address, so a reload shows the
 test("a long table's page is in the address too, and a new filter goes back to page 1", async ({ page }) => {
   await loginAsSeed(page);
   await page.goto("/affiliate?tab=products");
-  await importExportItem(page, /^Nhập file/);
+  await importExportItem(page, /Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   // 51 products: one more than a page of the table.

@@ -542,7 +542,7 @@ test("Nhập file: a preview first, and a teammate's product is added again with
 
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
-  await importExportItem(page, /^Nhập file/);
+  await importExportItem(page, /Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   await dialog.locator('input[type="file"]').setInputFiles({

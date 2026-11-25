@@ -152,3 +152,14 @@ export async function closeImportExport(page: Page) {
   await page.keyboard.press("Escape");
   await expect(page.getByRole("link", { name: "Xuất CSV" })).toBeHidden();
 }
+
+/**
+ * Opens a group's "Video" tab. The group's tabs scroll when they do not fit beside the group column, and the first
+ * one is hidden while a later tab is the open one, so this goes by the address (`tab=videos`) rather than a click.
+ */
+export async function openVideoTab(page: Page, group: Locator) {
+  const url = new URL(page.url());
+  url.searchParams.set("tab", "videos");
+  await page.goto(url.toString());
+  await expect(group.getByRole("tab", { name: /^Video/ })).toHaveAttribute("aria-selected", "true");
+}

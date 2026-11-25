@@ -16,6 +16,7 @@ import {
   openPublishDrawer,
   openScene,
   resetDatabase,
+  openVideoTab,
   sideTab,
 } from "./helpers";
 
@@ -498,7 +499,7 @@ test("knowledge topics: a group's own voice is what its new videos start with", 
   await expect(card.locator(".ant-select").first()).toContainText("Mai");
 
   // A new video of the group reads with the group's voice, with nothing set on it by hand.
-  await group.getByRole("tab", { name: /^Video/ }).click();
+  await openVideoTab(page, group);
   await group.getByTestId("topic-videos").getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
   await dialog.getByLabel("Chủ đề", { exact: true }).fill("ngâm chân nước ấm");
@@ -590,7 +591,7 @@ test("knowledge topics: a group's video mode is what its new videos take unless 
   await expect(card.getByRole("radio", { name: "Video xuyên suốt" })).toBeChecked();
 
   // The dialog starts on the group's mode and says so; a video made with nothing picked takes it.
-  await group.getByRole("tab", { name: /^Video/ }).click();
+  await openVideoTab(page, group);
   await group.getByTestId("topic-videos").getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
   await expect(dialog).toContainText("Theo kiểu video của nhóm: Video xuyên suốt");
