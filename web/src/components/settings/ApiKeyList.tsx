@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { forgetVoices } from "@/components/video/VideoSettings";
 import { api, errorMessage, formatDateTime } from "@/lib/api";
 
-export type KeyService = "elevenlabs" | "gemini" | "vieneu";
+export type KeyService = "elevenlabs" | "gemini" | "vieneu" | "google_tts";
 type KeyRow = {
   id: number;
   label: string;
@@ -18,7 +18,12 @@ type KeyRow = {
 type ServiceKeys = { main: { error: string; at: string } | null; keys: KeyRow[] };
 type KeysPayload = { services: Record<KeyService, ServiceKeys> };
 
-const SERVICE_NAMES: Record<KeyService, string> = { elevenlabs: "ElevenLabs", gemini: "Gemini", vieneu: "VieNeu" };
+const SERVICE_NAMES: Record<KeyService, string> = {
+  elevenlabs: "ElevenLabs",
+  gemini: "Gemini",
+  vieneu: "VieNeu",
+  google_tts: "Google",
+};
 
 /** Why a narration last could not use a key, with when (Vietnam time); gone once the key reads again. */
 function KeyError({ error, at, who }: { error: string; at: string | null; who: string }) {

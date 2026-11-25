@@ -34,6 +34,7 @@ from . import (
     facebook,
     fanpages,
     footage,
+    google_tts_quota,
     hashtags,
     ig_publish,
     image_edit,
@@ -86,7 +87,7 @@ from .models import (
 )
 from .sessions import now
 from .storage import DirectoryStorage
-from .tts import TtsError, all_keys_failed, service_name, synthesize, voice_signature
+from .tts import TtsError, all_keys_failed, is_google, service_name, synthesize, voice_signature
 from .tts import key_name as tts_key_name
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
 from .video_options import render_options, scene_voice, voice_pause, voice_speed
@@ -697,9 +698,17 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
             continue
         label = _scene_label(scene, index)
         try:
+            if is_google(voice):
+                # Google bills past its free tier with no way to stop there, so the app stops first.
+                google_tts_quota.check(db, voice, text)
             data = narrate(db, video, text, voice, failed)
         except TtsError as err:
             raise JobFailure(f"{label}: {err.message}", err.detail) from None
+        if is_google(voice):
+            # Committed at once, which also frees the counter's row lock: what Google read is counted even if a
+            # later step fails.
+            google_tts_quota.record(db, voice, text)
+            db.commit()
         key = new_key(video.id, f"voice-{scene.id}", "mp3")
         storage.save_bytes(key, data)
         try:

@@ -168,7 +168,7 @@ class KnowledgeTopic(Base):
     # "Gợi ý tìm ảnh": what the group's photos show (growing plants, not cooked dishes...), added to the script and
     # clone prompts so the AI writes the scenes' search keywords and image prompts for it. Empty: nothing added.
     photo_hint: Mapped[str] = mapped_column(Text, default="", server_default="")
-    # The group's own narration voice (an ElevenLabs id or "vieneu:<id>"): a new video of the group starts with it,
+    # The group's own narration voice (an ElevenLabs id, "vieneu:<id>" or "google:<name>"): a new video of the group starts with it,
     # over its maker's defaults (video_options.apply_defaults). Empty: the maker's defaults decide.
     voice_id: Mapped[str] = mapped_column(String(200), default="", server_default="")
     # The group's backup voice: a narration whose own voice cannot be read (every key of its service wrong or spent) is
@@ -451,7 +451,7 @@ class Scene(Base):
     # blurred for the whole scene (reels_render/blur.py) while the scene still shows that clip.
     video_blur: Mapped[dict | None] = mapped_column(JSONB)
     voice_text: Mapped[str] = mapped_column(Text, default="")
-    # The scene's own narration voice (an ElevenLabs id or vieneu:<name>); None reads with the video's
+    # The scene's own narration voice (an ElevenLabs id, vieneu:<name> or google:<name>); None reads with the video's
     # (video_options.scene_voice), as every scene did before migration 0091.
     voice_id: Mapped[str | None] = mapped_column(String(64))
     # "Hiện dần" of the scene's card ("Thẻ", reels_render.layers.CARD): {"parts": [{"until": the fraction of the card's

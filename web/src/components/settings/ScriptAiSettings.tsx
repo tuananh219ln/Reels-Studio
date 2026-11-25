@@ -231,6 +231,7 @@ function ProviderForm({ provider, onSaved }: { provider: LlmProvider; onSaved: (
 export function aiOwners(settings: LlmSettings | null): Record<string, string> {
   const owners = Object.fromEntries((settings?.providers ?? []).map((provider) => [provider.id, provider.name]));
   owners.vieneu = "VieNeu";
+  owners.google_tts = "Google";
   return owners;
 }
 

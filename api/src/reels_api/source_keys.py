@@ -1,5 +1,5 @@
 """API keys of the stock libraries (Pixabay, Pexels, Unsplash), both AI image providers (Gemini, Cloudflare Workers AI) and
-ElevenLabs and VieNeu (narration), all pasted on Cài đặt › AI và nguồn tư liệu.
+ElevenLabs, VieNeu and Google Cloud Text-to-Speech (narration), all pasted on Cài đặt › AI và nguồn tư liệu.
 
 A key saved there is stored encrypted (crypto) and wins over the server's .env; with none saved, the .env key is
 used, so a server set up before this page keeps working. A saved key is never sent back to the browser.
@@ -29,9 +29,10 @@ ENV_NAMES = {
     "cloudflare": "IMAGE_GEN_CF_API_KEY",
     "elevenlabs": "ELEVENLABS_API_KEY",
     "vieneu": "VIENEU_API_KEY",
+    "google_tts": "GOOGLE_TTS_API_KEY",
 }
 MAX_KEY_LENGTH = 300
-TTS_SERVICES = ("elevenlabs", "gemini", "vieneu")
+TTS_SERVICES = ("elevenlabs", "gemini", "vieneu", "google_tts")
 MAX_LABEL_LENGTH = 40
 MAX_KEYS = 10  # backup keys per service
 MAX_ERROR_LENGTH = 300

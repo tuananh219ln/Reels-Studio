@@ -94,7 +94,9 @@ export default function AiAndSourcesPage() {
     },
     {
       key: "voices",
-      label: <GroupLabel title="Giọng đọc" hint="ElevenLabs, Gemini, VieNeu và key dự phòng của từng dịch vụ" />,
+      label: (
+        <GroupLabel title="Giọng đọc" hint="ElevenLabs, Gemini, VieNeu, Google và key dự phòng của từng dịch vụ" />
+      ),
       children: (
         <VoicePanel
           state={sources}
@@ -104,6 +106,15 @@ export default function AiAndSourcesPage() {
               entityType="settings_ai"
               entityId={2}
               title="Giọng đọc VieNeu"
+              owners={owners}
+            />
+          }
+          googleFooter={
+            <LastEdit
+              entry={aiLatest["3"]}
+              entityType="settings_ai"
+              entityId={3}
+              title="Giọng đọc Google"
               owners={owners}
             />
           }

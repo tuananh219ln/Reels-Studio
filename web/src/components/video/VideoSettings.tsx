@@ -99,7 +99,7 @@ export function forgetVoices() {
   voiceCache = null;
 }
 
-/** The ElevenLabs, VieNeu and Gemini voices, fetched once per page load. */
+/** The ElevenLabs, VieNeu, Gemini and Google voices, fetched once per page load. */
 function useVoices() {
   const [state, setState] = useState<{
     defaultId: string;
@@ -125,6 +125,7 @@ const VOICE_GROUPS: { service: Voice["service"]; label: string }[] = [
   { service: "elevenlabs", label: "ElevenLabs" },
   { service: "vieneu", label: "VieNeu" },
   { service: "gemini", label: "Gemini" },
+  { service: "google", label: "Google" },
 ];
 
 function Field({
@@ -284,7 +285,7 @@ export function AudioSettings({
       <RowFields.Provider value={Boolean(bare)}>
         <Flex vertical gap={bare ? 10 : 14}>
           {bare ? (
-            <Field label="Đọc lời" hint="Đọc lời từng cảnh bằng ElevenLabs, VieNeu hoặc Gemini.">
+            <Field label="Đọc lời" hint="Đọc lời từng cảnh bằng ElevenLabs, VieNeu, Gemini hoặc Google.">
               <Flex gap={8} align="flex-start">
                 <div style={{ paddingTop: 6 }}>{voiceSwitch}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -296,7 +297,7 @@ export function AudioSettings({
             <>
               <Flex gap={8} align="center">
                 {voiceSwitch}
-                <Typography.Text>Đọc lời từng cảnh (ElevenLabs, VieNeu hoặc Gemini)</Typography.Text>
+                <Typography.Text>Đọc lời từng cảnh (ElevenLabs, VieNeu, Gemini hoặc Google)</Typography.Text>
               </Flex>
               <Field label="Giọng">
                 <VoicePicker values={values} onChange={onChange} disabled={disabled || off} />

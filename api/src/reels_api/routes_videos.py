@@ -687,7 +687,7 @@ def render(video_id: int, me: Session = Depends(current_member), db: DbSession =
 
 @router.post("/videos/{video_id}/voices")
 def make_narration(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """ "Tạo giọng thật" in the preview: the video's voice (ElevenLabs, VieNeu or Gemini) reads the scenes whose narration is
+    """ "Tạo giọng thật" in the preview: the video's voice (ElevenLabs, VieNeu, Gemini or Google) reads the scenes whose narration is
     missing or out of date.
     It costs credit once per text; the render reuses those MP3s, so a render after it pays nothing more."""
     video = lock_video(db, video_id)

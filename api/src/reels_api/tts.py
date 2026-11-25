@@ -1,9 +1,10 @@
-"""Scene narration with ElevenLabs (the "Adam" voice by default), VieNeu or Gemini, called only from the voice and
-render jobs.
+"""Scene narration with ElevenLabs (the "Adam" voice by default), VieNeu, Gemini or Google Cloud Text-to-Speech, called
+only from the voice and render jobs.
 
 A video's voice id says which service reads it: "vieneu:<VieNeu voice id>" is a VieNeu voice (its OpenAI-compatible
 /v1/audio/speech), "gemini:<voice>" a Gemini TTS one (the Google AI Studio key that makes AI photos, its
-/v1beta/interactions), any other id an ElevenLabs one. Each scene's MP3 is stored with the signature of what it was made
+/v1beta/interactions), "google:<Google voice name>" a Google Cloud one (its own key, its /v1/text:synthesize), any
+other id an ElevenLabs one. Each scene's MP3 is stored with the signature of what it was made
 from, so a re-render pays only for narration whose text, voice or model changed.
 """
 
@@ -69,6 +70,11 @@ GEMINI_VOICES = {
     "Zubenelgenubi": "Tự nhiên",
 }
 
+GOOGLE_PREFIX = "google:"
+GOOGLE_MODEL = "google-tts-v1"  # names the service in a narration's signature; Google picks the model by voice
+GOOGLE_LANGUAGE = "vi-VN"  # the voices offered; a voice's own language comes from its name ("vi-VN-Neural2-A")
+GOOGLE_MAX_INPUT_BYTES = 5000  # Google refuses a longer text in one request
+
 
 class TtsError(Exception):
     """`message` is shown to members, `detail` is diagnostic. `key_fault`: the key itself cannot read (wrong or revoked,
@@ -82,7 +88,7 @@ class TtsError(Exception):
         self.key_fault = key_fault
 
 
-SERVICE_NAMES = {"elevenlabs": "ElevenLabs", "gemini": "Gemini", "vieneu": "VieNeu"}
+SERVICE_NAMES = {"elevenlabs": "ElevenLabs", "gemini": "Gemini", "vieneu": "VieNeu", "google_tts": "Google"}
 
 
 def all_keys_failed(service: str, count: int) -> str:
@@ -111,23 +117,29 @@ def is_gemini(voice_id: str | None) -> bool:
     return bool(voice_id) and voice_id.startswith(GEMINI_PREFIX)
 
 
+def is_google(voice_id: str | None) -> bool:
+    return bool(voice_id) and voice_id.startswith(GOOGLE_PREFIX)
+
+
 def key_name(voice_id: str | None) -> str:
     """The source_keys name of the key that reads this voice (the server's default voice is an ElevenLabs one)."""
     if is_vieneu(voice_id):
         return "vieneu"
-    return "gemini" if is_gemini(voice_id) else "elevenlabs"
+    if is_gemini(voice_id):
+        return "gemini"
+    return "google_tts" if is_google(voice_id) else "elevenlabs"
 
 
 def service_name(voice_id: str | None) -> str:
-    if is_vieneu(voice_id):
-        return "VieNeu"
-    return "Gemini" if is_gemini(voice_id) else "ElevenLabs"
+    return SERVICE_NAMES[key_name(voice_id)]
 
 
 def _model(voice: str) -> str:
     if is_vieneu(voice):
         return VIENEU_MODEL
-    return GEMINI_MODEL if is_gemini(voice) else config.voice_model()
+    if is_gemini(voice):
+        return GEMINI_MODEL
+    return GOOGLE_MODEL if is_google(voice) else config.voice_model()
 
 
 def voice_signature(voice_text: str, voice_id: str | None = None, speed: float = 1.0) -> str:
@@ -144,6 +156,7 @@ def voice_signature(voice_text: str, voice_id: str | None = None, speed: float =
 NO_KEY = "Chưa có key ElevenLabs nên {}: nhập key ở Cài đặt › AI và nguồn tư liệu"
 NO_VIENEU_KEY = "Chưa có key VieNeu nên {}: nhập key ở Cài đặt › AI và nguồn tư liệu"
 NO_GEMINI_KEY = "Chưa có key Gemini nên {}: nhập key ở Cài đặt › AI và nguồn tư liệu (cùng key tạo ảnh AI)"
+NO_GOOGLE_KEY = "Chưa có key Google Cloud Text-to-Speech nên {}: nhập key ở Cài đặt › AI và nguồn tư liệu"
 
 
 def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: float = 1.0) -> bytes:
@@ -155,6 +168,8 @@ def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: fl
         return change_speed(_vieneu_speech(voice_text, key, voice.removeprefix(VIENEU_PREFIX)), speed)
     if is_gemini(voice):
         return change_speed(_gemini_speech(voice_text, key, voice.removeprefix(GEMINI_PREFIX)), speed)
+    if is_google(voice):
+        return change_speed(_google_speech(voice_text, key, voice.removeprefix(GOOGLE_PREFIX)), speed)
     if not key:
         raise TtsError(NO_KEY.format("không tạo được lời đọc"))
     url = f"{config.elevenlabs_api_url()}/v1/text-to-speech/{voice}?output_format=mp3_44100_128"
@@ -347,6 +362,73 @@ def _wav_to_mp3(data: bytes) -> bytes:
         return output.read_bytes()
 
 
+def _google_headers(key: str) -> dict:
+    # The key goes in a header rather than the URL's ?key=, so it never lands in a proxy's or the error's log.
+    return {"X-Goog-Api-Key": key, "Content-Type": "application/json", "Accept": "application/json"}
+
+
+def _google_speech(voice_text: str, key: str, voice: str) -> bytes:
+    """Google Cloud Text-to-Speech's MP3 for the text: the answer is JSON holding the audio as base64. The reading
+    speed is left at Google's 1.0 and applied by change_speed, as for the other services."""
+    if not key:
+        raise TtsError(NO_GOOGLE_KEY.format("không tạo được lời đọc"))
+    text = spoken_text(voice_text)
+    if len(text.encode()) > GOOGLE_MAX_INPUT_BYTES:
+        raise TtsError("Lời đọc của cảnh quá dài cho Google (tối đa khoảng 5000 byte), hãy chia nhỏ cảnh")
+    payload = {
+        "input": {"text": text},
+        "voice": {"languageCode": "-".join(voice.split("-")[:2]) or GOOGLE_LANGUAGE, "name": voice},
+        "audioConfig": {"audioEncoding": "MP3"},
+    }
+    request = urllib.request.Request(
+        f"{config.google_tts_api_url()}/v1/text:synthesize",
+        data=json.dumps(payload, ensure_ascii=False).encode(),
+        method="POST",
+        headers=_google_headers(key),
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+            # base64 is 4/3 of the audio, plus a little JSON around it.
+            answer = json.loads(response.read(MAX_AUDIO_BYTES * 2))
+        data = base64.b64decode(answer["audioContent"], validate=True)
+    except urllib.error.HTTPError as err:
+        raise _google_error(err.code, err.read(4000).decode("utf-8", "replace")) from None
+    except OSError as err:
+        raise TtsError("Không kết nối được Google Cloud, kiểm tra mạng rồi thử lại", str(err)) from None
+    except (ValueError, KeyError, TypeError, binascii.Error) as err:
+        raise TtsError("Google trả file lời đọc không dùng được, thử lại sau", repr(err)) from None
+    if not data or len(data) > MAX_AUDIO_BYTES:
+        raise TtsError("Google trả file lời đọc không dùng được, thử lại sau", f"{len(data)} bytes")
+    return data
+
+
+def _google_error(status: int, body: str) -> TtsError:
+    """Google answers {"error": {"code", "message", "status", "details": [{"reason": ...}]}}; the reason says most.
+    A wrong key, a project without billing or the API, or a blocked key is the key's fault (the next key may read); a
+    per-minute 429 is not."""
+    detail = f"HTTP {status}: {body}"
+    lowered = body.lower()
+    if "api_key_invalid" in lowered or "api key not valid" in lowered or status == 401:
+        return TtsError(
+            "Key Google Cloud không hợp lệ hoặc đã bị thu hồi: kiểm tra lại ở Cài đặt › AI và nguồn tư liệu",
+            detail,
+            True,
+        )
+    if "billing" in lowered:
+        return TtsError("Dự án Google Cloud của key chưa bật thanh toán (billing), cần bật để đọc lời", detail, True)
+    if "service_disabled" in lowered or "has not been used" in lowered or "is disabled" in lowered:
+        return TtsError("Dự án Google Cloud của key chưa bật Cloud Text-to-Speech API", detail, True)
+    if "api_key_service_blocked" in lowered or status == 403:
+        return TtsError("Key Google Cloud không được phép gọi Text-to-Speech: kiểm tra giới hạn của key", detail, True)
+    if status == 429:
+        return TtsError("Google Cloud đang giới hạn lượt gọi, thử lại sau", detail)
+    if status == 400 and "voice" in lowered:
+        return TtsError("Google không có giọng đã chọn, hãy chọn giọng khác", detail)
+    if status >= 500:
+        return TtsError(f"Google Cloud đang lỗi (HTTP {status}), thử lại sau", detail)
+    return TtsError("Google Cloud từ chối tạo lời đọc", detail)
+
+
 def change_speed(data: bytes, speed: float) -> bytes:
     """The MP3 sped up or slowed down by the factor, keeping the pitch (FFmpeg atempo); unchanged at 1."""
     if speed == 1.0:
@@ -516,3 +598,52 @@ def list_gemini_voices(key: str) -> list[dict]:
         }
         for name, description in sorted(GEMINI_VOICES.items())
     ]
+
+
+GOOGLE_GENDERS = {"FEMALE": "Nữ", "MALE": "Nam", "NEUTRAL": "Trung tính"}
+
+
+def list_google_voices(key: str) -> list[dict]:
+    """Google Cloud's Vietnamese voices for the voice picker, each id prefixed with "google:". Listing is free;
+    the answer is kept for 10 minutes per key like the other services'."""
+    if not key:
+        raise TtsError(NO_GOOGLE_KEY.format("chưa chọn được giọng Google"))
+    url = f"{config.google_tts_api_url()}/v1/voices?languageCode={GOOGLE_LANGUAGE}"
+    cache_key = (url, hashlib.sha256(key.encode()).hexdigest())
+    cached = _voices_cache.get(cache_key)
+    if cached and time.monotonic() - cached[0] < VOICES_CACHE_SECONDS:
+        return cached[1]
+    request = urllib.request.Request(url, headers=_google_headers(key))
+    try:
+        with urllib.request.urlopen(request, timeout=VOICES_TIMEOUT) as response:
+            data = json.loads(response.read(2_000_000))
+    except urllib.error.HTTPError as err:
+        raise _google_error(err.code, err.read(4000).decode("utf-8", "replace")) from None
+    except (OSError, ValueError) as err:
+        raise TtsError("Không lấy được danh sách giọng Google, thử lại sau", str(err)) from None
+    voices = []
+    for item in data.get("voices", []) if isinstance(data, dict) else []:
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str) or not item["name"].strip():
+            continue
+        name = item["name"]
+        voice_id = GOOGLE_PREFIX + name
+        if GOOGLE_LANGUAGE not in (item.get("languageCodes") or []) or len(voice_id) > MAX_VOICE_ID_LENGTH:
+            continue
+        if any(char.isspace() for char in name):
+            continue
+        # "vi-VN-Chirp3-HD-Achernar": the kind is what sits between the language and the voice's own name.
+        short = name.removeprefix(f"{GOOGLE_LANGUAGE}-")
+        kind = short.rsplit("-", 1)[0] if "-" in short else ""
+        gender = GOOGLE_GENDERS.get(str(item.get("ssmlGender") or ""), "")
+        voices.append(
+            {
+                "id": voice_id,
+                "name": short,
+                "description": " · ".join(part for part in (gender, kind) if part),
+                "preview_url": None,
+                "service": "google",
+            }
+        )
+    voices.sort(key=lambda voice: voice["name"].lower())
+    _voices_cache[cache_key] = (time.monotonic(), voices)
+    return voices

@@ -11,6 +11,7 @@ from . import (
     auto_photos,
     config,
     crypto,
+    google_tts_quota,
     image_providers,
     image_style,
     llm,
@@ -258,7 +259,7 @@ def delete_my_video_defaults(me: Session = Depends(current_member), db: DbSessio
 
 @router.get("/voices")
 def get_voices(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """The voices to choose from: ElevenLabs', VieNeu's and Gemini's, each listed once its key is set (Gemini's is the
+    """The voices to choose from: ElevenLabs', VieNeu's, Gemini's and Google Cloud's, each listed once its key is set (Gemini's is the
     one that makes AI photos), and the server's default one. A service that cannot list its voices is named in
     `problems` while the others' voices still come; with no voice at all, the reason is the error. A service with more
     than one key (the team's backups) lists with the first of them that answers."""
@@ -266,14 +267,15 @@ def get_voices(me: Session = Depends(current_member), db: DbSession = Depends(ge
         ("elevenlabs", tts.list_voices),
         ("vieneu", tts.list_vieneu_voices),
         ("gemini", tts.list_gemini_voices),
+        ("google_tts", tts.list_google_voices),
     )
     keys = {name: source_keys.chain(db, name) for name, _ in listings}
     if not any(keys.values()):
         raise ApiError(
             422,
             "voices_unavailable",
-            "Chưa có key ElevenLabs, Gemini hay VieNeu nên chưa chọn được giọng đọc: nhập key ElevenLabs, Gemini "
-            "hay VieNeu ở Cài đặt › AI và nguồn tư liệu",
+            "Chưa có key ElevenLabs, Gemini, VieNeu hay Google nên chưa chọn được giọng đọc: nhập key ElevenLabs, "
+            "Gemini, VieNeu hay Google ở Cài đặt › AI và nguồn tư liệu",
         )
     voices: list[dict] = []
     problems: list[str] = []
@@ -315,6 +317,7 @@ SOURCE_SIGNUP = {
     "cloudflare": "https://dash.cloudflare.com/profile/api-tokens",
     "elevenlabs": "https://elevenlabs.io/app/settings/api-keys",
     "vieneu": "https://www.vieneu.io/#/developer",
+    "google_tts": "https://console.cloud.google.com/apis/credentials",
 }
 
 
@@ -366,6 +369,13 @@ def _sources(db: DbSession) -> dict:
         "voices": {"configured": bool(source_keys.chain(db, "elevenlabs")), "key": _key(db, "elevenlabs")},
         # Narration (VieNeu), its key pasted on Cài đặt › AI và nguồn tư liệu: voices whose id starts with "vieneu:".
         "vieneu": {"configured": bool(source_keys.chain(db, "vieneu")), "key": _key(db, "vieneu")},
+        # Narration (Google Cloud Text-to-Speech), its key pasted on Cài đặt › AI và nguồn tư liệu: voices "google:<name>".
+        # With this month's characters by voice kind and "Chỉ dùng mức miễn phí" (google_tts_quota.py).
+        "google_tts": {
+            "configured": bool(source_keys.chain(db, "google_tts")),
+            "key": _key(db, "google_tts"),
+            **google_tts_quota.payload(db),
+        },
     }
 
 
@@ -451,6 +461,19 @@ def set_source(
         db.add(AppSetting(key=routes_videos.STOCK_OFF_KEY, value=sorted(off), updated_by_id=me.user_id))
     else:
         setting.value, setting.updated_by_id = sorted(off), me.user_id
+    settings_log.record(db, before, me.user_id)
+    db.commit()
+    return _sources(db)
+
+
+@router.put("/google-tts-free-only")
+def set_google_tts_free_only(
+    body: SourceBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Chỉ dùng mức miễn phí" on the "Giọng đọc Google" card: on, narration stops before a voice kind passes its
+    free characters for the month."""
+    before = settings_log.snapshot(db)
+    google_tts_quota.set_free_only(db, body.enabled, me.user_id)
     settings_log.record(db, before, me.user_id)
     db.commit()
     return _sources(db)
