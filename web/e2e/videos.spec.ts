@@ -456,6 +456,14 @@ test("knowledge topics: a group's Video tab lists its videos and makes a new one
   await page.getByRole("checkbox", { name: "ID", exact: true }).check();
   await page.getByRole("button", { name: "Áp dụng" }).click();
   await expect(videos.getByRole("columnheader", { name: "ID", exact: true })).toBeVisible();
+  // "Cột" offers more than the first four: Nhóm chủ đề and Loại nội dung say the row's own group and type.
+  await videos.getByRole("button", { name: "Cột" }).click();
+  await page.getByRole("checkbox", { name: "Nhóm chủ đề", exact: true }).check();
+  await page.getByRole("checkbox", { name: "Loại nội dung", exact: true }).check();
+  await page.getByRole("button", { name: "Áp dụng" }).click();
+  await expect(videos.getByRole("columnheader", { name: "Nhóm chủ đề", exact: true })).toBeVisible();
+  await expect(videos.getByRole("row").nth(1).getByRole("cell", { name: "Sức khỏe", exact: true })).toBeVisible();
+  await expect(videos.getByRole("row").nth(1).getByRole("cell", { name: "Hướng dẫn trồng", exact: true })).toBeVisible();
   // "Thẻ" keeps the search, and is remembered in this browser.
   await videos.getByLabel("Kiểu hiển thị").getByText("Thẻ", { exact: true }).click();
   await expect(videos.getByTestId("video-card")).toHaveCount(1);

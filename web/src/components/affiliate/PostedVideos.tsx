@@ -485,8 +485,9 @@ export default function PostedVideos() {
     {
       title: "Video",
       key: "video",
+      width: 400,
       render: (_, video) => (
-        <Flex gap={12} align="flex-start">
+        <Flex gap={12} align="flex-start" style={{ maxWidth: 400 }}>
           <VideoThumbnail name={video.title} url={video.thumbnail_url} width={40} />
           <Flex vertical gap={4} style={{ minWidth: 0 }}>
             {title(video)}
