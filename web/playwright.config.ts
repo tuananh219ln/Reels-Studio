@@ -87,6 +87,9 @@ export default defineConfig({
       cwd: API_DIR,
       env: BACKEND_ENV,
       wait: { stdout: /Worker lock acquired|Table jobs does not exist yet/ },
+      // The worker's log (job started/done, each round's work) goes into the run's output: a job that waits too long
+      // on CI shows what the worker was doing meanwhile.
+      stdout: "pipe",
       reuseExistingServer: false,
       timeout: 60_000,
     },
