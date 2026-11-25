@@ -58,6 +58,52 @@ test("Bài viết: create a draft, let the AI write the caption, make a text car
   await expect(page.getByRole("cell", { name: "Kiến thức ngắn" })).toBeVisible();
 });
 
+test("Bài viết: make a composite photo (text band over the photo), open it again and change it", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Bài viết" }).click();
+  await page.getByRole("button", { name: "Tạo bài viết" }).click();
+  const drawer = page.getByRole("dialog", { name: "Tạo bài viết" });
+  await drawer.getByLabel("Chủ đề của bài").fill("cải bó xôi");
+  await drawer.getByRole("button", { name: "Tạo bài" }).click();
+  await expect(page).toHaveURL(/\/articles\/\d+$/);
+  const caption = page.getByLabel("Caption");
+  await caption.fill("Hay mệt mỏi, hoa mắt?\n\nThêm cải bó xôi vào bữa ăn mỗi ngày.");
+  await caption.blur();
+
+  const photos = page.getByTestId("article-images");
+  // Without a photo there is nothing to put the text over.
+  await expect(photos.getByRole("button", { name: "Ảnh ghép chữ + ảnh" })).toBeDisabled();
+  // A text card stands in for the dish photo: the composite takes it as its source.
+  await photos.getByRole("button", { name: "Thẻ chữ" }).click();
+  await page.getByRole("menuitem", { name: "Thẻ chữ Xanh lá" }).click();
+  await expect(photos.getByText("Ảnh bài viết (1/10)")).toBeVisible();
+
+  await photos.getByRole("button", { name: "Ảnh ghép chữ + ảnh" }).click();
+  const maker = page.getByRole("dialog", { name: "Ảnh ghép chữ + ảnh" });
+  // Empty lines: the api splits the caption's first line, and the preview is drawn by it.
+  await expect(maker.getByRole("img", { name: "Xem trước ảnh ghép" })).toBeVisible();
+  await maker.getByLabel("Dòng tiêu đề 1").fill("Hay mệt mỏi, hoa mắt?");
+  await maker.getByLabel("Dòng tiêu đề 2").fill("Thêm cải bó xôi");
+  await maker.getByLabel("Nhãn series").fill("ngày 5 · thực phẩm");
+  await expect(maker.getByText(/Nền mờ · chữ \d+px/)).toBeVisible(); // a portrait photo is kept whole on a blur
+  await maker.getByRole("button", { name: "Tạo ảnh ghép" }).click();
+
+  // The text card and its photo went; the composite is the only photo, with its own label.
+  await expect(photos.getByText("Ảnh bài viết (1/10)")).toBeVisible();
+  await expect(photos.getByText("Ảnh ghép", { exact: true })).toBeVisible();
+  await photos.getByRole("button", { name: "Sửa ảnh ghép" }).click();
+  const editor = page.getByRole("dialog", { name: "Sửa ảnh ghép" });
+  await expect(editor.getByLabel("Dòng tiêu đề 2")).toHaveValue("Thêm cải bó xôi");
+  await expect(editor.getByLabel("Nhãn series")).toHaveValue("NGÀY 5 · THỰC PHẨM");
+  await editor.getByLabel("Dòng tiêu đề 3").fill("vào bữa ăn mỗi ngày");
+  await editor.getByRole("button", { name: "Lưu ảnh ghép" }).click();
+  await expect(editor).toBeHidden();
+  await photos.getByRole("button", { name: "Sửa ảnh ghép" }).click();
+  await expect(page.getByRole("dialog", { name: "Sửa ảnh ghép" }).getByLabel("Dòng tiêu đề 3")).toHaveValue(
+    "vào bữa ăn mỗi ngày",
+  );
+});
+
 test("Bài viết: post a text article to a Page, read its numbers, take it down, and make a reel from it", async ({
   page,
 }) => {
