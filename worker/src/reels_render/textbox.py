@@ -377,6 +377,37 @@ def place_box(
     return x, y
 
 
+# "Nền tối mờ sau chữ": a black band behind a content scene's text, darkest (45%) at the text and fading out over
+# SHADE_FADE px above and below it, across the whole frame's width, so the text reads on a busy photo without a box.
+SHADE_ALPHA = 115  # 45% of 255
+SHADE_FADE = 260
+
+
+def shade_alpha(row: int, top: int, bottom: int) -> int:
+    """The band's alpha at frame row `row` for a text spanning `top` to `bottom`: full over the text, easing to 0."""
+    distance = max(top - row, row - bottom, 0)
+    if distance >= SHADE_FADE:
+        return 0
+    ease = 1 - distance / SHADE_FADE
+    return round(SHADE_ALPHA * ease * ease * (3 - 2 * ease))
+
+
+def shade_band(top: int, bottom: int) -> tuple[Image.Image, int]:
+    """The band behind a text spanning frame rows `top` to `bottom`: a full-width RGBA image and the row it starts at."""
+    first, last = max(0, top - SHADE_FADE), min(FRAME_HEIGHT, bottom + SHADE_FADE)
+    column = Image.new("RGBA", (1, last - first))
+    column.putdata([(0, 0, 0, shade_alpha(row, top, bottom)) for row in range(first, last)])
+    return column.resize((FRAME_WIDTH, last - first), Image.Resampling.NEAREST), first
+
+
+def with_shade(box: Image.Image, x: int, y: int) -> tuple[Image.Image, tuple[int, int]]:
+    """The text box laid over its band, as one image, and the corner it goes at (what render_video overlays)."""
+    band, first = shade_band(y, y + box.height)
+    layer = Image.new("RGBA", band.size, (0, 0, 0, 0))
+    layer.paste(box, (x, y - first))
+    return Image.alpha_composite(band, layer), (0, first)
+
+
 def caption_y(above: int, box_bottom: int, height: int) -> int:
     """Captions sit with their bottom at `above` (just over the text box), or just under the box when a box moved
     up would push them past the top of the safe zone."""

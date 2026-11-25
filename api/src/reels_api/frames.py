@@ -20,6 +20,7 @@ from reels_render.textbox import (
     layout_sized,
     place_box,
     render_box,
+    shade_band,
 )
 
 from .script_rules import text_problem
@@ -148,6 +149,9 @@ def compose_frame(
     case = options.title_text_case if is_title else options.text_case
     if show_text and text.strip() and text_problem(text, is_title, size, case) is None:
         box, position = text_box(text, is_title, options, centre, min_top)
+        if options.text_shade and not is_title:
+            band, first = shade_band(position[1], position[1] + box.height)
+            frame.paste(band, (0, first), band)
         frame.paste(box, position, box)
     return _yuv420(frame)
 

@@ -988,6 +988,8 @@ export type VideoOptions = {
   voice_speed: number;
   voice_volume: number;
   ducking: boolean;
+  /** "Nền tối mờ sau chữ": a black band, 45% at its darkest, behind the content scenes' text (api video_options). */
+  text_shade: boolean;
   /** The video's transition between scenes, a key of the scene transitions (preview/effects.ts). */
   transition: "fade" | "cut" | "slide" | "zoom" | "flash" | "black" | "blur" | "smooth_slide";
   motion: "zoom_in" | "zoom_out" | "pan" | "static" | "kenburns_diagonal" | "pan_vertical" | "handheld" | "punch_in";

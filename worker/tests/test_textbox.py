@@ -5,14 +5,20 @@ from reels_render.textbox import (
     FRAME_HEIGHT,
     FRAME_WIDTH,
     MAX_BOX_WIDTH,
+    PALETTES,
     SCENE_BOX_BOTTOM,
     SCENE_STYLE,
+    SHADE_ALPHA,
+    SHADE_FADE,
     TITLE_STYLE,
     TextFitError,
     layout_text,
     render_box,
     scene_box_position,
+    shade_alpha,
+    shade_band,
     title_box_position,
+    with_shade,
 )
 
 YELLOW = (0xFF, 0xD6, 0x0A)
@@ -166,3 +172,34 @@ def test_captions_go_under_a_box_moved_to_the_top():
     assert caption_y(1200, 1400, 100) == 1100
     # Above a box near the top the captions would run under the top bar: they go below the box instead.
     assert caption_y(SAFE_ZONE[1] + 50, 600, 100) == 600 + CAPTION_GAP
+
+
+def test_the_shade_is_45_percent_at_the_text_and_fades_out_either_side():
+    assert SHADE_ALPHA == round(0.45 * 255)
+    assert shade_alpha(600, 500, 900) == SHADE_ALPHA  # over the text
+    assert shade_alpha(500, 500, 900) == shade_alpha(900, 500, 900) == SHADE_ALPHA  # at its edges
+    above = [shade_alpha(500 - step, 500, 900) for step in range(0, SHADE_FADE + 1, 20)]
+    assert above == sorted(above, reverse=True) and above[0] == SHADE_ALPHA and above[-1] == 0
+    assert shade_alpha(500 - SHADE_FADE, 500, 900) == shade_alpha(900 + SHADE_FADE, 500, 900) == 0
+
+
+def test_the_shade_band_spans_the_frame_width_and_is_cut_at_the_frame_edges():
+    band, first = shade_band(100, 400)
+    assert first == 0 and band.size == (FRAME_WIDTH, 400 + SHADE_FADE)
+    assert band.getpixel((0, 250))[3] == band.getpixel((FRAME_WIDTH - 1, 250))[3] == SHADE_ALPHA
+    assert band.getpixel((5, 5))[:3] == (0, 0, 0)
+    band, first = shade_band(1500, 1900)
+    assert first == 1500 - SHADE_FADE and first + band.height == FRAME_HEIGHT
+
+
+def test_a_box_over_its_shade_is_one_picture_that_keeps_the_box_where_it_was():
+    box = render_box(layout_text(parse_scene_text("Một hai ba"), SCENE_STYLE), PALETTES["yellow"])
+    x, y = scene_box_position(box.width, box.height)
+    shaded, (left, top) = with_shade(box, x, y)
+    assert left == 0 and shaded.width == FRAME_WIDTH and top == max(0, y - SHADE_FADE)
+    # The box's own pixels are where they were, the band's alpha is round it, and the corner is plain shade.
+    inside = (x + box.width // 2, y + box.height // 2)
+    assert (
+        shaded.getpixel((inside[0] - left, inside[1] - top))[:3] == box.getpixel((box.width // 2, box.height // 2))[:3]
+    )
+    assert shaded.getpixel((2, y - top))[3] == SHADE_ALPHA
