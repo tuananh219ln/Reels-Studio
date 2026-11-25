@@ -672,6 +672,11 @@ export type KnowledgeTopic = {
   no_people: boolean;
   /** "Cảnh kết Theo dõi & Chia sẻ": the group's new videos end on the shared follow-and-share scene. */
   outro_cta: boolean;
+  /** "Câu lưu ý y khoa": a health group's fixed reminder, written at the end of the last pinned comment (api
+   *  disclaimer.py); `position` "caption" keeps the old way (the AI's own line in the caption). */
+  medical_disclaimer_enabled: boolean;
+  medical_disclaimer_text: string;
+  medical_disclaimer_position: "last_comment" | "caption";
   /** The AI's last suggested looks ("AI gợi ý"), kept for a member to pick one; null before the first. */
   text_suggestions: TextSuggestions | null;
   /** The "AI gợi ý" job while queued or running, or the last one if it failed; null otherwise. */
@@ -1311,6 +1316,10 @@ export type Article = {
   products: { id: number; name: string; usable: boolean }[];
   /** What "Đăng" sends: the caption, the line pointing at the comment when products are attached, the hashtags. */
   post_text: string;
+  /** The comments as the worker will write them, the group's reminder at the end of the last. */
+  post_comments: string[];
+  /** The group's reminder when it goes to the last comment (null: it does not). */
+  disclaimer: { text: string; group_id: number } | null;
   job: ArticleJob | null;
   /** The last "Tạo ảnh AI" of the article. */
   image_job: ArticleJob | null;
@@ -1536,6 +1545,8 @@ export type PlanImportRow = {
   topic_group: string;
   pinned_comments: PinnedComment[];
   pin_index: number;
+  /** The group's medical reminder was taken out of the body (it is written under the post). */
+  disclaimer_removed: boolean;
   /** What saving does: add it, or skip it because its slot already has an article. */
   action: "add" | "skip_posted" | "skip_used" | "skip";
   errors: string[];

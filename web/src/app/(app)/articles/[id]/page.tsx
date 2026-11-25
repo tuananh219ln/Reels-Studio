@@ -23,6 +23,7 @@ import {
 import { usePolling } from "@/lib/polling";
 import ArticleImages from "@/components/article/ArticleImages";
 import PinnedCommentsCard from "@/components/article/PinnedCommentsCard";
+import { stripMedicalDisclaimer } from "@/lib/medicalDisclaimer";
 import { ArrowLeftOutlined, RobotOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Card, Col, Flex, Input, Result, Row, Select, Spin, Typography } from "antd";
 import Link from "next/link";
@@ -42,8 +43,11 @@ function FeedPreview({
   caption: string;
   productLine: string | null;
 }) {
-  const pointer = productLine && !caption.toLowerCase().includes(productLine.replace(/\.$/, "").toLowerCase());
-  const text = [caption.trim(), pointer ? productLine : "", article.hashtags.join(" ")].filter(Boolean).join("\n\n");
+  // A group whose reminder goes to the last comment posts the caption without it (api disclaimer.py).
+  const shownCaption = article.disclaimer ? stripMedicalDisclaimer(caption) : caption.trim();
+  const pointer = productLine && !shownCaption.toLowerCase().includes(productLine.replace(/\.$/, "").toLowerCase());
+  const text = [shownCaption, pointer ? productLine : "", article.hashtags.join(" ")].filter(Boolean).join("\n\n");
+  const lastComment = article.disclaimer ? article.post_comments[article.post_comments.length - 1] : undefined;
   return (
     <Card size="small" title="Xem trước trên Facebook" data-testid="article-preview">
       <Flex vertical gap={10}>
@@ -125,8 +129,23 @@ function FeedPreview({
             </Typography.Paragraph>
           </div>
         )}
+        {lastComment && (
+          <div
+            style={{ background: "var(--ant-color-fill-quaternary)", borderRadius: 8, padding: "8px 10px" }}
+            data-testid="article-preview-last-comment"
+          >
+            <Typography.Text strong style={{ fontSize: 12 }}>
+              Bình luận cuối (có câu lưu ý y khoa)
+            </Typography.Text>
+            <Typography.Paragraph style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 13 }}>
+              {lastComment}
+            </Typography.Paragraph>
+          </div>
+        )}
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Link sản phẩm (nếu có) nằm ở bình luận ghim, không nằm trong bài.
+          {article.disclaimer
+            ? "Link sản phẩm (nếu có) và câu lưu ý y khoa nằm ở bình luận, không nằm trong bài."
+            : "Link sản phẩm (nếu có) nằm ở bình luận ghim, không nằm trong bài."}
         </Typography.Text>
       </Flex>
     </Card>
@@ -406,7 +425,11 @@ export default function ArticlePage() {
                   maxLength={5000}
                   autoSize={{ minRows: 8, maxRows: 24 }}
                   disabled={writing}
-                  placeholder="Dòng đầu là câu mở bài (và là chữ trên Thẻ chữ). Bài sức khỏe nên có một câu nhắc nhẹ, như người quen dặn nhau, và kết bằng 1 câu hỏi."
+                  placeholder={
+                    article.disclaimer
+                      ? "Dòng đầu là câu mở bài (và là chữ trên Thẻ chữ). Kết bằng 1 câu hỏi. Câu lưu ý y khoa app tự thêm vào bình luận cuối."
+                      : "Dòng đầu là câu mở bài (và là chữ trên Thẻ chữ). Bài sức khỏe nên có một câu nhắc nhẹ, như người quen dặn nhau, và kết bằng 1 câu hỏi."
+                  }
                   onChange={(event) => {
                     typing.current.caption = true;
                     setCaption(event.target.value);

@@ -2343,7 +2343,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         """What the assistant needs after an edit: the content, the photos' ids, the checks and the posts."""
         keep = (
             "id", "knowledge_topic_id", "group_name", "kind", "topic", "caption", "hashtags", "pinned_comment",
-            "image_aspect", "status", "status_label", "publish_error", "retry", "post_text", "checks", "busy",
+            "image_aspect", "status", "status_label", "publish_error", "retry", "post_text", "post_comments", "checks", "busy",
         )  # fmt: skip
         return article_link(
             {key: payload[key] for key in keep if key in payload}

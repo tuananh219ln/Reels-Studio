@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import affiliate, analytics, articles, facebook, post_comments, slot_comments
+from . import affiliate, analytics, articles, disclaimer, facebook, post_comments, slot_comments
 from . import hashtags as hashtag_rules
 from .models import (
     AffiliateProduct,
@@ -73,8 +73,9 @@ def products_of(db: DbSession, article_id: int) -> list[AffiliateProduct]:
 
 def post_text(db: DbSession, article: Article) -> str:
     """What is posted: the caption, the line pointing at the comment when products are attached (never a link), and
-    the hashtags at the end."""
-    caption = article.caption.strip()
+    the hashtags at the end. A group whose reminder goes to the last comment has it taken out of the caption
+    (disclaimer.py)."""
+    caption = disclaimer.clean_caption(articles.group_of(db, article), article.caption)
     if products_of(db, article.id) and PRODUCT_LINE.rstrip(".").lower() not in caption.lower():
         caption = f"{caption}\n\n{PRODUCT_LINE}"
     return hashtag_rules.post_text(caption, article.hashtags)
@@ -219,6 +220,14 @@ def post_payload(db: DbSession, post: Publication, by_page: dict | None = None) 
     }
 
 
+def disclaimer_payload(db: DbSession, article: Article) -> dict | None:
+    """The group's reminder when it goes to the last comment (the sentence and the group to change it in), else null."""
+    group = articles.group_of(db, article)
+    if not disclaimer.active(group):
+        return None
+    return {"text": disclaimer.text_of(group), "group_id": group.id}
+
+
 def post_url(post: Publication) -> str | None:
     return facebook.post_url(post.remote_id) if post.remote_id and post.status in LIVE_POST_STATUSES else None
 
@@ -250,6 +259,9 @@ def payload(db: DbSession, article: Article, by_page: dict | None = None) -> dic
                 {"id": product.id, "name": product.name, "usable": affiliate.usable(product)} for product in products
             ],
             "post_text": post_text(db, article),
+            # The comments as the worker will write them, the reminder at the end of the last (disclaimer.py).
+            "post_comments": slot_comments.planned_texts(db, article),
+            "disclaimer": disclaimer_payload(db, article),
             "busy": data["busy"] or articles.active_job(db, article.id) is not None,
         }
     )

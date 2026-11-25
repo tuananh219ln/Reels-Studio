@@ -32,6 +32,7 @@ from . import (
     autoedit,
     brands,
     clips,
+    disclaimer,
     edit_log,
     facebook,
     frames,
@@ -2528,6 +2529,9 @@ class TopicPatchBody(BaseModel):
     text_ai: bool | None = None  # "AI chọn kiểu chữ cho từng video"
     no_people: bool | None = None  # "Không dùng cảnh có người"
     outro_cta: bool | None = None  # "Cảnh kết Theo dõi & Chia sẻ" (outro.py)
+    medical_disclaimer_enabled: bool | None = None  # "Câu lưu ý y khoa" (disclaimer.py)
+    medical_disclaimer_text: str | None = None  # empty brings back the default sentence
+    medical_disclaimer_position: Literal["last_comment", "caption"] | None = None
     media_folder: str | None = None  # "Tư liệu": its folder in the "Kho tư liệu"; null or "" (when sent) unlinks
 
 
@@ -2599,6 +2603,9 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "text_ai": topic.text_ai,
                 "no_people": topic.no_people,
                 "outro_cta": topic.outro_cta,
+                "medical_disclaimer_enabled": topic.medical_disclaimer_enabled,
+                "medical_disclaimer_text": topic.medical_disclaimer_text or disclaimer.DEFAULT_TEXT,
+                "medical_disclaimer_position": topic.medical_disclaimer_position,
                 "text_suggestions": topic.text_suggestions,
                 "text_job": text_looks.job_payload(text_looks.job_of(db, topic.id)),
                 "created_by_id": topic.created_by_id,
@@ -2718,6 +2725,9 @@ COPIED_TOPIC_FIELDS = (
     "text_ai",
     "no_people",
     "outro_cta",
+    "medical_disclaimer_enabled",
+    "medical_disclaimer_text",
+    "medical_disclaimer_position",
     "edit_template_default",
 )
 
@@ -2824,6 +2834,15 @@ def patch_topic(
         topic.no_people = body.no_people
     if body.outro_cta is not None:
         topic.outro_cta = body.outro_cta
+    if body.medical_disclaimer_enabled is not None:
+        topic.medical_disclaimer_enabled = body.medical_disclaimer_enabled
+    if body.medical_disclaimer_text is not None:
+        sentence = body.medical_disclaimer_text.strip()
+        if len(sentence) > disclaimer.MAX_TEXT:
+            raise invalid(f"Câu lưu ý y khoa dài quá {disclaimer.MAX_TEXT} ký tự")
+        topic.medical_disclaimer_text = "" if sentence == disclaimer.DEFAULT_TEXT else sentence
+    if body.medical_disclaimer_position is not None:
+        topic.medical_disclaimer_position = body.medical_disclaimer_position
     if "media_folder" in body.model_fields_set:
         from .routes_media import link_folder
 

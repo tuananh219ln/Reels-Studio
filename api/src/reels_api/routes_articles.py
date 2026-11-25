@@ -24,6 +24,7 @@ from . import (
     article_plans,
     article_posts,
     articles,
+    disclaimer,
     fanpages,
     image_providers,
     remote_media,
@@ -292,7 +293,7 @@ def _from_plan_slot(db: DbSession, slot_id: int, me: Session) -> dict:
     )
     if group_id is None:
         group_id = db.scalar(select(KnowledgeTopic.id).order_by(KnowledgeTopic.id).limit(1))
-    caption = article_plans.caption_of(slot)
+    caption = disclaimer.clean_caption(db.get(KnowledgeTopic, group_id), article_plans.caption_of(slot))
     article = Article(
         knowledge_topic_id=group_id,
         kind=slot.kind or "kien_thuc",

@@ -61,6 +61,7 @@ import TopicDocs from "@/components/knowledge/TopicDocs";
 import StockOrderCard from "@/components/knowledge/StockOrderCard";
 import GroupVideoModeCard from "@/components/knowledge/GroupVideoModeCard";
 import GroupNoPeopleCard from "@/components/knowledge/GroupNoPeopleCard";
+import GroupDisclaimerCard from "@/components/knowledge/GroupDisclaimerCard";
 import GroupOutroCard from "@/components/knowledge/GroupOutroCard";
 import GroupTextLookCard from "@/components/knowledge/GroupTextLookCard";
 import { usePlanTabs } from "@/components/plan/PlanTab";
@@ -778,6 +779,9 @@ const TOPIC_FIELDS: Record<string, string> = {
   text_look: "Chữ & phụ đề",
   text_ai: "AI chọn kiểu chữ cho từng video",
   outro_cta: "Cảnh kết Theo dõi & Chia sẻ",
+  medical_disclaimer_enabled: "Câu lưu ý y khoa (bật/tắt)",
+  medical_disclaimer_text: "Câu lưu ý y khoa",
+  medical_disclaimer_position: "Chỗ đặt câu lưu ý y khoa",
   stock_order: "Thứ tự nguồn ảnh",
   media_folder: "Thư mục tư liệu",
   templates: "Mẫu dựng của nhóm",
@@ -1046,6 +1050,7 @@ function TopicBody({
                         <GroupVideoModeCard topic={topic} update={update} />
                         <GroupNoPeopleCard topic={topic} update={update} />
                         <GroupOutroCard topic={topic} update={update} />
+                        <GroupDisclaimerCard topic={topic} update={update} />
                         <GroupVoiceCard
                           topicId={topic.id}
                           initial={topic.voice_id}

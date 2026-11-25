@@ -1198,9 +1198,15 @@ function ImportModal({
                   title: "Lý do",
                   key: "reason",
                   width: 300,
-                  render: (_, row) =>
-                    [...row.errors, ...row.warnings, row.note].filter(Boolean).join(" · ") ||
-                    (row.target === "backlog" ? "→ Backlog" : "Hợp lệ"),
+                  render: (_, row) => (
+                    <>
+                      {[...row.errors, ...row.warnings, row.note].filter(Boolean).join(" · ") ||
+                        (row.target === "backlog" ? "→ Backlog" : "Hợp lệ")}
+                      {row.disclaimer_removed && (
+                        <Tag style={{ marginInlineStart: 6 }}>Đã bỏ câu lưu ý y khoa (tự đăng ở bình luận)</Tag>
+                      )}
+                    </>
+                  ),
                 },
               ]}
             />
