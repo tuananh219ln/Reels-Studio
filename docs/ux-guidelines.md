@@ -758,9 +758,9 @@ steps open the status card or the products block on its tab, the QC chip its pop
     slider with its value beside it), "Âm lượng giọng", "Nghỉ sau lời" (0,4 / 0,7 / 1 giây); Cài đặt › Thiết lập mặc
     định keeps the stacked card. In "Chữ & phụ đề" the style cards are 56 px, on one row that scrolls sideways.
     The groups: "Âm thanh" (narration on/off, the
-    voice picked from the ElevenLabs account's voices, and VieNeu's and Gemini's once their key is set (Gemini's is
-    the key that makes AI photos), grouped "ElevenLabs", "VieNeu" and "Gemini" when two or more have voices, with
-    "Nghe thử" playing ElevenLabs' free sample (VieNeu and Gemini voices have none), the
+    voice picked from the ElevenLabs account's voices, and VieNeu's, Gemini's and Google's once their key is set (Gemini's
+    is the key that makes AI photos), grouped "ElevenLabs", "VieNeu", "Gemini" and "Google" when two or more have voices,
+    with "Nghe thử" playing ElevenLabs' free sample (VieNeu, Gemini and Google voices have none), the
     "Tốc độ đọc" slider (0,70× to 1,30×, marked Chậm/Vừa/Nhanh), voice level, "Nhỏ nhạc khi có giọng đọc"); the music card (from the library
     ("Chọn từ thư viện", filtered by topic, mood, and name) or an uploaded MP3, optionally saved to
     the library with its topics and mood, with a volume slider); "Hình ảnh" (Chuyển cảnh: Mờ dần,
@@ -1200,9 +1200,14 @@ steps open the status card or the products block on its tab, the QC chip its pop
       without a saved key says it uses the server's `.env` key), "Base URL" (empty means the default shown as
       placeholder), "Model" (typed, or picked from the names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết
       nối" (enabled once saved) and "Dùng để viết kịch bản". What still stops a provider is shown in yellow.
-    - **Giọng đọc**: ElevenLabs, Gemini and VieNeu side by side (three across from 1600 px), each with "Sẵn sàng" or
+    - **Giọng đọc**: ElevenLabs, Gemini, VieNeu and Google side by side (three across from 1600 px), each with "Sẵn sàng" or
       "Chưa có key", its main key (ElevenLabs and VieNeu pasted here, Gemini's being the "Ảnh AI" one) and its backup
-      keys (see Narration keys); ElevenLabs' card also has its usage line (architecture, AI service usage). With a
+      keys (see Narration keys); ElevenLabs' card also has its usage line (architecture, AI service usage). Google's card
+      links to Google Cloud Console's credentials page and says the key's project needs billing and the Cloud
+      Text-to-Speech API on; below its key, the switch "Chỉ dùng mức miễn phí" (on by default) with a line on what on
+      and off mean, then "Đã dùng tháng MM/YYYY:" and one row per voice kind (Standard, WaveNet, Neural2, Chirp-HD): a thin
+      bar of the characters used against 90 % of its free tier, red once reached, and "used / limit ký tự" in Vietnamese
+      number format. With a
       key, a service's voices join the "Giọng" picker; a service whose voices cannot
       be listed is named in yellow under the picker, a missing or rejected key with a link "Mở AI và nguồn tư liệu".
     - **Ảnh AI**: first "Nguồn ảnh AI mặc định" ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh

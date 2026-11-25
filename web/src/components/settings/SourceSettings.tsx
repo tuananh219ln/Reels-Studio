@@ -22,7 +22,7 @@ import { api, errorMessage } from "@/lib/api";
 import { LastEdit, useLatestEdits } from "@/components/settings/SharedHistory";
 import type { EditLogEntry } from "@/components/EditHistory";
 import ApiKeyList from "@/components/settings/ApiKeyList";
-import VieneuKeyCard from "@/components/settings/VieneuKeyCard";
+import VoiceKeyCard from "@/components/settings/VoiceKeyCard";
 import StatusText from "@/components/StatusText";
 import { CloudflareUsage, ElevenLabsUsage, GeminiUsage, useServiceUsage } from "@/components/settings/ServiceUsage";
 
@@ -498,7 +498,15 @@ export function AiImagesPanel({ state }: { state: SourcesState }) {
 }
 
 /** "Giọng đọc": each narration service's main key and its backup keys, tried in order when one fails. */
-export function VoicePanel({ state, vieneuFooter }: { state: SourcesState; vieneuFooter?: ReactNode }) {
+export function VoicePanel({
+  state,
+  vieneuFooter,
+  googleFooter,
+}: {
+  state: SourcesState;
+  vieneuFooter?: ReactNode;
+  googleFooter?: ReactNode;
+}) {
   const { data } = state;
   if (!data) return null;
   const reload = () => void state.load();
@@ -555,7 +563,10 @@ export function VoicePanel({ state, vieneuFooter }: { state: SourcesState; viene
           </Card>
         </Col>
         <Col xs={24} lg={12} xxl={8}>
-          <VieneuKeyCard onSaved={reload} footer={vieneuFooter} />
+          <VoiceKeyCard service="vieneu" onSaved={reload} footer={vieneuFooter} />
+        </Col>
+        <Col xs={24} lg={12} xxl={8}>
+          <VoiceKeyCard service="google_tts" onSaved={reload} footer={googleFooter} />
         </Col>
       </Row>
     </Flex>

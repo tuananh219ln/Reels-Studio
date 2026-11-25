@@ -1042,13 +1042,13 @@ export type MyVideoDefaults = VideoDefaults & {
   owner: string;
 };
 
-/** A narration voice; a VieNeu one has an id starting with "vieneu:", a Gemini one "gemini:" (api tts.py). */
+/** A narration voice; a VieNeu one has an id starting with "vieneu:", a Gemini one "gemini:", a Google one "google:" (api tts.py). */
 export type Voice = {
   id: string;
   name: string;
   description: string;
   preview_url: string | null;
-  service: "elevenlabs" | "vieneu" | "gemini";
+  service: "elevenlabs" | "vieneu" | "gemini" | "google";
 };
 
 /** GET /settings/voices: `problems` names a service whose voices could not be listed while the other's came. */
@@ -1056,7 +1056,13 @@ export type VoiceList = { default_id: string; voices: Voice[]; problems?: string
 
 /** The service that reads a voice id ("" is the server's default, an ElevenLabs voice). */
 export const voiceService = (voiceId: string) =>
-  voiceId.startsWith("vieneu:") ? "VieNeu" : voiceId.startsWith("gemini:") ? "Gemini" : "ElevenLabs";
+  voiceId.startsWith("vieneu:")
+    ? "VieNeu"
+    : voiceId.startsWith("gemini:")
+      ? "Gemini"
+      : voiceId.startsWith("google:")
+        ? "Google"
+        : "ElevenLabs";
 
 /** One LLM provider on /settings/ai. Its API key never comes back: only where it comes from and its last characters. */
 export type LlmProvider = {

@@ -895,7 +895,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             str | None,
             Field(
                 description=(
-                    'Giọng đọc riêng của cảnh này (mã ElevenLabs, "vieneu:<tên>" hoặc "gemini:<tên giọng>"); '
+                    'Giọng đọc riêng của cảnh này (mã ElevenLabs, "vieneu:<tên>", "gemini:<tên giọng>" hoặc "google:<tên giọng>"); '
                     '"" về giọng của video'
                 )
             ),
