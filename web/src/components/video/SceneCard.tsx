@@ -53,6 +53,7 @@ import {
   type VideoDetail,
 } from "@/lib/api";
 import { setGoogleTarget, useSentImage } from "@/lib/googleExtension";
+import { unlockSpeech } from "@/lib/speech";
 import {
   fileFromDataUrl,
   googleImagesUrl,
@@ -511,6 +512,8 @@ export default function SceneCard({
                 size="small"
                 icon={<CaretRightOutlined />}
                 onClick={async () => {
+                  // Inside the tap, before any wait: an iPhone then lets the preview's browser voice speak.
+                  unlockSpeech();
                   // The preview shows the saved scene: the field being typed in is saved first.
                   await editor.flush();
                   onPreview();

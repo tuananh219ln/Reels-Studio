@@ -1057,6 +1057,100 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   await expect(preview.getByRole("slider", { name: "Âm lượng nghe" })).toHaveAttribute("aria-valuenow", "50");
 });
 
+/**
+ * A browser voice that records what the preview asks of it, the way iOS Safari judges it: `gesture` says whether
+ * `speak` was called inside the tap itself (Safari stays silent otherwise). `voices: false` is a browser without a
+ * Vietnamese voice.
+ */
+async function fakeSpeech(page: Page, voices: boolean) {
+  await page.addInitScript((withVoices: boolean) => {
+    type Entry = { call: "speak" | "cancel"; text?: string; gesture: boolean; speaking: boolean };
+    const log: Entry[] = [];
+    (window as unknown as { speechLog: Entry[] }).speechLog = log;
+    let gesture = false;
+    window.addEventListener(
+      "click",
+      () => {
+        gesture = true;
+        window.setTimeout(() => (gesture = false), 0);
+      },
+      true,
+    );
+    const linh = { name: "Linh", lang: "vi-VN", voiceURI: "Linh", default: true, localService: true };
+    class Utterance extends EventTarget {
+      text: string;
+      voice: unknown = null;
+      lang = "";
+      rate = 1;
+      volume = 1;
+      onend: ((event: Event) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+      constructor(text = "") {
+        super();
+        this.text = text;
+      }
+    }
+    class Speech extends EventTarget {
+      speaking = false;
+      pending = false;
+      paused = false;
+      getVoices() {
+        return withVoices ? [linh] : [];
+      }
+      speak(utterance: Utterance) {
+        log.push({ call: "speak", text: utterance.text, gesture, speaking: this.speaking });
+        this.speaking = true;
+        window.setTimeout(() => {
+          this.speaking = false;
+          utterance.onend?.(new Event("end"));
+        }, 50);
+      }
+      cancel() {
+        log.push({ call: "cancel", gesture, speaking: this.speaking });
+        this.speaking = false;
+      }
+      pause() {}
+      resume() {}
+    }
+    Object.defineProperty(window, "speechSynthesis", { value: new Speech(), configurable: true });
+    Object.defineProperty(window, "SpeechSynthesisUtterance", { value: Utterance, configurable: true });
+  }, voices);
+}
+
+test("preview on an iPhone: the browser voice is started by the tap, and a missing one is said at once", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await fakeSpeech(page, true);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "trà gừng buổi sáng");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const preview = page.getByRole("dialog", { name: "Xem trước video" });
+  await expect(preview.getByTestId("preview-scene")).toContainText("Cảnh tiêu đề");
+  type Entry = { call: string; text?: string; gesture: boolean; speaking: boolean };
+  const log = () => page.evaluate(() => (window as unknown as { speechLog: Entry[] }).speechLog);
+  // The scene's own sentence is read once the preview runs.
+  await expect.poll(async () => (await log()).some((entry) => entry.call === "speak" && entry.text?.trim())).toBe(true);
+  const entries = await log();
+  // iOS Safari only lets a page speak when its first sentence is started inside a tap.
+  expect(entries.find((entry) => entry.call === "speak")?.gesture).toBe(true);
+  // Cancelling a voice that is not speaking right before the next sentence can drop that sentence on Safari.
+  const dropped = entries.filter(
+    (entry, index) => entry.call === "speak" && entries[index - 1]?.call === "cancel" && !entries[index - 1].speaking,
+  );
+  expect(dropped).toHaveLength(0);
+  await page.keyboard.press("Escape");
+
+  // A browser without a Vietnamese voice says so in "Giọng đọc", without a section to open first.
+  const bare = await page.context().newPage();
+  await fakeSpeech(bare, false);
+  await bare.goto(page.url());
+  await bare.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const silent = bare.getByRole("dialog", { name: "Xem trước video" });
+  await silent.getByRole("tab", { name: "Giọng đọc" }).click();
+  await expect(silent.getByTestId("preview-no-voice")).toBeVisible();
+});
+
 test("studio: tracks under the scenes, a locked track, and a scene split at the playhead then undone", async ({
   page,
 }) => {

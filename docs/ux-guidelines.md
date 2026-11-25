@@ -579,8 +579,11 @@ steps open the status card or the products block on its tab, the QC chip its pop
     "Tạo giọng ElevenLabs cho N cảnh", which asks first (it costs credit once) and queues a job reading only
     those scenes. "Giọng tạm của trình duyệt", folded, lists the browser's Vietnamese voices, the most
     natural first (Edge's HoaiMy/NamMinh, then Google's), remembered in the browser, and suggests Edge
-    when only robotic ones exist; a browser without a Vietnamese voice says so and those scenes stay
-    silent. "Thời lượng và vị trí chữ" edits the scene being shown, saved at once as on its card (read-only
+    when only robotic ones exist; a browser without a Vietnamese voice says so right under the button, not
+    folded, and those scenes stay silent. The tap that opens the preview ("Xem trước", "Xem từ cảnh này") or
+    plays it speaks a silent sentence first, since iOS Safari lets the browser's voice speak only when its first
+    sentence starts inside a tap; the preview cancels the browser's voice only while it is speaking, as Safari
+    can drop the next sentence otherwise. "Thời lượng và vị trí chữ" edits the scene being shown, saved at once as on its card (read-only
     until "Chỉnh sửa" and while a job runs): its seconds with "Tự khớp lời đọc" (typing them turns it off), the
     narration's length; for a clip, a two-handle "Đoạn clip" slider (the left end is "Bắt đầu từ giây", the
     span the scene's seconds at the clip's speed); and, while the preview is paused, the text box dragged

@@ -1,6 +1,7 @@
 "use client";
 
 import { formatTrimmed } from "@/lib/format";
+import { stopSpeech, unlockSpeech } from "@/lib/speech";
 import {
   AppstoreOutlined,
   CaretRightOutlined,
@@ -204,6 +205,8 @@ function guideStyle(axis: "x" | "y"): React.CSSProperties {
 const DUCKED = 0.25;
 // A browser voice that never says it has finished must not hold the preview forever.
 const SPEECH_GRACE_MS = 15_000;
+// How long a browser gets to list its voices before "no Vietnamese voice" is said.
+const VOICES_WAIT_MS = 1000;
 
 // The phone's outer size over its screen (Stageshow's iPhone: a 402 × 874 pt screen, a 13 pt band each side).
 const PHONE_RATIO = (402 + 26) / (874 + 26);
@@ -309,6 +312,8 @@ export default function VideoPreview({
   const [width, setWidth] = useState(phoneWidth);
   const [statusTime] = useState(clockNow);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  // A browser lists its voices late, so "no Vietnamese voice" is only said once it has had a moment to.
+  const [voicesChecked, setVoicesChecked] = useState(false);
   // The browser voice each member picked, remembered in their browser; the most natural one otherwise.
   const [voiceName, setVoiceName] = useState<string | null>(() => {
     try {
@@ -372,16 +377,18 @@ export default function VideoPreview({
 
   // The browser lists its voices late (voiceschanged), so ask again when it does.
   useEffect(() => {
+    const settled = window.setTimeout(() => setVoicesChecked(true), VOICES_WAIT_MS);
     if (!("speechSynthesis" in window)) {
-      return;
+      return () => window.clearTimeout(settled);
     }
     const pick = () => setVoices(vietnameseVoices());
     const first = window.setTimeout(pick, 0);
     window.speechSynthesis.addEventListener("voiceschanged", pick);
     return () => {
       window.clearTimeout(first);
+      window.clearTimeout(settled);
       window.speechSynthesis.removeEventListener("voiceschanged", pick);
-      window.speechSynthesis.cancel();
+      stopSpeech();
     };
   }, []);
 
@@ -547,7 +554,7 @@ export default function VideoPreview({
       timers.push(
         window.setTimeout(() => {
           duck(true);
-          window.speechSynthesis.cancel();
+          stopSpeech();
           window.speechSynthesis.speak(utterance);
         }, VOICE_LEAD_MS - phase.from),
       );
@@ -558,9 +565,7 @@ export default function VideoPreview({
     return () => {
       timers.forEach((timer) => window.clearTimeout(timer));
       player?.pause();
-      if ("speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopSpeech();
     };
     // A new scene, or a voice found late or picked, starts the narration; pausing only pauses it (see `toggle`).
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -636,6 +641,8 @@ export default function VideoPreview({
   }
 
   function toggle() {
+    // A tap on "Phát" or "Tiếp tục" lets the browser voice speak on an iPhone (unlockSpeech).
+    unlockSpeech();
     if (ended) {
       goTo(0, false);
       return;
@@ -1312,7 +1319,15 @@ export default function VideoPreview({
                   </Button>
                 </Popconfirm>
               )}
-              {missingVoice && (
+              {missingVoice && voicesChecked && voices.length === 0 && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  data-testid="preview-no-voice"
+                  title="Trình duyệt này không có giọng tiếng Việt, nên cảnh chưa có giọng đọc sẽ im lặng. Dùng Edge hoặc Chrome để nghe thử, hoặc tạo giọng thật ở trên."
+                />
+              )}
+              {missingVoice && voices.length > 0 && (
                 <Collapse
                   size="small"
                   ghost
@@ -1322,22 +1337,13 @@ export default function VideoPreview({
                       label: "Giọng tạm của trình duyệt",
                       children: (
                         <Flex vertical gap={8}>
-                          {voices.length > 0 ? (
-                            <Select
-                              aria-label="Giọng trình duyệt"
-                              value={voice?.voiceURI}
-                              onChange={chooseVoice}
-                              options={voices.map((item) => ({ value: item.voiceURI, label: item.name }))}
-                            />
-                          ) : (
-                            <Alert
-                              type="warning"
-                              showIcon
-                              data-testid="preview-no-voice"
-                              title="Trình duyệt này không có giọng tiếng Việt, nên cảnh chưa có giọng đọc sẽ im lặng. Dùng Edge hoặc Chrome để nghe thử."
-                            />
-                          )}
-                          {voices.length > 0 && !voices.some((item) => NATURAL.test(item.name)) && (
+                          <Select
+                            aria-label="Giọng trình duyệt"
+                            value={voice?.voiceURI}
+                            onChange={chooseVoice}
+                            options={voices.map((item) => ({ value: item.voiceURI, label: item.name }))}
+                          />
+                          {!voices.some((item) => NATURAL.test(item.name)) && (
                             <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="preview-edge-tip">
                               Giọng tự nhiên hơn: mở trang này bằng Microsoft Edge để có giọng HoaiMy, NamMinh.
                             </Typography.Text>

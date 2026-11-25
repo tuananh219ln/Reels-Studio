@@ -36,6 +36,7 @@ import {
 import { usePolling } from "@/lib/polling";
 import { useStoredChoice } from "@/lib/storedChoice";
 import { usePresence } from "@/lib/presence";
+import { unlockSpeech } from "@/lib/speech";
 import {
   ArrowLeftOutlined,
   CheckOutlined,
@@ -740,6 +741,8 @@ export default function VideoPage() {
                 onRender={render}
                 onGenerateImages={generateImages}
                 onPreview={async () => {
+                  // Inside the tap, before any wait: an iPhone then lets the preview's browser voice speak.
+                  unlockSpeech();
                   // The preview shows the saved scenes: the field being typed in is saved first.
                   await editor.flush();
                   setPreviewFrom(0);
