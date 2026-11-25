@@ -393,3 +393,38 @@ def test_a_later_check_rewrites_a_revised_day(db, me, fakes):
 
 def test_insights_of_an_unknown_page(an):
     assert an.get(f"{URL}/999/insights").status_code == 404
+
+
+def test_check_now_also_has_the_pages_live_posts_checked_again(an, db, me, storage):
+    """ "Kiểm tra ngay" on a Page: its live posts are due for a check at once, whatever their last check; the posts of
+    another Page and the ones already taken down are left alone."""
+    page = add_page(db, me)
+    other = add_page(db, me, page_id="7654321", name="Trang Khác")
+    checked = datetime.now(UTC) - timedelta(hours=1)
+
+    def post(fanpage, status, platform="facebook"):
+        row = Publication(
+            video_id=make_video(db, storage, me, scene_count=1).id,
+            platform=platform,
+            created_by_id=me.id,
+            fanpage_id=fanpage.id,
+            status=status,
+            remote_id="r1" if platform == "facebook" else None,
+            external_id="m1" if platform == "instagram" else None,
+            checked_at=checked,
+        )
+        db.add(row)
+        db.commit()
+        return row.id
+
+    live, live_ig, taken_down, elsewhere = (
+        post(page, "published"),
+        post(page, "published", "instagram"),
+        post(page, "deleted"),
+        post(other, "published"),
+    )
+    an.post(f"{URL}/{page.id}/check")
+    db.expire_all()
+    when = {row.id: row.checked_at for row in db.scalars(select(Publication))}
+    assert when[live] is None and when[live_ig] is None
+    assert when[taken_down] == checked and when[elsewhere] == checked
