@@ -1044,7 +1044,8 @@ steps open the status card or the products block on its tab, the QC chip its pop
     [2026-11-25-products-board](decisions/2026-11-25-products-board.md)). On top, a group select (grouped "Nhóm của
     tôi" and "Nhóm khác", each option with its Pages and product count; typing searches), "Dùng cho video của N
     Page", then "Quy trình / Bảng" (the member's choice is kept in the browser; the table is the
-    default), "Nhập / Xuất ▾" ("Nhập file (Lấy link hàng loạt)" and "Xuất CSV") and "Thêm sản phẩm". Under it the search,
+    default), "Nhập / Xuất ▾" ("Nhập file (Lấy link hàng loạt)", "Xuất file Custom Link (Excel)" and "Nhập kết quả Shopee",
+    both greyed until a group is chosen, then "Xuất danh sách (CSV)") and "Thêm sản phẩm". Under it the search,
     the platform filter and a progress line ("38 / 50 sẵn sàng dùng trong bình luận", "còn 12 món chưa có link") with a
     bar. **Board:** four columns, each with its count and a hint: "1 · Cần điền" (drafts short on stars or sales, filled
     in on the card itself), "2 · Chờ duyệt" (with "Duyệt tất cả (N)"), "3 · Cần link" (approved Shopee products with no
