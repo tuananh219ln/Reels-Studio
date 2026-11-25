@@ -192,6 +192,7 @@ def serve(factory: sessionmaker, lock: Connection) -> None:
             next_checks = time.monotonic() + POST_CHECK_SECONDS
         if time.monotonic() >= next_metrics:
             metrics.measure_due(factory)
+            metrics.check_instagram_due(factory)
             fanpages.check_due(factory)
             post_comments.write_due(factory)
             slot_comments.run_due(factory)

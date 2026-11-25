@@ -985,7 +985,8 @@ def test_a_scheduled_reel_cancelled_on_facebook_is_not_shown_as_posted_after_its
     post = scheduled_post(committed, storage, ready, -1)
     live_sibling(committed, fakes, user, storage, ready)
     del fakes.reels[post.remote_id]
-    (queued,) = queue_checks(committed)
+    # The sibling is live and never checked, so it is queued too (a live post is checked again by itself).
+    (queued,) = [job for job in queue_checks(committed) if job.publication_id == post.id]
     assert (queued.publication_id, queued.video_id, queued.status) == (post.id, video_id, "queued")
     with committed() as db:
         db.get(Job, queued.id).status = "running"
@@ -1011,6 +1012,105 @@ def test_a_post_is_checked_once_after_its_time_and_not_before(committed, ready, 
         db.execute(update(Job).where(Job.kind == "check").values(status="failed"))
         db.commit()
     assert len(queue_checks(committed)) == 1, "a failed check is not queued again: a member can retry it"
+
+
+def set_checked(factory, post_id, ago: timedelta | None, age: timedelta = timedelta(hours=1)) -> None:
+    """A live post `age` old whose last check was `ago` ago (None: never checked)."""
+    with factory() as db:
+        post = db.get(Publication, post_id)
+        post.published_at, post.scheduled_at = datetime.now(UTC) - age, None
+        post.checked_at = None if ago is None else datetime.now(UTC) - ago
+        db.commit()
+
+
+def queued_for(factory, post_id) -> int:
+    return len([job for job in queue_checks(factory) if job.publication_id == post_id and job.status == "queued"])
+
+
+def test_a_live_post_is_checked_again_now_and_then_less_often_as_it_ages(committed, ready, fakes):
+    """The bug: a reel deleted on Facebook after it went live was shown as "Đã đăng" for good, because the one automatic
+    check ran only once, after its scheduled time."""
+    user, storage, video_id = ready
+    run_publish(committed, storage, video_id, user.id)
+    post_id = post_of(committed, video_id).id
+    set_checked(committed, post_id, None)
+    assert queued_for(committed, post_id) == 1, "never checked: checked now"
+    with committed() as db:
+        db.execute(update(Job).where(Job.kind == "check").values(status="done"))
+        db.commit()
+    hour, day = timedelta(hours=1), timedelta(days=1)
+    for age, ago, queued in [
+        (hour, 2 * hour, 0),
+        (hour, 7 * hour, 1),  # a new post: every 6 hours
+        (10 * day, 7 * hour, 0),
+        (10 * day, 25 * hour, 1),  # up to 30 days old: every day
+        (40 * day, 2 * day, 0),
+        (40 * day, 8 * day, 1),  # older: every week
+    ]:
+        set_checked(committed, post_id, ago, age)
+        with committed() as db:
+            db.execute(update(Job).where(Job.kind == "check").values(status="done"))
+            db.commit()
+        assert queued_for(committed, post_id) == queued, (age, ago)
+
+
+def test_a_post_already_deleted_or_set_aside_is_not_checked_again_by_itself(committed, ready, fakes):
+    user, storage, video_id = ready
+    run_publish(committed, storage, video_id, user.id)
+    post_id = post_of(committed, video_id).id
+    for fields in ({"status": "deleted"}, {"match_status": "ignored"}):
+        set_checked(committed, post_id, None)
+        with committed() as db:
+            for key, value in fields.items():
+                setattr(db.get(Publication, post_id), key, value)
+            db.commit()
+        assert queued_for(committed, post_id) == 0, fields
+        with committed() as db:
+            post = db.get(Publication, post_id)
+            post.status, post.match_status = "published", "confirmed"
+            db.commit()
+
+
+def test_a_few_checks_are_queued_per_round_so_old_posts_do_not_flood_the_worker(committed, ready, fakes):
+    from reels_api import jobs
+
+    user, storage, video_id = ready
+    with committed() as db:
+        page_id = db.scalar(select(Publication.fanpage_id).where(Publication.video_id == video_id))
+        for number in range(jobs.RECHECK_PER_ROUND + 4):
+            other = make_video(db, storage, user, scene_count=1)
+            db.add(
+                Publication(
+                    video_id=other.id,
+                    platform="facebook",
+                    status="published",
+                    remote_id=str(7000 + number),
+                    fanpage_id=page_id,
+                    created_by_id=user.id,
+                    published_at=datetime.now(UTC) - timedelta(days=2),
+                )
+            )
+        db.commit()
+    assert len(queue_checks(committed)) == jobs.RECHECK_PER_ROUND
+    assert len(queue_checks(committed)) == jobs.RECHECK_PER_ROUND, "the queued ones count: no more until they ran"
+
+
+def test_the_periodic_check_marks_a_live_reel_deleted_on_facebook(committed, ready, fakes):
+    user, storage, video_id = ready
+    run_publish(committed, storage, video_id, user.id)
+    live_sibling(committed, fakes, user, storage, ready)
+    post = post_of(committed, video_id)
+    del fakes.reels[post.remote_id]
+    set_checked(committed, post.id, timedelta(hours=7))
+    (queued,) = [job for job in queue_checks(committed) if job.publication_id == post.id]
+    with committed() as db:
+        db.get(Job, queued.id).status = "running"
+        db.commit()
+    from reels_api import jobs
+
+    jobs.run_job(queued.id, committed, storage)
+    post = post_of(committed, video_id)
+    assert (post.status, post.closed_by_id) == ("deleted", None)
 
 
 def test_no_check_is_queued_while_the_video_has_a_job(committed, ready, fakes):

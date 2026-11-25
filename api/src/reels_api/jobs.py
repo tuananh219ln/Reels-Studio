@@ -11,7 +11,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from PIL import Image, ImageOps
-from sqlalchemy import or_, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
@@ -43,6 +43,7 @@ from . import (
     instagram,
     knowledge,
     llm,
+    metrics,
     motion,
     outro,
     pinned,
@@ -1150,19 +1151,40 @@ def _close(post: Publication, went_live: bool, by: int | None) -> None:
 CHECK_DELAY = timedelta(minutes=10)
 
 
+# A live post is also checked again now and then (metrics.recheck_due), a few per round: the first round after this
+# shipped meets every post never checked, and each check is a job of its own.
+RECHECK_PER_ROUND = 5
+
+
 def queue_post_checks(db: DbSession) -> None:
     """Queue one check of each scheduled reel whose time has passed, so a reel cancelled, moved or dropped on Facebook
-    is not shown as posted. Once per scheduled time, failed or not: a member retries it or presses "Kiểm tra"."""
+    is not shown as posted. Once per scheduled time, failed or not: a member retries it or presses "Kiểm tra". A live
+    post is checked again by the schedule of metrics.recheck_due, so one deleted on Facebook afterwards is found."""
+    at = now()
     due = db.scalars(
         select(Publication).where(
             Publication.platform == "facebook",
             Publication.status == "scheduled",
             Publication.remote_id.is_not(None),
-            Publication.scheduled_at <= now() - CHECK_DELAY,
+            Publication.scheduled_at <= at - CHECK_DELAY,
             or_(Publication.checked_at.is_(None), Publication.checked_at < Publication.scheduled_at),
         )
     ).all()
-    for post in due:
+    waiting = db.scalar(
+        select(func.count()).select_from(Job).where(Job.kind == "check", Job.status.in_(("queued", "running")))
+    )
+    room = max(0, RECHECK_PER_ROUND - (waiting or 0))
+    again = (
+        db.scalars(
+            select(Publication)
+            .where(Publication.platform == "facebook", Publication.remote_id.is_not(None), metrics.recheck_due(at))
+            .order_by(Publication.checked_at.asc().nulls_first(), Publication.id)
+            .limit(room)
+        ).all()
+        if room
+        else []
+    )
+    for post in [*due, *again]:
         # One active job per video or article: the check waits for the next round.
         busy = articles.active_job(db, post.article_id) if post.article_id else active_job(db, post.video_id)
         if busy is not None:
