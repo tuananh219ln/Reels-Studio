@@ -7,6 +7,7 @@ import EmptyState from "@/components/EmptyState";
 import FilterSelect from "@/components/FilterSelect";
 import { useMe } from "@/components/MeContext";
 import VideoThumbnail from "@/components/VideoThumbnail";
+import VideoTable from "@/components/videoList/VideoTable";
 import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 import {
   api,
@@ -27,21 +28,7 @@ import {
   SearchOutlined,
   TableOutlined,
 } from "@ant-design/icons";
-import {
-  App,
-  Button,
-  Card,
-  Dropdown,
-  Flex,
-  Input,
-  Segmented,
-  Select,
-  Table,
-  Tag,
-  Tooltip,
-  Typography,
-  theme,
-} from "antd";
+import { App, Button, Card, Dropdown, Flex, Input, Segmented, Select, Tag, Tooltip, Typography, theme } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -502,10 +489,7 @@ export default function PostedVideos() {
         <Flex gap={12} align="flex-start">
           <VideoThumbnail name={video.title} url={video.thumbnail_url} width={40} />
           <Flex vertical gap={4} style={{ minWidth: 0 }}>
-            <Flex gap={4}>
-              {title(video)}
-              <VideoActions video={{ id: video.id, title: video.title, topic: video.title }} onChanged={reload} />
-            </Flex>
+            {title(video)}
             {where(video)}
           </Flex>
         </Flex>
@@ -593,14 +577,17 @@ export default function PostedVideos() {
 
       {view === "table" && (
         <Card styles={{ body: { padding: 0 } }}>
-          <Table<AffiliateVideo>
+          <VideoTable<AffiliateVideo>
             rowKey="id"
             columns={columns}
-            dataSource={shown}
+            rows={shown}
             loading={loading}
-            pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
-            scroll={{ x: 900 }}
-            locale={{ emptyText: <EmptyState description={emptyText} /> }}
+            page={tablePage}
+            empty={emptyText}
+            actions={(video) => (
+              <VideoActions video={{ id: video.id, title: video.title, topic: video.title }} onChanged={reload} />
+            )}
+            actionsWidth={56}
           />
         </Card>
       )}

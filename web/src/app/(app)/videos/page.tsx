@@ -1,27 +1,27 @@
 "use client";
 import VideoActions from "@/components/actions/VideoActions";
+import VideoCard from "@/components/videoList/VideoCard";
+import VideoTable from "@/components/videoList/VideoTable";
+import { useVideoColumns } from "@/components/videoList/columns";
+import { useVideoView, VideoSearch, ViewToggle } from "@/components/videoList/toolbar";
 
 import EmptyState from "@/components/EmptyState";
 import type { SelectProps } from "antd";
 
-import { COLORS } from "@/app/theme";
 import FilterSelect from "@/components/FilterSelect";
 import FormDrawer from "@/components/FormDrawer";
 import { useMe } from "@/components/MeContext";
 import GuideButton from "@/components/GuideButton";
 import PageHeader from "@/components/PageHeader";
-import StatusText from "@/components/StatusText";
 import SampleFields, { type SampleValues } from "@/components/video/SampleFields";
 import { groupVideoModeLabel, VIDEO_MODES, videoModeLabel } from "@/components/video/videoModes";
-import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
-import VideoStatusTags from "@/components/VideoStatusTags";
-import VideoThumbnail from "@/components/VideoThumbnail";
 import VideoNameEditor from "@/components/VideoNameEditor";
+import { videoDetails } from "@/components/videoList/format";
+import type { ColumnsType } from "antd/es/table";
 import VideoTitleCell from "@/components/VideoTitleCell";
 import {
   api,
   errorMessage,
-  formatDateTime,
   postForm,
   type ActiveLlm,
   type Knowledge,
@@ -33,24 +33,13 @@ import {
   type VideoDetail,
   type VideoMode,
   type VideoRow,
-  type VideoRowPost,
 } from "@/lib/api";
 import { loadLastChoices, saveLastChoice } from "@/lib/lastChoices";
 import { usePolling } from "@/lib/polling";
 import { useGuardedClose } from "@/lib/unsaved";
 import { useUrlChoice, useUrlPage, useUrlParam } from "@/lib/urlState";
-import { VIDEO_STATUS_FILTERS, videoStatusTone, type VideoStatusFilter } from "@/lib/videoStatus";
-import { useRememberedView, type View } from "@/lib/view";
-import {
-  AppstoreOutlined,
-  ClockCircleOutlined,
-  EditOutlined,
-  EyeOutlined,
-  FilterOutlined,
-  PlusOutlined,
-  SearchOutlined,
-  UnorderedListOutlined,
-} from "@ant-design/icons";
+import { VIDEO_STATUS_FILTERS, type VideoStatusFilter } from "@/lib/videoStatus";
+import { EditOutlined, FilterOutlined, PlusOutlined } from "@ant-design/icons";
 import {
   Alert,
   App,
@@ -67,11 +56,9 @@ import {
   Segmented,
   Select,
   Spin,
-  Table,
   theme,
   Typography,
 } from "antd";
-import { rowLink } from "@/lib/rowLink";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, Suspense, useCallback, useEffect, useState } from "react";
@@ -80,15 +67,12 @@ import { Fragment, Suspense, useCallback, useEffect, useState } from "react";
  * numbers change, which a minute's wait shows soon enough. */
 const REFRESH_MS = 5000;
 const IDLE_REFRESH_MS = 60_000;
-/** From this many times its Page's median at 48 hours a post is drawn as a standout (docs/content.md). */
-const STANDOUT_TIMES = 10;
 
 type Sort = "new" | "views";
-const VIEW_KEY = "reels-studio.videos-view";
+// Where the choice was kept before every list of videos shared one: "grid" was the cards, "list" the table.
+const LEGACY_VIEW = { key: "reels-studio.videos-view", values: { grid: "cards", list: "table" } } as const;
 const GROUP_KEY = "reels-studio.videos-group";
 
-/** From this many times its Page's median at 48 hours a Facebook video without a TikTok version suggests making one. */
-const TIKTOK_NUDGE_TIMES = 3;
 /** A draft older than this many days waits on someone ("Cần làm"). */
 const STALE_DRAFT_DAYS = 2;
 
@@ -169,7 +153,7 @@ function Videos() {
     }
   });
   const group = urlGroup ?? storedGroup;
-  const [view, chooseView] = useRememberedView(VIEW_KEY);
+  const [view, chooseView] = useVideoView("cards", LEGACY_VIEW);
   // A phone gets "Bộ lọc" instead of five filters stacked above the list.
   const phone = !(Grid.useBreakpoint().md ?? true);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -294,6 +278,12 @@ function Videos() {
   // The api lists the newest first; "Nhiều view nhất" puts videos without views after, newest first among them.
   const sorted = sort === "views" ? [...kept].sort((a, b) => (b.post?.views ?? -1) - (a.post?.views ?? -1)) : kept;
   const { shown, versions } = withVersions(sorted, platform === "all");
+  const videoColumns = useVideoColumns({
+    storageKey: "videos-columns",
+    versionsOf: (row) => versions.get(row.id) ?? [],
+    onChanged: () => void reload(query, true),
+    showGroup: true,
+  });
   const filtered =
     Boolean(query.trim()) ||
     status !== "all" ||
@@ -368,15 +358,7 @@ function Videos() {
           </>
         }
       >
-        <Input
-          aria-label="Tìm theo tiêu đề hoặc chủ đề"
-          prefix={<SearchOutlined />}
-          placeholder="Tìm theo tiêu đề hoặc chủ đề…"
-          allowClear
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          style={{ width: 230, maxWidth: "100%" }}
-        />
+        <VideoSearch value={query} onChange={setQuery} width={230} />
         {phone ? (
           <Button icon={<FilterOutlined />} onClick={() => setFiltersOpen(true)}>
             {activeFilters ? `Bộ lọc (${activeFilters})` : "Bộ lọc"}
@@ -394,16 +376,10 @@ function Videos() {
           ]}
           style={{ width: 140 }}
         />
-        <Segmented
-          aria-label="Kiểu hiển thị"
-          value={view}
-          onChange={(value) => chooseView(value as View)}
-          style={{ marginLeft: "auto" }}
-          options={[
-            { value: "grid", icon: <AppstoreOutlined />, title: "Dạng lưới" },
-            { value: "list", icon: <UnorderedListOutlined />, title: "Dạng danh sách" },
-          ]}
-        />
+        <Flex gap={8} style={{ marginLeft: "auto" }}>
+          {view === "table" && videoColumns.picker}
+          <ViewToggle value={view} onChange={chooseView} />
+        </Flex>
       </PageHeader>
       <Drawer
         title="Bộ lọc"
@@ -444,7 +420,7 @@ function Videos() {
             }
           />
         </Card>
-      ) : view === "grid" ? (
+      ) : view === "cards" ? (
         <Row gutter={[16, 16]}>
           {shown.map((row) => (
             <Col key={row.id} xs={24} md={12} xl={8} xxl={6} style={{ display: "flex" }}>
@@ -453,7 +429,7 @@ function Videos() {
           ))}
         </Row>
       ) : (
-        <VideoTable rows={shown} versions={versions} onChanged={() => reload(query, true)} />
+        <VideoRows rows={shown} columns={videoColumns.columns} onChanged={() => reload(query, true)} />
       )}
       <NewVideoModal
         key={opened}
@@ -514,333 +490,30 @@ function weekOf(rows: VideoRow[]): { made: number; out: number; drafts: number }
   };
 }
 
-/** A small rounded link inside a card, which is itself a link: it opens its own page, not the card's. */
-function CardChip({
-  href,
-  label,
-  testId,
-  children,
-}: {
-  href: string;
-  label: string;
-  testId: string;
-  children: React.ReactNode;
-}) {
-  const { token } = theme.useToken();
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      aria-label={label}
-      data-testid={testId}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "0 8px",
-        lineHeight: "22px",
-        borderRadius: 11,
-        border: `1px solid ${token.colorBorderSecondary}`,
-        fontSize: 12,
-        color: "inherit",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {children}
-    </Link>
-  );
-}
-
-/** "TikTok" with its status ("Nháp", "Đã đăng"): the versions on a card or row, each opening its own page. */
-function VersionLinks({ versions }: { versions: VideoRow[] }) {
-  const { token } = theme.useToken();
-  return versions.map((version) => (
-    <CardChip
-      key={version.id}
-      href={`/videos/${version.id}`}
-      label={`Mở bản TikTok: ${version.name || version.title || version.topic}`}
-      testId="video-version"
-    >
-      <span style={{ color: token.colorTextSecondary }}>TikTok</span>
-      <StatusText tone={version.tiktok_posted ? "success" : cardTone(version)}>
-        {version.tiktok_posted ? "Đã đăng" : version.status_label}
-      </StatusText>
-    </CardChip>
-  ));
-}
-
-/** A Facebook video doing well at 48 hours, neither on TikTok itself nor with a TikTok version yet: the card offers to
- * make one. */
-function wantsTikTok(row: VideoRow): boolean {
-  return (
-    row.platform === "facebook" &&
-    !row.has_tiktok_version &&
-    !row.posted_on.includes("tiktok") &&
-    row.post?.state === "posted" &&
-    row.post.times_median !== null &&
-    row.post.times_median >= TIKTOK_NUDGE_TIMES
-  );
-}
-
-/** "800", "12,4K", "1,2M": how the team says view counts. */
-function compactViews(views: number): string {
-  const short = (value: number, unit: string) =>
-    `${value.toLocaleString("vi-VN", { maximumFractionDigits: value < 100 ? 1 : 0 })}${unit}`;
-  if (views >= 1_000_000) return short(views / 1_000_000, "M");
-  if (views >= 1_000) return short(views / 1_000, "K");
-  return views.toLocaleString("vi-VN");
-}
-
-function percent(rate: number): string {
-  return `${(rate * 100).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
-}
-
-/** "03/11 07:00" (or "03/11" without `time`), in Vietnam time; the year only when it is not this one. */
-function shortDate(iso: string, time = true): string {
-  const full = formatDateTime(iso); // "03/11/2026 07:00"
-  const thisYear = formatDateTime(new Date().toISOString()).slice(6, 10);
-  const day = full.slice(6, 10) === thisYear ? full.slice(0, 5) : full.slice(0, 10);
-  return time ? `${day} ${full.slice(11, 16)}` : day;
-}
-
-/** "Sức khỏe, ngày 1, NamTC, 03/11": where it comes from and who made it; the card keeps the date short. */
-function madeLine(row: VideoRow, short = false): string {
-  return [
-    row.knowledge_topic,
-    row.plan_day ? `ngày ${row.plan_day}` : null,
-    row.created_by,
-    short ? shortDate(row.created_at, false) : formatDateTime(row.created_at),
-  ]
-    .filter(Boolean)
-    .join(", ");
-}
-
-/** "Vườn nhà, 03/11/2026 07:00 (+1 trang)": the post the card counts, and how many Pages more. */
-function postLine(post: VideoRowPost): string {
-  const more = post.pages > 1 ? ` (+${post.pages - 1} trang)` : "";
-  return `${post.fanpage}, ${post.state === "scheduled" ? "hẹn " : ""}${formatDateTime(post.at)}${more}`;
-}
-
-/** The card's status: grey for a draft, blue while a job runs, green once out, amber while scheduled. */
-const cardTone = videoStatusTone;
-
-/** A card on its side. The thumbnail is left as it is but for its views, in the corner as on a profile grid; the
- * text reads top to bottom: what it is, where it went, how it did, and who made it. */
-function VideoCard({
-  row,
-  versions,
-  onChanged,
-}: {
-  row: VideoRow;
-  versions: VideoRow[];
-  onChanged: () => Promise<void>;
-}) {
-  const { token } = theme.useToken();
-  const name = row.name || row.title || row.topic;
-  // "Đổi tên" in the card's menu opens the name editor in place of the title link.
-  const [renaming, setRenaming] = useState(false);
-  const post = row.post;
-  const standout = post?.times_median != null && post.times_median >= STANDOUT_TIMES;
-  // A job's stage or a warning, said in words after the status rather than as more tags.
-  const warning = row.rerender_failed ? "render lại lỗi" : row.mp4_outdated ? "MP4 chưa cập nhật theo bản sửa" : null;
-  const small = { fontSize: 12, lineHeight: "18px" } as const;
-  return (
-    <div
-      role="group"
-      className="stretch-host"
-      aria-label={name}
-      data-testid="video-card"
-      style={{ display: "flex", flex: 1, minWidth: 0 }}
-    >
-      <Card
-        hoverable
-        style={{ flex: 1, minWidth: 0, borderColor: token.colorBorderSecondary }}
-        styles={{ body: { padding: 12, display: "flex", gap: 14 } }}
-      >
-        <div style={{ position: "relative", width: 92, flex: "none" }}>
-          <VideoThumbnail name={name} url={row.thumbnail_url} width={92} plain />
-          {post && (post.state === "scheduled" || post.views !== null) && (
-            <span
-              data-testid="video-card-views"
-              style={{
-                position: "absolute",
-                right: 4,
-                bottom: 4,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 3,
-                padding: "0 4px",
-                lineHeight: "16px",
-                borderRadius: 4,
-                background: "rgba(0, 0, 0, 0.72)",
-                color: "#fff",
-                fontSize: 11,
-                fontWeight: 600,
-                fontVariantNumeric: "tabular-nums",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {post.state === "scheduled" ? (
-                <>
-                  <ClockCircleOutlined /> {shortDate(post.at).slice(0, 5)}
-                </>
-              ) : (
-                <>
-                  <EyeOutlined /> {compactViews(post.views!)}
-                </>
-              )}
-            </span>
-          )}
-        </div>
-        <Flex vertical style={{ minWidth: 0, flex: 1 }}>
-          <Flex justify="space-between" gap={4}>
-            {renaming ? (
-              <VideoNameEditor
-                videoId={row.id}
-                name={row.name}
-                title={row.title || row.topic}
-                maxWidth={400}
-                editing
-                onEditingChange={setRenaming}
-                onSaved={onChanged}
-              />
-            ) : (
-              <Link href={`/videos/${row.id}`} prefetch={false} className="stretched-link">
-                <Typography.Paragraph
-                  strong
-                  ellipsis={{ rows: 2, tooltip: name }}
-                  style={{ margin: 0, lineHeight: "20px" }}
-                >
-                  {name}
-                </Typography.Paragraph>
-              </Link>
-            )}
-            <VideoActions video={row} onChanged={onChanged} onRename={() => setRenaming(true)} />
-          </Flex>
-          {/* Its kind on the left; where it is out on the right, every platform's icon in colour once posted there. */}
-          <Flex justify="space-between" align="flex-start" gap={8} style={{ marginTop: 6 }}>
-            <VideoKindTags video={row} />
-            <div style={{ flex: "none", paddingTop: 2 }}>
-              <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} size={13} />
-            </div>
-          </Flex>
-          {post ? (
-            <div style={{ marginTop: 6 }}>
-              <Typography.Text type="secondary" style={small} ellipsis={{ tooltip: post.fanpage }}>
-                {post.fanpage}
-                {post.pages > 1 && ` và ${post.pages - 1} trang khác`}
-              </Typography.Text>
-              <div>
-                <Typography.Text type="secondary" style={small}>
-                  {post.state === "scheduled" ? `Hẹn đăng ${shortDate(post.at)}` : `Đăng ${shortDate(post.at)}`}
-                </Typography.Text>
-              </div>
-            </div>
-          ) : (
-            <Typography.Text type="secondary" style={{ ...small, marginTop: 6 }}>
-              Chưa đăng
-            </Typography.Text>
-          )}
-          {post && (post.times_median !== null || post.share_rate !== null) && (
-            <Flex gap={12} wrap style={{ marginTop: 6, ...small, fontVariantNumeric: "tabular-nums" }}>
-              {post.times_median !== null && (
-                <Typography.Text
-                  strong={standout}
-                  style={{ ...small, color: standout ? COLORS.primary : undefined }}
-                  data-testid="video-card-times"
-                >
-                  {post.times_median.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}× trung vị
-                </Typography.Text>
-              )}
-              {post.share_rate !== null && (
-                <Typography.Text
-                  type={post.share_met ? "success" : "secondary"}
-                  style={small}
-                  title={post.share_met ? "Đạt mục tiêu share/view" : "Chưa đạt mục tiêu share/view"}
-                >
-                  {percent(post.share_rate)} share
-                </Typography.Text>
-              )}
-            </Flex>
-          )}
-          <Flex justify="space-between" align="flex-end" gap={8} style={{ marginTop: "auto", paddingTop: 10 }}>
-            <Flex gap={10} align="center" style={small}>
-              <StatusText tone={cardTone(row)} data-testid="video-status">
-                {row.status_label}
-              </StatusText>
-            </Flex>
-            <Typography.Text type="secondary" style={{ ...small, textAlign: "right", flex: "none" }}>
-              {row.created_by}, {shortDate(row.created_at, false)}
-            </Typography.Text>
-          </Flex>
-          {(versions.length > 0 || wantsTikTok(row)) && (
-            <Flex gap={6} wrap style={{ marginTop: 6 }}>
-              <VersionLinks versions={versions} />
-              {wantsTikTok(row) && (
-                <CardChip
-                  href={`/videos/${row.id}?clone=tiktok`}
-                  label={`Tạo bản TikTok cho ${name}`}
-                  testId="card-make-tiktok"
-                >
-                  <PlusOutlined style={{ color: COLORS.primary }} />
-                  <span style={{ color: COLORS.primary }}>Tạo bản TikTok</span>
-                </CardChip>
-              )}
-            </Flex>
-          )}
-          {/* Said on a line of its own, so the status line never breaks. */}
-          {warning && (
-            <Typography.Text style={{ ...small, color: token.colorWarningText }}>
-              {warning[0].toUpperCase() + warning.slice(1)}
-            </Typography.Text>
-          )}
-          {(row.knowledge_topic || row.plan_day) && (
-            <Typography.Text type="secondary" style={{ ...small, fontSize: 11 }} ellipsis>
-              {row.knowledge_topic}
-              {row.plan_day ? `, ngày ${row.plan_day} kế hoạch` : ""}
-            </Typography.Text>
-          )}
-        </Flex>
-      </Card>
-    </div>
-  );
-}
-
-/** "Dạng danh sách": one row per video, to scan many at once. */
-function VideoTable({
+/** "Bảng": one row per video, to scan many at once. */
+function VideoRows({
   rows,
-  versions,
+  columns,
   onChanged,
 }: {
   rows: VideoRow[];
-  versions: Map<number, VideoRow[]>;
+  columns: ColumnsType<VideoRow>;
   onChanged: () => Promise<void>;
 }) {
   // The table's page is in the address too, back to 1 when a filter changes.
   const tablePage = useUrlPage();
-  const router = useRouter();
   // One row's name is open for editing at a time; opening another closes (cancels) it.
   const [renaming, setRenaming] = useState<number | null>(null);
   return (
     <Card styles={{ body: { padding: 0 } }}>
-      <Table<VideoRow>
+      <VideoTable<VideoRow>
+        rows={rows}
         rowKey="id"
-        dataSource={rows}
-        pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
-        scroll={{ x: 1100 }}
-        onRow={(row) => ({
-          ...rowLink((href) => router.push(href), `/videos/${row.id}`),
-          style: { cursor: "pointer" },
-          "data-testid": "video-row",
-        })}
+        page={tablePage}
+        rowHref={(row) => `/videos/${row.id}`}
+        rowTestId="video-row"
+        actions={(row) => <VideoActions video={row} onChanged={onChanged} onRename={() => setRenaming(row.id)} />}
         columns={[
-          {
-            key: "actions",
-            title: "Thao tác",
-            fixed: "right",
-            width: 120,
-            render: (_, row) => <VideoActions video={row} onChanged={onChanged} onRename={() => setRenaming(row.id)} />,
-          },
           {
             title: "Video",
             key: "video",
@@ -863,79 +536,11 @@ function VideoTable({
                     onSaved={onChanged}
                   />
                 }
-                sub={
-                  row.post ? (
-                    postLine(row.post)
-                  ) : (
-                    <Typography.Text type="secondary">
-                      {row.title ? `Chủ đề: ${row.topic}` : "Chưa đăng"}
-                    </Typography.Text>
-                  )
-                }
+                sub={<Typography.Text type="secondary">{videoDetails(row)}</Typography.Text>}
               />
             ),
           },
-          {
-            title: "Trạng thái",
-            key: "status",
-            width: 260,
-            render: (_, row) => (
-              <Flex vertical gap={4} align="flex-start">
-                <Flex gap={8} align="center" wrap>
-                  <VideoStatusTags video={row} />
-                  {row.post && (
-                    <StatusText tone={row.post.state === "posted" ? "success" : "waiting"} style={{ fontSize: 13 }}>
-                      {row.post.state === "posted" ? "Đã đăng" : "Đã hẹn giờ"}
-                    </StatusText>
-                  )}
-                  <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} />
-                </Flex>
-                <VideoKindTags video={row} />
-                <VersionLinks versions={versions.get(row.id) ?? []} />
-                {wantsTikTok(row) && (
-                  <Link href={`/videos/${row.id}?clone=tiktok`} onClick={(event) => event.stopPropagation()}>
-                    Tạo bản TikTok
-                  </Link>
-                )}
-              </Flex>
-            ),
-          },
-          {
-            title: "Số liệu",
-            key: "numbers",
-            width: 190,
-            sorter: (a, b) => (a.post?.views ?? -1) - (b.post?.views ?? -1),
-            render: (_, row) => {
-              const post = row.post;
-              if (!post || (post.views === null && post.times_median === null && post.share_rate === null)) {
-                return <Typography.Text type="secondary">—</Typography.Text>;
-              }
-              const standout = post.times_median !== null && post.times_median >= STANDOUT_TIMES;
-              return (
-                <Flex vertical>
-                  <Typography.Text strong>
-                    {post.views !== null ? `${post.views.toLocaleString("vi-VN")} view` : "— view"}
-                  </Typography.Text>
-                  <Typography.Text
-                    type={standout ? undefined : "secondary"}
-                    strong={standout}
-                    style={{ fontSize: 12, ...(standout ? { color: COLORS.primary } : {}) }}
-                  >
-                    {post.times_median !== null
-                      ? `48h: ${post.times_median.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}×`
-                      : "48h: chưa đủ dữ liệu"}
-                    {post.share_rate !== null && `, ${percent(post.share_rate)} share`}
-                  </Typography.Text>
-                </Flex>
-              );
-            },
-          },
-          {
-            title: "Tạo",
-            key: "made",
-            width: 220,
-            render: (_, row) => <Typography.Text type="secondary">{madeLine(row, true)}</Typography.Text>,
-          },
+          ...columns,
         ]}
       />
     </Card>

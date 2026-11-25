@@ -2,6 +2,7 @@
 
 import {
   AimOutlined,
+  BarChartOutlined,
   BookOutlined,
   ClockCircleOutlined,
   FolderOpenOutlined,
@@ -16,6 +17,7 @@ import {
   FacebookOutlined,
   FileTextOutlined,
   PlaySquareOutlined,
+  QuestionCircleOutlined,
   SettingOutlined,
   ShoppingOutlined,
   TeamOutlined,
@@ -51,6 +53,7 @@ const NAV: { key: string; label: string; children: { key: string; icon: React.Re
     label: "Đăng và kiếm tiền",
     children: [
       { key: "/posts", icon: <UnorderedListOutlined />, label: "Bài đăng" },
+      { key: "/stats", icon: <BarChartOutlined />, label: "Thống kê" },
       { key: "/fanpages", icon: <FacebookOutlined />, label: "Quản lý kênh" },
       { key: "/affiliate", icon: <ShoppingOutlined />, label: "Affiliate" },
     ],
@@ -60,6 +63,7 @@ const NAV: { key: string; label: string; children: { key: string; icon: React.Re
     label: "Tài nguyên",
     children: [
       { key: "/knowledge", icon: <BookOutlined />, label: "Kho kiến thức" },
+      { key: "/guides", icon: <QuestionCircleOutlined />, label: "Tất cả hướng dẫn" },
       { key: "/media", icon: <FolderOpenOutlined />, label: "Kho tư liệu" },
       { key: "/music", icon: <CustomerServiceOutlined />, label: "Thư viện nhạc" },
       { key: "/competitors", icon: <AimOutlined />, label: "Phân tích đối thủ" },

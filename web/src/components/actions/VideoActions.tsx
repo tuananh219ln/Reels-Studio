@@ -24,12 +24,15 @@ export default function VideoActions({
   video,
   onChanged,
   onRename,
+  extraItems,
 }: {
   video: Pick<VideoRow, "id" | "title" | "topic"> &
     Partial<Pick<VideoRow, "name" | "plan_day" | "post_stage" | "queue" | "suggested_post_at">>;
   onChanged?: () => void | Promise<void>;
   /** Adds "Đổi tên" first in the menu, opening the name editor of the row. */
   onRename?: () => void;
+  /** Entries of the caller's, put in the menu right after "Mở video" (and shown while the video is still loading). */
+  extraItems?: MenuProps["items"];
 }) {
   const { me } = useMe();
   const { message, modal } = App.useApp();
@@ -88,9 +91,12 @@ export default function VideoActions({
   /** The "⋮" menu: quick actions at once; posting and the queue open a drawer, as they need their own forms. */
   function menuItems(): MenuProps["items"] {
     if (!detail) {
-      return failed
-        ? [{ key: "again", label: "Không tải được, thử lại", onClick: () => void read() }]
-        : [{ key: "loading", label: <Spin size="small" />, disabled: true }];
+      return [
+        ...(extraItems ?? []),
+        failed
+          ? { key: "again", label: "Không tải được, thử lại", onClick: () => void read() }
+          : { key: "loading", label: <Spin size="small" />, disabled: true },
+      ];
     }
     const mine = detail.created_by_id === me.id;
     const posting = Boolean(detail.mp4) || Boolean(detail.active_job ?? detail.failed_job);
@@ -104,6 +110,7 @@ export default function VideoActions({
           </Link>
         ),
       },
+      ...(extraItems ?? []),
       ...(posting ? [{ key: "post", label: "Đăng bài, hàng chờ, job…", onClick: () => setOpen(true) }] : []),
       ...(detail.mp4
         ? [{ key: "mp4", label: "Tải MP4", onClick: () => window.location.assign(detail.mp4!.download_url) }]

@@ -440,17 +440,22 @@ test("knowledge topics: a group's Video tab lists its videos and makes a new one
   // An unposted video shows dashes for its numbers, never a zero it does not have.
   await expect(videos.getByRole("columnheader", { name: "Số liệu" })).toBeVisible();
   await expect(videos.getByRole("row").nth(1)).toContainText("—");
-  // "Danh sách" keeps the search, and is remembered in this browser.
-  await videos.getByText("Danh sách", { exact: true }).click();
-  await expect(videos.getByTestId("topic-video-card")).toHaveCount(1);
-  await expect(videos.getByTestId("topic-video-numbers")).toHaveText("Chưa có số liệu đăng");
+  // "ID" is a column of "Cột", off until ticked.
+  await expect(videos.getByRole("columnheader", { name: "ID", exact: true })).toHaveCount(0);
+  await videos.getByRole("button", { name: "Cột" }).click();
+  await page.getByRole("checkbox", { name: "ID", exact: true }).check();
+  await page.getByRole("button", { name: "Áp dụng" }).click();
+  await expect(videos.getByRole("columnheader", { name: "ID", exact: true })).toBeVisible();
+  // "Thẻ" keeps the search, and is remembered in this browser.
+  await videos.getByLabel("Kiểu hiển thị").getByText("Thẻ", { exact: true }).click();
+  await expect(videos.getByTestId("video-card")).toHaveCount(1);
   await expect(videos.getByLabel("Tìm video của nhóm")).toHaveValue("rau mam");
   await videos.getByLabel("Tìm video của nhóm").fill("khong co");
   await expect(videos.getByText("Không có video nào khớp")).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
-  await expect(videos.getByTestId("topic-video-card")).toHaveCount(1);
-  await videos.getByText("Bảng", { exact: true }).click();
+  await expect(videos.getByTestId("video-card")).toHaveCount(1);
+  await videos.getByLabel("Kiểu hiển thị").getByText("Bảng", { exact: true }).click();
   await expect(videos.getByRole("row")).toHaveCount(2);
 
   // "Tạo video" on another group's tab opens the dialog on that group, not the first one.
@@ -710,7 +715,7 @@ test("video list: status and creator filters, grid or list view remembered", asy
   await expect(cards).toHaveCount(1);
 
   // The list view shows one row per video; the choice, and the topic group, are remembered in this browser.
-  await page.getByTitle("Dạng danh sách").click();
+  await page.getByLabel("Kiểu hiển thị").getByText("Bảng", { exact: true }).click();
   await expect(page.getByTestId("video-row")).toHaveCount(1);
   await page.reload();
   await expect(page.getByTestId("video-row")).toHaveCount(1);
@@ -720,7 +725,7 @@ test("video list: status and creator filters, grid or list view remembered", asy
   await page.getByTestId("video-row").first().click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
   await page.goto("/videos");
-  await page.getByTitle("Dạng lưới").click();
+  await page.getByLabel("Kiểu hiển thị").getByText("Thẻ", { exact: true }).click();
   await expect(cards).toHaveCount(1);
 });
 
@@ -1900,11 +1905,14 @@ test("a posted video is a row of its Page's Nội dung tab, with columns to choo
   await expect(rows.getByText("Đã đăng", { exact: true })).toBeVisible();
   // A fresh reel has no numbers until the worker reads them; "Cập nhật view" in the row's menu asks for them.
   await expect(tab).toContainText("Cần ít nhất 5 bài có view 48 giờ để so với trung vị.");
-  await rows.getByRole("button", { name: "Thao tác với bài" }).click();
+  // One menu per row: the video's entries and the post's.
+  await expect(rows.getByRole("button")).toHaveCount(1);
+  await rows.getByRole("button", { name: /^Thao tác với video / }).click();
   await expect(page.getByRole("menuitem", { name: "Mở reel trên Facebook" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: /^Thao tác bài đăng/ })).toBeVisible();
   await page.getByRole("menuitem", { name: "Cập nhật view" }).click();
   await expect(rows.getByRole("cell", { name: "1.200", exact: true })).toBeVisible({ timeout: 30_000 });
-  for (const value of ["900", "40", "5", "3", "4", "8,4 giây"]) {
+  for (const value of ["900", "40", "5", "3", "4", "8,4 giây", "2 giờ 48 phút"]) {
     await expect(rows.getByRole("cell", { name: value, exact: true })).toBeVisible();
   }
 
@@ -1912,9 +1920,17 @@ test("a posted video is a row of its Page's Nội dung tab, with columns to choo
   await table.getByRole("columnheader", { name: "Lượt xem" }).click();
   await expect(table.getByRole("columnheader", { name: "Lượt xem" })).toHaveAttribute("aria-sort", "descending");
 
-  // "Cột" hides a column, and the choice stays in this browser.
+  // "Cột" hides a column only once "Áp dụng" is pressed ("Hủy" drops the change), and the choice stays in this browser.
   await tab.getByRole("button", { name: "Cột" }).click();
   await page.getByRole("checkbox", { name: "Tiếp cận" }).uncheck();
+  await expect(table.getByRole("columnheader", { name: "Tiếp cận" })).toBeVisible();
+  await page.getByRole("button", { name: "Hủy" }).click();
+  await expect(table.getByRole("columnheader", { name: "Tiếp cận" })).toBeVisible();
+  await tab.getByRole("button", { name: "Cột" }).click();
+  await page.getByPlaceholder("Tìm cột").fill("tiếp");
+  await expect(page.getByRole("checkbox", { name: "Lượt xem" })).toHaveCount(0);
+  await page.getByRole("checkbox", { name: "Tiếp cận" }).uncheck();
+  await page.getByRole("button", { name: "Áp dụng" }).click();
   await expect(table.getByRole("columnheader", { name: "Tiếp cận" })).toHaveCount(0);
   await page.reload();
   await page.getByRole("tab", { name: "Nội dung" }).click();
@@ -1929,11 +1945,23 @@ test("a posted video is a row of its Page's Nội dung tab, with columns to choo
   const text = (await readFile(await file.path(), "utf-8")).replace(/^﻿/, "");
   const [header, line] = text.split("\r\n");
   expect(header).toBe(
-    "Tiêu đề,Lên lúc,Trạng thái,Lượt xem,Cảm xúc,Bình luận,Chia sẻ,Theo dõi,Xem TB,View 48 giờ,So với trung vị,Link reel",
+    "Tiêu đề,Lên lúc,Trạng thái,Lượt xem,Cảm xúc,Bình luận,Chia sẻ,Theo dõi,Xem TB,Thời gian xem,View 48 giờ,So với trung vị,Link reel",
   );
-  expect(line).toContain(",Đã đăng,1200,40,5,3,4,8.4,,,https://www.facebook.com/reel/");
+  expect(line).toContain(",Đã đăng,1200,40,5,3,4,8.4,10080,,,https://www.facebook.com/reel/");
+
+  // "Thống kê" puts the Page in a row of its own, with the post's watch time and a link to its dashboard.
+  await page.getByRole("menuitem", { name: "Thống kê" }).click();
+  await expect(page.getByRole("heading", { name: "Thống kê" })).toBeVisible();
+  const stats = page.getByTestId("stats-table").locator("tbody tr.ant-table-row", { hasText: "Trang Dưỡng Sinh" });
+  await expect(stats).toHaveCount(1);
+  await expect(stats).toContainText("2 giờ 48 phút");
+  await expect(stats.getByRole("link", { name: "Mở" })).toHaveAttribute("href", /\/fanpages\/\d+$/);
+  await page.getByText("TikTok", { exact: true }).click();
+  await expect(page.getByText("TikTok chưa có nguồn số liệu để so sánh.")).toBeVisible();
 
   // The title opens the video.
+  await page.goBack();
+  await page.getByRole("tab", { name: "Nội dung" }).click();
   await rows.getByRole("link").first().click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 });

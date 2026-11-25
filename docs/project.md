@@ -95,6 +95,12 @@ app replaces CapCut, so the output is a finished MP4.
    the "Nội dung" tab, like Facebook's content library: each post of the period with its numbers, sortable, with
    chosen columns and a CSV file. More Page Insights metrics are a later phase.
 
+   **Thống kê** (built, [brief](specs/stats-content-guides/brief.md), [decision](decisions/2026-11-25-stats-page.md)): the Pages
+   side by side, one row each, on Facebook or Instagram (TikTok has no numbers yet), over 7, 28 or 90 days, with daily
+   charts, the Pages' winners and measuring posts, chosen columns and a CSV file. The member's own Pages start picked.
+   Pages are compared, never added up, and a number Facebook does not give is left empty. **Tất cả hướng dẫn** lists every
+   screen's guides in one place, beside each screen's own "Hướng dẫn" button.
+
    **Bài viết** (built, [brief](specs/bai-viet/brief.md)): photo or text posts for a Page, to test a topic cheaply
    before making a reel. An article has a topic group, kind, topic and caption, typed or written by the AI ("AI
    viết"), up to 5 hashtags, up to 10 photos taken with a scene's tools (upload, paste, "Kho tư liệu", the stock

@@ -81,7 +81,15 @@ def test_the_period_starts_at_midnight_vietnam_time(an, db, storage, me, page):
 
 def test_a_row_has_the_video_the_reel_and_its_latest_numbers(an, db, storage, me, page):
     numbers = dict(
-        views=1200, reach=900, reactions=40, comments=6, shares=3, avg_watch_ms=7250, followers=5, plays=1100
+        views=1200,
+        reach=900,
+        reactions=40,
+        comments=6,
+        shares=3,
+        avg_watch_ms=7250,
+        view_time_ms=90_400,
+        followers=5,
+        plays=1100,
     )
     row = post(db, storage, me, page, NOW - timedelta(days=3), latest=numbers)
     [got] = get(an, page)["posts"]
@@ -97,6 +105,7 @@ def test_a_row_has_the_video_the_reel_and_its_latest_numbers(an, db, storage, me
         "comments": 6,
         "shares": 3,
         "avg_watch_seconds": 7.2,
+        "view_time_seconds": 90,
         "followers": 5,
         "measured_at": NOW.isoformat(),
     }

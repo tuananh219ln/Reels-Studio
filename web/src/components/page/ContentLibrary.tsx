@@ -2,25 +2,19 @@
 import { decimalFormat } from "@/lib/format";
 import VideoActions from "@/components/actions/VideoActions";
 import ManagedPostActions from "@/components/actions/ManagedPostActions";
+import ColumnPicker, { useRememberedColumns } from "@/components/ColumnPicker";
 
-import EmptyState from "@/components/EmptyState";
 import StatusText from "@/components/StatusText";
-import VideoThumbnail from "@/components/VideoThumbnail";
-import { formatNumber, formatSeconds } from "@/components/page/Figures";
+import VideoTitleCell from "@/components/VideoTitleCell";
+import VideoTable from "@/components/videoList/VideoTable";
+import { formatDuration, formatNumber, formatSeconds } from "@/components/page/Figures";
 import { api, errorMessage, formatDateTime, type PageContent, type PageContentPost } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 import { useUrlChoice, useUrlPage } from "@/lib/urlState";
-import {
-  ArrowDownOutlined,
-  ArrowUpOutlined,
-  DownloadOutlined,
-  EllipsisOutlined,
-  SettingOutlined,
-} from "@ant-design/icons";
+import { ArrowDownOutlined, ArrowUpOutlined, DownloadOutlined } from "@ant-design/icons";
 import type { TableColumnsType, TablePaginationConfig } from "antd";
-import { App, Button, Card, Checkbox, Dropdown, Flex, Popover, Table, Tag, Tooltip, Typography, theme } from "antd";
+import { App, Button, Card, Flex, Tag, Tooltip, Typography, theme } from "antd";
 import type { SorterResult } from "antd/es/table/interface";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const REFRESH_MS = 60_000;
@@ -38,13 +32,20 @@ type Key =
   | "comments"
   | "shares"
   | "avg_watch_seconds"
+  | "view_time_seconds"
   | "followers"
   | "views_48h"
   | "times_median";
 
+// The groups of the column box, as Meta's content table names them.
+const DETAILS = "Chi tiết về nội dung";
+const RESULTS = "Hiệu quả";
+const ENGAGEMENT = "Lượt tương tác";
+
 type Column = {
   key: Key;
   title: string;
+  group: string;
   tip?: string;
   /** The value sorted on and written to the CSV file; null sorts last either way. */
   value: (post: PageContentPost) => number | string | null;
@@ -80,12 +81,14 @@ const COLUMNS: Column[] = [
   {
     key: "live_at",
     title: "Lên lúc",
+    group: DETAILS,
     value: (post) => post.live_at,
     render: (post) => <span style={{ whiteSpace: "nowrap" }}>{formatDateTime(post.live_at)}</span>,
   },
   {
     key: "status",
     title: "Trạng thái",
+    group: DETAILS,
     value: (post) => (post.status === "deleted" ? "Đã gỡ" : "Đã đăng"),
     render: (post) =>
       post.status === "deleted" ? (
@@ -98,16 +101,17 @@ const COLUMNS: Column[] = [
   },
   ...(
     [
-      ["views", "Lượt xem", "Facebook, lần đo mới nhất của bài (không phải số 48 giờ)"],
-      ["reach", "Tiếp cận", "Số người đã thấy reel, Facebook ước tính"],
-      ["reactions", "Cảm xúc", undefined],
-      ["comments", "Bình luận", undefined],
-      ["shares", "Chia sẻ", undefined],
-      ["followers", "Theo dõi", "Người theo dõi Page nhờ reel này"],
+      ["views", "Lượt xem", RESULTS, "Facebook, lần đo mới nhất của bài (không phải số 48 giờ)"],
+      ["reach", "Tiếp cận", RESULTS, "Số người đã thấy reel, Facebook ước tính"],
+      ["reactions", "Cảm xúc", ENGAGEMENT, undefined],
+      ["comments", "Bình luận", ENGAGEMENT, undefined],
+      ["shares", "Chia sẻ", ENGAGEMENT, undefined],
+      ["followers", "Theo dõi", RESULTS, "Người theo dõi Page nhờ reel này"],
     ] as const
-  ).map(([key, title, tip]): Column => ({
+  ).map(([key, title, group, tip]): Column => ({
     key,
     title,
+    group,
     tip,
     numeric: true,
     value: latest(key),
@@ -116,14 +120,25 @@ const COLUMNS: Column[] = [
   {
     key: "avg_watch_seconds",
     title: "Xem TB",
+    group: RESULTS,
     tip: "Thời gian xem trung bình mỗi lượt phát, tính cả xem lại",
     numeric: true,
     value: latest("avg_watch_seconds"),
     render: (post) => formatSeconds(latest("avg_watch_seconds")(post)),
   },
   {
+    key: "view_time_seconds",
+    title: "Thời gian xem",
+    group: RESULTS,
+    tip: "Tổng thời gian mọi lượt phát của reel, số Facebook trả; “—” khi Facebook không trả",
+    numeric: true,
+    value: latest("view_time_seconds"),
+    render: (post) => formatDuration(latest("view_time_seconds")(post)),
+  },
+  {
     key: "views_48h",
     title: "View 48 giờ",
+    group: RESULTS,
     tip: "Lượt xem ở lần đo đầu tiên sau 48 giờ, để so các bài ở cùng tuổi",
     numeric: true,
     value: (post) => post.views_48h,
@@ -132,6 +147,7 @@ const COLUMNS: Column[] = [
   {
     key: "times_median",
     title: "So với trung vị",
+    group: RESULTS,
     tip: "View 48 giờ gấp mấy lần trung vị của Page (các bài 60 ngày qua)",
     numeric: true,
     value: (post) => post.times_median,
@@ -140,27 +156,6 @@ const COLUMNS: Column[] = [
 ];
 
 const ALL_KEYS = COLUMNS.map((column) => column.key);
-
-function useRememberedColumns(): [Key[], (next: Key[]) => void] {
-  const [keys, setKeys] = useState<Key[]>(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(COLUMNS_KEY) ?? "null");
-      if (Array.isArray(saved)) return ALL_KEYS.filter((key) => saved.includes(key));
-    } catch {
-      // A browser that refuses storage shows every column.
-    }
-    return ALL_KEYS;
-  });
-  function choose(next: Key[]) {
-    setKeys(next);
-    try {
-      window.localStorage.setItem(COLUMNS_KEY, JSON.stringify(next));
-    } catch {
-      // A browser that refuses storage just forgets the choice.
-    }
-  }
-  return [keys, choose];
-}
 
 type Sort = { key: Key; order: "ascend" | "descend" };
 
@@ -199,51 +194,14 @@ function downloadCsv(posts: PageContentPost[], columns: Column[], name: string) 
   URL.revokeObjectURL(url);
 }
 
-function RowMenu({ post, onRefresh }: { post: PageContentPost; onRefresh: (post: PageContentPost) => void }) {
-  return (
-    <Dropdown
-      trigger={["click"]}
-      menu={{
-        items: [
-          {
-            key: "video",
-            label: (
-              <Link prefetch={false} href={`/videos/${post.video.id}`}>
-                Mở video
-              </Link>
-            ),
-          },
-          {
-            key: "reel",
-            disabled: !post.url,
-            label: post.url ? (
-              <a href={post.url} target="_blank" rel="noreferrer">
-                Mở reel trên Facebook
-              </a>
-            ) : (
-              "Mở reel trên Facebook"
-            ),
-          },
-          {
-            key: "refresh",
-            disabled: !post.can_refresh || post.pending,
-            label: post.pending ? "Đang đo view…" : "Cập nhật view",
-            onClick: () => onRefresh(post),
-          },
-        ],
-      }}
-    >
-      <Button type="text" size="small" icon={<EllipsisOutlined />} aria-label="Thao tác với bài" />
-    </Dropdown>
-  );
-}
-
 /** The dashboard's "Nội dung" tab, like Facebook's content library: every post the app made to the Page that went
  * live in the period, with its latest numbers. */
 export default function ContentLibrary({ pageId, days }: { pageId: string; days: number }) {
   const { message } = App.useApp();
   const [data, setData] = useState<PageContent | null>(null);
-  const [shown, setShown] = useRememberedColumns();
+  const [shown, setShown] = useRememberedColumns<Key>(COLUMNS_KEY, ALL_KEYS, ALL_KEYS);
+  // "Thao tác bài đăng" opens from the row's one menu; this is the post whose drawer is open.
+  const [managing, setManaging] = useState<number | null>(null);
   // The sort and page are in the address beside the dashboard's tab.
   const [sortKey, setSortKey] = useUrlChoice<Key>("sort", "live_at", ALL_KEYS);
   const [sortOrder, setSortOrder] = useUrlChoice<Sort["order"]>("order", "descend", ["ascend"]);
@@ -289,7 +247,7 @@ export default function ContentLibrary({ pageId, days }: { pageId: string; days:
     }
   }
 
-  const columns = COLUMNS.filter((column) => shown.includes(column.key));
+  const columns = shown.map((key) => COLUMNS.find((column) => column.key === key)!);
   const rows = useMemo(() => (data ? sorted(data.posts, sort) : []), [data, sort]);
 
   const tableColumns: TableColumnsType<PageContentPost> = [
@@ -299,14 +257,12 @@ export default function ContentLibrary({ pageId, days }: { pageId: string; days:
       fixed: "left",
       width: 280,
       render: (_, post) => (
-        <Flex gap={10} align="center" style={{ minWidth: 0 }}>
-          <VideoThumbnail name={post.video.title} url={post.video.thumbnail_url} width={32} />
-          <Typography.Paragraph ellipsis={{ rows: 2, tooltip: post.video.title }} style={{ margin: 0, minWidth: 0 }}>
-            <Link prefetch={false} href={`/videos/${post.video.id}`}>
-              {post.video.title}
-            </Link>
-          </Typography.Paragraph>
-        </Flex>
+        <VideoTitleCell
+          id={post.video.id}
+          title={post.video.title}
+          thumbnailUrl={post.video.thumbnail_url}
+          maxWidth={220}
+        />
       ),
     },
     ...columns.map((column) => ({
@@ -328,19 +284,47 @@ export default function ContentLibrary({ pageId, days }: { pageId: string; days:
         <span style={column.numeric ? { fontVariantNumeric: "tabular-nums" } : undefined}>{column.render(post)}</span>
       ),
     })),
-    {
-      key: "menu",
-      fixed: "right",
-      width: 170,
-      render: (_, post) => (
-        <Flex gap={4}>
-          <VideoActions video={{ ...post.video, topic: post.video.title }} onChanged={() => load(true)} />
-          <ManagedPostActions postId={post.id} onChanged={() => load(true)} />
-          <RowMenu post={post} onRefresh={refresh} />
-        </Flex>
-      ),
-    },
   ];
+
+  const rowActions = (post: PageContentPost) => (
+    <>
+      <VideoActions
+        video={{ ...post.video, topic: post.video.title }}
+        onChanged={() => load(true)}
+        extraItems={[
+          {
+            key: "reel",
+            disabled: !post.url,
+            label: post.url ? (
+              <a href={post.url} target="_blank" rel="noreferrer">
+                Mở reel trên Facebook
+              </a>
+            ) : (
+              "Mở reel trên Facebook"
+            ),
+          },
+          {
+            key: "refresh",
+            disabled: !post.can_refresh || post.pending,
+            label: post.pending ? "Đang đo view…" : "Cập nhật view",
+            onClick: () => void refresh(post),
+          },
+          {
+            key: "manage",
+            label: "Thao tác bài đăng (phân tích, bình luận, sửa link reel…)",
+            onClick: () => setManaging(post.id),
+          },
+        ]}
+      />
+      {managing === post.id && (
+        <ManagedPostActions
+          postId={post.id}
+          onChanged={() => load(true)}
+          openWith={{ open: true, onClose: () => setManaging(null) }}
+        />
+      )}
+    </>
+  );
 
   function onChange(_: TablePaginationConfig, __: unknown, sorter: SorterResult<PageContentPost> | unknown) {
     const { columnKey, order } = sorter as SorterResult<PageContentPost>;
@@ -354,23 +338,7 @@ export default function ContentLibrary({ pageId, days }: { pageId: string; days:
       title={data ? `${data.posts.length} bài app đăng trong ${data.days} ngày` : "Nội dung"}
       extra={
         <Flex gap={8}>
-          <Popover
-            trigger="click"
-            placement="bottomRight"
-            title="Cột hiện trong bảng"
-            content={
-              <Checkbox.Group<Key>
-                value={shown}
-                onChange={(next) => setShown(ALL_KEYS.filter((key) => next.includes(key)))}
-                style={{ display: "flex", flexDirection: "column", gap: 4 }}
-                options={COLUMNS.map((column) => ({ value: column.key, label: column.title }))}
-              />
-            }
-          >
-            <Button size="small" icon={<SettingOutlined />}>
-              Cột
-            </Button>
-          </Popover>
+          <ColumnPicker<Key> columns={COLUMNS} shown={shown} onApply={setShown} />
           <Button
             size="small"
             icon={<DownloadOutlined />}
@@ -383,19 +351,18 @@ export default function ContentLibrary({ pageId, days }: { pageId: string; days:
       }
     >
       <Flex vertical gap={8}>
-        <Table<PageContentPost>
-          data-testid="content-table"
+        <VideoTable<PageContentPost>
+          testId="content-table"
           rowKey="id"
           size="small"
           loading={data === null}
-          dataSource={rows}
+          rows={rows}
           columns={tableColumns}
-          onChange={onChange}
-          pagination={rows.length > 50 ? { pageSize: 50, showSizeChanger: false, ...tablePage } : false}
-          scroll={{ x: "max-content" }}
-          locale={{
-            emptyText: <EmptyState description={`Chưa có bài nào app đăng lên Page này trong ${days} ngày.`} />,
-          }}
+          actions={rowActions}
+          actionsWidth={56}
+          page={tablePage}
+          empty={`Chưa có bài nào app đăng lên Page này trong ${days} ngày.`}
+          tableProps={{ onChange }}
         />
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Nguồn: Facebook, đọc qua tool ở lần đo mới nhất của mỗi bài (bấm “Cập nhật view” ở ⋯ để đo lại); cột “View 48
