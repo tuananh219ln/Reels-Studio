@@ -479,6 +479,67 @@ def test_facebooks_round_of_checks_leaves_instagram_posts_alone(committed, ready
         assert db.scalar(select(Job).where(Job.kind == "check")) is None
 
 
+# --- A Reel deleted on Instagram is not shown as posted ---
+
+
+def live_reel(committed, ready, fakes, checked_hours_ago: float | None = None) -> int:
+    """A Reel Instagram has, and its post."""
+    user, _, video_id, page_id = ready
+    media_id = "17900000000042"
+    fakes.instagram_media.insert(
+        0, {"id": media_id, "caption": "x", "permalink": "https://www.instagram.com/reel/Fake/", "timestamp": ""}
+    )
+    checked = None if checked_hours_ago is None else datetime.now(UTC) - timedelta(hours=checked_hours_ago)
+    with committed() as db:
+        post = Publication(
+            video_id=video_id,
+            platform="instagram",
+            status="published",
+            external_id=media_id,
+            published_at=datetime.now(UTC) - timedelta(hours=2),
+            checked_at=checked,
+            created_by_id=user.id,
+            fanpage_id=page_id,
+        )
+        db.add(post)
+        db.commit()
+        return post.id
+
+
+def recheck(committed, post_id) -> Publication:
+    from reels_api import metrics
+
+    metrics.check_instagram_due(committed)
+    with committed() as db:
+        return db.get(Publication, post_id)
+
+
+def test_a_reel_deleted_on_instagram_is_marked_deleted_by_the_periodic_check(committed, ready, fakes):
+    """The bug: a Reel deleted in Instagram stayed "Đã đăng" for good; only Facebook posts were ever checked again."""
+    post_id = live_reel(committed, ready, fakes)
+    post = recheck(committed, post_id)
+    assert (post.status, post.checked_at is not None) == ("published", True), "Instagram still has it"
+    fakes.instagram_media.clear()
+    with committed() as db:
+        db.get(Publication, post_id).checked_at = datetime.now(UTC) - timedelta(hours=7)
+        db.commit()
+    post = recheck(committed, post_id)
+    assert (post.status, post.closed_by_id, post.closed_at is not None) == ("deleted", None, True)
+
+
+def test_a_reel_is_not_taken_for_deleted_when_instagram_cannot_be_read(committed, ready, fakes):
+    post_id = live_reel(committed, ready, fakes, checked_hours_ago=7)
+    fakes.instagram_refusal = 10
+    post = recheck(committed, post_id)
+    assert post.status == "published", "a read that fails is never 'deleted'"
+
+
+def test_a_reel_checked_lately_is_left_alone(committed, ready, fakes):
+    post_id = live_reel(committed, ready, fakes, checked_hours_ago=1)
+    fakes.instagram_media.clear()
+    assert recheck(committed, post_id).status == "published"
+
+
 # --- A worker restart in the middle of a post ---
 
 

@@ -591,6 +591,9 @@ export type ManualPost = {
   planned_at: string | null;
   /** A private upload's page in YouTube Studio, where it is made public or scheduled. */
   studio_url: string | null;
+  /** When it was found gone from the platform (status "deleted"), and when the worker last looked at it. */
+  closed_at: string | null;
+  checked_at: string | null;
 };
 
 /** A member's YouTube channel connected through Google; the tokens never leave the server. */
@@ -1907,6 +1910,8 @@ export type Post = {
   /** When and by whom it was cancelled or deleted; `closed_by` is null when a check found it so on Facebook. */
   closed_at: string | null;
   closed_by: string | null;
+  /** When the worker or a member last read the post on Facebook; null before the first reading. */
+  checked_at: string | null;
   metrics: PostMetrics;
   /** The affiliate comment the worker writes under the reel (api post_comments.payload). */
   comment: {

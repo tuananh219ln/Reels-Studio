@@ -912,6 +912,9 @@ def manual_post_payload(post: Publication) -> dict:
         "scheduled_at": post.scheduled_at.isoformat() if post.status == "scheduled" and post.scheduled_at else None,
         # A private upload: when its member planned to make it public (a reminder), and where to do it.
         "planned_at": post.scheduled_at.isoformat() if post.status == "private" and post.scheduled_at else None,
+        # When it was found gone from the platform, and when the worker last looked (the periodic check).
+        "closed_at": post.closed_at.isoformat() if post.closed_at else None,
+        "checked_at": post.checked_at.isoformat() if post.checked_at else None,
         "studio_url": (
             f"https://studio.youtube.com/video/{post.external_id}/edit"
             if post.platform == "youtube" and post.external_id and post.source == "app_api"
@@ -1020,6 +1023,7 @@ def publication_payload(post: Publication | None, by_page: dict[int | None, anal
         "fanpage_owner_id": post.fanpage.owner_id if post.fanpage else None,
         "closed_at": post.closed_at.isoformat() if post.closed_at else None,
         "closed_by": post.closed_by.name if post.closed_by else None,
+        "checked_at": post.checked_at.isoformat() if post.checked_at else None,
         "metrics": metrics.payload(post, by_page),
         "comment": post_comments.payload(post),
     }

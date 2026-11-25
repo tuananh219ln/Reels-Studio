@@ -382,6 +382,7 @@ def check_now(fanpage_id: int, me: Session = Depends(current_member), db: DbSess
     if not row.active:
         raise invalid(f"Fanpage “{row.name}” đang ngừng dùng, hãy dùng lại trước khi kiểm tra")
     fanpages.request_check(row)
+    fanpages.request_post_checks(db, row)
     db.commit()
     return _rows(db, me)
 

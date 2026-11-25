@@ -1,5 +1,6 @@
 "use client";
 import CloneModal, { type CloneTarget } from "@/components/video/CloneModal";
+import DeleteVideoContent from "@/components/video/DeleteVideoContent";
 import CompetitorSource from "@/components/video/CompetitorSource";
 
 import { COLORS } from "@/app/theme";
@@ -517,9 +518,7 @@ export default function VideoPage() {
   function remove() {
     modal.confirm({
       title: "Xóa video này?",
-      content:
-        "Xóa hẳn video, các cảnh, job và mọi file (ảnh, MP4, ảnh thu nhỏ). Không khôi phục được. " +
-        "Bài đã đăng hoặc đã hẹn giờ trên Facebook vẫn còn.",
+      content: <DeleteVideoContent video={video} />,
       okText: "Xóa",
       cancelText: "Huỷ",
       okButtonProps: { danger: true },

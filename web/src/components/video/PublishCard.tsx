@@ -347,7 +347,18 @@ export function PostRows({ video }: { video: VideoDetail }) {
                         ? "Đã đăng"
                         : "Đã đăng tay",
           url: post.url,
-          who: [post.channel, post.fanpage, post.created_by, formatDateTime(post.at)].filter(Boolean).join(", "),
+          who: [
+            post.channel,
+            post.fanpage,
+            post.created_by,
+            formatDateTime(post.at),
+            post.status === "deleted" && post.closed_at
+              ? `không còn trên ${post.platform_label} từ ${formatDateTime(post.closed_at)}`
+              : null,
+            post.checked_at ? `kiểm tra lúc ${formatDateTime(post.checked_at)}` : null,
+          ]
+            .filter(Boolean)
+            .join(", "),
         })),
       ].map((row) => (
         <div
@@ -393,6 +404,7 @@ export function PostRows({ video }: { video: VideoDetail }) {
               {[post.fanpage, post.created_by].filter(Boolean).join(", ")}
               {post.closed_at &&
                 `, ${POST_STATUS[post.status].label} lúc ${formatDateTime(post.closed_at)} ${post.closed_by ? `bởi ${post.closed_by}` : "trên Facebook"}`}
+              {post.checked_at && `, kiểm tra lúc ${formatDateTime(post.checked_at)}`}
             </Typography.Paragraph>
             <PostMetrics post={post} />
           </div>

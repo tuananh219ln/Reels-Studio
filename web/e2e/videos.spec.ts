@@ -123,6 +123,16 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
     /facebook\.com\/reel\//,
   );
 
+  // "Xóa video" first says where the video is posted, so nobody deletes it unaware that its posts stay on the platform.
+  await page.getByRole("button", { name: "Thao tác khác với video" }).click();
+  await page.getByRole("menuitem", { name: "Xóa video" }).click();
+  const deleting = page.getByRole("dialog", { name: "Xóa video này?" });
+  await expect(deleting.getByTestId("delete-video-posts")).toContainText("Facebook: đã đăng lúc");
+  await expect(deleting.getByTestId("delete-video-posts")).toContainText("Trang Dưỡng Sinh");
+  await expect(deleting).toContainText("Video đang có 1 bài trên nền tảng");
+  await deleting.getByRole("button", { name: "Huỷ" }).click();
+  await expect(deleting).toBeHidden();
+
   // Once posted, the card says so rather than "Chờ đăng".
   await page.goto("/videos");
   const card = page.getByTestId("video-card").first();
