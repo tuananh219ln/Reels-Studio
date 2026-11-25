@@ -1,6 +1,7 @@
 "use client";
 
 import EmptyState from "@/components/EmptyState";
+import { fillColumn } from "@/components/fillColumn";
 import { rowLink } from "@/lib/rowLink";
 import { Table } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
@@ -9,7 +10,9 @@ import type { HTMLAttributes, Key, ReactNode } from "react";
 
 /** The one table of every list of videos or posts: the same size, paging, sideways scroll, empty state and row, with
  * the row's actions (a ⋮ menu) in a last column pinned to the right, so the button is always in the same place.
- * A page gives only its own columns. `size` is "middle" for a page's own list and "small" for one inside a card. */
+ * A page gives only its own columns, each with a `width`: on a wide screen the spare width goes to an empty column
+ * before the actions, so the page's columns stay side by side. `size` is "middle" for a page's own list and "small"
+ * for one inside a card. */
 export default function VideoTable<T extends object>({
   rows,
   columns,
@@ -52,6 +55,7 @@ export default function VideoTable<T extends object>({
   const all: ColumnsType<T> = actions
     ? [
         ...columns,
+        fillColumn<T>(),
         {
           key: "actions",
           fixed: "right",
@@ -59,7 +63,7 @@ export default function VideoTable<T extends object>({
           render: (_: unknown, row: T) => actions(row),
         },
       ]
-    : columns;
+    : [...columns, fillColumn<T>()];
   return (
     <Table<T>
       data-testid={testId}

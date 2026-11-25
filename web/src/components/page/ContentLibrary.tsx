@@ -275,6 +275,8 @@ export default function ContentLibrary({ pageId, days }: { pageId: string; days:
       ) : (
         <span style={{ whiteSpace: "nowrap" }}>{column.title}</span>
       ),
+      // A width on every column lets the spare width go to the empty column at the end (fillColumn).
+      width: column.numeric ? 110 : 150,
       align: column.numeric ? ("right" as const) : undefined,
       sorter: true,
       sortOrder: sort.key === column.key ? sort.order : null,

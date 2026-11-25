@@ -1,5 +1,6 @@
 "use client";
 
+import { fillColumn } from "@/components/fillColumn";
 import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
@@ -69,8 +70,9 @@ function Music() {
     {
       title: "Bài nhạc",
       key: "name",
+      width: 360,
       render: (_, track) => (
-        <Flex vertical gap={6}>
+        <Flex vertical gap={6} style={{ maxWidth: 360 }}>
           <Typography.Text strong>{track.name}</Typography.Text>
           <audio src={track.url} controls preload="none" style={{ width: 280 }} />
         </Flex>
@@ -85,6 +87,7 @@ function Music() {
     },
     { title: "Người thêm", dataIndex: "created_by", width: 160 },
     { title: "Ngày thêm", key: "created", width: 150, render: (_, track) => formatDateTime(track.created_at) },
+    fillColumn<MusicTrack>(),
     {
       title: "Thao tác",
       key: "actions",

@@ -258,10 +258,17 @@ videos) is built from the same parts in [components/videoList](../web/src/compon
 (`VideoTable`: the same paging, sideways scroll and empty state, size "middle" on a page and "small" in a card, and the row's
 "⋮" menu in a **last column pinned to the right**, with no heading); the cells after the title (`useVideoColumns`: **Trạng
 thái**: the status and where it is out, the kind tags, the Winner flag with "Tạo 3 biến thể", TikTok versions; **Số liệu**: "N
-view", then "48h: x×, y% share", a dash before the first reading; **Tạo**: who and when; ID off until ticked in "Cột", which
-keeps and orders them per list); the one grey line under the title (`videoDetails`); the card (`VideoCard`); and the search
+view", then "48h: x×, y% share", a dash before the first reading; **Tạo**: who and when; and, off until ticked in "Cột",
+which keeps and orders them per list: ID, Nền tảng, Nhóm chủ đề, Loại nội dung, Sản phẩm, Page, Lịch đăng, View 48h and
+Share/view, a dash when the video has none); the one grey line under the title (`videoDetails`); the card (`VideoCard`); and the search
 box and "Thẻ | Bảng" switch. A screen adds only what is its own (Bài đăng's platform cells, Affiliate's products and comments,
 "Nội dung"'s Facebook numbers). A table that shows posts, not videos, keeps its own number columns but not its own layout.
+
+**Columns stay side by side.** Every column of a table that fills the page width has a `width`, and a cell's long text is
+cut with "…" at a width in pixels (a line capped only in % counts at its full length when the browser sizes the columns,
+and stretches its column far past the text). The spare width of a wide screen goes to one empty column before the "⋮" or
+"Thao tác" column ([fillColumn](../web/src/components/fillColumn.ts), added by `VideoTable` itself; Thư viện nhạc and
+Phân tích đối thủ add it too), never spread between the columns; on a narrow screen it is 0 wide.
 
 **State in the URL.** A list page's search, filters, sort and tab are in the query string
 (`?q=…&status=…`), so a link to a filtered list or a reload shows the same thing: Video, Bài viết,
@@ -367,7 +374,7 @@ Built:
     under it the Page and time of its post, "hẹn" while scheduled, or "Chưa đăng"), **Trạng thái** (the status, "Đã đăng" or
     "Đã hẹn giờ" and the platform icons on one line, the kind tags, TikTok versions and "Tạo bản TikTok" under it),
     **Số liệu** (the views, sortable, with the 48h multiple or "chưa đủ dữ liệu" and the share rate under it; "—" before
-    the first reading) and **Tạo** (creator, day; the group and plan day under them), then the "⋮" button at the right end. "Cột" chooses and orders them (and an "ID" column, off until ticked). Above the videos, one
+    the first reading) and **Tạo** (creator, day; the group and plan day under them), then the "⋮" button at the right end. "Cột" chooses and orders them (and more columns, off until ticked: ID, Nền tảng, Nhóm chủ đề, Loại nội dung, Sản phẩm, Page, Lịch đăng, View 48h, Share/view). Above the videos, one
   banner per topic group of the member's own (the groups their Pages in use post) whose plan has a today:
   "Kế hoạch <nhóm>, ngày N: hôm nay còn X/Y video" with "Làm tiếp" (the next idea not made), or green once
   all of today's ideas have a video. "Tạo video" lets any group be picked but suggests the plan's ideas only
@@ -1037,7 +1044,8 @@ steps open the status card or the products block on its tab, the QC chip its pop
     [2026-11-25-products-board](decisions/2026-11-25-products-board.md)). On top, a group select (grouped "Nhóm của
     tôi" and "Nhóm khác", each option with its Pages and product count; typing searches), "Dùng cho video của N
     Page", then "Quy trình / Bảng" (the member's choice is kept in the browser; the table is the
-    default), "Nhập / Xuất ▾" ("Nhập file (Lấy link hàng loạt)" and "Xuất CSV") and "Thêm sản phẩm". Under it the search,
+    default), "Nhập / Xuất ▾" ("Nhập file (Lấy link hàng loạt)", "Xuất file Custom Link (Excel)" and "Nhập kết quả Shopee",
+    both greyed until a group is chosen, then "Xuất danh sách (CSV)") and "Thêm sản phẩm". Under it the search,
     the platform filter and a progress line ("38 / 50 sẵn sàng dùng trong bình luận", "còn 12 món chưa có link") with a
     bar. **Board:** four columns, each with its count and a hint: "1 · Cần điền" (drafts short on stars or sales, filled
     in on the card itself), "2 · Chờ duyệt" (with "Duyệt tất cả (N)"), "3 · Cần link" (approved Shopee products with no

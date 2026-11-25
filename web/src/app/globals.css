@@ -13,6 +13,14 @@ body {
   white-space: nowrap;
 }
 
+/* fillColumn: the empty column that takes a table's spare width is 0 wide when there is none, and draws no divider. */
+.ant-table .ant-table-cell.table-fill {
+  padding: 0;
+}
+.ant-table .ant-table-thead > tr > th.table-fill::before {
+  display: none;
+}
+
 /* Scene card (docs/decisions/2026-11-14-video-editor-spec.md): the 182 × 324 frame and, beside it, the picture's
    tools in a column of their own, always shown while editing. The frame's own four tools lie inside it, down its
    right edge, shown while it is pointed at, tapped or reached from the keyboard. */
