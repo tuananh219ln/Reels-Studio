@@ -204,7 +204,8 @@ def test_a_composite_replaces_the_text_card_and_the_source_photo_and_takes_the_f
     result = made["composite_result"]
     assert result["mode_used"] == "cover" and 60 <= result["font_size"] <= 68
     assert [warning["code"] for warning in result["warnings"]] == ["EXTRA_IMAGES"]
-    assert made["images"][0]["composite"]["lines"] == HOOK
+    # The lines are kept as drawn: the emoji is dropped (no emoji font).
+    assert made["images"][0]["composite"]["lines"] == [*HOOK[:2], "vào bữa ăn mỗi ngày"]
     assert all(not storage.exists(key) for key in old_keys[:2])  # the text card and the source photo are gone
     assert opened(an.get(f"/api/articles/{article}/image").content).size == (1080, 1350)
 
