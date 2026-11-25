@@ -1,5 +1,6 @@
 "use client";
 
+import ArticleComposite from "@/components/article/ArticleComposite";
 import ImageProviderMenu from "@/components/video/ImageProviderMenu";
 import MediaLibraryPicker from "@/components/video/MediaLibraryPicker";
 import StockPicker from "@/components/video/StockPicker";
@@ -9,6 +10,7 @@ import {
   upload,
   type Article,
   type ArticleAspect,
+  type ArticleImage,
   type ArticleOptions,
   type LogoPosition,
 } from "@/lib/api";
@@ -16,6 +18,7 @@ import { googleImagesUrl, looksLikeLink, tiktokSearchUrl, unwrapLink } from "@/l
 import {
   DeleteOutlined,
   DownOutlined,
+  EditOutlined,
   FontSizeOutlined,
   GoogleOutlined,
   InboxOutlined,
@@ -84,6 +87,8 @@ export default function ArticleImages({
   const [pasting, setPasting] = useState(false);
   const [pastedLink, setPastedLink] = useState("");
   const [dragged, setDragged] = useState<number | null>(null);
+  // The composite maker: `true` makes a new one, an image opens that composite again.
+  const [composing, setComposing] = useState<true | ArticleImage | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const typing = useRef({ query: false, prompt: false });
 
@@ -317,6 +322,15 @@ export default function ArticleImages({
           Thẻ chữ <DownOutlined style={{ fontSize: 10 }} />
         </Button>
       </Dropdown>
+      <Button
+        icon={<PictureOutlined />}
+        disabled={off || images.every((image) => image.source === "composite")}
+        onClick={() => setComposing(true)}
+        block
+        title="Một ảnh 4:5: dải chữ ở trên, ảnh món ở dưới (Facebook không xếp 2 ảnh cạnh nhau)"
+      >
+        Ảnh ghép chữ + ảnh
+      </Button>
     </Flex>
   );
 
@@ -457,6 +471,11 @@ export default function ArticleImages({
                   >
                     Bỏ ảnh
                   </Button>
+                  {selected.composite && (
+                    <Button type="text" icon={<EditOutlined />} disabled={off} onClick={() => setComposing(selected)}>
+                      Sửa ảnh ghép
+                    </Button>
+                  )}
                 </Flex>
               </>
             ) : (
@@ -589,6 +608,17 @@ export default function ArticleImages({
             }}
           />
         </Modal>
+      )}
+      {composing && (
+        <ArticleComposite
+          article={article}
+          editing={composing === true ? null : composing}
+          onClose={() => setComposing(null)}
+          onSaved={(saved, imageId) => {
+            onSaved(saved);
+            setSelectedId(imageId);
+          }}
+        />
       )}
     </Card>
   );

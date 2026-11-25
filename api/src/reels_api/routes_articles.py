@@ -19,6 +19,7 @@ from sqlalchemy.orm import joinedload
 from . import (
     affiliate,
     analytics,
+    article_composite,
     article_images,
     article_plans,
     article_posts,
@@ -37,6 +38,7 @@ from .models import (
     AffiliateProduct,
     Article,
     ArticleAffiliateProduct,
+    ArticleImage,
     ArticlePlan,
     ArticlePlanSlot,
     Fanpage,
@@ -100,6 +102,31 @@ class ArticlePatchBody(BaseModel):
 
 class TextCardBody(BaseModel):
     preset: str = articles.DEFAULT_CARD_PRESET
+
+
+class CompositeBody(BaseModel):
+    """ "Ảnh ghép chữ + ảnh" (article_composite.py). The dish photo is exactly one of `image_id` (a photo of the article),
+    `media_id` (Kho tư liệu) and `url`; `lines` and `tag` default from the caption and the plan."""
+
+    image_id: int | None = None
+    media_id: int | None = None
+    url: str | None = None
+    lines: list[str] | None = None
+    tag: str | None = None
+    preset: str = article_composite.DEFAULT_PRESET
+    mode: str = "auto"
+    focus_x: float = 0.5
+    focus_y: float = 0.5
+    replace: bool = True
+
+
+class CompositeEditBody(BaseModel):
+    lines: list[str]
+    tag: str | None = None
+    preset: str = article_composite.DEFAULT_PRESET
+    mode: str = "auto"
+    focus_x: float = 0.5
+    focus_y: float = 0.5
 
 
 class LinkBody(BaseModel):
@@ -341,7 +368,7 @@ def delete_article(
     ensure_owner(article.created_by_id, me.user_id, "bài viết này")
     if any(post.status in OPEN_POSTS for post in article_posts.posts_of(db, article.id)):
         raise ApiError(409, "article_posted", "Bài đang chờ đăng, đã hẹn giờ hoặc đã đăng: gỡ bài trên Facebook trước")
-    keys = [image.image_key for image in article_images.images_of(db, article.id)]
+    keys = [key for image in article_images.images_of(db, article.id) for key in article_images.keys_of(image)]
     db.delete(article)
     db.commit()
     for key in keys:
@@ -619,12 +646,13 @@ def remove_image(
     """Without photos the article is a text-only post, which is valid."""
     article = _editable(db, article_id)
     image = article_images.get(db, article.id, image_id)
-    key = image.image_key
+    keys = article_images.keys_of(image)
     db.delete(image)
     db.flush()
     article_images.renumber(db, article.id)
     payload = _saved(db, article)
-    storage.delete(key)
+    for key in keys:
+        storage.delete(key)
     return payload
 
 
@@ -683,6 +711,218 @@ def image_preview(
         media_type="image/jpeg",
         headers={"Cache-Control": "private, no-cache"},
     )
+
+
+# --- "Ảnh ghép chữ + ảnh" (article_composite.py) ---
+
+
+def _composite_error(err: article_composite.CompositeError) -> ApiError:
+    return ApiError(422, err.code.lower(), str(err))
+
+
+def _series_tag(db: DbSession, article: Article) -> str | None:
+    """ "NGÀY {n} · {group}" when the article was made from a plan day, else no tag."""
+    day = db.scalar(
+        select(ArticlePlanSlot.day).where(ArticlePlanSlot.article_id == article.id, ArticlePlanSlot.day.is_not(None))
+    )
+    group = db.get(KnowledgeTopic, article.knowledge_topic_id) if article.knowledge_topic_id else None
+    if day is None or group is None:
+        return None
+    return f"NGÀY {day} · {group.name}"
+
+
+def _composite_source(
+    db: DbSession, storage: DirectoryStorage, article: Article, body: CompositeBody
+) -> tuple[bytes, str, ArticleImage | None]:
+    """The dish photo's bytes and extension, and the article's own photo it is when `image_id` names one."""
+    if sum(value is not None for value in (body.image_id, body.media_id, body.url)) != 1:
+        raise invalid("Chọn đúng một nguồn ảnh món: image_id, media_id hoặc url")
+    if body.image_id is not None:
+        image = article_images.get(db, article.id, body.image_id)
+        if not storage.exists(image.image_key):
+            raise ApiError(404, "file_not_found", "File ảnh không còn trên máy chủ")
+        key = (image.opts or {}).get("source_key") or image.image_key  # a composite is made again from its dish photo
+        return storage.path(key).read_bytes(), key.rsplit(".", 1)[-1], image
+    if body.media_id is not None:
+        item = db.get(MediaItem, body.media_id)
+        if item is None or item.kind != "photo":
+            raise ApiError(404, "media_not_found", "Không tìm thấy ảnh trong kho tư liệu")
+        if not storage.exists(item.storage_key):
+            raise ApiError(404, "media_not_found", "File của tư liệu không còn trên máy chủ")
+        return storage.path(item.storage_key).read_bytes(), item.storage_key.rsplit(".", 1)[-1], None
+    db.rollback()  # no row lock while the other site answers
+    with tempfile.TemporaryDirectory(prefix="reels_article_") as folder:
+        try:
+            media = remote_media.download(body.url or "", Path(folder))
+        except remote_media.RemoteMediaError as err:
+            raise invalid(str(err)) from None
+    if media.photo is None:
+        raise invalid("Link này là video: ảnh ghép chỉ nhận ảnh")
+    return (*media.photo, None)
+
+
+def _composite_options(db: DbSession, article: Article, body: CompositeBody) -> article_composite.Options:
+    tag = _series_tag(db, article) if body.tag is None else body.tag
+    try:
+        lines = body.lines
+        if lines is None:
+            lines = article_composite.split_title(articles.hook_of(article.caption), bool(tag))
+        return article_composite.clean(
+            article_composite.Options(lines, tag, body.preset, body.mode, body.focus_x, body.focus_y)
+        )
+    except article_composite.CompositeError as err:
+        raise _composite_error(err) from None
+
+
+@router.post("/{article_id}/images/composite")
+def make_composite(
+    article_id: int,
+    body: CompositeBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Ảnh ghép chữ + ảnh": one 4:5 photo, the text band over the dish photo. With `replace` (the default) the old
+    text cards, composites and the article's photo it was made from go, and the composite takes the first place."""
+    article = _editable(db, article_id)
+    source, extension, own = _composite_source(db, storage, article, body)
+    article = _editable(db, article_id)  # locked again after a download
+    options = _composite_options(db, article, body)
+    try:
+        result = article_composite.render(source, options)
+    except article_composite.CompositeError as err:
+        raise _composite_error(err) from None
+    removed: list[ArticleImage] = []
+    if body.replace:
+        removed = [
+            image
+            for image in article_images.images_of(db, article.id)
+            if image.source in ("text_card", "composite") or (own is not None and image.id == own.id)
+        ]
+        for image in removed:
+            db.delete(image)
+        db.flush()
+        article_images.renumber(db, article.id)
+    source_key = article_images.new_key(article.id, extension)
+    storage.save_bytes(source_key, source)
+    try:
+        image = article_images.add(
+            db, storage, article, result.data, "jpg", "composite", opts=options.as_json() | {"source_key": source_key}
+        )
+        if body.replace:
+            article_images.move_first(db, article.id, image.id)
+        extra = _extra_images(db, article.id, image.id)
+        payload = _saved(db, article)
+    except Exception:
+        storage.delete(source_key)
+        raise
+    for gone in removed:
+        for key in article_images.keys_of(gone):
+            storage.delete(key)
+    return payload | {
+        "composite_result": {
+            "image_id": image.id,
+            "mode_used": result.mode_used,
+            "font_size": result.font_size,
+            "warnings": result.warnings + extra,
+        }
+    }
+
+
+def _extra_images(db: DbSession, article_id: int, composite_id: int) -> list[dict]:
+    if any(other.id != composite_id for other in article_images.images_of(db, article_id)):
+        return [
+            article_composite.warning(
+                "EXTRA_IMAGES", "Bài còn ảnh khác ngoài ảnh ghép: Facebook sẽ xếp lưới và ảnh ghép bị thu nhỏ"
+            )
+        ]
+    return []
+
+
+@router.put("/{article_id}/images/{image_id}/composite")
+def edit_composite(
+    article_id: int,
+    image_id: int,
+    body: CompositeEditBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """Opens a composite again: drawn anew from its kept dish photo with the new lines, tag, colour, kind and focus."""
+    article = _editable(db, article_id)
+    image = article_images.get(db, article.id, image_id)
+    source_key = (image.opts or {}).get("source_key")
+    if image.source != "composite" or not source_key or not storage.exists(source_key):
+        raise invalid("Ảnh này không phải ảnh ghép hoặc đã mất ảnh gốc")
+    options = article_composite.Options(body.lines, body.tag, body.preset, body.mode, body.focus_x, body.focus_y)
+    try:
+        options = article_composite.clean(options)
+        result = article_composite.render(storage.path(source_key).read_bytes(), options)
+    except article_composite.CompositeError as err:
+        raise _composite_error(err) from None
+    new_key = article_images.new_key(article.id, "jpg")
+    storage.save_bytes(new_key, result.data)
+    old_key = image.image_key
+    image.image_key = new_key
+    image.opts = options.as_json() | {"source_key": source_key}
+    payload = _saved(db, article)
+    storage.delete(old_key)
+    return payload | {
+        "composite_result": {
+            "image_id": image.id,
+            "mode_used": result.mode_used,
+            "font_size": result.font_size,
+            "warnings": result.warnings,
+        }
+    }
+
+
+@router.post("/{article_id}/images/composite/preview")
+def preview_composite(
+    article_id: int,
+    body: CompositeBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> Response:
+    """The composite drawn but not saved, for the editor's live preview. Only a photo of the article (`image_id`) or
+    the library's (`media_id`) is taken here: a link is downloaded once, when the composite is made."""
+    article = _article(db, article_id)
+    if body.url is not None:
+        raise invalid("Xem trước chỉ nhận ảnh của bài hoặc ảnh trong kho tư liệu")
+    source, _, _ = _composite_source(db, storage, article, body)
+    options = _composite_options(db, article, body)
+    try:
+        result = article_composite.render(source, options)
+    except article_composite.CompositeError as err:
+        raise _composite_error(err) from None
+    return Response(
+        result.data,
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Composite-Mode": result.mode_used,
+            "X-Composite-Font-Size": str(result.font_size),
+            "X-Composite-Warnings": ",".join(warning["code"] for warning in result.warnings),
+            "Access-Control-Expose-Headers": "X-Composite-Mode, X-Composite-Font-Size, X-Composite-Warnings",
+        },
+    )
+
+
+@router.get("/{article_id}/images/{image_id}/composite-source")
+def composite_source(
+    article_id: int,
+    image_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> FileResponse:
+    """The dish photo a composite was made from, for the editor to pick the crop on."""
+    image = article_images.get(db, article_id, image_id)
+    key = (image.opts or {}).get("source_key")
+    if not key:
+        raise ApiError(404, "file_not_found", "Không tìm thấy file")
+    return _photo_file(storage, key)
 
 
 # --- Posting ---

@@ -1214,7 +1214,7 @@ class PageComment(Base):
 
 ARTICLE_KINDS = ("kien_thuc", "meo", "cau_hoi", "canh_bao", "tra_loi_binh_luan", "checklist")
 # Where an article's photo came from (article_images.source).
-ARTICLE_IMAGE_SOURCES = ("upload", "link", "stock", "library", "ai", "text_card")
+ARTICLE_IMAGE_SOURCES = ("upload", "link", "stock", "library", "ai", "text_card", "composite")
 ARTICLE_IMAGE_ASPECTS = ("1:1", "4:5", "1.91:1")
 PHOTO_LOGO_SHAPES = ("circle", "rounded", "none")
 PHOTO_LOGO_POSITIONS = (
@@ -1294,6 +1294,9 @@ class ArticleImage(Base):
     credit: Mapped[str | None] = mapped_column(Text)  # the line a stock licence asks for (Wikimedia CC BY...)
     logo_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     logo_position: Mapped[str | None] = mapped_column(String(16))  # one of PHOTO_LOGO_POSITIONS; None: the brand's
+    # A "composite" photo only: what it was made from, to open it again (article_composite.py): the lines, tag, preset,
+    # mode and focus, and `source_key`, a copy of the dish photo that goes with the row.
+    opts: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
