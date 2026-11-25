@@ -615,7 +615,8 @@ test("Nhập / Xuất has Shopee Custom Link's Excel file and its result import,
   // The group has no Page yet, so the api says which Page the orders would go to is missing.
   await exporting.getByRole("button", { name: "Tải file Excel" }).click();
   await expect(page.getByText("Nhóm này chưa có Page nào đăng")).toBeVisible();
-  await page.keyboard.press("Escape");
+  // The footer's "Đóng" (the corner X is labelled "Đóng" too, but has no text); Escape needs focus in the dialog.
+  await exporting.getByRole("button").filter({ hasText: "Đóng" }).click();
   await expect(exporting).toBeHidden();
 
   await importExportItem(page, "Nhập kết quả Shopee");
