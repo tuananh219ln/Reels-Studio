@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import login, make_user, make_video
-from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN
+from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN, INSTAGRAM_USER, INSTAGRAM_USERNAME
 from sqlalchemy import select
 
 from reels_api import fanpages, meta_sync, metrics
@@ -234,3 +234,77 @@ def test_a_pasted_link_may_be_a_video_of_its_own(an, db, me, fakes):
     assert (post.video_id, post.match_status, post.source) == (None, "external", "manual_link")
     (row,) = an.get("/api/posts/board").json()["items"]
     assert row["video"]["external"] is True and row["cells"]["tiktok"]["state"] == "published"
+
+
+# --- Instagram Reels posted outside the app ---
+
+
+@pytest.fixture
+def linked(db, page):
+    page.instagram_user_id, page.instagram_username = INSTAGRAM_USER, INSTAGRAM_USERNAME
+    db.commit()
+    return page
+
+
+def ig_reel(media_id: str, caption: str, hours_ago: float = 2, kind: str = "REELS") -> dict:
+    return {
+        "id": media_id,
+        "caption": caption,
+        "permalink": f"https://www.instagram.com/reel/Fake{media_id}/",
+        "timestamp": graph_time(hours_ago),
+        "media_product_type": kind,
+        "thumbnail_url": f"https://scontent.ig/{media_id}.jpg",
+    }
+
+
+def test_instagram_reels_posted_outside_the_app_are_imported_and_matched(db, me, storage, fakes, linked):
+    video = rendered(db, storage, me, "5 MÓN GIÚP XƯƠNG CHẮC KHỎE")
+    fakes.instagram_media = [
+        ig_reel("17001", "5 món giúp xương chắc khỏe #suckhoe"),
+        ig_reel("17002", "Một clip khác hẳn, không có video nào giống"),
+        ig_reel("17003", "một ảnh, không phải reel", kind="FEED"),
+        ig_reel("17004", "quá cũ", hours_ago=31 * 24),
+    ]
+    assert meta_sync.sync_page(db, linked) == 2
+    matched, unmatched = imported(db)
+    assert (matched.platform, matched.external_id, matched.video_id) == ("instagram", "17001", video.id)
+    assert (matched.status, matched.match_status, matched.fanpage_id) == ("published", "confirmed", linked.id)
+    assert matched.post_url == "https://www.instagram.com/reel/Fake17001/" and matched.published_at_source == "api"
+    assert (unmatched.video_id, unmatched.match_status, unmatched.created_by_id) == (None, "unmatched", me.id)
+    assert unmatched.thumbnail_url == "https://scontent.ig/17002.jpg"
+    assert linked.sync_error is None
+    assert {post.id for post in metrics.due_posts(db, 10, "instagram")} == {matched.id, unmatched.id}, "read at once"
+
+
+def test_an_instagram_reel_the_app_has_is_not_imported_again(db, me, storage, fakes, linked):
+    video = rendered(db, storage, me, "VIDEO CỦA APP")
+    db.add(
+        Publication(
+            video_id=video.id,
+            platform="instagram",
+            fanpage_id=linked.id,
+            status="published",
+            external_id="17001",
+            created_by_id=me.id,
+        )
+    )
+    db.commit()
+    fakes.instagram_media = [ig_reel("17001", "VIDEO CỦA APP")]
+    assert meta_sync.sync_page(db, linked) == 0
+    fakes.instagram_media = [ig_reel("17009", "reel mới ngoài app", hours_ago=1)]
+    assert meta_sync.sync_page(db, linked) == 1
+    assert meta_sync.sync_page(db, linked) == 0, "an imported one is never imported twice"
+
+
+def test_a_page_without_instagram_imports_only_facebook(db, me, fakes, page):
+    fakes.instagram_media = [ig_reel("17001", "không ai nhập")]
+    assert meta_sync.sync_page(db, page) == 0
+    assert imported(db) == []
+
+
+def test_an_instagram_failure_is_told_and_does_not_hide_the_facebook_import(db, me, fakes, linked):
+    fakes.page_reels[FACEBOOK_PAGE] = [reel("901", "clip trên Facebook")]
+    fakes.instagram_refusal = 10
+    assert meta_sync.sync_page(db, linked) == 1
+    assert linked.sync_error and linked.sync_error.startswith("Instagram")
+    assert linked.last_synced_at is None, "not moved on: the next round reads Instagram's window again"

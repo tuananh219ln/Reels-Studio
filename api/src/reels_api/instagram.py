@@ -264,6 +264,46 @@ def recent_media(page: Page, ig_user_id: str) -> list[dict]:
     return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
 
 
+REEL_PAGES = 4
+
+
+def account_reels(page: Page, ig_user_id: str, since: datetime) -> list[dict]:
+    """The Reels of the account made since `since`, newest first, each {id, caption, permalink, created_time,
+    thumbnail_url}: what "Đồng bộ bài ngoài app" imports. Photos, carousels and stories are left out. Reads up to
+    REEL_PAGES pages of 50, stopping at the first media older than `since`."""
+    found: list[dict] = []
+    after = ""
+    for _ in range(REEL_PAGES):
+        fields = {"fields": "id,caption,permalink,timestamp,media_product_type,thumbnail_url", "limit": "50"}
+        if after:
+            fields["after"] = after
+        reply = _get(page, f"{urllib.parse.quote(ig_user_id, safe='')}/media", **fields)
+        items = [item for item in reply.get("data") or [] if isinstance(item, dict)]
+        oldest_seen = False
+        for item in items:
+            try:
+                made = datetime.strptime(str(item.get("timestamp")), "%Y-%m-%dT%H:%M:%S%z")
+            except ValueError:
+                continue
+            if made < since:
+                oldest_seen = True
+                continue
+            if item.get("media_product_type") == "REELS" and item.get("id") and item.get("permalink"):
+                found.append(
+                    {
+                        "id": str(item["id"]),
+                        "caption": str(item.get("caption") or ""),
+                        "permalink": str(item["permalink"]),
+                        "created_time": made,
+                        "thumbnail_url": item.get("thumbnail_url") or None,
+                    }
+                )
+        after = str(((reply.get("paging") or {}).get("cursors") or {}).get("after") or "")
+        if oldest_seen or not after or not items:
+            break
+    return found
+
+
 # --- The account's numbers (Instagram Insights; needs `instagram_manage_insights` on the Page's token) ---
 
 NO_INSIGHTS_PERMISSION = "Token chưa có quyền đọc số liệu Instagram (instagram_manage_insights)"

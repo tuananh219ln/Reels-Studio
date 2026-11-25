@@ -32,6 +32,7 @@ test("a group's list deletes the maker's video after asking", async ({ page }) =
   await health.getByRole("button", { name: "Thao tác với video Rau dền luộc" }).click();
   await page.getByRole("menuitem", { name: "Xóa video", exact: true }).click();
   const confirm = page.getByRole("dialog", { name: "Xóa video “Rau dền luộc”?" });
+  await expect(confirm.getByTestId("delete-video-content")).toContainText("Video chưa có bài nào");
   await confirm.getByRole("button", { name: "Xóa" }).click();
   await expect(page.getByText("Đã xóa video")).toBeVisible();
   await expect(health.getByRole("link", { name: "Rau dền luộc" })).toHaveCount(0);

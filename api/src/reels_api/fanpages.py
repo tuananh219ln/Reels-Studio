@@ -390,3 +390,17 @@ def post_counts(db: DbSession) -> dict[int, int]:
 
 def request_check(row: Fanpage) -> None:
     row.check_requested_at = now()
+
+
+def request_post_checks(db: DbSession, row: Fanpage) -> None:
+    """ "Kiểm tra ngay" also has the Page's live Facebook and Instagram posts looked at again (metrics.recheck_due takes a
+    post never checked as due): the worker does it a few per round, a request never calls the platform."""
+    db.execute(
+        update(Publication)
+        .where(
+            Publication.fanpage_id == row.id,
+            Publication.platform.in_(("facebook", "instagram")),
+            Publication.status == "published",
+        )
+        .values(checked_at=None)
+    )

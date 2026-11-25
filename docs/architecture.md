@@ -769,7 +769,7 @@ since `last_synced_at` less 2 hours (30 days back the first time), published onl
 Graph's host. A reel the app has (by `external_id` or `remote_id`) is skipped; a new one is a `meta_suite` post,
 published, recorded under the Page's owner, with its caption, length, cover and time (`api`), matched as a pasted link
 is: `confirmed` with its video, else `suggested` (`suggested_video_id`, `match_score`) or `unmatched` with none. It is
-read at once like any reel. `GET /api/posts/unmatched` lists those with no video, `POST /api/posts/unmatched/confirm`
+read at once like any reel. The Page's linked Instagram account is imported in the same round (`instagram.account_reels`, Reels only, [decision](decisions/2026-11-25-instagram-import-and-page-check.md)). `GET /api/posts/unmatched` lists those with no video, `POST /api/posts/unmatched/confirm`
 takes the suggestions, `PATCH /api/posts/{id}` sets `video_id` (null: back to "Chưa khớp") or `match_status`
 `external` ("Video ngoài": a board row of its own) or `ignored` (hidden, never read again). A post may have neither a
 video nor an article only as `meta_suite` or `manual_link` (the `one_target` check, migration 0089); readings of
@@ -1056,8 +1056,8 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     with its own token and records the error in Vietnamese, or keeps the Page's current name and its
     followers (on the Page and as that day's `fanpage_followers` row); it never changes
     `updated_at`, which is a member's change. A failed check waits like any other, never looping.
-    "Kiểm tra ngay", `POST /api/fanpages/{id}/check`, only sets `check_requested_at` (422 for a
-    stopped Page); opening "Quản lý kênh" calls `POST /api/fanpages/freshen`, which asks it for every Page in use
+    "Kiểm tra ngay", `POST /api/fanpages/{id}/check`, sets `check_requested_at` (422 for a
+    stopped Page) and clears `checked_at` of the Page's live Facebook and Instagram posts, so the worker checks them again; opening "Quản lý kênh" calls `POST /api/fanpages/freshen`, which asks it for every Page in use
     checked over 15 minutes ago and not asked yet. `GET /api/fanpages` gives each Page `check` (`checked_at`, `error`, `pending`,
     `followers`, and `followers_this_week`, counted from the last number before this week's Monday,
     null until there is one) and `scheduled_posts`, its posts still waiting for their time, which a
