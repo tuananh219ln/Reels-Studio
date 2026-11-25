@@ -347,7 +347,11 @@ def test_a_listed_scene_without_a_photo_is_named_and_nothing_is_queued(committed
     with committed() as db:
         video = make_video(db, storage, user, scene_count=4)
         title = db.scalar(select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(True)))
-        third = db.scalars(select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False))).all()[2]
+        third = db.scalars(
+            select(Scene)
+            .where(Scene.video_id == video.id, Scene.is_title.is_(False))
+            .order_by(Scene.position, Scene.id)
+        ).all()[2]
         third.image_key = None
         db.commit()
         with pytest.raises(ApiError) as refused:
@@ -363,7 +367,11 @@ def test_slots_keep_only_what_a_member_set_and_refuse_a_scene_of_another_video(c
     with committed() as db:
         video = make_video(db, storage, user, scene_count=4)
         other = make_video(db, storage, user, scene_count=2)
-        mine = db.scalars(select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False))).all()
+        mine = db.scalars(
+            select(Scene)
+            .where(Scene.video_id == video.id, Scene.is_title.is_(False))
+            .order_by(Scene.position, Scene.id)
+        ).all()
         foreign = db.scalar(select(Scene).where(Scene.video_id == other.id, Scene.is_title.is_(False)))
         got = title_motion.clean_slots(
             db, video, [{"label": " bưởi ", "focus": [0.2, 0.8]}, {"from_scene": mine[3].id}, {"focus": [2, 0]}], 4
