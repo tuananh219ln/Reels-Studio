@@ -469,6 +469,77 @@ def _save(post: Publication, row: PostMetrics | None, window: str, numbers: dict
     row.measured_at = at
 
 
+# A live post is read again to learn whether it was deleted on the platform (a member removes it in Meta Business Suite,
+# Instagram or the app, or the platform drops it, and nothing else tells the app): every 6 hours in its first 3 days,
+# daily up to 30 days, weekly after. A deleted post is not read again by itself ("Kiểm tra" on it still works).
+RECHECK_EVERY = ((timedelta(days=3), timedelta(hours=6)), (timedelta(days=30), timedelta(days=1)))
+RECHECK_OLD = timedelta(days=7)
+RECHECK_IG_PER_ROUND = 3
+
+
+def recheck_due(at: datetime):
+    """The live posts whose last check is older than their age asks for, or never done. Never a post set aside."""
+    live = _live_at()
+    due, younger = [], at
+    for age, every in RECHECK_EVERY:
+        due.append(and_(live <= younger, live > at - age, Publication.checked_at <= at - every))
+        younger = at - age
+    due.append(and_(live <= younger, Publication.checked_at <= at - RECHECK_OLD))
+    return and_(
+        Publication.status == "published",
+        Publication.match_status != "ignored",
+        or_(Publication.checked_at.is_(None), *due),
+    )
+
+
+def check_instagram_due(factory: sessionmaker) -> None:
+    """One round: look for the Instagram Reels the app shows as posted that Instagram no longer has. A Reel whose read
+    fails stays as it was (the next round tries again). Nothing here may stop the queue."""
+    try:
+        with factory() as db:
+            ids = list(
+                db.scalars(
+                    select(Publication.id)
+                    .where(
+                        Publication.platform == "instagram",
+                        Publication.external_id.is_not(None),
+                        recheck_due(now()),
+                    )
+                    .order_by(Publication.checked_at.asc().nulls_first(), Publication.id)
+                    .limit(RECHECK_IG_PER_ROUND)
+                )
+            )
+    except Exception:
+        log.exception("Could not look for Instagram posts to check")
+        return
+    for post_id in ids:
+        try:
+            with factory() as db:
+                post = db.get(Publication, post_id)
+                if post is not None:
+                    _check_instagram(db, post)
+        except Exception:
+            log.exception("Could not check Instagram post %s", post_id)
+
+
+def _check_instagram(db: DbSession, post: Publication) -> None:
+    at = now()
+    post.checked_at = at
+    try:
+        page = fanpages.load_page(db, post.fanpage_id)
+        gone = instagram.media_gone(page, post.external_id)
+    except FacebookError as err:
+        log.warning(
+            "Could not check Instagram post %s, it stays %s: %s %s", post.id, post.status, err.message, err.detail
+        )
+        db.commit()
+        return
+    if gone:
+        post.status, post.closed_at, post.closed_by_id = "deleted", at, None
+        log.info("Instagram no longer has post %s: marked deleted", post.id)
+    db.commit()
+
+
 def measure_due(factory: sessionmaker) -> None:
     """One round of the worker: a few Facebook posts one by one, and the due YouTube Shorts in one call. Nothing here
     may stop the queue: a failure is logged and the next round goes on."""

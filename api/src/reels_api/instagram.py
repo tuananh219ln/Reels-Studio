@@ -234,6 +234,23 @@ def permalink(page: Page, media_id: str) -> str | None:
     return link if isinstance(link, str) and link.startswith("https://") else None
 
 
+def media_gone(page: Page, media_id: str) -> bool:
+    """Whether Instagram no longer has this media. Like Facebook it answers a media it deleted with the same 400 (#100)
+    as one the token may not read, so that answer counts only while the token still reads the account's media list;
+    any other failure raises: a media whose state is unknown is never taken for deleted."""
+    try:
+        _get(page, urllib.parse.quote(media_id, safe=""), fields="id")
+        return False
+    except FacebookError as err:
+        if err.status != 404 and not (err.status == 400 and err.code == 100):
+            raise
+        account = account_of(page)
+        if account is None:
+            raise
+        recent_media(page, account.id)  # raises when the token cannot read the account: unknown, not deleted
+        return True
+
+
 def recent_media(page: Page, ig_user_id: str) -> list[dict]:
     """The account's newest media, {id, caption, permalink, timestamp}: where a Reel whose publish answer was lost is
     looked for."""
