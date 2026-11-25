@@ -1872,6 +1872,12 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         voice_volume: Annotated[int | None, Field(description="Âm lượng giọng đọc, 0–100 (%)")] = None,
         voice_pause: Annotated[float | None, one_of("voice_pause")] = None,
         ducking: Annotated[bool | None, one_of("ducking")] = None,
+        text_shade: Annotated[
+            bool | None,
+            Field(
+                description="Nền tối mờ sau chữ các cảnh (dải đen, đậm nhất 45% ngay chỗ chữ, mờ dần lên xuống); tiêu đề không có"
+            ),
+        ] = None,
         transition: Annotated[str | None, one_of("transition")] = None,
         motion: Annotated[str | None, one_of("motion")] = None,
         zoom: Annotated[str | None, one_of("zoom")] = None,
@@ -1928,6 +1934,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             voice_volume=voice_volume,
             voice_pause=voice_pause,
             ducking=ducking,
+            text_shade=text_shade,
             transition=transition,
             motion=motion,
             zoom=zoom,

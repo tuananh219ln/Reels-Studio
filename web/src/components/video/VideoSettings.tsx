@@ -729,6 +729,13 @@ export function TextSettings({ values, onChange, disabled, bare }: Props) {
               disabled={disabled}
               onChange={(text_case) => onChange({ text_case })}
             />
+            <Checkbox
+              checked={values.text_shade}
+              disabled={disabled}
+              onChange={(event) => onChange({ text_shade: event.target.checked })}
+            >
+              Nền tối mờ sau chữ (đậm nhất 45%)
+            </Checkbox>
             <Field
               label="Phụ đề theo giọng đọc"
               hint={

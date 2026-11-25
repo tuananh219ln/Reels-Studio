@@ -54,6 +54,8 @@ class RenderOptions:
     # "Dạng chữ" (markup.TEXT_CASES): the content scenes' text and the text layers, and the title scene's.
     text_case: str = "upper"
     title_text_case: str = "upper"
+    # "Nền tối mờ sau chữ": a black band, 45% at its darkest, behind the content scenes' text (textbox.with_shade).
+    text_shade: bool = False
     # "Video xuyên suốt": the title scene's photo or clip runs under every scene, joined by hard cuts, and the text
     # boxes fade in and out instead; photo layers ("Ảnh món") are laid on only then.
     backdrop: bool = False
@@ -96,8 +98,9 @@ class RenderOptions:
         ):
             if not isinstance(value, str) or (value not in named and not is_hex(value)):
                 raise InputError(f"Màu {name} không hợp lệ: {value!r} (chọn một trong {', '.join(named)} hoặc #RRGGBB)")
-        if not isinstance(self.backdrop, bool):
-            raise InputError(f"Tuỳ chọn backdrop phải là true hoặc false (đang là {self.backdrop!r})")
+        for name, flag in (("backdrop", self.backdrop), ("text_shade", self.text_shade)):
+            if not isinstance(flag, bool):
+                raise InputError(f"Tuỳ chọn {name} phải là true hoặc false (đang là {flag!r})")
         volume = self.voice_volume
         if isinstance(volume, bool) or not isinstance(volume, (int, float)) or not 0 <= volume <= 1:
             raise InputError(f"Âm lượng giọng đọc phải là số từ 0 đến 1 (đang là {volume})")

@@ -134,8 +134,8 @@ def options_dict(options) -> dict:
     videos as before, and refuses a backdrop video (an option it does not know) instead of rendering it wrong."""
     values = asdict(options)
     # Each sent only when on, for the same reason: `clip_blur` (blurred boxes on a clip) and `clip_loop` (a
-    # scene's "Lặp clip") too.
-    for name in ("backdrop", "clip_blur", "logo", "clip_loop"):
+    # scene's "Lặp clip") and `text_shade` (the dark band behind the text) too.
+    for name in ("backdrop", "clip_blur", "logo", "clip_loop", "text_shade"):
         if not values[name]:
             del values[name]
     # Likewise "Dạng chữ" only when the text is drawn as typed: an older machine would draw it in capitals.
