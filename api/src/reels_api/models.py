@@ -212,6 +212,9 @@ class KnowledgeTopic(Base):
     # scene, which takes the place of a closing call to action of their script.
     outro_cta: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     text_suggestions: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
+    # "Mô tả YouTube" (migration 0126, youtube_meta.py): the YouTube hashtags, keywords, Subscribe line and disclaimer
+    # its videos' uploads carry instead of the Facebook caption; None: the caption and the video's hashtags.
+    youtube_meta: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # The group's "Mẫu dựng" (part 2 of docs/specs/per-user-settings-ownership), picked from the saved ones, and the
     # one its new videos take ("app" or one of them; None for none), over their maker's own (autoedit).
     edit_templates: Mapped[list["EditTemplate"]] = relationship(

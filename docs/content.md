@@ -83,6 +83,9 @@ One LLM call per topic (the provider chosen on Cài đặt › AI và nguồn t�
    does not say, plus 5 hashtags kept apart from it. Hashtag-only lines a script still puts at the
    end of the caption move to the hashtags, and a post adds only the hashtags its caption does not
    already hold ([hashtags.py](../api/src/reels_api/hashtags.py)), so none is posted twice.
+   The caption and these hashtags are Facebook's. TikTok swaps the hashtags for the group's TikTok set, and YouTube
+   builds its own description from the caption and the group's "Mô tả YouTube" (Subscribe line, disclaimer, YouTube
+   hashtags; keywords as tags) at each upload ([youtube_meta.py](../api/src/reels_api/youtube_meta.py)).
 4. 2 affiliate product suggestions plus the pinned comment's closing question. The pinned comment always has the
    same three parts ([pinned.py](../api/src/reels_api/pinned.py), decisions 2026-11-19-pinned-comment-fixed-shape):
    the title (the title scene's text, else the topic), then each content scene on its own line as "1. name" (the

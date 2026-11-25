@@ -62,6 +62,7 @@ import StockOrderCard from "@/components/knowledge/StockOrderCard";
 import GroupVideoModeCard from "@/components/knowledge/GroupVideoModeCard";
 import GroupNoPeopleCard from "@/components/knowledge/GroupNoPeopleCard";
 import GroupOutroCard from "@/components/knowledge/GroupOutroCard";
+import GroupYouTubeCard from "@/components/knowledge/GroupYouTubeCard";
 import GroupTextLookCard from "@/components/knowledge/GroupTextLookCard";
 import { usePlanTabs } from "@/components/plan/PlanTab";
 import { VoicePicker } from "@/components/video/VideoSettings";
@@ -778,6 +779,7 @@ const TOPIC_FIELDS: Record<string, string> = {
   text_look: "Chữ & phụ đề",
   text_ai: "AI chọn kiểu chữ cho từng video",
   outro_cta: "Cảnh kết Theo dõi & Chia sẻ",
+  youtube_meta: "Mô tả YouTube",
   stock_order: "Thứ tự nguồn ảnh",
   media_folder: "Thư mục tư liệu",
   templates: "Mẫu dựng của nhóm",
@@ -1063,6 +1065,18 @@ function TopicBody({
                         update={update}
                         reload={async (data) => onSaved(data ?? (await api<Knowledge>("/knowledge")))}
                       />
+                    </Col>
+                  </Row>
+                </section>
+                <section aria-labelledby={`youtube-${topic.id}`}>
+                  <SectionHead
+                    id={`youtube-${topic.id}`}
+                    title="Đăng YouTube"
+                    hint="Video của nhóm tải lên YouTube (tự động hoặc bấm tay) lấy mô tả và thẻ từ phần này."
+                  />
+                  <Row gutter={[16, 16]}>
+                    <Col xs={24} xl={12}>
+                      <GroupYouTubeCard key={JSON.stringify(topic.youtube_meta)} topic={topic} update={update} />
                     </Col>
                   </Row>
                 </section>

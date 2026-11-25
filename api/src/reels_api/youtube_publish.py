@@ -7,16 +7,20 @@ public and mark it published.
 
 Never uploaded twice: the session's URL is saved (and committed) before the file is sent, so "Thử lại" first asks
 YouTube about that very upload and only starts over when YouTube no longer holds the session.
+
+The description and tags are built when a session is opened, from the video's caption as it is then and its group's
+"Mô tả YouTube" (youtube_meta.py), and the description sent is kept as the post's `post_text`. A resumed session keeps
+the body it was opened with.
 """
 
 import logging
 
 from sqlalchemy.orm import Session as DbSession
 
-from . import hashtags, youtube_connections, youtube_upload
+from . import youtube_connections, youtube_meta, youtube_upload
 from .clips import ClipError, frame_at
 from .frames import jpeg_bytes
-from .models import Job, Publication, Video
+from .models import Channel, Job, KnowledgeTopic, Publication, Video
 from .storage import DirectoryStorage
 from .videos import motion_cover_second
 
@@ -40,6 +44,15 @@ def _set_thumbnail(db: DbSession, token: str, video: Video, video_id: str, path)
         youtube_upload.set_thumbnail(token, video_id, jpeg_bytes(frame_at(path, second)))
     except (ClipError, youtube_upload.YouTubeUploadError) as err:
         log.warning("YouTube video %s keeps the thumbnail YouTube picked: %s", video_id, err)
+
+
+def _description_and_tags(db: DbSession, video: Video, post: Publication) -> tuple[str, list[str]]:
+    """The description and tags of a new upload: the caption as it is now and the group's "Mô tả YouTube"."""
+    group = db.get(KnowledgeTopic, video.knowledge_topic_id) if video.knowledge_topic_id else None
+    channel = db.get(Channel, post.channel_id) if post.channel_id else None
+    stored = group.youtube_meta if group else None
+    description = youtube_meta.description(video.caption or "", video.hashtags or [], stored, channel and channel.name)
+    return description, youtube_meta.tags(video.hashtags or [], stored)
 
 
 def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
@@ -71,10 +84,12 @@ def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
             else:
                 log.info("YouTube upload session of publication %s is gone: starting over", post.id)
         if uploaded is None:
-            tags = hashtags.youtube_tags(video.hashtags or [])
-            body = youtube_upload.metadata(post.caption or video.topic, post.post_text or "", tags)
-            # Saved before the file is sent, so a retry asks YouTube about this very upload.
+            description, tags = _description_and_tags(db, video, post)
+            body = youtube_upload.metadata(post.caption or video.topic, description, tags)
+            # Saved before the file is sent, so a retry asks YouTube about this very upload; the description too, so
+            # the post shows what YouTube got.
             post.upload_url, post.remote_mp4_key = youtube_upload.start_upload(token, body, size), key
+            post.post_text = description
             db.commit()
             uploaded = youtube_upload.send_file(token, post.upload_url, path)
     except youtube_upload.YouTubeUploadError as err:

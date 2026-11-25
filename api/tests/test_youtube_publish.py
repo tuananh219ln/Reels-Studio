@@ -12,7 +12,16 @@ from sqlalchemy import delete, select
 from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixtures)
 
 from reels_api import metrics, posts_board, youtube_connections, youtube_upload
-from reels_api.models import Channel, Fanpage, Job, Publication, Video, YouTubeConnection, YouTubeOAuthState
+from reels_api.models import (
+    Channel,
+    Fanpage,
+    Job,
+    KnowledgeTopic,
+    Publication,
+    Video,
+    YouTubeConnection,
+    YouTubeOAuthState,
+)
 from reels_api.storage import DirectoryStorage
 
 MP4 = b"fake mp4 bytes " * 100
@@ -317,10 +326,55 @@ def test_an_upload_goes_up_private_with_its_title_and_ai_label(committed, ready,
     }
     assert sent["body"]["snippet"] == {
         "title": "Vừng đen buổi sáng",
-        "description": "Ăn vừng đen mỗi sáng #vungden",
+        # Built at upload from the caption and the hashtags (the group has no "Mô tả YouTube"), not the post's snapshot.
+        "description": "Ăn vừng đen mỗi sáng\n\n#vungden",
         "tags": ["vungden"],
     }
     assert fakes.youtube_upload_calls == ["init", "send"]
+
+
+def test_a_caption_edited_after_the_post_was_made_reaches_youtube(committed, ready, fakes):
+    """FoodDose 382 (2026-11-25): the description was the caption frozen when the post was made."""
+    _, _, video_id, _, _ = ready
+    with committed() as db:
+        db.get(Video, video_id).caption = "Ăn vừng đen mỗi sáng, tóc đen và chắc hơn. Like and follow!"
+        db.commit()
+    job, post = send(committed, ready)
+    assert job.status == "done", (job.error, job.error_detail)
+    (sent,) = fakes.youtube_uploads.values()
+    description = sent["body"]["snippet"]["description"]
+    assert description == "Ăn vừng đen mỗi sáng, tóc đen và chắc hơn. Like and follow!\n\n#vungden"
+    assert post.post_text == description, "the post keeps what YouTube got"
+
+
+def test_the_groups_youtube_description_and_tags_replace_the_facebook_ones(committed, ready, fakes):
+    _, _, video_id, channel_id, _ = ready
+    with committed() as db:
+        video = db.get(Video, video_id)
+        video.caption, video.hashtags = "Ăn vừng đen mỗi sáng. #vungden #reels", ["#vungden", "#reels"]
+        db.get(KnowledgeTopic, video.knowledge_topic_id).youtube_meta = {
+            "hashtags": ["#FoodDose", "#Shorts"],
+            "keywords": ["food is medicine"],
+            "cta": "🔔 Subscribe to {channel}!",
+            "disclaimer": "Not medical advice.",
+        }
+        channel_name = db.get(Channel, channel_id).name
+        db.commit()
+    try:
+        job, post = send(committed, ready)
+    finally:
+        with committed() as db:
+            db.get(KnowledgeTopic, db.get(Video, video_id).knowledge_topic_id).youtube_meta = None
+            db.commit()
+    assert job.status == "done", (job.error, job.error_detail)
+    (sent,) = fakes.youtube_uploads.values()
+    assert sent["body"]["snippet"]["description"] == (
+        f"Ăn vừng đen mỗi sáng.\n\n🔔 Subscribe to {channel_name}!\n\nNot medical advice.\n\n#FoodDose #Shorts"
+    )
+    assert sent["body"]["snippet"]["tags"] == ["FoodDose", "Shorts", "food is medicine"]
+    assert post.post_text == sent["body"]["snippet"]["description"]
+    with committed() as db:
+        assert db.get(Video, video_id).caption == "Ăn vừng đen mỗi sáng. #vungden #reels", "Facebook's caption stays"
 
 
 def test_the_upload_carries_the_videos_hashtags_as_tags_cleaned_and_deduped(committed, ready, fakes):
