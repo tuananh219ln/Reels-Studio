@@ -246,6 +246,23 @@ paginated or virtualised past about 50 items.
 wrap, tables scroll inside their card, drawers take the full width (App Look) and touch targets
 are at least 36 px.
 
+**Choosing columns.** A table with "Cột" (a Page's "Nội dung" tab, Thống kê) opens one box ([ColumnPicker](../web/src/components/ColumnPicker.tsx)):
+a search field, the columns grouped (Chi tiết về nội dung, Hiệu quả, Lượt tương tác), a handle to drag a column to
+another place, and "Hủy" / "Áp dụng": nothing changes until "Áp dụng". The choice and the order are kept in this browser
+(`page-content-columns`, `stats-columns-facebook`, `stats-columns-instagram`). A row of the "Nội dung" table has one "⋯"
+menu: the video's actions, then "Mở reel trên Facebook", "Cập nhật view" and "Thao tác bài đăng…" (the drawer with the
+analysis, comment and reel-link actions).
+
+**One list of videos.** Every list of videos or posts (Video, a group's "Video" tab, "Nội dung" of a Page, Bài đăng, Affiliate's
+videos) is built from the same parts in [components/videoList](../web/src/components/videoList/): the table
+(`VideoTable`: the same paging, sideways scroll and empty state, size "middle" on a page and "small" in a card, and the row's
+"⋮" menu in a **last column pinned to the right**, with no heading); the cells after the title (`useVideoColumns`: **Trạng
+thái**: the status and where it is out, the kind tags, the Winner flag with "Tạo 3 biến thể", TikTok versions; **Số liệu**: "N
+view", then "48h: x×, y% share", a dash before the first reading; **Tạo**: who and when; ID off until ticked in "Cột", which
+keeps and orders them per list); the one grey line under the title (`videoDetails`); the card (`VideoCard`); and the search
+box and "Thẻ | Bảng" switch. A screen adds only what is its own (Bài đăng's platform cells, Affiliate's products and comments,
+"Nội dung"'s Facebook numbers). A table that shows posts, not videos, keeps its own number columns but not its own layout.
+
 **State in the URL.** A list page's search, filters, sort and tab are in the query string
 (`?q=…&status=…`), so a link to a filtered list or a reload shows the same thing: Video, Bài viết,
 Bài đăng (with "Danh sách | Lịch"), Jobs, Thành viên, Kho tư liệu, Thư viện nhạc, Quản lý kênh and
@@ -258,7 +275,7 @@ change to the address starts it on page 1 again. Kho kiến thức keeps the gro
 (`?group=…&tab=…`) with that tab's list filters (the Video tab's search, status and page, the
 Backlog's search and pain group); choosing another group opens it on its Video tab without the last group's filters, and a
 group opened earlier and hidden keeps its own (`useUrlChoiceIf`). A Page's dashboard keeps its
-period, tab and the "Nội dung" table's sort and page. Not in the address: a list inside a drawer,
+period, tab and the "Nội dung" table's sort and page. Thống kê keeps its period and platform, Tất cả hướng dẫn the guide shown (`?guide=`). Not in the address: a list inside a drawer,
 dialog or picker (the plan day drawer's filters, the stock picker). Video's topic-group filter is
 also remembered in the browser, and the address wins when both are there.
 
@@ -332,7 +349,7 @@ Built:
   posted or as buttons (screen review 2026-11-12). A TikTok version sits on its source's card (or row) as a small "TikTok" link
   with its status ("Nháp", "Đã đăng") that opens it, not on a card of its own; it gets its own card when a platform
   is chosen or its source is filtered out. A Facebook video at 3× its Page's median or more at 48 hours with no
-  TikTok version shows "+ Tạo bản TikTok" there instead, opening its "Tạo bản TikTok" drawer. Two views, remembered in the browser; a click opens the video:
+  TikTok version shows "+ Tạo bản TikTok" there instead, opening its "Tạo bản TikTok" drawer. Two views, "Thẻ | Bảng" (remembered in the browser, one choice for every list of videos, "Thẻ" here until chosen); a click opens the video:
   - a grid of cards on their side (1 to 4 a row by width), equal in height. The 92 px thumbnail is
     left as it is (or a grey tile with an icon) but for one dark badge in its corner, as on a profile
     grid: the views ("12,4K", the latest readings of every live post added up) or the scheduled day.
@@ -346,11 +363,11 @@ Built:
     about posting, 2026-11-12) and on
     the right the creator and the day it was made; under them, small, the topic group and its plan day.
     The kind tags sit under the title with the "Đã đăng" icons on their right;
-  - a list, one row per video, in four columns (2026-11-14): **Video** (small thumbnail, the title on up to two lines, and
+  - the table ("Bảng"), one row per video (2026-11-14): **Video** (small thumbnail, the title on up to two lines, and
     under it the Page and time of its post, "hẹn" while scheduled, or "Chưa đăng"), **Trạng thái** (the status, "Đã đăng" or
     "Đã hẹn giờ" and the platform icons on one line, the kind tags, TikTok versions and "Tạo bản TikTok" under it),
     **Số liệu** (the views, sortable, with the 48h multiple or "chưa đủ dữ liệu" and the share rate under it; "—" before
-    the first reading) and **Tạo** (group, plan day, creator, day), then the "⋮" button. Above the videos, one
+    the first reading) and **Tạo** (creator, day; the group and plan day under them), then the "⋮" button at the right end. "Cột" chooses and orders them (and an "ID" column, off until ticked). Above the videos, one
   banner per topic group of the member's own (the groups their Pages in use post) whose plan has a today:
   "Kế hoạch <nhóm>, ngày N: hôm nay còn X/Y video" with "Làm tiếp" (the next idea not made), or green once
   all of today's ideas have a video. "Tạo video" lets any group be picked but suggests the plan's ideas only
@@ -855,12 +872,9 @@ steps open the status card or the products block on its tab, the QC chip its pop
   and a change tried on the plan tab is refused with the same reason. Groups opened once stay loaded, so unsaved text in one survives opening
   another. A new group starts empty, and "Tạo video" cannot pick a group without a script prompt. The
   group is chosen in "Tạo video"; a clone keeps its source's group. Tabs, the group opening on "Video":
-  - "Video (N)": the group's videos newest first, as "Bảng | Danh sách" (remembered in the browser,
-    "Bảng" until chosen): a compact table (thumbnail, title with its topic and plan day, kind, status,
-    platforms, "View" (every live Facebook post's newest reading added up), "View 48h", "Share" and
-    "Share/view" (the 48-hour reading of the post with the most views), who made it, when) or a card per
-    video (a larger picture, title, status, platforms and one line of those numbers, "Chưa có số liệu
-    đăng" for a video not out yet); a video without numbers shows "—", never 0. A search over title and
+  - "Video (N)": the group's videos newest first, as "Thẻ | Bảng" (remembered in the browser, one choice for every
+    list of videos, "Bảng" here until chosen), the same table and the same card as the Video list (see "One list of
+    videos" above; the card leaves out the group, which is this one); a video without numbers shows "—", never 0. A search over title and
     topic that ignores accents and a status filter (every choice of the video list's but "Cần làm", each with its
     count in the group, listed even when empty), both kept when switching, and "Tạo video", which
     opens "Tạo video" on `/videos` with this group chosen (hidden while the group has no script prompt). The
@@ -1258,8 +1272,9 @@ steps open the status card or the products block on its tab, the QC chip its pop
     when the video has its own Instagram post; nothing when the switch is off and there is none. Instagram has no time of its
     own to show.
   - **"So sánh"** (both sides of a Page with Instagram): one row per video the app posted to the Page in the period,
-    Facebook's and Instagram's views, reach and interactions side by side, "Chưa đăng" where it is not on one; a grey note
-    that the two count differently.
+    two columns, Facebook and Instagram, showing one metric at a time (a switch "Lượt xem | Tiếp cận | Tương tác", kept in
+    this browser as `page-compare-metric`) with the other worth a glance, interactions or views, in grey under each number;
+    "Chưa đăng" where it is not on one; a grey note that the two count differently.
   - **"Giờ đăng hiệu quả"** (on "Lịch đăng", both sides): per platform, the best three Vietnam hours of the last 90 days by
     average views (two posts an hour at least), or "Mới có N bài đã đo, cần từ 6 bài".
   - **Falling views** on a Page card, one amber line per platform: "Lượt xem Facebook giảm 62% so với tuần trước (140 so

@@ -405,9 +405,11 @@ test("the menu is four headed groups in the order of the work, with no Bình lu�
     "Video",
     "Bài viết",
     "Bài đăng",
+    "Thống kê",
     "Quản lý kênh",
     "Affiliate",
     "Kho kiến thức",
+    "Tất cả hướng dẫn",
     "Kho tư liệu",
     "Thư viện nhạc",
     "Phân tích đối thủ",
@@ -467,6 +469,14 @@ test("a Page's dashboard has an Instagram side with its own figures and chart", 
   await expect(page.getByTestId("instagram-audience")).toContainText("25-34");
   await page.getByRole("tab", { name: "So sánh" }).click();
   await expect(page.getByTestId("page-compare")).toContainText("Chưa có video nào app đăng lên Page");
+  // The metric shown in both columns is picked once and kept in this browser.
+  const metrics = page.getByRole("radiogroup", { name: "Chỉ số so sánh" });
+  await expect(metrics.getByRole("radio", { name: "Lượt xem" })).toBeChecked();
+  await metrics.getByText("Tiếp cận", { exact: true }).click();
+  await expect(metrics.getByRole("radio", { name: "Tiếp cận" })).toBeChecked();
+  await page.reload();
+  await page.getByRole("tab", { name: "So sánh" }).click();
+  await expect(metrics.getByRole("radio", { name: "Tiếp cận" })).toBeChecked();
   await page.getByRole("tab", { name: "Lịch đăng" }).click();
   await expect(page.getByTestId("best-times")).toContainText("Mới có 0 bài đã đo, cần từ 6 bài");
   await platform.getByText("Facebook", { exact: true }).click();

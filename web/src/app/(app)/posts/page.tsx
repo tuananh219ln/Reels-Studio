@@ -14,6 +14,7 @@ import VideoPostsRow from "@/components/posts/VideoPostsRow";
 import UnmatchedTable from "@/components/posts/UnmatchedTable";
 import VideoThumbnail from "@/components/VideoThumbnail";
 import VideoTitleCell from "@/components/VideoTitleCell";
+import VideoTable from "@/components/videoList/VideoTable";
 import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 import {
   api,
@@ -37,21 +38,7 @@ import {
   SearchOutlined,
   UnorderedListOutlined,
 } from "@ant-design/icons";
-import {
-  App,
-  Button,
-  Card,
-  DatePicker,
-  Flex,
-  Input,
-  Segmented,
-  Select,
-  Spin,
-  Table,
-  Tabs,
-  Tag,
-  Typography,
-} from "antd";
+import { App, Button, Card, DatePicker, Flex, Input, Segmented, Select, Spin, Tabs, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -349,18 +336,6 @@ function Posts() {
           <Typography.Text strong>{formatCount(item.total_views)}</Typography.Text>
         ),
     },
-    {
-      title: "",
-      key: "actions",
-      width: 56,
-      render: (_, item) =>
-        item.video.id === null ? null : (
-          <VideoActions
-            video={{ id: item.video.id, title: item.video.name, topic: item.video.topic, name: item.video.name }}
-            onChanged={load}
-          />
-        ),
-    },
   ];
 
   const filtered =
@@ -467,25 +442,31 @@ function Posts() {
             }
           />
         ) : (
-          <Table<BoardItem>
+          <VideoTable<BoardItem>
             rowKey={(item) => (item.video.id === null ? `post-${item.video.post_id}` : `video-${item.video.id}`)}
-            columns={columns}
-            dataSource={board.items}
-            pagination={{
-              pageSize: PAGE_SIZE,
-              total: board.total,
-              hideOnSinglePage: true,
-              showSizeChanger: false,
-              ...tablePage,
-            }}
-            scroll={{ x: 1180 }}
-            onRow={() => ({ "data-testid": "post-group" }) as React.HTMLAttributes<HTMLElement>}
-            expandable={{
-              rowExpandable: (item) => item.video.id !== null,
-              expandedRowRender: (item) =>
-                item.video.id === null ? null : (
-                  <VideoPostsRow videoId={item.video.id} onPaste={openPaste} onDownload={download} onChanged={load} />
-                ),
+            columns={columns.filter((column) => column.key !== "actions")}
+            actions={(item) =>
+              item.video.id === null ? null : (
+                <VideoActions
+                  video={{ id: item.video.id, title: item.video.name, topic: item.video.topic, name: item.video.name }}
+                  onChanged={load}
+                />
+              )
+            }
+            actionsWidth={56}
+            rows={board.items}
+            pageSize={PAGE_SIZE}
+            total={board.total}
+            page={tablePage}
+            rowTestId="post-group"
+            tableProps={{
+              expandable: {
+                rowExpandable: (item) => item.video.id !== null,
+                expandedRowRender: (item) =>
+                  item.video.id === null ? null : (
+                    <VideoPostsRow videoId={item.video.id} onPaste={openPaste} onDownload={download} onChanged={load} />
+                  ),
+              },
             }}
           />
         )}

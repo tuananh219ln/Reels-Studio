@@ -4,94 +4,22 @@ import VideoActions from "@/components/actions/VideoActions";
 import { usePolling } from "@/lib/polling";
 
 import EmptyState from "@/components/EmptyState";
-import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
-import VideoStatusTags from "@/components/VideoStatusTags";
+import VideoCard from "@/components/videoList/VideoCard";
+import VideoTable from "@/components/videoList/VideoTable";
+import { useVideoColumns } from "@/components/videoList/columns";
+import { plain, videoDetails } from "@/components/videoList/format";
+import { useVideoView, VideoSearch, ViewToggle } from "@/components/videoList/toolbar";
 import VideoTitleCell from "@/components/VideoTitleCell";
-import WinnerFlag from "@/components/WinnerFlag";
-import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
+import { api, errorMessage, type VideoRow } from "@/lib/api";
 import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
 import { VIDEO_STATUS_FILTERS } from "@/lib/videoStatus";
-import { AppstoreOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Segmented, Table, Tabs, Tooltip, Typography, theme } from "antd";
+import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { App, Button, Col, Flex, Row, Tabs, Tooltip } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-/** Accents and case ignored, so "rau mam" finds "Rau mầm". */
-function plain(text: string): string {
-  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
-
-type View = "table" | "list";
-const VIEW_KEY = "topic-videos-view";
-
-/** "Bảng | Danh sách", remembered in this browser, as useRememberedView (lib/view.ts) does; the table until chosen. */
-function useView(): [View, (view: View) => void] {
-  const [view, setView] = useState<View>(() => {
-    try {
-      return window.localStorage.getItem(VIEW_KEY) === "list" ? "list" : "table";
-    } catch {
-      return "table";
-    }
-  });
-  return [
-    view,
-    (next) => {
-      setView(next);
-      try {
-        window.localStorage.setItem(VIEW_KEY, next);
-      } catch {
-        // Not remembered, still shown.
-      }
-    },
-  ];
-}
-
-const count = (value: number | null | undefined) => (value == null ? "—" : value.toLocaleString("vi-VN"));
-const percent = (value: number | null | undefined) =>
-  value == null
-    ? "—"
-    : `${(value * 100).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
-
-/** A posted video's numbers; a video not out yet shows dashes, never a zero it does not have. */
-function numbers(row: VideoRow) {
-  const post = row.post?.state === "posted" ? row.post : null;
-  return {
-    views: post?.views ?? null,
-    views48: post?.views_48h ?? null,
-    shares: post?.shares ?? null,
-    rate: post?.share_rate ?? null,
-  };
-}
-
-/** The topic a video was made from, only when its title does not already say it: a title that repeats the topic gave
- * the list two near-identical lines. */
-function otherTopic(row: VideoRow): string {
-  const title = plain(row.title || "");
-  const topic = plain(row.topic);
-  return !topic || title.includes(topic) || topic.includes(title) ? "" : row.topic;
-}
-
-/** The line under a video's title: where and when it is out or set to go, else the Page queue it waits in or the time
- * the plan suggests, then its content type and product count, so a row says more than its title. */
-function rowDetails(row: VideoRow): string {
-  const parts: string[] = [];
-  if (row.plan_day) parts.push(`Ngày ${row.plan_day}`);
-  if (otherTopic(row)) parts.push(otherTopic(row));
-  const post = row.post;
-  if (post) {
-    const pages = post.pages > 1 ? `${post.fanpage} +${post.pages - 1}` : post.fanpage;
-    parts.push(`${pages}, ${post.state === "posted" ? "đăng" : "hẹn"} ${formatDateTime(post.at)}`);
-  } else if (row.queue) {
-    parts.push(
-      row.queue.error ? `Hàng chờ ${row.queue.fanpage}: ${row.queue.error}` : `Trong hàng chờ ${row.queue.fanpage}`,
-    );
-  } else if (row.suggested_post_at) {
-    parts.push(`Gợi ý đăng ${formatDateTime(row.suggested_post_at)}`);
-  }
-  if (row.content_type) parts.push(row.content_type);
-  if (row.product_count) parts.push(`${row.product_count} sản phẩm`);
-  return parts.join(", ");
-}
+// Where the choice was kept before every list of videos shared one: "table" was the table, "list" the cards.
+const LEGACY_VIEW = { key: "topic-videos-view", values: { table: "table", list: "cards" } } as const;
 
 /** "Video" in Kho kiến thức: the videos of one topic group, newest first, each opening its video page. */
 export default function TopicVideos({
@@ -112,7 +40,7 @@ export default function TopicVideos({
   const [search, setSearch] = useUrlChoiceIf<string>(visible, "q", "");
   const [status, setStatus] = useUrlChoiceIf<string | null>(visible, "status", null);
   const tablePage = useUrlPageIf(visible);
-  const [view, setView] = useView();
+  const [view, setView] = useVideoView("table", LEGACY_VIEW);
 
   const listUrl = `/videos?knowledge_topic_id=${topicId}${fanpageId ? `&fanpage_id=${fanpageId}` : ""}`;
   const load = useCallback(
@@ -182,6 +110,8 @@ export default function TopicVideos({
       (!wanted || plain(row.title).includes(wanted) || plain(row.topic).includes(wanted)),
   );
 
+  const videoColumns = useVideoColumns({ storageKey: "topic-videos-columns", onChanged: () => void load(true) });
+
   return (
     <Flex vertical gap={12} data-testid="topic-videos">
       <Tabs
@@ -199,24 +129,9 @@ export default function TopicVideos({
       />
       <Flex wrap gap={8} justify="space-between">
         <Flex wrap gap={8}>
-          <Input
-            aria-label="Tìm video của nhóm"
-            placeholder="Tìm theo tiêu đề hoặc chủ đề…"
-            prefix={<SearchOutlined />}
-            allowClear
-            style={{ width: 260 }}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-          <Segmented<View>
-            aria-label="Chế độ hiển thị"
-            value={view}
-            onChange={setView}
-            options={[
-              { value: "table", label: "Bảng", icon: <TableOutlined /> },
-              { value: "list", label: "Danh sách", icon: <AppstoreOutlined /> },
-            ]}
-          />
+          <VideoSearch value={search} onChange={setSearch} label="Tìm video của nhóm" width={260} />
+          <ViewToggle value={view} onChange={setView} />
+          {view === "table" && videoColumns.picker}
         </Flex>
         <Flex wrap gap={16} align="center">
           <Tooltip title="Đọc lại view, share của các bài đã đăng trong nhóm từ Facebook">
@@ -234,29 +149,19 @@ export default function TopicVideos({
           )}
         </Flex>
       </Flex>
-      {view === "list" ? (
+      {view === "cards" ? (
         <VideoCards rows={rows} shown={shown} onChanged={() => load(true)} />
       ) : (
-        <Table<VideoRow>
+        <VideoTable<VideoRow>
           size="small"
           rowKey="id"
           loading={rows === null}
-          dataSource={shown}
-          pagination={shown.length > 20 ? { pageSize: 20, showSizeChanger: false, ...tablePage } : false}
-          // As wide as its columns need, scrolling inside the card: no column is cut at its edge.
-          scroll={{ x: "max-content" }}
-          locale={{
-            emptyText: (
-              <EmptyState description={rows?.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"} />
-            ),
-          }}
+          rows={shown}
+          page={tablePage}
+          empty={rows?.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"}
+          actions={(row) => <VideoActions video={row} onChanged={() => load(true)} />}
+          actionsWidth={88}
           columns={[
-            {
-              key: "id",
-              title: "ID",
-              width: 64,
-              render: (_, row) => <Typography.Text type="secondary">{row.id}</Typography.Text>,
-            },
             {
               key: "title",
               title: "Video",
@@ -267,69 +172,11 @@ export default function TopicVideos({
                   title={row.title || row.topic}
                   thumbnailUrl={row.thumbnail_url}
                   maxWidth={320}
-                  sub={rowDetails(row)}
+                  sub={videoDetails(row)}
                 />
               ),
             },
-            {
-              key: "status",
-              title: "Trạng thái",
-              width: 230,
-              // Where it is out sits beside "Đã đăng", not in a column of its own; the kind tags go under.
-              render: (_, row) => (
-                <Flex vertical gap={4} align="flex-start">
-                  <Flex gap={8} align="center" wrap>
-                    <VideoStatusTags video={row} />
-                    <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} />
-                  </Flex>
-                  <VideoKindTags video={row} />
-                  <WinnerFlag video={row} onChanged={() => load(true)} />
-                </Flex>
-              ),
-            },
-            {
-              key: "numbers",
-              title: "Số liệu",
-              width: 190,
-              render: (_, row) => {
-                const n = numbers(row);
-                return (
-                  <Flex vertical>
-                    <Typography.Text>
-                      View Facebook <b>{count(n.views)}</b>, tool 48h <b>{count(n.views48)}</b>
-                    </Typography.Text>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      Share 48h {count(n.shares)}, share/view 48h {percent(n.rate)}
-                    </Typography.Text>
-                  </Flex>
-                );
-              },
-            },
-            {
-              key: "made",
-              title: "Tạo",
-              width: 150,
-              render: (_, row) => (
-                <Flex vertical>
-                  <Typography.Text ellipsis>{row.created_by}</Typography.Text>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {formatDateTime(row.created_at)}
-                  </Typography.Text>
-                </Flex>
-              ),
-            },
-            {
-              key: "actions",
-              // Room for "Duyệt" beside the ⋮ of a ready video, no more: the bin that filled the rest is gone.
-              width: 88,
-              // Pinned to the right: the table scrolls sideways, and the actions must show without scrolling.
-              fixed: "right",
-              render: (_, row) => (
-                <Flex>
-                  <VideoActions video={row} onChanged={() => load(true)} />
-                </Flex>
-              ),
-            },
+            ...videoColumns.columns,
           ]}
         />
       )}
@@ -337,7 +184,7 @@ export default function TopicVideos({
   );
 }
 
-/** "Danh sách": a card per video, with a larger picture, its status and its main numbers. */
+/** "Thẻ": a card per video, the same card as the video list's. */
 function VideoCards({
   rows,
   shown,
@@ -347,75 +194,16 @@ function VideoCards({
   shown: VideoRow[];
   onChanged: () => Promise<void>;
 }) {
-  const { token } = theme.useToken();
   if (rows !== null && shown.length === 0) {
     return <EmptyState description={rows.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"} />;
   }
   return (
-    <Flex vertical gap={8} data-testid="topic-video-cards">
-      {(rows === null ? [] : shown).map((row) => {
-        const figures = numbers(row);
-        return (
-          <Card key={row.id} size="small" data-testid="topic-video-card" styles={{ body: { padding: 10 } }}>
-            <Flex gap={12} align="flex-start">
-              {row.thumbnail_url ? (
-                // eslint-disable-next-line @next/next/no-img-element -- the api serves the thumbnail; next/image adds nothing here
-                <img
-                  src={row.thumbnail_url}
-                  alt=""
-                  loading="lazy"
-                  width={72}
-                  height={128}
-                  style={{ objectFit: "cover", borderRadius: token.borderRadius, display: "block", flex: "none" }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: 72,
-                    height: 128,
-                    flex: "none",
-                    borderRadius: token.borderRadius,
-                    background: token.colorFillTertiary,
-                  }}
-                />
-              )}
-              <Flex vertical gap={6} style={{ minWidth: 0, flex: 1 }}>
-                <Flex justify="space-between" align="flex-start" gap={8}>
-                  <Link prefetch={false} href={`/videos/${row.id}`}>
-                    <Typography.Text strong style={{ color: "inherit" }}>
-                      {row.title || row.topic}
-                    </Typography.Text>
-                  </Link>
-                  <Flex>
-                    <VideoActions video={row} onChanged={onChanged} />
-                  </Flex>
-                </Flex>
-                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                  {[
-                    otherTopic(row),
-                    row.plan_day ? `ngày ${row.plan_day}` : "",
-                    row.created_by,
-                    formatDateTime(row.created_at),
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </Typography.Text>
-                <VideoKindTags video={row} />
-                <WinnerFlag video={row} onChanged={onChanged} />
-                <Flex wrap gap={8} align="center">
-                  <VideoStatusTags video={row} />
-                  <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} states={row.posted_states} />
-                </Flex>
-                <Typography.Text type="secondary" style={{ fontSize: 13 }} data-testid="topic-video-numbers">
-                  {figures.views === null && figures.views48 === null
-                    ? "Chưa có số liệu đăng"
-                    : `${count(figures.views)} view (Facebook, đến nay); 48h (tool): ${count(figures.views48)} view, ${count(figures.shares)} share, share/view ${percent(figures.rate)}`}
-                </Typography.Text>
-              </Flex>
-            </Flex>
-          </Card>
-        );
-      })}
-    </Flex>
+    <Row gutter={[12, 12]} data-testid="topic-video-cards">
+      {(rows === null ? [] : shown).map((row) => (
+        <Col key={row.id} xs={24} xl={12} xxl={8} style={{ display: "flex" }}>
+          <VideoCard row={row} showGroup={false} onChanged={onChanged} />
+        </Col>
+      ))}
+    </Row>
   );
 }

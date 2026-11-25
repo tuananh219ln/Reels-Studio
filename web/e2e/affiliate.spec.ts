@@ -567,6 +567,20 @@ test("Nhập file: a preview first, and a teammate's product is added again with
   await expect(page.getByRole("row", { name: /Nồi của An/ })).toContainText("Người thêm: bạn");
 });
 
+test("Tất cả hướng dẫn lists every screen's guides and reads one", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Tất cả hướng dẫn" }).click();
+  await expect(page).toHaveURL(/\/guides/);
+  const menu = page.getByTestId("guides-menu");
+  for (const screen of ["Affiliate", "Video", "Kho kiến thức"]) {
+    await expect(menu.locator(".ant-menu-item-group-title", { hasText: screen })).toBeVisible();
+  }
+  await expect(menu.getByRole("menuitem")).toHaveCount(5);
+  await menu.getByText("gắn link affiliate hàng loạt").click();
+  await expect(page.getByRole("heading", { name: /Custom Link của Shopee/ })).toBeVisible();
+  await expect(page).toHaveURL(/[?&]guide=custom-link/);
+});
+
 test("Affiliate has a Hướng dẫn: the screen's guides open in a drawer, one at a time", async ({ page }) => {
   await loginAsSeed(page);
   await page.goto("/affiliate");

@@ -242,6 +242,8 @@ def _content_row(db: DbSession, post: Publication, median: analytics.Median | No
             "comments": latest.comments,
             "shares": latest.shares,
             "avg_watch_seconds": round(latest.avg_watch_ms / 1000, 1) if latest.avg_watch_ms is not None else None,
+            # All plays together (Facebook's own total, not average x views).
+            "view_time_seconds": round(latest.view_time_ms / 1000) if latest.view_time_ms is not None else None,
             "followers": latest.followers,
             "measured_at": latest.measured_at.isoformat(),
         }

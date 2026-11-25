@@ -1090,11 +1090,20 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     also worked out on each request: every Facebook post the app made to the Page that went live in the period
     (Vietnam time), newest first, a reel taken down after going live included as `deleted`. Each row has the
     video, `live_at`, `closed_at`, the reel's `url` (null once taken down), its `latest` reading (`numbers`: views,
-    reach, reactions, comments, shares, average watch time, follows, `measured_at`; null until read), `views_48h`
+    reach, reactions, comments, shares, average watch time, `view_time_seconds` (all plays together, Facebook's `post_video_view_time`; null when it gives none), follows, `measured_at`; null until read), `views_48h`
     and `times_median` against the Page's median (analytics.py), `can_refresh` (a reel on Facebook, for "Cập nhật
     view", which stays `POST /api/posts/{id}/metrics`), `pending` and the last reading `error`; `median` gives the
     Page's median, sample count and the samples it needs. Sorting, the chosen columns and the CSV file are the
     web's, from these rows.
+    `GET /api/stats?days=7|28|90&platform=facebook|instagram&page_ids=1,2` ([page_stats.py](../api/src/reels_api/page_stats.py),
+    [routes_stats.py](../api/src/reels_api/routes_stats.py)) is the "Thống kê" page: one row per Page (the ids asked for, or
+    every Page; on Instagram only those with a linked account), each built from the same functions as the Page's own
+    dashboard (`dashboard`, `gate`, `content`, `best_times`, `instagram_dashboard`, `instagram_content`), so a row always
+    agrees with it. A row has the dashboard `totals` (with the previous period as an absolute number), the posts' comments
+    and shares, `share_per_view`, `view_time_seconds`, the 48-hour `gate`, `winners`, the posts still `measuring` and
+    `best_times`. Pages are compared, never added up: nothing is summed across Pages, and a number a Page does not have is
+    null. Not read from Facebook, so not columns: unique viewers, impressions, watching for 1 minute, followers against
+    non-followers (decision [2026-11-25-stats-page](decisions/2026-11-25-stats-page.md)).
     `DELETE /api/fanpages/{id}` removes a stopped Page with no post at all (409 otherwise), its
     followers and numbers going with it; each listed Page carries `posts`, its count of posts.
   - **What the numbers mean** ([analytics.py](../api/src/reels_api/analytics.py)) is worked out from

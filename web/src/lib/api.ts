@@ -939,6 +939,8 @@ export type PageContentPost = {
     comments: number | null;
     shares: number | null;
     avg_watch_seconds: number | null;
+    /** All plays together, in seconds (Facebook's own total). */
+    view_time_seconds: number | null;
     /** Follows the reel brought the Page. */
     followers: number | null;
     measured_at: string;
@@ -2429,3 +2431,38 @@ export type Channels = {
     connected_by: string | null;
   }[];
 };
+
+/** "Thống kê": the Pages side by side, one row each (api GET /stats). Pages are compared, never added up. */
+export type StatsPageRef = { id: number; name: string; owner: { id: number; name: string } | null };
+export type StatsSeries = { day: string; views: number | null; engagements: number | null }[];
+export type StatsFacebookRow = {
+  page: StatsPageRef;
+  totals: Record<"views" | "reach" | "engagements" | "followers_gain" | "posts", DashboardFigure>;
+  post_numbers: Record<"reactions" | "comments" | "shares" | "avg_watch_seconds", DashboardFigure>;
+  series: StatsSeries;
+  share_per_view: number | null;
+  view_time_seconds: number | null;
+  gate: {
+    state: "measuring" | "pass" | "hold" | "change";
+    label: string;
+    median_views: number | null;
+    measured: number;
+    first: number;
+    last: number;
+    top_views: number | null;
+  };
+  winners: { post_id: number; video: DashboardVideo; views_48h: number; times_median: number }[];
+  /** Posted in the period and not yet read at 48 hours. */
+  measuring: { post_id: number; video: DashboardVideo; live_at: string }[];
+  best_times: BestHours;
+};
+export type StatsInstagramRow = {
+  page: StatsPageRef;
+  account: { id: string | null; username: string | null };
+  totals: Record<"views" | "reach" | "interactions" | "follows", DashboardFigure>;
+  audience: Record<string, { key: string; share: number }[]> | null;
+  series: StatsSeries;
+  post_numbers: Record<"comments" | "shares" | "saves" | "likes", number | null>;
+  best_times: BestHours | null;
+};
+export type Stats<Row> = { days: number; platform: "facebook" | "instagram"; start: string; end: string; rows: Row[] };

@@ -18,6 +18,15 @@ export function formatSeconds(value: number | null): string {
   return value === null ? "—" : `${decimal.format(value)} giây`;
 }
 
+/** A total watch time as hours and minutes ("3 giờ 5 phút"), or minutes and seconds under an hour. */
+export function formatDuration(value: number | null): string {
+  if (value === null) return "—";
+  const hours = Math.floor(value / 3600);
+  const minutes = Math.floor((value % 3600) / 60);
+  if (hours > 0) return `${count.format(hours)} giờ ${minutes} phút`;
+  return minutes > 0 ? `${minutes} phút ${Math.round(value % 60)} giây` : `${Math.round(value)} giây`;
+}
+
 /** "↑ 25%" or "↓ 4%" against the period before, with an arrow so the direction is never colour alone; nothing to
  * compare says so. */
 export function Change({ change, days }: { change: number | null; days: number }) {
