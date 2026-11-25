@@ -5,9 +5,14 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import VideoThumbnail from "@/components/VideoThumbnail";
 
+const THUMBNAIL = 36;
+const GAP = 12;
+
 /** A table's first cell for a video: its small thumbnail, its title linking to the video on up to two lines, and a
  * grey line under it. The link does not reach a row that opens or expands on click. The title and line are cut with
- * "…" at `maxWidth`, or sooner when the cell is narrower, so they never run over what is beside the cell. */
+ * "…" at `maxWidth`, or sooner when the cell is narrower, so they never run over what is beside the cell. The cell as a
+ * whole is capped in pixels too: a "…" line capped only in % counts at its full length when the table sizes its
+ * columns, and would stretch the column far past the text. */
 export default function VideoTitleCell({
   id,
   title,
@@ -25,8 +30,8 @@ export default function VideoTitleCell({
   editor?: ReactNode;
 }) {
   return (
-    <Flex align="center" gap={12} style={{ minWidth: 0 }}>
-      <VideoThumbnail name={title} url={thumbnailUrl} width={36} />
+    <Flex align="center" gap={GAP} style={{ minWidth: 0, maxWidth: maxWidth + THUMBNAIL + GAP }}>
+      <VideoThumbnail name={title} url={thumbnailUrl} width={THUMBNAIL} />
       <Flex vertical style={{ minWidth: 0, flex: 1 }}>
         {editor ?? (
           <Link
