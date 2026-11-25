@@ -1,5 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addUser, chooseOption, connectFacebook, login, loginAsSeed, openPanel, resetDatabase } from "./helpers";
+import {
+  addUser,
+  chooseOption,
+  connectFacebook,
+  importExportItem,
+  login,
+  loginAsSeed,
+  openPanel,
+  resetDatabase,
+} from "./helpers";
 
 // Issue #47. Shopee is the fake one (api/scripts/fake_services.py), which knows this App ID and Secret.
 const APP_ID = "1000001";
@@ -467,9 +476,11 @@ test("Sản phẩm: my groups first, who added each product, and stars or sales 
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
   // My groups first, each with the Pages that post it.
-  const groups = page.getByRole("navigation", { name: "Nhóm chủ đề" });
+  await page.getByLabel("Lọc theo nhóm").click();
+  const groups = page.locator(".ant-select-dropdown:visible");
   await expect(groups).toContainText("Nhóm của tôi");
-  await expect(groups.getByRole("button", { name: /Sức khỏe/ })).toContainText("Trang Dưỡng Sinh");
+  await expect(groups.locator(".ant-select-item-option", { hasText: "Sức khỏe" })).toContainText("Trang Dưỡng Sinh");
+  await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: "Thêm sản phẩm" }).click();
   const adding = page.getByRole("dialog", { name: "Thêm sản phẩm" });
@@ -531,7 +542,7 @@ test("Nhập file: a preview first, and a teammate's product is added again with
 
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
-  await page.getByRole("button", { name: "Nhập file" }).click();
+  await importExportItem(page, /Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   await dialog.locator('input[type="file"]').setInputFiles({
@@ -549,13 +560,19 @@ test("Nhập file: a preview first, and a teammate's product is added again with
   await expect(dialog.getByText("1 sản phẩm trùng với người khác được thêm riêng cho bạn")).toBeVisible();
   await dialog.getByRole("button", { name: "Huỷ" }).click();
   await expect(dialog).toBeHidden();
-  await page
-    .getByLabel("Của ai")
-    .getByText(/Cả đội/)
-    .click();
   const rows = page.getByRole("row", { name: /Gối của Bình/ });
   await expect(rows).toHaveCount(2);
   await expect(rows.filter({ hasText: "Người thêm: Trần Bình" })).toHaveCount(1);
   await expect(rows.filter({ hasText: "Người thêm: bạn" })).toHaveCount(1);
   await expect(page.getByRole("row", { name: /Nồi của An/ })).toContainText("Người thêm: bạn");
+});
+
+test("Affiliate has a Hướng dẫn: the screen's guides open in a drawer, one at a time", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.goto("/affiliate");
+  await page.getByRole("button", { name: "Hướng dẫn" }).click();
+  const drawer = page.getByRole("dialog", { name: "Hướng dẫn" });
+  await expect(drawer.getByRole("heading", { name: "Hướng dẫn: màn Affiliate" })).toBeVisible();
+  await drawer.getByText("gắn link affiliate hàng loạt").click();
+  await expect(drawer.getByRole("heading", { name: /Custom Link của Shopee/ })).toBeVisible();
 });

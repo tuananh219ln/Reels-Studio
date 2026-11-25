@@ -20,6 +20,8 @@ dependencies = [
     "httpx>=0.27",
     "cryptography>=44",
     "mcp>=1.30,<2",
+    # Shopee's Custom Link file (routes_custom_link.py).
+    "openpyxl>=3.1",
     # Public clip search/download; default extras bundle the YouTube JS solver instead of fetching it at runtime.
     "yt-dlp[default]>=2026.10.26",
     # The render core in ../worker: install it first (pip install ../worker), it is not on PyPI.
@@ -36,7 +38,7 @@ dev = ["pytest>=8", "pytest-xdist>=3.6", "httpx>=0.27", "psutil>=6", "ruff>=0.15
 where = ["src"]
 
 [tool.setuptools.package-data]
-reels_api = ["prompts/*.txt"]
+reels_api = ["prompts/*.txt", "guides/*.md", "custom_link_template.xlsx"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

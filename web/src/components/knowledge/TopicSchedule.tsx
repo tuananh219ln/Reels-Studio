@@ -9,16 +9,27 @@ import { useEffect, useState } from "react";
 /** "Lịch đăng" in Kho kiến thức: only a link. The one calendar of what is out and what is set to go is the Page's
  * "Lịch đăng" tab on Quản lý kênh (docs/decisions/2026-11-24-winner-gate-docs.md), so two copies can never differ;
  * this tab names the Pages that post the group and opens it. */
-export default function TopicSchedule({ topicId, visible }: { topicId: number; visible: boolean }) {
+export default function TopicSchedule({
+  topicId,
+  fanpageId,
+  visible,
+}: {
+  topicId: number;
+  /** Only this Page's link (a group several Pages post, with one of them chosen). */
+  fanpageId?: number;
+  visible: boolean;
+}) {
   const { message } = App.useApp();
   const [pages, setPages] = useState<QueueOverview["pages"] | null>(null);
 
   useEffect(() => {
     if (!visible) return;
     api<QueueOverview>("/queue")
-      .then((overview) => setPages(overview.pages.filter((page) => page.topic?.id === topicId)))
+      .then((overview) =>
+        setPages(overview.pages.filter((page) => page.topic?.id === topicId && (!fanpageId || page.id === fanpageId))),
+      )
       .catch((err) => message.error(errorMessage(err)));
-  }, [topicId, visible, message]);
+  }, [topicId, fanpageId, visible, message]);
 
   if (pages === null) {
     return (

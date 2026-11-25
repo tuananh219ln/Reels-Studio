@@ -56,6 +56,12 @@ service:
    photo and links), approved ones by default and only those the member added (`whose="all"` adds
    teammates', each row saying `created_by` and `mine`); `video_id` puts the products of the video's topic
    group first.
+   Shopee's "Custom Link" by Excel has three tools ([guide](../api/src/reels_api/guides/custom-link.md)):
+   `list_custom_link_products` (a group's approved products the member added that still lack an affiliate
+   link: the product pages and the `sub_id1` code of the Page the orders are measured to; `fanpage_id` when the
+   group has several Pages), `preview_custom_link_import` (the pasted result file of Shopee, row by row, nothing
+   written) and `import_custom_link_result` (writes the links, replacing the saved ones of the member's own
+   products; teammates' stay). The assistant does not call Shopee: the member uploads the file there.
 2. `create_video_from_script` makes a "Tự viết" video from a script the assistant writes: one scene per
    paragraph, `Đọc:` lines as the voice text. No script job, so no cost to the team's AI service. `video_mode`
    (`slides` or `single`) is optional: left out, the group's "Kiểu video" decides, as for every new video.

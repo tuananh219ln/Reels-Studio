@@ -458,10 +458,11 @@ then a line per live post ("Bài #N: đã đăng 1/2 bình luận aff, bình lu�
 and "Đăng aff ngay" on the right while not all are up. A Page's card on "Quản lý kênh" has a grey line linking to its
 sets: "Bộ bình luận aff: 4/6 bộ dùng được, 2 bộ mỗi reel", "… đang tắt (6 bộ)" or "Chưa có bộ bình luận aff".
 Affiliate's tab "Bộ bình luận" (after "Sản phẩm"): "Chọn Page" (the member's own Page first), the Page's state
-("Bật · 10 bộ · 2 bộ/bài · 10 link/bình luận"), "Tạo tự động từ kho", "Thêm bộ" and "Thiết lập" on the right, a
-grey line on the timing and Facebook hiding many-link comments; then the sets as cards (name, a switch, "x/10 sản
-phẩm" or orange "9/10 hợp lệ", priority, tags, "Dùng N lần · gần nhất …", warnings; Sửa, Nhân bản, Xem trước,
-Xoá) and a folded table of the group's products with "Tên ngắn", "Nhóm" and "Tags" edited in place. From 1100 px wide the panel is beside the scenes, stuck under the header
+(a green or orange "Đang bật" / "Đang tắt" and tags "10 bộ", "2 bộ mỗi bài", "10 link mỗi bình luận"), "Tạo tự động từ kho",
+"Thêm bộ" and "Thiết lập" on the right, an info box on the timing and Facebook hiding many-link comments; then the sets
+as cards (name and a Bật/Tắt switch; "x/10 sản phẩm" or orange "9/10 sản phẩm hợp lệ" with a "Ưu tiên N" tag, tags,
+"Dùng N lần · gần nhất …", warnings; a footer with "Sửa" and "Xem trước" on the left, Nhân bản and Xoá icons on the
+right; a switched-off set is dimmed) and a folded table of the group's products with "Tên ngắn", "Nhóm" and "Tags" edited in place. From 1100 px wide the panel is beside the scenes, stuck under the header
 (its height measured, since it wraps) and scrolling on its own, while the scenes scroll with the page. Narrower than
 1100 px the panel is a drawer from the right, opened by "Đăng bài / Thiết lập" in the header (the progress line's
 steps open the status card or the products block on its tab, the QC chip its popover).
@@ -1015,29 +1016,44 @@ steps open the status card or the products block on its tab, the QC chip its pop
     Shopee suggestions and pasted links, attached products), then "Bình luận" (pinned comment, "Bình luận
     thêm"), then "Bài đăng": each post with its link state and its comment's actions; the list reloads when
     it closes;
-  - "Sản phẩm": the topic groups on the left ("Tất cả nhóm", then "Nhóm của tôi", the groups of the Pages the member
-    owns and uses, and "Nhóm khác"), each with how many products it holds and the Pages that post it (one by name,
-    several as a logo and "+n" named on hover, gold when a teammate's is among them). On the right the open group's
-    name, "Dùng cho video của N Page", "Xuất CSV", "Nhập file" and "Thêm sản phẩm"; "Tôi thêm / Cả đội" (by who added
-    the product), search by name or shop and platform; tabs "Tất cả", "Cần điền sao, lượt bán", "Chờ duyệt", "Đã
-    duyệt" with counts. Products ranked by expected commission per order, each with its platform tag ("Tìm qua API"
-    for those Shopee's search found), its group when all groups show, "Người thêm: <tên>" ("bạn" for the member's
-    own; its tooltip says that saved link goes in the comment of a Page without its own Shopee account) and how many
-    videos carry it, shop and type, rating and sales, commission per order with its rate and price, and status.
+  - "Sản phẩm": a product goes through four steps, so the screen is that path (decision
+    [2026-11-25-products-board](decisions/2026-11-25-products-board.md)). On top, a group select (grouped "Nhóm của
+    tôi" and "Nhóm khác", each option with its Pages and product count; typing searches), "Dùng cho video của N
+    Page", then "Quy trình / Bảng" (the member's choice is kept in the browser; the table is the
+    default), "Nhập / Xuất ▾" ("Nhập file (Lấy link hàng loạt)" and "Xuất CSV") and "Thêm sản phẩm". Under it the search,
+    the platform filter and a progress line ("38 / 50 sẵn sàng dùng trong bình luận", "còn 12 món chưa có link") with a
+    bar. **Board:** four columns, each with its count and a hint: "1 · Cần điền" (drafts short on stars or sales, filled
+    in on the card itself), "2 · Chờ duyệt" (with "Duyệt tất cả (N)"), "3 · Cần link" (approved Shopee products with no
+    affiliate link, outlined in yellow, with "Xuất file Custom Link (N)", the group's approved products I added, and
+    "Nhập kết quả Shopee"; both need a group chosen, which has exactly one active Page, see
+    [decision](decisions/2026-11-24-custom-link-excel.md); the import is a modal of Shopee's result file, CSV or Excel,
+    previewed row by row as "Sẽ gắn link", "Của đồng đội" or "Lỗi" before "Gắn link cho N sản phẩm") and "4 · Sẵn
+    sàng". A column shows 5 cards, then "Xem thêm N món"; an empty one says "✓ Đã sạch". A card has the picture (a
+    placeholder without one), the name in bold on two lines, commission per order with rating and sales, problems in
+    yellow, shop (with who added it when a teammate did, and the group when all groups show) and the row actions
+    ("Sửa" as an icon, "Duyệt" / "Bỏ duyệt", "Xoá" as an icon). **Table** ("Bảng"): tabs "Tất cả", "Cần điền sao, lượt
+    bán", "Chờ duyệt", "Đã duyệt" with counts and a "Chưa có link (N)" tick, products ranked by expected commission per
+    order, each row with its picture, name in bold on two lines, shop and type, its platform tag ("Tìm qua API" for
+    those Shopee's search found), its group when all groups show, "Người thêm: <tên>" ("bạn" for the member's own; its
+    tooltip says that saved link goes in the comment of a Page without its own Shopee account) and how many videos
+    carry it; rating and sales, commission per order with its rate and price, status and "Link" ("Có link" with a copy
+    button, or yellow "Chưa có link"), with the same row actions.
+    Only the member who made a group adds products to it ([decision](decisions/2026-11-25-group-owner-adds-products.md)):
+    "Thêm sản phẩm" and "Nhập file" are disabled, with the reason on hover, in a group of someone else, and the drawer below
+    lists only the groups (and their Pages) the member may add to.
     "Thêm sản phẩm" opens a drawer: "Nhập vào" by Page (into the group it posts; a Page without a group cannot be
     picked) or by group (the open group to start with), then two tabs, "Dán link Shopee" (one link per line, up to
     50; the rest is read from Shopee, so it needs a Shopee account with App ID somewhere in the team and says so when
     there is none) and "Nhập file" (Shopee Affiliate's "Lấy link hàng loạt" CSV dropped in, previewed before anything
     is written: new, mine (updated), the same as a teammate's (still added, as my own row with my link; theirs is
     untouched and named by row) and rows in error; without an App ID the drawer says stars, sales and shop type are
-    still to fill in); "Nhập file" on the toolbar opens that tab. "Nhập tay" at the bottom opens the full form ("Nhập tay sản phẩm",
+    still to fill in); "Nhập file" in the "Nhập / Xuất" menu opens that tab. "Nhập tay" at the bottom opens the full form ("Nhập tay sản phẩm",
     platform first; the link is optional for TikTok Shop). A row being read shows "Đang lấy thông tin từ
     Shopee…" and the list follows it every 3 seconds; one that could not be read shows why in red, with
     a "Lấy lại thông tin" button. A Shopee draft whose stars or sales are under the rule links its Shopee
     page and takes shop type, stars and sales on the row itself ("Lưu"; the same save as "Sửa"), so it can
     be approved without opening "Sửa" for each one: empty for one nobody has read (a row of the file, or
-    a link, with no App ID in the team, which it says), else holding what the product has. "Sửa", "Xoá", "Duyệt", "Bỏ duyệt",
-    "Xuất CSV". Rows ticked in their checkbox (only those the filters show) can be approved together with
+    a link, with no App ID in the team, which it says), else holding what the product has. "Sửa", "Xoá", "Duyệt", "Bỏ duyệt". Rows ticked in their checkbox (only those the filters show) can be approved together with
     "Duyệt đã chọn" (those not meeting the rules stay drafts and are counted in the message), deleted
     together with "Xoá đã chọn", after a confirmation, or cleared with "Bỏ chọn". A row that fails the rules shows why,
     in yellow;
@@ -1751,3 +1767,70 @@ The same cell and merged columns as the Video list: a thumbnail and a title on u
 The bar over a group is flat on the page, no card: a round switch "Của tôi / Cả đội" (an icon and a grey count each, and "N nhóm" beside it), the add-group box as a filled pill with a round tick button and the history button on the right, and the groups as pills under them: a quiet grey fill, the chosen one white with a brand outline and a soft shadow, each ending in its video count (amber when the group has no prompt).
 
 On every list of videos and on a video's page, the platform icons beside "Đã đăng" open that platform's post in a new tab when the post has a link (the newest live Facebook reel, or the link recorded for TikTok, YouTube Shorts or Instagram); their tooltip then reads "Mở bài trên <nền tảng>", else "Đã đăng <nền tảng>". The api sends the links as `posted_links` next to `posted_on`. A TikTok post that is only a draft in its owner's inbox (the worker's auto-post in "draft" mode) is still listed in `posted_on`, but `posted_states` says `{"tiktok": "draft"}` and its icon has a dashed outline and an amber dot, with the tooltip "TikTok: bản nháp trong hộp thư, mở TikTok để đăng" (2026-11-23); before, it looked like a public post. A YouTube upload that is still private is not in `posted_on` at all, as before. A click on an icon does not open the row.
+
+### Kho kiến thức: the groups in a column, "Sẵn sàng tạo video", tabs by the work, and the document reader (2026-11-25)
+
+Replaces the groups bar of 2026-11-14 ([decision](decisions/2026-11-25-knowledge-workspace.md)).
+
+- **The groups are a column on the left** (240 px; above the group on a phone): the "Của tôi (n) / Cả đội (m)" switch,
+  one line per group (a dot, its name on one line, its video count) and the add-group field with the history button.
+  The dot is green when the group has the two required steps below.
+  A «‹» button folds the column to a 56 px strip (the choice is kept in the browser): one square per group with its
+  first two initials and the status dot, the name, video count and what is missing in a tooltip; «›» opens it again.
+- **"Sẵn sàng tạo video"** under the group's name replaces the orange sentence, as one line that folds: with a required
+  step missing it is open ("Chưa sẵn sàng: thiếu 1/2 mục bắt buộc") and lists **Bắt buộc**: a Page that posts the group
+  ("Quản lý kênh") and the script prompt ("Thêm prompt", the Prompt tab; the card still says the group cannot make videos
+  with AI on the web), then **Nên có**: a document ("Thêm tài liệu"), a 30-day plan ("Lập kế hoạch") and an approved
+  affiliate product ("Mở Affiliate", on this group). With the two required done it is one green line, "Sẵn sàng tạo
+  video", with "nên có thêm: …" on the right, which a click unfolds (the member's choice holds until the page
+  reloads). The dot of a group in the column is green only when both required steps are done, amber otherwise (the line's
+  tooltip says what is missing). The api sends the counts as `readiness` of each group.
+- **Tabs in the order of the work**, a thin line between the three parts: "Video (N)", "Kế hoạch 30 ngày", "Backlog",
+  "Lịch đăng" | "Tư liệu", "Tài liệu", "Prompt" | "Cài đặt nhóm". The group still opens on "Video".
+- **"Tài liệu":** the list has "📌 Ghim" first, then the rest (a title and "<mục> · <người sửa>, <lúc>"); the reader keeps
+  its text in a column of at most 760 px, with "Sao chép" (the Markdown to the clipboard), and, for a document with
+  three or more headings, "Trên trang này", a sticky outline whose entries scroll to the heading.
+
+#### The group's own menu, "Quản lý nhóm" (2026-11-25)
+
+The pencil, the "Cho cả đội sửa" switch, "Nhận nhóm" and the history link are gathered in one menu, the button "Quản lý
+nhóm" (accessible name "Thao tác khác với nhóm") at the right of the group's name: "Đổi tên nhóm" (disabled for a member
+who only reads the group; a double click on the name does the same), "Nhân bản nhóm", "Lịch sử thay đổi" (disabled until
+the group has a logged change), "Cho cả đội sửa" as a switch that keeps the menu open (the maker only) or "Nhận nhóm"
+(a group nobody is known to have made), then "Mở Quản lý kênh" and "Sản phẩm của nhóm trong Affiliate" (on this group),
+then "Xoá nhóm" last, with its reason in the label while disabled. "Nhân bản nhóm" (`POST /api/knowledge/topics/{id}/duplicate`)
+makes a group of the member's, named "<tên> (bản sao)" ("(bản sao 2)"…), with the prompts, từ cấm, "Gợi ý tìm ảnh", voice,
+"Kiểu video", text and outro settings, "Mẫu dựng" and stock order of the source, none of its videos, plan, documents or linked
+folder; any member may copy any group, and the copy opens. The line under the name keeps "chỉ <người tạo> sửa được nhóm
+này" and the last change, in grey, a click on which still opens the history.
+
+#### A group several Pages post: read it for one Page (2026-11-25)
+
+With two or more active Pages posting a group, a line "Page: Tất cả Page | <Page> | <Page>" sits under the checklist (the
+Page is in the address as `page`, and stays across the tabs). A Page chosen keeps to that Page: the "Video" tab lists
+only the videos posted on, or waiting in the queue of, it (`GET /api/videos?fanpage_id=`), "Lịch đăng" only its link (the
+calendar itself stays on the Page, [decision](decisions/2026-11-24-winner-gate-docs.md)), and a strip under the line shows its
+orders of the last 30 days (`GET /api/affiliate-accounts/revenue?fanpage_id=`, the member's own orders whose sub id names
+the Page) with "Bộ bình luận của Page" and "Lịch đăng của Page". The group's api payload lists its Pages as `page_list`.
+In Affiliate › Sản phẩm, "Xuất file Custom Link" for such a group asks which Page the file is for.
+
+#### The group column as one card with the group (2026-11-25)
+
+The column and the group are one card, the column its left edge (a line between them). The column has a header ("Nhóm",
+the history of the groups, "‹" to fold), "Của tôi n / Cả đội m" as underlined tabs like the group's own, a row per group
+and a dashed "Thêm nhóm mới…" field (its tick shows once a name is typed). A row is the group's tile (two initials and a
+status dot, green when it can make videos, amber while it lacks a required step), its name on up to two lines, and a grey
+line "<n> video · <m> Page" (amber "<n> video · thiếu <prompt viết kịch bản | Page đăng nhóm>" while it lacks one). Folded,
+the tiles alone remain, each with the same dot and a tooltip.
+
+Under "Cả đội" the groups are listed under the member who made each, one small grey heading per member ("NamTC (bạn) · 4",
+"Looper · 2", "Chưa có người tạo · 1" for a group nobody is known to have made): the member's own first, then the others by
+name. "Của tôi" stays one list.
+
+### "Hướng dẫn" on a screen (2026-11-25)
+
+A "Hướng dẫn" button (a question mark) in the header of a screen opens a drawer with that screen's guides. With more than one
+a switch at the top picks it (Affiliate has "màn Affiliate" and "gắn link affiliate hàng loạt bằng Custom Link"). A guide is
+read like a document of Kho kiến thức: a text column of at most 760 px and, with three or more headings, a sticky "Trên
+trang này" outline. Affiliate (two guides), Kho kiến thức (one) and Video (two: creating and finding videos, and editing, rendering and posting one) have it.
+

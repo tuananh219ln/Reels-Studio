@@ -58,6 +58,7 @@ from . import routes_affiliate as affiliate_routes
 from . import routes_article_plans as article_plans_routes
 from . import routes_articles as article_routes
 from . import routes_comments as comment_routes
+from . import routes_custom_link as affiliate_links
 from . import routes_layers as layer_routes
 from . import routes_media as media_routes
 from . import routes_music as music_routes
@@ -411,6 +412,10 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             "từng cảnh, chọn đoạn clip, gắn sản phẩm, rồi render khi người dùng đồng ý. Ưu tiên sản phẩm chính người "
             "dùng đã thêm (mặc định của công cụ tìm sản phẩm); dùng sản phẩm của đồng đội thì báo hoa hồng về ai "
             "(commission_warnings khi gắn). "
+            'Link affiliate hàng loạt (Shopee Custom Link): "Liệt kê link cần chuyển đổi" cho danh sách link gốc và '
+            "sub_id1; người dùng tải lên Shopee Affiliate › Custom Link rồi dán CSV kết quả; gọi "
+            '"Xem trước nhập link đã chuyển đổi", đọc kết quả (ok, others, error và lý do), và chỉ gọi "Nhập link đã '
+            'chuyển đổi" khi người dùng đồng ý vì nó thay link đã lưu của sản phẩm. '
             "Cảnh cần chuyển động đẹp hơn (giá, giảm giá, sản phẩm bay vào) thì làm cảnh động bằng HTML + GSAP. "
             'Tìm ảnh cho từng cảnh: trước hết dùng "Tìm ảnh kho miễn phí" (không watermark; không truyền source thì '
             "tìm nguồn đầu tiên theo thứ tự nguồn ảnh của nhóm chủ đề) với từ khóa tiếng Anh cụ thể cho Pexels, "
@@ -1222,6 +1227,62 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         def operation(db, me):
             saved = affiliate_routes.set_video_products(video_id, body, me, db)
             return changed({**saved, **_commission_report(db, saved, me.user_id)})
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    # --- Shopee's Custom Link: the links to convert, a preview of the result, the import (docs/guides/custom-link.md) ---
+
+    @tool("Liệt kê link cần chuyển đổi (Custom Link Shopee)", read=True)
+    async def list_custom_link_products(
+        knowledge_topic_id: int, include_linked: bool = False, fanpage_id: int | None = None
+    ) -> dict:
+        """Liệt kê link sản phẩm gốc của các sản phẩm đã duyệt do chính người dùng thêm trong một nhóm, để họ chuyển
+        thành link affiliate ở Shopee Affiliate › Custom Link (tải file lên đó; app không gọi Shopee). Mặc định chỉ
+        món chưa có link affiliate; include_linked=true lấy cả món đã có. sub_id1 là mã Page (p<id>) cần điền ở cột
+        Sub_id1 của mọi dòng, để đơn về đúng Page. Nhóm có nhiều Page thì phải truyền fanpage_id (id lấy ở "Liệt kê Page của tôi");
+        đơn của Page còn lại không đo riêng được. Không ghi gì. Xong bước này người dùng tải lên Shopee, rồi dán nội
+        dung file kết quả (CSV) vào "Xem trước nhập link đã chuyển đổi"."""
+
+        def operation(db, me):
+            page, links = affiliate_links.export_links(db, me.user_id, knowledge_topic_id, include_linked, fanpage_id)
+            return {
+                "page": {"id": page.id, "name": page.name},
+                "sub_id1": f"p{page.id}",
+                "links": links,
+                "total": len(links),
+                "limit": affiliate_links.MAX_LINKS,
+                "note": "Cột 'Liên kết gốc' = từng link; cột Sub_id1 = sub_id1 ở trên; Sub_id2-5 để trống.",
+            }
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Xem trước nhập link đã chuyển đổi (Custom Link Shopee)", read=True)
+    async def preview_custom_link_import(
+        knowledge_topic_id: int, csv_text: Annotated[str, Field(max_length=2_000_000)]
+    ) -> dict:
+        """Xem trước việc gắn link affiliate từ file kết quả Custom Link của Shopee (dán nguyên nội dung CSV, có cột
+        'Liên kết gốc', 'Liên kết chuyển đổi', 'Lí do thất bại'). Khớp theo link gốc với sản phẩm do chính người dùng
+        thêm trong nhóm: state ok (sẽ gắn link), others (của đồng đội, giữ nguyên) hoặc error (kèm lý do, gồm lý do của
+        Shopee). Không ghi gì: đọc kết quả cho người dùng rồi mới gọi "Nhập link đã chuyển đổi"."""
+
+        def operation(db, me):
+            rows = affiliate_links.matched_file(db, knowledge_topic_id, me.user_id, csv_text.encode("utf-8"))
+            return affiliate_links._summary(rows)
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Nhập link đã chuyển đổi (Custom Link Shopee)", read=False)
+    async def import_custom_link_result(
+        knowledge_topic_id: int, csv_text: Annotated[str, Field(max_length=2_000_000)]
+    ) -> dict:
+        """GHI: đặt link affiliate từ file kết quả Custom Link vào các sản phẩm do chính người dùng thêm trong nhóm,
+        THAY link đã lưu của chúng (sản phẩm của đồng đội không đổi). Bình luận đã đăng dưới bài đang live sẽ được
+        sửa theo link mới. Chỉ gọi sau khi đã xem trước bằng "Xem trước nhập link đã chuyển đổi" và người dùng đồng
+        ý; cùng csv_text với bản xem trước. linked là số sản phẩm đã đổi link."""
+
+        def operation(db, me):
+            rows = affiliate_links.matched_file(db, knowledge_topic_id, me.user_id, csv_text.encode("utf-8"))
+            return affiliate_links.apply_rows(db, rows)
 
         return await run_in_threadpool(invoke, operation, write=True)
 

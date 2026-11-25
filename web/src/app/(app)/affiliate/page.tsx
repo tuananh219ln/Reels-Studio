@@ -6,6 +6,7 @@ import CommentSets from "@/components/affiliate/CommentSets";
 import PostedVideos from "@/components/affiliate/PostedVideos";
 import Products from "@/components/affiliate/Products";
 import Revenue from "@/components/affiliate/Revenue";
+import GuideButton from "@/components/GuideButton";
 import PageHeader from "@/components/PageHeader";
 import { useUrlChoice } from "@/lib/urlState";
 
@@ -31,6 +32,7 @@ function Affiliate() {
     <>
       <PageHeader
         title="Affiliate"
+        actions={<GuideButton screen="affiliate" />}
         description="Gắn sản phẩm vào video đã đăng, quản lý danh sách sản phẩm, bộ bình luận link của từng Page và xem doanh thu của bạn."
       />
       <Tabs

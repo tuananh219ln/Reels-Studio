@@ -89,7 +89,7 @@ test("a Page's owner gives it a topic group and its own posting times on Quản 
     .click();
   await expect(page.getByTestId("topic-list").getByRole("button", { name: new RegExp(GROUP) })).toBeVisible();
   await page.getByRole("menuitem", { name: "Video" }).click();
-  await page.getByRole("button", { name: "Tạo video" }).click();
+  await page.getByRole("button", { name: /^plus Tạo video$/ }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
   await expect(dialog).toContainText(GROUP);
 });

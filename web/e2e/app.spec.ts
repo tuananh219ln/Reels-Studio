@@ -5,7 +5,10 @@ import {
   SEED,
   addUser,
   chooseOption,
+  closeImportExport,
   connectFacebook,
+  exportCsvLink,
+  importExportItem,
   login,
   loginAsSeed,
   openAccountMenu,
@@ -642,20 +645,20 @@ test("Affiliate Shopee: add a product, see why it cannot be approved, fix it and
   const stages = page.getByLabel("Lọc theo trạng thái");
   await stages.getByText("Chờ duyệt (0)").click();
   await expect(page.getByText("Không có sản phẩm nào khớp")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Xuất CSV" })).toHaveAttribute("href", /status=draft/);
-  await page
-    .getByRole("navigation", { name: "Nhóm chủ đề" })
-    .getByRole("button", { name: /Sức khỏe/ })
-    .click();
+  await expect(await exportCsvLink(page)).toHaveAttribute("href", /status=draft/);
+  await closeImportExport(page);
+  await chooseOption(page, page.getByLabel("Lọc theo nhóm"), "Sức khỏe");
   await expect(page.getByTestId("product-group")).toHaveText("Sức khỏe");
-  await expect(page.getByRole("link", { name: "Xuất CSV" })).toHaveAttribute("href", /topic_id=\d+/);
+  await expect(await exportCsvLink(page)).toHaveAttribute("href", /topic_id=\d+/);
+  await closeImportExport(page);
   await stages.getByText("Tất cả (1)").click();
   await page.getByRole("tab", { name: "Video đã đăng" }).click();
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
   await expect(product).toBeVisible();
 
+  const csv = await exportCsvLink(page);
   const download = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Xuất CSV" }).click();
+  await csv.click();
   expect((await download).suggestedFilename()).toBe("san-pham-affiliate.csv");
 });
 
@@ -663,7 +666,7 @@ test("Affiliate Shopee: import the file of Shopee Affiliate's Lấy link hàng l
   await loginAsSeed(page);
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
-  await page.getByRole("button", { name: "Nhập file" }).click();
+  await importExportItem(page, /Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   const csv =
@@ -707,7 +710,7 @@ const line = (id: number, name: string) =>
   `${id},${name},"45,0k",0,Shop,"2,5%",₫900,https://shopee.vn/product/1/${id},\n`;
 
 async function importRows(page: Page, ...rows: string[]) {
-  await page.getByRole("button", { name: "Nhập file" }).click();
+  await importExportItem(page, /Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   const header =
@@ -1058,7 +1061,7 @@ test("a list's search, filters and tab are in the address, so a reload shows the
 test("a long table's page is in the address too, and a new filter goes back to page 1", async ({ page }) => {
   await loginAsSeed(page);
   await page.goto("/affiliate?tab=products");
-  await page.getByRole("button", { name: "Nhập file" }).click();
+  await importExportItem(page, /Nhập file/);
   const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   // 51 products: one more than a page of the table.

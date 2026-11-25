@@ -96,10 +96,13 @@ function rowDetails(row: VideoRow): string {
 /** "Video" in Kho kiến thức: the videos of one topic group, newest first, each opening its video page. */
 export default function TopicVideos({
   topicId,
+  fanpageId,
   canCreate,
   visible = true,
 }: {
   topicId: number;
+  /** Only the videos posted on, or waiting in the queue of, this Page (a group several Pages post). */
+  fanpageId?: number;
   canCreate: boolean;
   /** Whether its group is the one shown: only then are the search, filter and page in the address. */
   visible?: boolean;
@@ -111,19 +114,20 @@ export default function TopicVideos({
   const tablePage = useUrlPageIf(visible);
   const [view, setView] = useView();
 
+  const listUrl = `/videos?knowledge_topic_id=${topicId}${fanpageId ? `&fanpage_id=${fanpageId}` : ""}`;
   const load = useCallback(
     async (quiet = false) => {
       try {
-        setRows(await api<VideoRow[]>(`/videos?knowledge_topic_id=${topicId}`));
+        setRows(await api<VideoRow[]>(listUrl));
       } catch (err) {
         if (!quiet) message.error(errorMessage(err));
       }
     },
-    [topicId, message],
+    [listUrl, message],
   );
   useEffect(() => {
     let live = true;
-    api<VideoRow[]>(`/videos?knowledge_topic_id=${topicId}`).then(
+    api<VideoRow[]>(listUrl).then(
       (found) => {
         if (live) setRows(found);
       },
@@ -137,7 +141,7 @@ export default function TopicVideos({
     return () => {
       live = false;
     };
-  }, [topicId, message]);
+  }, [listUrl, message]);
   // "Cập nhật view": the worker reads the numbers in its next rounds, so the list is read often for a while after.
   const [refreshing, setRefreshing] = useState(false);
   const [watching, setWatching] = useState(false);

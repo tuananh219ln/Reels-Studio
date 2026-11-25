@@ -16,6 +16,7 @@ import {
   openPublishDrawer,
   openScene,
   resetDatabase,
+  openVideoTab,
   sideTab,
 } from "./helpers";
 
@@ -387,7 +388,8 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
 
   // Renamed in place on its heading.
   await page.getByRole("button", { name: /Làm đẹp/ }).click();
-  await beauty.getByRole("button", { name: "Đổi tên" }).click();
+  await beauty.getByRole("button", { name: "Thao tác khác với nhóm" }).click();
+  await page.getByRole("menuitem", { name: "Đổi tên nhóm" }).click();
   await beauty.getByLabel("Tên nhóm chủ đề").fill("Làm đẹp da");
   await beauty.getByRole("button", { name: "Lưu tên" }).click();
   await expect(page.getByText("Đã lưu tên nhóm chủ đề")).toBeVisible();
@@ -497,7 +499,7 @@ test("knowledge topics: a group's own voice is what its new videos start with", 
   await expect(card.locator(".ant-select").first()).toContainText("Mai");
 
   // A new video of the group reads with the group's voice, with nothing set on it by hand.
-  await group.getByRole("tab", { name: /^Video/ }).click();
+  await openVideoTab(page, group);
   await group.getByTestId("topic-videos").getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
   await dialog.getByLabel("Chủ đề", { exact: true }).fill("ngâm chân nước ấm");
@@ -589,7 +591,7 @@ test("knowledge topics: a group's video mode is what its new videos take unless 
   await expect(card.getByRole("radio", { name: "Video xuyên suốt" })).toBeChecked();
 
   // The dialog starts on the group's mode and says so; a video made with nothing picked takes it.
-  await group.getByRole("tab", { name: /^Video/ }).click();
+  await openVideoTab(page, group);
   await group.getByTestId("topic-videos").getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
   await expect(dialog).toContainText("Theo kiểu video của nhóm: Video xuyên suốt");
@@ -3869,11 +3871,14 @@ test("knowledge topics: a group's maker turns off Cho cả đội sửa, and a t
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   const health = page.locator('[data-topic="Sức khỏe"]');
   // Nobody is known to have made "Sức khỏe": it is claimed first, as a Page is.
-  await health.getByRole("button", { name: "Nhận nhóm" }).click();
-  const teamEdit = health.getByRole("switch", { name: "Cho cả đội sửa" });
+  await health.getByRole("button", { name: "Thao tác khác với nhóm" }).click();
+  await page.getByRole("menuitem", { name: "Nhận nhóm" }).click();
+  await health.getByRole("button", { name: "Thao tác khác với nhóm" }).click();
+  const teamEdit = page.getByRole("switch", { name: "Cho cả đội sửa" });
   await expect(teamEdit).toBeChecked();
   await teamEdit.click();
   await expect(teamEdit).not.toBeChecked();
+  await page.keyboard.press("Escape");
 
   const binh = await (await browser.newContext({ baseURL: "http://localhost:3100", locale: "vi-VN" })).newPage();
   await login(binh, "binh@doi.vn", "mat-khau-tam-1");
@@ -3885,8 +3890,10 @@ test("knowledge topics: a group's maker turns off Cho cả đội sửa, and a t
   await binh.getByRole("button", { name: /Sức khỏe/ }).click();
   const theirs = binh.locator('[data-topic="Sức khỏe"]');
   await expect(theirs.getByTestId("group-locked")).toContainText(`chỉ ${SEED.name} sửa được nhóm này`);
-  await expect(theirs.getByRole("switch", { name: "Cho cả đội sửa" })).toHaveCount(0);
-  await expect(theirs.getByRole("button", { name: "Đổi tên" })).toHaveCount(0);
+  await theirs.getByRole("button", { name: "Thao tác khác với nhóm" }).click();
+  await expect(binh.getByRole("switch", { name: "Cho cả đội sửa" })).toHaveCount(0);
+  await expect(binh.getByRole("menuitem", { name: "Đổi tên nhóm" })).toHaveAttribute("aria-disabled", "true");
+  await binh.keyboard.press("Escape");
   // Its videos are still made by anyone; its prompts are read, not edited.
   await expect(theirs.getByRole("link", { name: "Tạo video" })).toBeEnabled();
   await theirs.getByRole("tab", { name: "Prompt", exact: true }).click();
@@ -3895,12 +3902,15 @@ test("knowledge topics: a group's maker turns off Cho cả đội sửa, and a t
   await expect(theirs.getByLabel("Từ cấm", { exact: true })).toBeDisabled();
 
   // Turned back on, the teammate edits again.
+  await health.getByRole("button", { name: "Thao tác khác với nhóm" }).click();
   await teamEdit.click();
   await expect(teamEdit).toBeChecked();
+  await page.keyboard.press("Escape");
   await binh.reload();
   await binh.getByRole("button", { name: /Sức khỏe/ }).click();
   await expect(theirs.getByTestId("group-locked")).toHaveCount(0);
-  await expect(theirs.getByRole("button", { name: "Đổi tên" })).toBeVisible();
+  await theirs.getByRole("button", { name: "Thao tác khác với nhóm" }).click();
+  await expect(binh.getByRole("menuitem", { name: "Đổi tên nhóm" })).not.toHaveAttribute("aria-disabled", "true");
 });
 
 test("30-day plan: a file is loaded by overwriting, adding to its days, into the next empty days or replacing its days", async ({

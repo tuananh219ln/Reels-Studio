@@ -8,6 +8,7 @@ import { COLORS } from "@/app/theme";
 import FilterSelect from "@/components/FilterSelect";
 import FormDrawer from "@/components/FormDrawer";
 import { useMe } from "@/components/MeContext";
+import GuideButton from "@/components/GuideButton";
 import PageHeader from "@/components/PageHeader";
 import StatusText from "@/components/StatusText";
 import SampleFields, { type SampleValues } from "@/components/video/SampleFields";
@@ -359,9 +360,12 @@ function Videos() {
       <PageHeader
         title="Video"
         actions={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => startFrom(null)}>
-            Tạo video
-          </Button>
+          <>
+            <GuideButton screen="videos" />
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => startFrom(null)}>
+              Tạo video
+            </Button>
+          </>
         }
       >
         <Input

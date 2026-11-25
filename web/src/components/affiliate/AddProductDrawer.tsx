@@ -46,6 +46,8 @@ export default function AddProductDrawer({
   const [busy, setBusy] = useState(false);
   const [openedAs, setOpenedAs] = useState<AddMode | null>(null);
 
+  const addable = (id: number | null) => id !== null && (options.topics.find((one) => one.id === id)?.can_add ?? false);
+
   // Each opening starts clean on the tab it was opened for (state adjusted while rendering, not in an effect).
   if (mode !== openedAs) {
     setOpenedAs(mode);
@@ -56,19 +58,24 @@ export default function AddProductDrawer({
       setResult(null);
       setPreview(null);
       // From a group on the list, that group; else my first Page that posts a group, else a group by name.
-      const myPage = options.pages.find((page) => page.mine && page.knowledge_topic_id !== null);
-      setTarget(startTopicId === undefined && myPage ? "page" : "topic");
+      const myPage = options.pages.find(
+        (page) => page.mine && page.knowledge_topic_id !== null && addable(page.knowledge_topic_id),
+      );
+      const start = startTopicId !== undefined && addable(startTopicId) ? startTopicId : undefined;
+      setTarget(start === undefined && myPage ? "page" : "topic");
       setPageId(myPage?.id);
-      setTopicId(startTopicId);
+      setTopicId(start);
     }
   }
 
+  // Only the member who made a group adds products to it, so only those groups and the Pages that post them are offered.
+  const addableTopics = options.topics.filter((one) => one.can_add);
   // A Page's products go into the group it posts; with one topic group there is nothing to choose.
   const chosenPage = options.pages.find((page) => page.id === pageId);
   const topic =
     target === "page"
       ? (chosenPage?.knowledge_topic_id ?? undefined)
-      : (topicId ?? (options.topics.length === 1 ? options.topics[0].id : undefined));
+      : (topicId ?? (addableTopics.length === 1 ? addableTopics[0].id : undefined));
   const topicName = options.topics.find((one) => one.id === topic)?.name;
 
   /** What "Nhập" would do with the file in this group, row by row; nothing is written. */
@@ -194,11 +201,15 @@ export default function AddProductDrawer({
                       .sort((a, b) => Number(b.mine) - Number(a.mine))
                       .map((page) => ({
                         value: page.id,
-                        disabled: page.knowledge_topic_id === null,
+                        disabled: page.knowledge_topic_id === null || !addable(page.knowledge_topic_id),
                         label:
                           page.name +
                           (page.mine ? "" : ` (${page.owner_name ?? "chưa có chủ"})`) +
-                          (page.knowledge_topic_id === null ? " (chưa gắn nhóm chủ đề)" : ""),
+                          (page.knowledge_topic_id === null
+                            ? " (chưa gắn nhóm chủ đề)"
+                            : addable(page.knowledge_topic_id)
+                              ? ""
+                              : " (nhóm của người khác)"),
                       }))}
                     notFoundContent="Chưa có Page nào"
                   />
@@ -217,7 +228,7 @@ export default function AddProductDrawer({
                     setTopicId(id);
                     void loadPreview(file?.text ?? "", id);
                   }}
-                  options={[...options.topics]
+                  options={[...addableTopics]
                     .sort((a, b) => Number(b.mine) - Number(a.mine))
                     .map((one) => ({ value: one.id, label: one.name }))}
                 />
