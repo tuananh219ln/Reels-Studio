@@ -3,6 +3,7 @@
 import FormDrawer from "@/components/FormDrawer";
 import { useMe } from "@/components/MeContext";
 import { EditorContext } from "@/components/video/AutoSaveField";
+import DeleteVideoContent from "@/components/video/DeleteVideoContent";
 import CloneModal, { type CloneTarget } from "@/components/video/CloneModal";
 import MoveGroupDrawer from "@/components/video/MoveGroupDrawer";
 import { PublishButton } from "@/components/video/PublishCard";
@@ -59,8 +60,7 @@ export default function VideoActions({
   function remove() {
     modal.confirm({
       title: `Xóa video “${video.name || video.title || video.topic}”?`,
-      content:
-        "Xóa hẳn video, cảnh, job và mọi file. Không khôi phục được. Bài đã đăng hoặc hẹn giờ trên Facebook vẫn còn.",
+      content: <DeleteVideoContent video={detail} />,
       okText: "Xóa",
       cancelText: "Huỷ",
       okButtonProps: { danger: true },
