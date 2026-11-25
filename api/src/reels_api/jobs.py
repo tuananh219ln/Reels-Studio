@@ -720,10 +720,11 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
             storage.delete(key)
             raise JobFailure(f"{label}: {service_name(voice)} trả file lời đọc không đọc được, thử lại sau")
         old = scene.voice_key
-        scene.voice_key, scene.voice_signature, scene.voice_seconds = (
+        scene.voice_key, scene.voice_signature, scene.voice_seconds, scene.voice_name = (
             key,
             voice_signature(text, voice, voice_speed(video)),
             seconds,
+            None,
         )
         # "Tự khớp lời đọc": the scene now lasts as long as its narration, shorter or longer than before.
         if scene.seconds_auto:

@@ -538,7 +538,10 @@ steps open the status card or the products block on its tab, the QC chip its pop
   - inside an open card, two columns (stacked when the card is narrower than 700 px, the picture first): the frame
     and its tools column on the left (416 px; the frame alone in view mode), the fields on the right: "Chữ trên màn
     hình" (a "?" beside it explains `*từ*` and line breaks) and "Lời đọc", one under the other, the narration once made as one line under it (the player, then "Lời đọc 3,7s → cảnh
-    4,3s", amber when the narration lengthened the scene), then "Giọng đọc của cảnh" (the voice list of "Tùy chọn của
+    4,3s", amber when the narration lengthened the scene), then "Tải giọng lên" (a small button: an MP3 up to 20 MB
+    read instead of the voice service; once uploaded a purple tag "Giọng tải lên: <file>", "Thay file giọng" and "Bỏ
+    file" with a confirm, and the voice text's hint says it only times the captions), then "Giọng đọc của cảnh"
+    (hidden while an uploaded file reads the scene) (the voice list of "Tùy chọn của
     video" with its Nghe thử, empty showing "Theo video" and cleared with ×; a voice picked here remakes only this
     scene's narration; 2026-11-15) while the video has narration; "Số giây", "Bắt đầu từ giây" (clip only) and "Từ khóa tìm
     ảnh" on one row; the reasons and warnings, one line each; then "Nâng cao: Prompt ảnh AI", folded (every scene, the
@@ -911,7 +914,10 @@ steps open the status card or the products block on its tab, the QC chip its pop
       …") with "Lưu kiểu video", the switches "Không dùng cảnh có người" and "Cảnh kết Theo dõi & Chia sẻ" (each saved
       when turned, with a grey line on what it does; the outro's says it replaces the script's closing call to action
       and leaves existing videos as they are), "Giọng mặc định của nhóm" (a second picker "Giọng phụ" below the main voice: read instead when the main voice's keys are all wrong or spent; the voice picker of Thiết lập mặc định, empty showing
-      "Theo Thiết lập mặc định của người tạo", cleared with ×) with "Lưu giọng", and "Mẫu dựng của nhóm" (a multiple
+      "Theo Thiết lập mặc định của người tạo", cleared with ×) with "Lưu giọng", "Giọng đọc theo vai" (radios "Chưa khai",
+      "Một giọng", "Nhiều giọng theo vai"; each role a row: the role (multi only), "Dịch vụ đọc" or "File tải lên",
+      "Âm lượng", the voice ids as tags, a note; "Thêm vai" in multi; "Tối đa cảnh Gemini mỗi video" and the
+      [excited] rule; "Lưu vai đọc"; it sets no scene's voice by itself), and "Mẫu dựng của nhóm" (a multiple
       choice of the saved templates the group holds and the one its new videos take: "Không áp mẫu của nhóm", "Gợi ý
       của app" or one of the group's, with "Lưu mẫu dựng"; the order a new video's template is picked in is spelled
       out above them: chosen on the video › the group's › the maker's own (Cài đặt › Mẫu dựng) › none; Cài đặt › Mẫu

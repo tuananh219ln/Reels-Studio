@@ -13,6 +13,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
 from reels_render.blur import blur_image
+from reels_render.errors import FFmpegError
+from reels_render.ffmpeg import audio_seconds, find_tools
 from reels_render.framing import COVER
 from reels_render.layers import HALF, HALF_HEIGHT_DEFAULT, HALF_X, half_height, half_y, is_card, is_half
 from reels_render.logo import TEXT_TOP_MIN
@@ -349,11 +351,70 @@ def follow_narration(video: Video, scenes: list[Scene]) -> None:
 
 
 def made_voice_seconds(video: Video, scene: Scene) -> float | None:
-    """Length of the stored narration when it was made from the current voice text, voice and model."""
+    """Length of the stored narration when it was made from the current voice text, voice and model, or when it is
+    an uploaded file (is_custom_voice), which stands whatever the text and voice: only removing it lets a voice job
+    read the scene again."""
     text = spoken(video, scene)
-    if not text or not scene.voice_key or scene.voice_signature != voice_signature(text, *_voice(video, scene)):
+    if not text or not scene.voice_key:
+        return None
+    if not is_custom_voice(scene) and scene.voice_signature != voice_signature(text, *_voice(video, scene)):
         return None
     return scene.voice_seconds
+
+
+# The signature of an uploaded narration (docs/specs/custom-scene-voice-upload): "custom:" and a hash of the file,
+# cut to fit `scenes.voice_signature` (64), so another file changes the render's fingerprint.
+CUSTOM_VOICE = "custom:"
+MAX_VOICE_BYTES = 20 * 1024 * 1024
+
+
+def is_custom_voice(scene: Scene) -> bool:
+    """The scene reads an MP3 a member uploaded, not one a voice service made."""
+    return bool(scene.voice_key) and (scene.voice_signature or "").startswith(CUSTOM_VOICE)
+
+
+def narration_signature(video: Video, scene: Scene) -> str | None:
+    """What the scene's narration adds to the render's fingerprint: the uploaded file's signature, else the one of
+    the narration a voice service would make (unchanged, so MP4s rendered before uploads existed stay current)."""
+    text = spoken(video, scene)
+    if not text:
+        return None
+    if is_custom_voice(scene):
+        return scene.voice_signature
+    return voice_signature(text, *_voice(video, scene))
+
+
+def set_custom_voice(
+    db: DbSession, storage: DirectoryStorage, video: Video, scene: Scene, data: bytes, name: str
+) -> str | None:
+    """Store an uploaded MP3 as the scene's narration, with its length read by ffprobe; the scene's seconds follow it
+    when they follow the narration. The voice text is left as it is: captions are timed from it over the file's
+    length. Returns the file it replaces, for the caller to delete once committed."""
+    key = new_key(video.id, f"voice-{scene.id}", "mp3")
+    storage.save_bytes(key, data)
+    try:
+        seconds = audio_seconds(find_tools().ffprobe, storage.path(key))
+    except FFmpegError:
+        seconds = None
+    if not seconds:
+        storage.delete(key)
+        raise ApiError(415, "invalid_voice", "Không đọc được độ dài file giọng đọc: hãy xuất lại file MP3")
+    old = scene.voice_key
+    scene.voice_key, scene.voice_seconds, scene.voice_name = key, seconds, name
+    scene.voice_signature = CUSTOM_VOICE + hashlib.sha256(data).hexdigest()[: 64 - len(CUSTOM_VOICE)]
+    if scene.seconds_auto:
+        scene.seconds = auto_seconds(seconds, voice_pause(video))
+    return old if old != key else None
+
+
+def remove_custom_voice(scene: Scene) -> str | None:
+    """Forget the scene's uploaded narration: the next voice job or render reads its voice text again. Returns the
+    file to delete once committed; None when the scene had no uploaded file."""
+    if not is_custom_voice(scene):
+        return None
+    old = scene.voice_key
+    scene.voice_key = scene.voice_signature = scene.voice_seconds = scene.voice_name = None
+    return old
 
 
 def scene_marks(video: Video, title: Scene | None, scenes: list[Scene]) -> list[dict]:
@@ -627,10 +688,7 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
     # Joins only for a backdrop video, so slide videos rendered before modes existed stay current.
     if is_backdrop(video):
         data = [data, ["mode", video.mode]]
-    voices = [
-        voice_signature(spoken(video, scene), *_voice(video, scene)) if spoken(video, scene) else None
-        for scene in every
-    ]
+    voices = [narration_signature(video, scene) for scene in every]
     if any(voices):
         data = [data, voices]
     look = look_signature(video)
@@ -1128,6 +1186,9 @@ def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | Non
         # Known once a render has made the narration for the current text; None until then.
         "voice_seconds": voice_seconds,
         "voice_url": f"{image}/voice.mp3?v={_version(scene.voice_key)}" if voice_seconds is not None else None,
+        # An MP3 a member uploaded reads instead of the voice service ("Giọng tải lên"), with its file's name.
+        "voice_custom": is_custom_voice(scene),
+        "voice_name": scene.voice_name if is_custom_voice(scene) else None,
         "fitted_seconds": fit_seconds(scene.seconds, voice_seconds),
         "has_image": bool(scene.image_key),
         # An AI photo: the card offers "Tạo lại ảnh AI" instead of "Tạo ảnh AI".
