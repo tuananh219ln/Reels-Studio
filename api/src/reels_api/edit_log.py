@@ -44,6 +44,7 @@ TOPIC_FIELDS = (
     "text_ai",
     "no_people",
     "outro_cta",
+    "youtube_meta",
     "stock_order",
     "media_folder",
     "templates",

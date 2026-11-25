@@ -1,7 +1,18 @@
 # Brief: A YouTube description and hashtag set of its own (apart from the Facebook caption)
 
-Status: not started. Written 25/11/2026, approved by Truong ("làm cả hai", evening of 25/11). Revised the same day after
-a review against `main` (HEAD `d7f5799`). The code is shared by every topic group.
+Status: built (option B), same PR. Written 25/11/2026, approved by Truong ("làm cả hai", evening of 25/11). Revised the
+same day after a review against `main` (HEAD `d7f5799`); the owner chose option B, with an MCP tool and seeded values.
+Decision: [2026-11-25-youtube-description](../../decisions/2026-11-25-youtube-description.md).
+
+## 0. What was found while building
+
+- **Tiệm Đọc Comment and Tôi Đọc Threads share one group, "Topic Threads"** (id 9). The set is per group, so both
+  Pages share it; the Subscribe line names each Page's own channel.
+- **Case (2), "90% đám cưới" (video 397):** its caption is complete ("…tội đơn vị tổ chức quá?") and its YouTube post
+  (639) was made by the auto round at 21:03 on 25/11, after the caption's last edit on 24/11. The snapshot cannot cut it,
+  and the app does not cut a description this short. Most likely YouTube's own fold ("...more") of the description in
+  the Shorts player, not a bug: open it in Studio to check. No failing test could be written for it; the regression
+  test is for case (1).
 
 ## 1. Problem (verified on `main`, 25/11)
 

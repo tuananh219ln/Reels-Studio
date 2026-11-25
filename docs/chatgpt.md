@@ -398,6 +398,9 @@ and never a Page token.
   `list_docs` gives id, section, file name, title, pinned, who changed it last and when (pinned first, optionally one
   section or a search); `get_doc` gives one with its text, by id or file name. The daily job reads the group's rules
   (template, thumbnail standard, order of marks) from here instead of having them pasted into its body.
+- `get_youtube_meta` (`reels:read`), `update_youtube_meta` (`reels:write`): a topic group's "Mô tả YouTube" (YouTube
+  hashtags, keywords sent as tags, Subscribe line with `{channel}`, disclaimer), the same as its card on Kho kiến thức
+  and with the same editors; only the fields sent change. The next YouTube upload of the group's videos uses it.
 - `list_jobs`: the newest page of the job log (the member's or everyone's), filtered by status or video
   (`GET /api/jobs`), to follow many renders at once.
 - `list_comments`: visitors' comments under the app's posts, open ones by default (`GET /api/comments`). Read only:
