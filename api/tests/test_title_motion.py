@@ -315,6 +315,24 @@ def test_the_switch_goes_back_and_forth_without_a_new_job(committed, storage, fa
         assert title.motion["classic"]["image_key"] == photo and storage.exists(photo)
 
 
+@needs_ffmpeg
+@needs_posix
+def test_the_classic_title_has_no_ting_and_the_motion_title_gets_them_back(committed, storage, fake_hyperframes):  # noqa: F811
+    job_id, title_id, _, _ = queue(committed, storage)
+    jobs.run_job(job_id, committed, storage)
+    with committed() as db:
+        title = db.get(Scene, title_id)
+        times = title.motion["title"]["reveal_times"]
+        title.sounds.append(SceneSound(sound="whoosh", start=0, volume="soft", origin="manual"))
+        db.commit()
+        title_motion.set_mode(db, storage, title_id, "classic")
+        title = db.get(Scene, title_id)
+        assert [s.sound for s in title.sounds] == ["whoosh"]  # only the member's own sound stays
+        title_motion.set_mode(db, storage, title_id, "motion")
+        title = db.get(Scene, title_id)
+        assert [s.start for s in title.sounds if s.origin == "auto_title_reveal"] == times
+
+
 def test_an_empty_title_gets_the_hook_and_a_written_one_is_kept_unless_asked(committed, storage):  # noqa: F811
     user = add_user(committed)
     me = SimpleNamespace(user_id=user.id)

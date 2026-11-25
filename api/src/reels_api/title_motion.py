@@ -235,6 +235,12 @@ def sync_title_sfx(
     return []
 
 
+def drop_title_tings(scene: Scene) -> None:
+    """Takes the motion title's own tings off the scene; the member's sounds stay."""
+    for old in [sound for sound in scene.sounds if sound.origin == AUTO_TITLE_REVEAL]:
+        scene.sounds.remove(old)
+
+
 def resync(db: DbSession, video_id: int) -> tuple[dict, list[str]]:
     """Runs `sync_title_sfx` on the video's title scene on request (the assistant's "Đồng bộ âm tiêu đề động"); a
     video set to "manual" is left as it is. Returns the video's payload and the warnings."""
@@ -672,6 +678,9 @@ def build(
     brand = brands.brand_of(db, video)
     if brand is not None and brand.title_style == "classic" and not (scene.motion or {}).get("clip_key"):
         info["style"] = "classic"
+    made = scene.motion or {}
+    if info.get("style") == "classic" or (made.get("clip_key") and not motion.shows_motion(scene)):
+        drop_title_tings(scene)  # the title stays classic: its tings wait for "Động"
     payload = motion.request(
         db, storage, scene_id, markup, TITLE_SECONDS, me, atlas=(pack(images, atlas), "jpg"), title=info
     )
@@ -745,6 +754,7 @@ def set_mode(db: DbSession, storage: DirectoryStorage, scene_id: int, mode: str)
         for name in motion.CLASSIC_FIELDS:
             setattr(scene, name, classic.get(name))
         scene.words = None
+        drop_title_tings(scene)  # the classic title has nothing popping in, so no ting
     else:
         key = made.get("clip_key")
         if not key or not storage.exists(key):
@@ -758,6 +768,7 @@ def set_mode(db: DbSession, storage: DirectoryStorage, scene_id: int, mode: str)
         scene.words = None
         scene.image_key, scene.image_source, scene.image_auto = None, None, False
         scene.seconds, scene.seconds_auto = made["seconds"], False
+        sync_title_sfx(video, scene)  # the tings come back with the motion
     title, _ = split_scenes(db, video)
     refresh_thumbnail(db, storage, video, title)
     return routes_videos._saved(db, video)

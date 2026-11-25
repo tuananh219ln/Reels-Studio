@@ -404,7 +404,8 @@ the video as before: HyperFrames never renders the whole video, and Remotion is 
   (default) is one soft `ding` at each slot's pop-in second (`scenes.motion.title.reveal_times`, else read from the
   script's `tl.from(".sN", {scale|opacity…}, t)` lines; no whoosh, rise or other sound; a ting closer than 0.15 s to the
   one before, or in the last 0.1 s of the scene, is skipped; the render plays each 3 dB under "Nhỏ", `gain_db`),
-  `manual` leaves the scene's sounds alone, `off` leaves none. The rows carry `origin` (`manual` or
+  `manual` leaves the scene's sounds alone, `off` leaves none. While the scene shows "Cổ điển" it has no tings (switching
+  to it drops them, switching back to "Động" places them again; the member's own sounds stay). The rows carry `origin` (`manual` or
   `auto_title_reveal`) and `slot_index`; adding, changing or removing a sound of the title scene by hand switches the
   video to `manual`. Content scenes are not touched. `scenes.motion` carries `title` (layout, labels, count,
   `reveal_times`) and `classic` (the photo
