@@ -578,10 +578,11 @@ def patch_video(
         sfx = video_options.effective(video)["title_sfx"]
         video.options = video_options.effective(video) | changes
         if video_options.effective(video)["title_sfx"] != sfx:
+            from . import motion as motion_module
             from . import title_motion
 
             title, _ = split_scenes(db, video)
-            if title is not None:
+            if title is not None and motion_module.shows_motion(title):  # a classic title has no tings
                 title_motion.sync_title_sfx(video, title)
     if video_options.voice_pause(video) != pause:
         title, scenes = split_scenes(db, video)
