@@ -1,5 +1,6 @@
 "use client";
 
+import { fillColumn } from "@/components/fillColumn";
 import EmptyState from "@/components/EmptyState";
 import PageHeader from "@/components/PageHeader";
 import {
@@ -208,6 +209,7 @@ function Competitors() {
     {
       title: "Kênh",
       key: "name",
+      width: 360,
       ...sortable("name"),
       render: (_, row) => (
         <ChannelCell
@@ -300,6 +302,7 @@ function Competitors() {
         />
       ),
     },
+    fillColumn<Competitor>(),
     {
       title: "Thao tác",
       key: "actions",
