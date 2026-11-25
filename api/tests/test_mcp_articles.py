@@ -57,6 +57,8 @@ def test_an_article_is_made_edited_photographed_and_listed(mcp_client, db):  # n
 
     card = payload(call(mcp_client, token, "add_article_text_card", article_id=made["id"], preset="kem"))
     assert [image["source"] for image in card["images"]] == ["text_card"]
+    called = call(mcp_client, token, "add_article_composite", article_id=made["id"])
+    assert called["isError"]  # no source photo named
     neither = call(mcp_client, token, "add_article_image", article_id=made["id"])
     assert neither["isError"]
 

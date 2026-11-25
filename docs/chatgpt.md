@@ -333,7 +333,7 @@ member one line per result. See [the decision](decisions/2026-11-13-auto-approve
 Nine tools ([the decision](decisions/2026-11-24-mcp-articles.md)) run an article from draft to post through the web's
 own routes (`routes_articles`), so the same checks, locks and jobs apply: `list_articles`, `get_article`,
 `create_article` (the assistant's own caption, at most 5 hashtags, no AI cost), `update_article`, `add_article_image`
-(a link or a library photo id; up to 10), `add_article_text_card` ("Thẻ chữ"), `delete_article` (the creator; a posted
+(a link or a library photo id; up to 10), `add_article_text_card` ("Thẻ chữ"), `add_article_composite` ("Ảnh ghép chữ + ảnh": one 4:5 photo, the hook band over the dish photo), `delete_article` (the creator; a posted
 or scheduled article is refused), and the two that touch Facebook, `publish_article` ("Đăng", now or at `scheduled_at`
 with a time zone, 15 minutes to 29 days ahead; a warning needs `confirm=true`) and `unschedule_article` ("Hủy đăng" /
 "Gỡ bài"). Posting runs as the `publish` job; read the article again for its status.

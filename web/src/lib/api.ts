@@ -1344,7 +1344,7 @@ export type LogoPosition =
 export type ArticleImage = {
   id: number;
   position: number;
-  source: "upload" | "link" | "stock" | "library" | "ai" | "text_card";
+  source: "upload" | "link" | "stock" | "library" | "ai" | "text_card" | "composite";
   source_label: string;
   /** Where it came from, for a copyright claim: a link, a stock photo's address, "ai:<model>". */
   source_ref: string | null;
@@ -1357,7 +1357,64 @@ export type ArticleImage = {
   url: string;
   /** The photo with a Page's logo, as it will be posted: add `&fanpage_id=`. */
   preview_url: string;
+  /** A composite ("Ảnh ghép") only: what it was made from, to open it again. */
+  composite: CompositeOptions | null;
 };
+
+export type CompositeOptions = {
+  lines: string[];
+  tag: string | null;
+  preset: "cam" | "xanh_la";
+  mode: "auto" | "cover" | "blur";
+  focus_x: number;
+  focus_y: number;
+  /** The dish photo the composite was made from (only on a saved composite). */
+  source_url?: string;
+};
+
+/** What the api says about a composite it drew: the kind used, the font size and the warnings' codes. */
+export type CompositeResult = {
+  image_id: number;
+  mode_used: "cover" | "blur";
+  font_size: number;
+  warnings: { code: string; message: string }[];
+};
+
+/** The composite drawn but not saved (api `.../images/composite/preview`), as an object URL to show, with what the
+ * api reports in headers. The caller revokes the URL. */
+export async function compositePreview(
+  articleId: number,
+  body: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<{ url: string; mode: "cover" | "blur"; fontSize: number; warnings: string[] }> {
+  let response: Response;
+  try {
+    response = await fetch(`/api/articles/${articleId}/images/composite/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+      signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    throw new ApiError(0, "connection", CONNECTION_MESSAGE);
+  }
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    if (data && typeof data.code === "string" && typeof data.message === "string") {
+      throw new ApiError(response.status, data.code, data.message);
+    }
+    throw new ApiError(response.status, "connection", CONNECTION_MESSAGE);
+  }
+  const header = (name: string) => response.headers.get(name) ?? "";
+  return {
+    url: URL.createObjectURL(await response.blob()),
+    mode: header("X-Composite-Mode") === "blur" ? "blur" : "cover",
+    fontSize: Number(header("X-Composite-Font-Size")) || 0,
+    warnings: header("X-Composite-Warnings").split(",").filter(Boolean),
+  };
+}
 
 /** One script of a Page's 30-day article plan (api article_plans.slot_payload). */
 export type PlanSlot = {

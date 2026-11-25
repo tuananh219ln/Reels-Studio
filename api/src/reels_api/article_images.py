@@ -24,6 +24,7 @@ SOURCE_LABELS = {
     "library": "Kho tư liệu",
     "ai": "Ảnh AI",
     "text_card": "Thẻ chữ",
+    "composite": "Ảnh ghép",
 }
 
 
@@ -63,6 +64,7 @@ def add(
     source: str,
     source_ref: str | None = None,
     credit: str | None = None,
+    opts: dict | None = None,
 ) -> ArticleImage:
     """The photo stored and put last, its logo on. The caller holds the article's row lock (so two adds never take
     the same place) and commits; the file is removed again if the row cannot be added."""
@@ -77,6 +79,7 @@ def add(
         source=source,
         source_ref=source_ref,
         credit=credit,
+        opts=opts,
     )
     db.add(image)
     try:
@@ -85,6 +88,14 @@ def add(
         storage.delete(key)
         raise
     return image
+
+
+def move_first(db: DbSession, article_id: int, image_id: int) -> None:
+    """The photo at place 0, the others after it in their order."""
+    ids = [image.id for image in images_of(db, article_id) if image.id != image_id]
+    for position, other in enumerate([image_id, *ids]):
+        db.get(ArticleImage, other).position = position
+    db.flush()
 
 
 def get(db: DbSession, article_id: int, image_id: int) -> ArticleImage:
@@ -109,6 +120,12 @@ def renumber(db: DbSession, article_id: int) -> None:
         image.position = position
 
 
+def keys_of(image: ArticleImage) -> list[str]:
+    """Every stored file of a photo: its own and, for a composite, the copy of the dish photo it was made from."""
+    source = (image.opts or {}).get("source_key")
+    return [image.image_key, *([source] if source else [])]
+
+
 def version(image: ArticleImage) -> str:
     """The file's tag, so a browser keeps a photo for good and fetches a replaced one."""
     return image.image_key.rsplit("-", 1)[-1].split(".", 1)[0]
@@ -127,6 +144,16 @@ def payload(image: ArticleImage) -> dict:
         "logo_position": image.logo_position,
         "url": f"{base}?v={version(image)}",
         "preview_url": f"{base}/preview?v={version(image)}",
+        "composite": _composite_opts(image),
+    }
+
+
+def _composite_opts(image: ArticleImage) -> dict | None:
+    """What a composite was made from, for the editor (the stored copy of the dish photo stays server side)."""
+    if image.opts is None:
+        return None
+    return {key: value for key, value in image.opts.items() if key != "source_key"} | {
+        "source_url": f"/api/articles/{image.article_id}/images/{image.id}/composite-source?v={version(image)}"
     }
 
 

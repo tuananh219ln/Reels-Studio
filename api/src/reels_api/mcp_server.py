@@ -2496,6 +2496,46 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
         return await run_in_threadpool(invoke, operation, write=True)
 
+    @tool("Tạo ảnh ghép chữ và ảnh cho Bài viết", read=False, external=True)
+    async def add_article_composite(
+        article_id: int,
+        media_id: Annotated[int | None, Field(description="Ảnh món trong kho tư liệu")] = None,
+        url: Annotated[str | None, Field(max_length=2000, description="Hoặc link ảnh món")] = None,
+        image_id: Annotated[int | None, Field(description="Hoặc id ảnh đã gắn trong bài")] = None,
+        lines: Annotated[
+            list[str] | None,
+            Field(
+                max_length=3,
+                description="1–3 dòng tiêu đề (mỗi dòng 15–22 ký tự, gần bằng nhau); bỏ trống = tự ngắt dòng đầu caption",
+            ),
+        ] = None,
+        tag: Annotated[
+            str | None,
+            Field(max_length=60, description="Nhãn series, ví dụ NGÀY 5 · THỰC PHẨM; bỏ trống = theo kế hoạch"),
+        ] = None,
+        preset: Annotated[str, Field(description="Màu dải chữ: cam hoặc xanh_la")] = "cam",
+        mode: Annotated[str, Field(description="auto, cover (cắt vừa) hoặc blur (nền mờ)")] = "auto",
+        replace: Annotated[
+            bool, Field(description="true: gỡ thẻ chữ và ảnh nguồn cũ khỏi bài, ảnh ghép lên đầu")
+        ] = True,
+    ) -> dict:
+        """Một ảnh dọc 4:5 gồm dải chữ (hook) ở trên và ảnh món ở dưới, thay cho 2 ảnh rời (Facebook xếp 2 ảnh dọc
+        cạnh nhau làm chữ nhỏ). Đúng một trong media_id, url, image_id. Kết quả có image_id, mode_used, font_size và
+        warnings (FONT_TOO_SMALL, LOW_RES_SOURCE, UPSCALED, EXTRA_IMAGES). Lỗi TITLE_TOO_LONG: rút gọn tiêu đề, app
+        không tự cắt chữ. Logo Page vẫn được tự chèn khi đăng."""
+        if sum(value is not None for value in (media_id, url, image_id)) != 1:
+            raise ToolError("Gửi đúng một trong media_id, url hoặc image_id")
+        body = article_routes.CompositeBody(
+            image_id=image_id, media_id=media_id, url=url, lines=lines, tag=tag, preset=preset, mode=mode,
+            replace=replace,
+        )  # fmt: skip
+
+        def operation(db, me):
+            payload = article_routes.make_composite(article_id, body, me, db, get_storage())
+            return article_compact(payload) | payload["composite_result"]
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
     @tool("Đăng hoặc hẹn giờ Bài viết", read=False, external=True, publish=True)
     async def publish_article(
         article_id: int,
