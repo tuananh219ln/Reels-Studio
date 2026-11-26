@@ -97,7 +97,9 @@ app replaces CapCut, so the output is a finished MP4.
 
    **Thống kê** (built, [brief](specs/stats-content-guides/brief.md), [decision](decisions/2026-11-25-stats-page.md)): the Pages
    side by side, one row each, on Facebook or Instagram (TikTok has no numbers yet), over 7, 28 or 90 days, with daily
-   charts, the Pages' winners and measuring posts, chosen columns and a CSV file. The member's own Pages start picked.
+   charts, the Pages' winners and measuring posts, chosen columns and a CSV file, and on Facebook a card "Thời lượng nào hiệu
+   quả nhất" (median 48-hour views by video length, [brief](specs/stats-duration-card/brief.md),
+   [decision](decisions/2026-11-26-stats-duration-card.md)). The member's own Pages start picked.
    Pages are compared, never added up, and a number Facebook does not give is left empty. **Tất cả hướng dẫn** lists every
    screen's guides in one place, beside each screen's own "Hướng dẫn" button.
 

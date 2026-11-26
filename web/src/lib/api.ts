@@ -2558,6 +2558,8 @@ export type StatsFacebookRow = {
   /** Posted in the period and not yet read at 48 hours. */
   measuring: { post_id: number; video: DashboardVideo; live_at: string }[];
   best_times: BestHours;
+  /** Median views at 48 hours by video length over the period; `median_views_48h` null under 5 posts. */
+  duration_buckets: { bucket: string; videos: number; median_views_48h: number | null; best: boolean }[];
 };
 export type StatsInstagramRow = {
   page: StatsPageRef;

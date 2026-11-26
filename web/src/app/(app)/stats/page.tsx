@@ -363,6 +363,61 @@ function Strips({ rows }: { rows: StatsFacebookRow[] }) {
   );
 }
 
+/** Per Page, the median views at 48 hours of each video length: the evidence for keeping short videos or not. */
+function DurationCard({ rows }: { rows: StatsFacebookRow[] }) {
+  const buckets = rows[0]?.duration_buckets.map((one) => one.bucket) ?? [];
+  return (
+    <Card
+      size="small"
+      title="Thời lượng nào hiệu quả nhất"
+      data-testid="duration-card"
+      extra={
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Trung vị lượt xem 48h theo độ dài video, trong kỳ đã chọn
+        </Typography.Text>
+      }
+    >
+      <Table<StatsFacebookRow>
+        rowKey={(row) => row.page.id}
+        size="small"
+        pagination={false}
+        dataSource={rows}
+        scroll={{ x: "max-content" }}
+        locale={{ emptyText: <EmptyState description="Chưa chọn Page nào." /> }}
+        columns={[
+          { key: "page", title: "Page", fixed: "left", width: 200, render: (_: unknown, row) => row.page.name },
+          ...buckets.map((bucket) => ({
+            key: bucket,
+            title: bucket,
+            render: (_: unknown, row: StatsFacebookRow) => {
+              const one = row.duration_buckets.find((item) => item.bucket === bucket)!;
+              return (
+                <Flex vertical gap={0}>
+                  {one.median_views_48h === null ? (
+                    <Typography.Text type="secondary">Chưa đủ mẫu</Typography.Text>
+                  ) : (
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                      <strong>{formatNumber(one.median_views_48h)}</strong>{" "}
+                      {one.best && <Tag color="gold">Tốt nhất</Tag>}
+                    </span>
+                  )}
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {one.videos} video
+                  </Typography.Text>
+                </Flex>
+              );
+            },
+          })),
+        ]}
+      />
+      <Typography.Text type="secondary" style={{ fontSize: 12, color: COLORS.textSecondary }}>
+        Chỉ tính video đã đủ 48h, đo bằng độ dài file MP4; một nhóm cần ít nhất 5 video mới có số. Khác “Trung vị 48h” ở
+        bảng trên (60 ngày gần nhất).
+      </Typography.Text>
+    </Card>
+  );
+}
+
 function StatsView() {
   const { message } = App.useApp();
   const [days, setDays] = useUrlChoice<(typeof PERIODS)[number]>("days", "28", PERIODS);
@@ -568,6 +623,7 @@ function ComparisonTable({
           lệ chưa theo dõi nên các cột này không có. Số tuyệt đối, không tính % tăng.
         </Typography.Text>
       </Card>
+      {platform === "facebook" && <DurationCard rows={rows as StatsFacebookRow[]} />}
     </Flex>
   );
 }

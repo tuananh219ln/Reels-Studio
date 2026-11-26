@@ -1102,8 +1102,10 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     every Page; on Instagram only those with a linked account), each built from the same functions as the Page's own
     dashboard (`dashboard`, `gate`, `content`, `best_times`, `instagram_dashboard`, `instagram_content`), so a row always
     agrees with it. A row has the dashboard `totals` (with the previous period as an absolute number), the posts' comments
-    and shares, `share_per_view`, `view_time_seconds`, the 48-hour `gate`, `winners`, the posts still `measuring` and
-    `best_times`. Pages are compared, never added up: nothing is summed across Pages, and a number a Page does not have is
+    and shares, `share_per_view`, `view_time_seconds`, the 48-hour `gate`, `winners`, the posts still `measuring`,
+    `best_times` and, on Facebook, `duration_buckets`: the Page's median views at 48 hours of the posts in the period by the
+    video's own MP4 length (`Video.mp4_seconds`; `<45s`, `45–60s`, `>60s`, an edge going to the longer bucket), only live
+    posts read at 48 hours, `null` under `MIN_SAMPLES` posts, `best` on the highest median (ties all) when two buckets have one. Pages are compared, never added up: nothing is summed across Pages, and a number a Page does not have is
     null. Not read from Facebook, so not columns: unique viewers, impressions, watching for 1 minute, followers against
     non-followers (decision [2026-11-25-stats-page](decisions/2026-11-25-stats-page.md)).
     `DELETE /api/fanpages/{id}` removes a stopped Page with no post at all (409 otherwise), its
