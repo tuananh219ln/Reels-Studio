@@ -2,6 +2,7 @@
 
 import {
   AimOutlined,
+  BellOutlined,
   BarChartOutlined,
   BookOutlined,
   ClockCircleOutlined,
@@ -35,6 +36,7 @@ import InstallAppModal, { useCanInstall } from "./InstallAppModal";
 import Logo from "./Logo";
 import { MeContext } from "./MeContext";
 import UserAvatar from "./UserAvatar";
+import WhatsNew from "./WhatsNew";
 import { COLORS } from "@/app/theme";
 
 // The menu in four headed groups, always open, in the order of the work: make it, post it and earn from it, the
@@ -64,6 +66,7 @@ const NAV: { key: string; label: string; children: { key: string; icon: React.Re
     children: [
       { key: "/knowledge", icon: <BookOutlined />, label: "Kho kiến thức" },
       { key: "/guides", icon: <QuestionCircleOutlined />, label: "Tất cả hướng dẫn" },
+      { key: "/whats-new", icon: <BellOutlined />, label: "Có gì mới" },
       { key: "/media", icon: <FolderOpenOutlined />, label: "Kho tư liệu" },
       { key: "/music", icon: <CustomerServiceOutlined />, label: "Thư viện nhạc" },
       { key: "/competitors", icon: <AimOutlined />, label: "Phân tích đối thủ" },
@@ -344,7 +347,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 </Flex>
               )}
               <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>{menu}</div>
-              <div style={{ padding: 8, borderTop: `1px solid ${COLORS.border}` }}>{account}</div>
+              <div style={{ padding: 8, borderTop: `1px solid ${COLORS.border}` }}>
+                <WhatsNew vertical={rail}>{account}</WhatsNew>
+              </div>
             </Flex>
           </Layout.Sider>
         )}
@@ -378,7 +383,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <Button aria-label="Mở menu" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} />
                 <Logo />
               </Flex>
-              {account}
+              <div>
+                <WhatsNew>{account}</WhatsNew>
+              </div>
             </Layout.Header>
           )}
           <Layout.Content

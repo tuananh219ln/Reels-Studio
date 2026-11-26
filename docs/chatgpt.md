@@ -437,6 +437,9 @@ and never a Page token.
 - `get_youtube_meta` (`reels:read`), `update_youtube_meta` (`reels:write`): a topic group's "Mô tả YouTube" (YouTube
   hashtags, keywords sent as tags, Subscribe line with `{channel}`, disclaimer), the same as its card on Kho kiến thức
   and with the same editors; only the fields sent change. The next YouTube upload of the group's videos uses it.
+- `get_whats_new` (`reels:read`): "Có gì mới", the changes the web lists after each deploy (title, detail, kind, when
+  merged and deployed, the screens and in-app guides they touched), newest first, optionally only after `since`. Read
+  from the web's `changelog.json` (CHANGELOG_URL, else next to MCP_PUBLIC_URL); an error until the first deploy wrote it.
 - `list_jobs`: the newest page of the job log (the member's or everyone's), filtered by status or video
   (`GET /api/jobs`), to follow many renders at once.
 - `list_comments`: visitors' comments under the app's posts, open ones by default (`GET /api/comments`). Read only:
