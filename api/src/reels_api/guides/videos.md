@@ -19,6 +19,7 @@ Xong thì app mở trang chỉnh sửa video (xem hướng dẫn "chỉnh sửa,
 - **Tìm và lọc:** ô tìm theo tiêu đề hoặc chủ đề; lọc theo trạng thái, nền tảng, Fanpage, nhóm chủ đề, người tạo; sắp theo "Mới nhất" hoặc "Nhiều view nhất". Lọc người tạo bắt đầu ở "Của tôi" khi bạn đã làm video.
 - **Trạng thái "Cần làm":** nháp quá 2 ngày, job lỗi, MP4 cũ hơn bản sửa, hoặc video xong mà chưa đăng.
 - **Hai cách xem:** dạng thẻ (có ảnh và số view) và dạng danh sách (cột Video, Trạng thái, Số liệu, Tạo). App nhớ lựa chọn của bạn.
+- **Số video mỗi trang:** ở dạng bảng, mặc định mỗi trang 5 video. Chọn 5, 10, 15, 20, 50 hoặc 100 ở ô "/ trang" cạnh số trang (góc dưới bên phải). Trình duyệt nhớ lựa chọn của bạn sau khi tải lại trang, và dùng chung cho mọi danh sách video: Bài đăng, tab Video của nhóm chủ đề, Nội dung của Page và video Affiliate.
 - Mỗi video có thẻ nhỏ cho biết **cách viết** (AI viết, Tự viết, Từ video mẫu, Nhân bản hoặc trợ lý MCP), **Sản phẩm**, và các nền tảng đã đăng (Facebook, TikTok, YouTube, Instagram) hoặc "Chưa đăng".
 - Video Facebook có view gấp 3 lần trung vị của Page sau 48 giờ mà chưa có bản TikTok sẽ hiện **+ Tạo bản TikTok**.
 - Phía trên có **banner kế hoạch** của nhóm bạn: "hôm nay còn X/Y video" với nút **Làm tiếp**.
