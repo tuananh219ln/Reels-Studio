@@ -44,6 +44,7 @@ export default function ChangeList({
               <Flex gap={12} wrap align="baseline">
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   {KIND_LABEL[entry.kind]}, {formatDateTime(entry.merged_at)}
+                  {entry.author ? `, bởi ${entry.author}` : ""}
                 </Typography.Text>
                 {(entry.pages ?? []).map((path) => (
                   <Link key={path} href={path} onClick={onLeave} style={{ fontSize: 12 }}>

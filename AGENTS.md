@@ -20,6 +20,10 @@ no agent-specific copies, so edit the file here and in `docs/`, never a generate
   PR description: what changes, why, and how it was verified. No separate spec file is needed.
 - **Done means:** lint and typecheck pass, tests for the changed behaviour exist and pass, and docs
   in `docs/` that describe the changed behaviour are updated in the same PR.
+- **A feature ships with its guide.** A `feat` PR that changes what members see or do on a screen adds or updates
+  that screen's in-app guide in `api/src/reels_api/guides/` (Vietnamese, `<!-- screen: <folder> -->` first) in the
+  same PR. "Có gì mới" then links the change to it and "Tất cả hướng dẫn" marks it new by itself
+  ([decision](docs/decisions/2026-11-26-whats-new-guides.md)).
 - **Bug fixes start with a failing test.** Write a test that reproduces the bug and watch it fail
   before fixing; the test stays as the regression guard.
 - **Decisions are logged.** Read [docs/decisions.md](docs/decisions.md) and the files in

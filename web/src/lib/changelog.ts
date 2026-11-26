@@ -20,6 +20,10 @@ export type ChangeEntry = {
   guides: string[];
   /** "Thử ngay": the screens the PR changed (at most two; a change across more is not one place to try). */
   pages: string[];
+  /** Who it was made for: the "Requested by" of a PR opened through Claude, else the PR's author on GitHub (their
+   * GitHub name once the deploy has read it, else their login). Missing in a file written before. */
+  author?: string;
+  author_login?: string;
   /** When the deploy that brought it went live; changes are grouped by it. Missing in a file written before. */
   deployed_at?: string;
 };
@@ -34,6 +38,7 @@ export type MergedPull = {
   body: string | null;
   merged_at: string | null;
   html_url: string;
+  user?: { login: string } | null;
 };
 
 export const KIND_LABEL: Record<ChangeKind, string> = {
@@ -92,6 +97,21 @@ export function summarize(body: string | null): string {
   return `${cut.slice(0, cut.lastIndexOf(" ") > 0 ? cut.lastIndexOf(" ") : SUMMARY_LIMIT).replace(/[,.;:]$/, "")}…`;
 }
 
+/** The member a PR opened through Claude was made for: its "_Requested by **Nam dev**_" line (several are joined). */
+export function requestedBy(body: string | null): string {
+  const match = body?.match(/_Requested by \*\*(.+?)\*\*/);
+  return match ? match[1].trim() : "";
+}
+
+/** The authors still known only by their login get their GitHub name, when they set one. */
+export function withNames(entries: ChangeEntry[], names: Record<string, string>): ChangeEntry[] {
+  return entries.map((entry) =>
+    entry.author_login && entry.author === entry.author_login && names[entry.author_login]
+      ? { ...entry, author: names[entry.author_login] }
+      : entry,
+  );
+}
+
 /** The merged pull requests as the app shows them, newest first. */
 export function buildEntries(pulls: MergedPull[]): ChangeEntry[] {
   const entries: ChangeEntry[] = [];
@@ -107,6 +127,8 @@ export function buildEntries(pulls: MergedPull[]): ChangeEntry[] {
       url: pull.html_url,
       guides: [],
       pages: [],
+      author: requestedBy(pull.body) || pull.user?.login || "",
+      author_login: pull.user?.login ?? "",
     });
   }
   entries.sort((a, b) => b.merged_at.localeCompare(a.merged_at));
@@ -202,12 +224,30 @@ export function telegramMessage(changelog: Changelog, webUrl = ""): string | nul
   if (entries.length === 0) return null;
   const lines = ["<b>Reels Studio vừa cập nhật</b>", ""];
   for (const entry of entries) {
-    lines.push(`• <b>${escapeHtml(entry.title)}</b> (${KIND_LABEL[entry.kind]})`);
+    const by = entry.author ? `, bởi ${escapeHtml(entry.author)}` : "";
+    lines.push(`• <b>${escapeHtml(entry.title)}</b> (${KIND_LABEL[entry.kind]}${by})`);
     if (entry.summary) lines.push(escapeHtml(entry.summary));
   }
   const base = webUrl.replace(/\/$/, "");
   if (base) lines.push("", `<a href="${escapeHtml(base)}/whats-new">Xem trong app</a>`);
   return lines.join("\n");
+}
+
+/** A guide counts as new on "Tất cả hướng dẫn" for this long after a change rewrote it. */
+export const GUIDE_NEW_DAYS = 7;
+
+/** The newest change that wrote each in-app guide, by slug. */
+export function guideUpdates(entries: ChangeEntry[]): Record<string, ChangeEntry> {
+  const found: Record<string, ChangeEntry> = {};
+  for (const entry of [...entries].sort((a, b) => b.merged_at.localeCompare(a.merged_at))) {
+    for (const slug of entry.guides ?? []) found[slug] ??= entry;
+  }
+  return found;
+}
+
+/** Whether a guide's last change is recent enough to be marked "Mới". */
+export function isRecent(entry: ChangeEntry | undefined, now = Date.now()): boolean {
+  return !!entry && now - Date.parse(entry.merged_at) < GUIDE_NEW_DAYS * 24 * 3600 * 1000;
 }
 
 /** The newest changelog.json, never from a cache; null where the deploy wrote none (development, E2E). */
