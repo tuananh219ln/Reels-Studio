@@ -535,6 +535,44 @@ test("knowledge topics: a group's own voice is what its new videos start with", 
   expect(video.options.voice_id).toBe("fake-voice-mai");
 });
 
+test("a scene reads an uploaded MP3, and a group writes its voice by role", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "giọng đọc tải lên");
+  const first = page.getByTestId("scene").first();
+  await openScene(first);
+  const mp3 = path.join(os.tmpdir(), `giong-${Date.now()}.mp3`);
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "sine=duration=2", "-c:a", "libmp3lame", mp3]);
+  await first.getByLabel("Tải file giọng đọc cho cảnh").setInputFiles(mp3);
+  await expect(page.getByText("Đã dùng file giọng đọc cho cảnh")).toBeVisible();
+  await expect(first.getByTestId("scene-voice-custom")).toContainText(path.basename(mp3));
+  await expect(first.getByTestId("voice-player")).toBeVisible();
+  // While the file reads the scene, its own voice is not picked.
+  await expect(first.getByTestId("scene-voice")).toHaveCount(0);
+  await first.getByRole("button", { name: "Bỏ file" }).click();
+  await page.getByRole("button", { name: "Bỏ file", exact: true }).last().click();
+  await expect(page.getByText("Đã bỏ file giọng đọc")).toBeVisible();
+  await expect(first.getByTestId("scene-voice-custom")).toHaveCount(0);
+  await expect(first.getByTestId("scene-voice")).toBeVisible();
+
+  await page.goto("/knowledge");
+  await page.getByLabel("Tên nhóm chủ đề mới").fill("Già Mà Khỏe");
+  await page.getByRole("button", { name: "Thêm nhóm" }).click();
+  const group = page.locator('[data-topic="Già Mà Khỏe"]');
+  await group.getByRole("tab", { name: "Cài đặt nhóm" }).click();
+  const card = group.getByTestId("group-voice-format");
+  await expect(card.getByRole("button", { name: "Lưu vai đọc" })).toBeDisabled();
+  await card.getByText("Một giọng", { exact: true }).click();
+  await card.getByLabel("Mã giọng của vai").fill("vieneu:Huyền My");
+  await page.keyboard.press("Enter");
+  await card.getByRole("button", { name: "Lưu vai đọc" }).click();
+  await expect(page.getByText("Đã lưu giọng đọc theo vai")).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: /Già Mà Khỏe/ }).click();
+  await group.getByRole("tab", { name: "Cài đặt nhóm" }).click();
+  await expect(card).toContainText("vieneu:Huyền My");
+});
+
 test("knowledge topics: a group's text look from an AI suggestion is what its new videos start with", async ({
   page,
 }) => {

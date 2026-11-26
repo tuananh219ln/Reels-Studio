@@ -59,6 +59,7 @@ import TopicMedia from "@/components/knowledge/TopicMedia";
 import TopicSchedule from "@/components/knowledge/TopicSchedule";
 import TopicDocs from "@/components/knowledge/TopicDocs";
 import StockOrderCard from "@/components/knowledge/StockOrderCard";
+import GroupVoiceFormatCard from "@/components/knowledge/GroupVoiceFormatCard";
 import GroupVideoModeCard from "@/components/knowledge/GroupVideoModeCard";
 import GroupNoPeopleCard from "@/components/knowledge/GroupNoPeopleCard";
 import GroupOutroCard from "@/components/knowledge/GroupOutroCard";
@@ -775,6 +776,7 @@ const TOPIC_FIELDS: Record<string, string> = {
   photo_hint: "Gợi ý tìm ảnh",
   voice_id: "Giọng mặc định",
   voice_backup_id: "Giọng phụ",
+  voice_format: "Giọng đọc theo vai",
   video_mode: "Kiểu video",
   text_look: "Chữ & phụ đề",
   text_ai: "AI chọn kiểu chữ cho từng video",
@@ -1055,6 +1057,7 @@ function TopicBody({
                           update={update}
                           reload={reload}
                         />
+                        <GroupVoiceFormatCard key={JSON.stringify(topic.voice_format)} topic={topic} update={update} />
                         <GroupTemplatesCard topic={topic} update={update} />
                       </Flex>
                     </Col>

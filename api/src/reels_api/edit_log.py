@@ -39,6 +39,7 @@ TOPIC_FIELDS = (
     "photo_hint",
     "voice_id",
     "voice_backup_id",
+    "voice_format",
     "video_mode",
     "text_look",
     "text_ai",

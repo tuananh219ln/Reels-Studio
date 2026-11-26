@@ -275,6 +275,26 @@ export type VideoNote = {
   created_at: string;
 };
 
+export type VoiceRoleName = "all" | "op" | "comment" | "cta";
+
+/** One role of a group's "Giọng đọc theo vai" (api voice_format.py). */
+export interface VoiceRole {
+  role: VoiceRoleName;
+  /** "provider": a voice service reads it; "custom": an uploaded MP3 per scene, with no voice. */
+  source: "provider" | "custom";
+  voice?: string;
+  /** Voices read in turn ("multi" only): comments in rotation, an opening voice by vibe. */
+  voices?: string[];
+  volume?: number;
+  note?: string;
+}
+
+export interface VoiceFormat {
+  mode: "single" | "multi";
+  roles: VoiceRole[];
+  rules?: { max_gemini_scenes?: number; excited_tag?: string };
+}
+
 export type SceneData = {
   id: number;
   video_id: number;
@@ -293,6 +313,10 @@ export type SceneData = {
   /** Length of the narration made for the current voice text; null until a render has made it. */
   voice_seconds: number | null;
   voice_url: string | null;
+  /** The narration is an MP3 a member uploaded ("Giọng tải lên"), never remade by the voice service. */
+  voice_custom: boolean;
+  /** The uploaded file's name; null without one. */
+  voice_name: string | null;
   /** The scene's seconds, lengthened to fit its narration when that is longer. */
   fitted_seconds: number;
   has_image: boolean;
@@ -663,6 +687,8 @@ export type KnowledgeTopic = {
   voice_id: string;
   /** The voice read instead when the one above cannot (every key of its service wrong or spent); "" for none. */
   voice_backup_id: string;
+  /** "Giọng đọc theo vai": each role's voice and source and the group's rules, read by whoever builds; {} for none. */
+  voice_format: VoiceFormat | Record<string, never>;
   /** "Kiểu video" of the group's new videos, unless one is picked for the video. */
   video_mode: GroupVideoMode;
   /** The mode a video made now takes by it ("Xen kẽ theo ngày" resolved for today in Vietnam). */
