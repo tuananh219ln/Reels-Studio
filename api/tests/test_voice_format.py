@@ -3,8 +3,11 @@
 import subprocess
 
 import pytest
-from conftest import first_topic, login, make_user, make_video
+from alembic import command
+from alembic.config import Config
+from conftest import API_DIR, first_topic, login, make_user, make_video
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 from test_mcp import call, grant, mcp_client, payload  # noqa: F401  (mcp_client is a fixture)
 from test_voice import needs_ffmpeg
 
@@ -133,3 +136,61 @@ def test_the_seeded_groups_have_valid_formats():
     for name, value in module.SEED.items():
         assert voice_format.clean(value) == value, name
     assert KnowledgeTopic.voice_format is not None
+
+
+def _load_migration(file_name: str):
+    import importlib.util
+
+    path = API_DIR / "migrations" / "versions" / file_name
+    spec = importlib.util.spec_from_file_location(file_name.removesuffix(".py"), path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_migration_0128_moves_groups_6_7_and_10_to_huyen_my(engine):
+    """Migration 0128: the three groups 0127 seeded with Chi read with VieNeu Huyền My; a group a member already edited
+    keeps its format; going back restores 0127's seed."""
+    seed = _load_migration("0127_voice_format.py").SEED
+    changes = _load_migration("0128_group_voice_huyen_my.py").CHANGES
+    for name, (old, new) in changes.items():
+        assert seed[name] == old, name
+        assert voice_format.clean(new) == new, name
+    gia, an_lanh, test_group = "Già Mà Khỏe – Dưỡng sinh sau 50", "Ăn Lành Sống Khỏe – Sức khỏe", "Nhóm test"
+    edited = {"mode": "single", "roles": [{"role": "all", "source": "custom"}]}
+    config = Config(str(API_DIR / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", engine.url.render_as_string(hide_password=False))
+    config.attributes["configure_logger"] = False
+
+    def formats() -> dict:
+        with Session(engine) as session:
+            rows = session.scalars(select(KnowledgeTopic).where(KnowledgeTopic.name.in_([gia, an_lanh, test_group])))
+            return {row.name: row.voice_format for row in rows}
+
+    command.downgrade(config, "0127")
+    try:
+        with Session(engine) as session:
+            session.add_all(
+                [
+                    KnowledgeTopic(name=gia, voice_format=seed[gia]),
+                    KnowledgeTopic(name=an_lanh, voice_format=edited),
+                    KnowledgeTopic(name=test_group, voice_format=seed[test_group]),
+                ]
+            )
+            session.commit()
+        command.upgrade(config, "head")
+        after = formats()
+        assert after[gia]["roles"] == [{"role": "all", "source": "provider", "voice": "vieneu:Huyền My"}]
+        assert after[an_lanh] == edited
+        assert after[test_group]["roles"][0]["voice"] == "vieneu:Huyền My"
+        assert after[test_group]["roles"][0]["note"].startswith("Giữ nguyên giọng gốc")
+        command.downgrade(config, "0127")
+        assert formats() == {gia: seed[gia], an_lanh: edited, test_group: seed[test_group]}
+    finally:
+        command.upgrade(config, "head")
+        with Session(engine) as session:
+            for row in session.scalars(
+                select(KnowledgeTopic).where(KnowledgeTopic.name.in_([gia, an_lanh, test_group]))
+            ):
+                session.delete(row)
+            session.commit()
