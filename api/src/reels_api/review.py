@@ -23,7 +23,7 @@ from .videos import active_job, render_signature, run_checks, split_scenes, titl
 log = logging.getLogger(__name__)
 
 PENDING, APPROVED, REJECTED = "pending_review", "approved", "rejected"
-CHANNELS = ("web", "muse_chat", "auto")
+CHANNELS = ("web", "muse_chat", "auto", "telegram")
 # Posts that exist only here, never reached a platform: withdrawing one is a status change.
 UNSENT_STATUSES = ("pending", "scheduled")
 NOT_APPROVED = "Cần duyệt video trước khi đăng"

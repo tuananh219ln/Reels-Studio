@@ -252,6 +252,10 @@ class FakeServices:
         self.lock = threading.Lock()
         # The web's changelog.json ("Có gì mới", written by the deploy); None answers 404 as before the first deploy.
         self.changelog: dict | None = None
+        # The Telegram Bot API (telegram.py): each call as (method, fields), a multipart file as its size in "_file".
+        # A chat id in `telegram_blocked` answers 403, as a member who blocked the bot.
+        self.telegram_calls: list[tuple[str, dict]] = []
+        self.telegram_blocked: set[int] = set()
         self.claude_replies: list[object] = []  # str (raw text) or dict (JSON); empty: a valid script
         self.claude_hang = False
         self.claude_prompts: list[str] = []
@@ -561,7 +565,40 @@ class FakeServices:
             "GOOGLE_OAUTH_URL": f"{self.url}/google",
             "YOUTUBE_UPLOAD_URL": f"{self.url}/youtube-upload",
             "CHANGELOG_URL": f"{self.url}/changelog.json",
+            "TELEGRAM_API_URL": f"{self.url}/telegram",
         }
+
+    def telegram_sent(self, method: str | None = None) -> list[dict]:
+        with self.lock:
+            return [fields for name, fields in self.telegram_calls if method is None or name == method]
+
+    def _telegram(self, path: str, content_type: str, raw: bytes) -> tuple[int, dict]:
+        method = path.rsplit("/", 1)[1]
+        if content_type.startswith("multipart/"):
+            message = BytesParser(policy=email_policy.default).parsebytes(
+                f"Content-Type: {content_type}\r\n\r\n".encode() + raw
+            )
+            fields = {}
+            for part in message.iter_parts():
+                name = part.get_param("name", header="content-disposition")
+                data = part.get_payload(decode=True)
+                if part.get_filename():
+                    fields["_file"] = len(data)
+                else:
+                    text = data.decode()
+                    fields[name] = json.loads(text) if name == "reply_markup" else text
+        else:
+            fields = json.loads(raw or b"{}")
+        with self.lock:
+            self.telegram_calls.append((method, fields))
+        if method == "getMe":
+            return 200, {"ok": True, "result": {"id": 4242, "is_bot": True, "username": "reels_test_bot"}}
+        chat = fields.get("chat_id")
+        if chat is not None and int(chat) in self.telegram_blocked:
+            return 403, {"ok": False, "error_code": 403, "description": "Forbidden: bot was blocked by the user"}
+        if method in ("sendMessage", "sendVideo"):
+            return 200, {"ok": True, "result": {"message_id": len(self.telegram_calls)}}
+        return 200, {"ok": True, "result": True}
 
     def image_url(self, name: str) -> str:
         return f"{self.url}/img/{name}.jpg"
@@ -2252,6 +2289,9 @@ class FakeServices:
                 length = int(self.headers.get("Content-Length") or 0)
                 raw = self.rfile.read(length)
                 path = urllib.parse.urlsplit(self.path).path
+                if path.startswith("/telegram/bot"):
+                    self._send(*fake._telegram(path, self.headers.get("Content-Type", ""), raw))
+                    return
                 if path.startswith("/instagram-upload/"):
                     container_id = path.rsplit("/", 1)[1]
                     self._send(*fake._instagram_upload(container_id, self.headers.get("Authorization"), raw, path))

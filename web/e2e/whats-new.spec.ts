@@ -5,8 +5,12 @@ import {
   type Changelog,
   deployTimes,
   guidesFromFiles,
+  guideUpdates,
+  isRecent,
   type MergedPull,
   pagesFromFiles,
+  requestedBy,
+  withNames,
   summarize,
   telegramMessage,
   unseenEntries,
@@ -73,6 +77,33 @@ test.describe("the changelog read from merged PRs", () => {
         { filename: "api/src/reels_api/guides.py", status: "modified" },
       ]),
     ).toEqual(["whats-new", "videos"]);
+  });
+
+  test("a change is by the member its PR was requested by, else its GitHub author", () => {
+    const body = "<!-- x -->\n_Requested by **Nam dev** · [project thread](https://x)_\n\n## Làm gì và vì sao\n\nA.";
+    expect(requestedBy(body)).toBe("Nam dev");
+    expect(requestedBy("## Làm gì và vì sao\n\nA.")).toBe("");
+    const [asked, plain, named] = buildEntries([
+      { ...pull(3, "feat: ba", "2026-11-26T11:00:00Z", body), user: { login: "namtc07" } },
+      { ...pull(2, "feat: hai", "2026-11-26T10:00:00Z"), user: { login: "tuananh219ln" } },
+      { ...pull(1, "feat: một", "2026-11-26T09:00:00Z"), user: { login: "khongten" } },
+    ]);
+    expect(
+      withNames([asked, plain, named], { tuananh219ln: "Tuấn Anh", namtc07: "Nam GitHub" }).map((e) => e.author),
+    ).toEqual(["Nam dev", "Tuấn Anh", "khongten"]);
+  });
+
+  test("each guide knows the newest change that wrote it, new for a week", () => {
+    const [newer, older] = buildEntries([
+      pull(2, "feat: mới", "2026-11-26T09:00:00Z"),
+      pull(1, "feat: cũ", "2026-11-10T09:00:00Z"),
+    ]).map((entry) => ({ ...entry, guides: ["videos"] }));
+    const updates = guideUpdates([older, { ...newer, guides: ["videos", "affiliate"] }]);
+    expect(updates.videos.number).toBe(2);
+    expect(updates.affiliate.number).toBe(2);
+    expect(isRecent(updates.videos, Date.parse("2026-11-30T09:00:00Z"))).toBe(true);
+    expect(isRecent(updates.videos, Date.parse("2026-12-04T09:00:00Z"))).toBe(false);
+    expect(isRecent(undefined)).toBe(false);
   });
 
   test("Thử ngay is the screens a PR changed, none when it changed more than two", () => {
@@ -166,7 +197,9 @@ test.describe("Có gì mới in the app", () => {
     return {
       ...file,
       entries: file.entries.map((entry) =>
-        entry.number === number ? { ...entry, guides: [slug], pages: ["/posts"], deployed_at: hoursAgo(0.5) } : entry,
+        entry.number === number
+          ? { ...entry, guides: [slug], pages: ["/posts"], deployed_at: hoursAgo(0.5), author: "Nam dev" }
+          : entry,
       ),
     };
   }
@@ -240,6 +273,7 @@ test.describe("Có gì mới in the app", () => {
     // Grouped by deploy: the newer change under its own "Cập nhật", the one without a time apart.
     await expect(page.getByRole("main").getByTestId("whats-new-deploy")).toHaveCount(2);
     await expect(page.getByRole("main").getByTestId("whats-new-deploy").first()).toContainText("Cập nhật");
+    await expect(entries.nth(0)).toContainText("bởi Nam dev");
 
     // The page's own guide, and a change's guide.
     await page.getByRole("button", { name: "Hướng dẫn" }).click();
@@ -270,6 +304,20 @@ test.describe("Có gì mới in the app", () => {
     await page.goto("/videos");
     await expect(page.getByTestId("whats-new-bell")).toBeVisible();
     await expect(page.getByRole("dialog", { name: "Có gì mới" })).toBeHidden();
+  });
+
+  test("Tất cả hướng dẫn marks a guide a new change wrote, and names the change", async ({ page }) => {
+    const file = withGuide(changelog([[41, "feat(affiliate): custom link nhanh hơn", hoursAgo(3)]]), 41, "custom-link");
+    await serve(page, () => file);
+    await loginAsSeed(page);
+    await page.getByRole("dialog", { name: "Có gì mới" }).getByRole("button", { name: "Đã xem" }).click();
+    await page.goto("/guides?guide=custom-link");
+    const menu = page.getByTestId("guides-menu");
+    await expect(menu.getByRole("menuitem", { name: /Custom Link/ })).toContainText("Mới");
+    await expect(menu.getByRole("menuitem", { name: /màn Affiliate/ })).not.toContainText("Mới");
+    await expect(page.getByTestId("guide-updated")).toContainText("Cập nhật cùng Custom link nhanh hơn");
+    await page.getByTestId("guide-updated").getByRole("link").click();
+    await expect(page).toHaveURL(/\/whats-new$/);
   });
 
   test("with no changelog (development, E2E) there is no bell and no window", async ({ page }) => {

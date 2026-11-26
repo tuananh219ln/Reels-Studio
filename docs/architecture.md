@@ -1307,7 +1307,9 @@ The page `/whats-new` ("Có gì mới" in the menu, under Tài nguyên) lists ev
 seen, and the window does not open by itself there ("Xem tất cả" in the window leads to it). Its "Hướng dẫn" is
 `guides/whats-new.md`. Each change also lists the in-app guides its PR added or changed (`guides` in the file, from
 `GET /pulls/{n}/files`): "Xem hướng dẫn" opens `/guides?guide=<slug>`, so a feature shipped with a guide links to it by itself.
-Likewise "Thử ngay" links the screens whose folder in `web/src/app/(app)/` the PR changed (none when more than two).
+Each change names who it was for (`author`: the PR's "Requested by" line, else the author's GitHub name read from
+`GET /users/{login}`, else the login). "Tất cả hướng dẫn" reads the same file to mark the guides a change wrote in the
+last 7 days ([decision](decisions/2026-11-26-whats-new-guides.md)). Likewise "Thử ngay" links the screens whose folder in `web/src/app/(app)/` the PR changed (none when more than two).
 Changes are grouped by the deploy that brought them ("Cập nhật <time>"): the end of the first successful CI/CD run on
 `main` started at or after the merge (`actions: read`), or the file's own time for the deploy running now. After the
 web is live, [web/scripts/telegram-changelog.ts](../web/scripts/telegram-changelog.ts) posts this deploy's changes to the
@@ -1330,6 +1332,36 @@ When a render ends (`jobs.run_job`, `routes_render_nodes.done`), `review.after_r
 `pending_review` and withdraws the old plan: the Page-queue item, posts that never reached a platform, and a Facebook post
 already scheduled there through an `unpublish` job. The video payload carries `review` (`status`, who and when,
 `can_post`, `qc.items` with `level` `warn` or `blocker`), and each list row `review_status` and `review_label`.
+
+### Private Telegram messages
+
+The team's bot tells each member, in their own chat with it, only about their own work; the shared group only ever gets
+team-wide news ([decision](decisions/2026-11-26-telegram-private.md)). [telegram.py](../api/src/reels_api/telegram.py)
+does it all; without `TELEGRAM_BOT_TOKEN` nothing is collected or sent and Cài đặt › Thông báo Telegram says the bot is
+off.
+
+- **Linking:** `POST /api/telegram/link` ([routes_telegram.py](../api/src/reels_api/routes_telegram.py)) stores a
+  one-time code (hashed, 30 minutes) on the member and answers `https://t.me/<bot>?start=<code>`; it also sets the bot's
+  webhook (once per process) to the web's address (`config.web_url`: the first https origin of `ALLOWED_ORIGINS`) +
+  `/api/telegram/webhook`, with a secret derived from the token. The bot's `/start <code>` links the private chat
+  (`users.telegram_chat_id`, unique: a chat belongs to one member). `/stop`, "Ngắt kết nối" or a 403 from Telegram
+  (the member blocked the bot) unlinks it. In a group the bot only answers `/chatid` (for setting up "Có gì mới").
+- **What is told** is found by reading the database each round (`collect`), not by hooking every code path, and only
+  what happened after the member linked and in the last 24 hours: a `review_requested` video event of a video they made
+  that is still waiting (so "Tự duyệt" approvals are not told), a failed job they queued (not one tried again, not an
+  article post `article_posts` retries by itself), a Fanpage (`check_error`, to its owner), TikTok or YouTube connection
+  (`last_error`) that stopped working (told once each time it breaks: the notice is forgotten once it works again), and
+  at 8:00 Vietnam time a reminder (their videos waiting for review, their Pages with fewer videos scheduled or queued than
+  one day's posting times, their groups' 30-day plan ideas of today without a video). Each becomes a
+  `telegram_notices` row whose key is unique per member; muted kinds (`users.telegram_muted`) are skipped.
+- **Sending** (`deliver`): the worker, between jobs every 15 seconds (`telegram.run_round`), tries each unsent notice up
+  to 3 times. A video waiting for review goes as the MP4 itself (up to 49 MB, else a text) with its QC summary and the
+  buttons **Duyệt** / **Bỏ video** (callback `ap|rj:<video>:<first 16 characters of rendered_signature>`), or no
+  buttons when a `blocker` stops approving. The webhook calls `review.approve` / `review.reject` with the channel
+  `telegram`, as the member whose chat pressed it; `qc_not_acknowledged` answers with the warnings and a **Vẫn duyệt**
+  button (`aq:`), and a button of an older MP4 does nothing. Approving does not schedule: that stays in the app.
+- **Muse** sends a member a private message with the MCP tool `send_telegram` (write scope), to the member of the
+  connection only.
 
 ### Strategy and beats
 

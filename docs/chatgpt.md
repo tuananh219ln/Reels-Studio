@@ -440,6 +440,9 @@ and never a Page token.
 - `get_whats_new` (`reels:read`): "Có gì mới", the changes the web lists after each deploy (title, detail, kind, when
   merged and deployed, the screens and in-app guides they touched), newest first, optionally only after `since`. Read
   from the web's `changelog.json` (CHANGELOG_URL, else next to MCP_PUBLIC_URL); an error until the first deploy wrote it.
+- `send_telegram` (`reels:write`): a private message to the member of the connection, in their own chat with the team's
+  Telegram bot (never the shared group), with an optional https link; an error when they have not linked Telegram
+  (Cài đặt › Thông báo Telegram) or muted Muse's messages, so the assistant tells them in the chat instead.
 - `list_jobs`: the newest page of the job log (the member's or everyone's), filtered by status or video
   (`GET /api/jobs`), to follow many renders at once.
 - `list_comments`: visitors' comments under the app's posts, open ones by default (`GET /api/comments`). Read only:

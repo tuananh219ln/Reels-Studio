@@ -64,6 +64,14 @@ class User(Base):
     competitor_scanner_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # "Có gì mới" (migration 0132): when the newest change they were shown was merged; changes merged later are new.
     changelog_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Private Telegram messages (migration 0133, telegram.py): the chat the bot tells them about their own work, linked
+    # once through the bot's /start link; the link's one-time code (hashed) while it is valid; the kinds they muted.
+    telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger, unique=True)
+    telegram_username: Mapped[str | None] = mapped_column(String(64))
+    telegram_linked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    telegram_link_code_hash: Mapped[str | None] = mapped_column(String(64))
+    telegram_link_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    telegram_muted: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
 
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
 
@@ -936,9 +944,33 @@ class VideoEvent(Base):
     actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     channel: Mapped[str] = mapped_column(
         String(16), default="web", server_default="web"
-    )  # web | muse_chat | auto | system
+    )  # web | muse_chat | auto | telegram | system
     payload: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TelegramNotice(Base):
+    """One private Telegram message to a member (telegram.py): written when something of theirs needs them, sent by the
+    worker. The key is unique per member, so the same thing is never told twice (`review:<event>`, `job:<id>`, ...)."""
+
+    __tablename__ = "telegram_notices"
+    __table_args__ = (
+        UniqueConstraint("user_id", "key"),
+        Index("ix_telegram_notices_unsent", "id", postgresql_where=text("sent_at IS NULL")),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    key: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(16))  # review | failed | connection | reminder (telegram.KINDS)
+    text: Mapped[str] = mapped_column(Text)  # Telegram HTML
+    # A video waiting for review: its MP4 goes with the message, and the Duyệt / Bỏ buttons.
+    video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"))
+    link: Mapped[str | None] = mapped_column(Text)  # the app's page about it, a path like /videos/12
+    tries: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AutoApproval(Base):

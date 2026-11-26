@@ -43,6 +43,8 @@ def create_app() -> FastAPI:
         server_call = mcp is not None and request.url.path in SERVER_POST_PATHS
         # A render machine (routes_render_nodes.py) authenticates with its bearer token and never with a cookie.
         server_call = server_call or request.url.path.startswith("/api/node/")
+        # Telegram's webhook (routes_telegram.py) proves itself with the secret it was given.
+        server_call = server_call or request.url.path == "/api/telegram/webhook"
         if request.method in UNSAFE_METHODS and not server_call:
             origin = (request.headers.get("origin") or "").rstrip("/")
             if origin not in allowed_origins:
