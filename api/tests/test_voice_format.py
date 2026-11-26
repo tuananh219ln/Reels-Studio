@@ -6,7 +6,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from conftest import API_DIR, first_topic, login, make_user, make_video
-from sqlalchemy import select
+from sqlalchemy import insert, select
 from sqlalchemy.orm import Session
 from test_mcp import call, grant, mcp_client, payload  # noqa: F401  (mcp_client is a fixture)
 from test_voice import needs_ffmpeg
@@ -175,12 +175,14 @@ def test_migration_0128_moves_groups_6_7_and_10_to_huyen_my(engine):
     command.downgrade(config, "0127")
     try:
         with Session(engine) as session:
-            session.add_all(
+            # Core inserts: the ORM would read back columns that do not exist yet at revision 0127.
+            session.execute(
+                insert(KnowledgeTopic.__table__),
                 [
-                    KnowledgeTopic(name=gia, voice_format=seed[gia]),
-                    KnowledgeTopic(name=an_lanh, voice_format=edited),
-                    KnowledgeTopic(name=test_group, voice_format=seed[test_group]),
-                ]
+                    {"name": gia, "voice_format": seed[gia]},
+                    {"name": an_lanh, "voice_format": edited},
+                    {"name": test_group, "voice_format": seed[test_group]},
+                ],
             )
             session.commit()
         command.upgrade(config, "head")
