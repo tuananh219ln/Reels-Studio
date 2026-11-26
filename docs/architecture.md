@@ -1303,6 +1303,10 @@ after the member's `changelog_seen_at` (or in the last 3 days when they have non
 "Có gì mới" window opens by itself once per page load. Closing it (`PUT /api/me/changelog-seen` with the newest change's
 merge time; the mark never moves back) is kept on the account, so the member's other devices do not show it again. A
 newer newest change than the one the tab loaded means a deploy went live after the page opened: a bar asks to reload.
+The page `/whats-new` ("Có gì mới" in the menu, under Tài nguyên) lists every change kept; opening it marks the new ones
+seen, and the window does not open by itself there ("Xem tất cả" in the window leads to it). Its "Hướng dẫn" is
+`guides/whats-new.md`. Each change also lists the in-app guides its PR added or changed (`guides` in the file, from
+`GET /pulls/{n}/files`): "Xem hướng dẫn" opens `/guides?guide=<slug>`, so a feature shipped with a guide links to it by itself.
 
 ### Review gate
 

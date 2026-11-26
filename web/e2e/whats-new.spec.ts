@@ -1,5 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
-import { buildEntries, type Changelog, type MergedPull, summarize, unseenEntries } from "../src/lib/changelog";
+import {
+  buildEntries,
+  type Changelog,
+  guidesFromFiles,
+  type MergedPull,
+  summarize,
+  unseenEntries,
+} from "../src/lib/changelog";
 import { loginAsSeed, resetDatabase } from "./helpers";
 
 // "Có gì mới" (docs/decisions/2026-11-26-whats-new.md): the deploy writes changelog.json from the merged PRs.
@@ -52,6 +59,18 @@ test.describe("the changelog read from merged PRs", () => {
     expect(long.endsWith("…")).toBe(true);
   });
 
+  test("a change links the in-app guides its PR added or changed", () => {
+    expect(
+      guidesFromFiles([
+        { filename: "api/src/reels_api/guides/whats-new.md", status: "added" },
+        { filename: "api/src/reels_api/guides/videos.md", status: "modified" },
+        { filename: "api/src/reels_api/guides/old.md", status: "removed" },
+        { filename: "docs/ux-guidelines.md", status: "modified" },
+        { filename: "api/src/reels_api/guides.py", status: "modified" },
+      ]),
+    ).toEqual(["whats-new", "videos"]);
+  });
+
   test("new changes are those merged after the member's mark, or in the last three days without one", () => {
     const now = Date.parse("2026-11-26T12:00:00Z");
     const entries = buildEntries([
@@ -75,6 +94,12 @@ test.describe("Có gì mới in the app", () => {
       entries: buildEntries(
         entries.map(([number, title, at]) => pull(number, title, at, `## Làm gì và vì sao\n\n${title}.`)),
       ),
+    };
+  }
+  function withGuide(file: Changelog, number: number, slug: string): Changelog {
+    return {
+      ...file,
+      entries: file.entries.map((entry) => (entry.number === number ? { ...entry, guides: [slug] } : entry)),
     };
   }
   async function serve(page: Page, file: () => Changelog) {
@@ -125,11 +150,59 @@ test.describe("Có gì mới in the app", () => {
     await expect(page.getByTestId("new-version-bar")).toBeHidden();
   });
 
+  test("the Có gì mới page lists every change, counts as seen and opens a change's guide", async ({ page }) => {
+    const file = withGuide(
+      changelog([
+        [21, "feat(web): thông báo có gì mới", hoursAgo(1)],
+        [20, "fix: sửa lỗi cũ", hoursAgo(24 * 10)],
+      ]),
+      21,
+      "whats-new",
+    );
+    await serve(page, () => file);
+    await loginAsSeed(page);
+
+    // "Xem tất cả" in the window leads to the page; the window does not open again there.
+    const dialog = page.getByRole("dialog", { name: "Có gì mới" });
+    await dialog.getByRole("button", { name: "Xem tất cả" }).click();
+    await expect(page).toHaveURL(/\/whats-new$/);
+    await expect(dialog).toBeHidden();
+    const entries = page.getByRole("main").getByTestId("whats-new-entry");
+    await expect(entries).toHaveCount(2);
+
+    // The page's own guide, and a change's guide.
+    await page.getByRole("button", { name: "Hướng dẫn" }).click();
+    await expect(page.getByRole("heading", { name: "Hướng dẫn: Có gì mới" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await entries.nth(0).getByRole("link", { name: "Xem hướng dẫn" }).click();
+    await expect(page).toHaveURL(/\/guides\?guide=whats-new/);
+    await expect(page.getByRole("heading", { name: "Hướng dẫn: Có gì mới" })).toBeVisible();
+
+    await page.goto("/videos");
+    await expect(page.getByTestId("whats-new-bell")).toBeVisible();
+    await expect(dialog).toBeHidden();
+  });
+
+  test("opening the page from the menu marks the new changes seen", async ({ page }) => {
+    const file = changelog([[31, "feat: một thay đổi mới", hoursAgo(1)]]);
+    await serve(page, () => file);
+    await page.goto("/login");
+    await loginAsSeed(page);
+    await expect(page.getByRole("dialog", { name: "Có gì mới" })).toBeVisible();
+    await page.goto("/whats-new");
+    await expect(page.getByRole("dialog", { name: "Có gì mới" })).toBeHidden();
+    await expect(page.getByRole("main").getByTestId("whats-new-entry").first()).toContainText("Mới");
+    await expect.poll(async () => (await (await page.request.get("/api/me")).json()).changelog_seen_at).not.toBeNull();
+    await page.goto("/videos");
+    await expect(page.getByTestId("whats-new-bell")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Có gì mới" })).toBeHidden();
+  });
+
   test("with no changelog (development, E2E) there is no bell and no window", async ({ page }) => {
     await page.route(/\/changelog\.json/, (route) => route.fulfill({ status: 404, body: "" }));
     await loginAsSeed(page);
     await expect(page.getByTestId("header-name")).toBeVisible();
     await expect(page.getByTestId("whats-new-bell")).toHaveCount(0);
-    await expect(page.getByRole("dialog", { name: "Có gì mới" })).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: "Có gì mới" })).toBeHidden();
   });
 });

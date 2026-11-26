@@ -16,6 +16,8 @@ export type ChangeEntry = {
   summary: string;
   merged_at: string;
   url: string;
+  /** The in-app guides (api/src/reels_api/guides) the PR added or changed: "Xem hướng dẫn" links to them. */
+  guides: string[];
 };
 
 /** What the deploy writes: `version` is the commit deployed, so an open tab can tell a newer one went live. */
@@ -99,10 +101,32 @@ export function buildEntries(pulls: MergedPull[]): ChangeEntry[] {
       summary: summarize(pull.body),
       merged_at: pull.merged_at,
       url: pull.html_url,
+      guides: [],
     });
   }
   entries.sort((a, b) => b.merged_at.localeCompare(a.merged_at));
   return entries.slice(0, MAX_ENTRIES);
+}
+
+/** A PR's changed files as GitHub lists them (only the fields read here). */
+export type PullFile = { filename: string; status: string };
+
+/** The in-app guides a PR added or changed (a removed one has nothing to open), by slug. */
+export function guidesFromFiles(files: PullFile[]): string[] {
+  const slugs: string[] = [];
+  for (const file of files) {
+    const match = file.filename.match(/^api\/src\/reels_api\/guides\/([a-z0-9-]+)\.md$/);
+    if (match && file.status !== "removed" && !slugs.includes(match[1])) slugs.push(match[1]);
+  }
+  return slugs;
+}
+
+/** The newest changelog.json, never from a cache; null where the deploy wrote none (development, E2E). */
+export async function readChangelog(): Promise<Changelog | null> {
+  const response = await fetch(`/changelog.json?t=${Date.now()}`, { cache: "no-store" });
+  if (!response.ok) return null;
+  const data = (await response.json()) as Changelog;
+  return Array.isArray(data.entries) ? data : null;
 }
 
 /** The changes a member has not seen: merged after their mark, or in the last few days when they have none. */

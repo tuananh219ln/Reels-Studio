@@ -2,6 +2,7 @@
 
 import {
   AimOutlined,
+  BellOutlined,
   BarChartOutlined,
   BookOutlined,
   ClockCircleOutlined,
@@ -65,6 +66,7 @@ const NAV: { key: string; label: string; children: { key: string; icon: React.Re
     children: [
       { key: "/knowledge", icon: <BookOutlined />, label: "Kho kiến thức" },
       { key: "/guides", icon: <QuestionCircleOutlined />, label: "Tất cả hướng dẫn" },
+      { key: "/whats-new", icon: <BellOutlined />, label: "Có gì mới" },
       { key: "/media", icon: <FolderOpenOutlined />, label: "Kho tư liệu" },
       { key: "/music", icon: <CustomerServiceOutlined />, label: "Thư viện nhạc" },
       { key: "/competitors", icon: <AimOutlined />, label: "Phân tích đối thủ" },
