@@ -1360,6 +1360,16 @@ off.
   buttons when a `blocker` stops approving. The webhook calls `review.approve` / `review.reject` with the channel
   `telegram`, as the member whose chat pressed it; `qc_not_acknowledged` answers with the warnings and a **Vẫn duyệt**
   button (`aq:`), and a button of an older MP4 does nothing. Approving does not schedule: that stays in the app.
+- **Commands** ([telegram_commands.py](../api/src/reels_api/telegram_commands.py),
+  [decision](decisions/2026-11-26-telegram-commands.md)): the same in the group and in a private chat, none calling an
+  AI. `/cho_duyet`, `/hom_nay`, `/loi` are about the member's own work: the member is found by `from.id` (a private
+  chat's id is the account's id, so `users.telegram_chat_id`), the answer goes to their private chat, and a group only
+  hears "📩 Đã gửi riêng cho …". `/tong_quan` (numbers only), `/moi` (`changelog.read`) and `/huongdan <words>` (the
+  in-app guides, every word in the title or text) answer where asked. The menu is set with `setMyCommands` together
+  with the webhook. After **Duyệt** the bot offers a `qa:<video>:<page>` button per Page of the member posting the
+  video's group (`routes_queue.add`, as the web's "Thêm vào hàng chờ"); after **Bỏ** it asks why with a forced reply
+  marked `(#v<id>)`, and the answer goes into that rejection's `video_events.payload.reason`. At 21:00 Vietnam time the
+  worker posts the day's summary to `TELEGRAM_CHAT_ID` (once a day, `app_settings.telegram_group_summary`).
 - **Muse** sends a member a private message with the MCP tool `send_telegram` (write scope), to the member of the
   connection only.
 
