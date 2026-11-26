@@ -71,7 +71,9 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
   date before merging, so this holds for a merge, squash or rebase). Then, with every check passed,
   it deploys in order, each waiting for Coolify to report `finished`: the api (it runs the
   migrations), then the worker, then `npm run deploy` in `web/` (after writing `public/changelog.json` for "Có gì
-  mới" from the merged PRs, [web/scripts/changelog.ts](../web/scripts/changelog.ts); no secret needed). Coolify auto-deploy must stay off,
+  mới" from the merged PRs, [web/scripts/changelog.ts](../web/scripts/changelog.ts); no secret needed), then tells the team's Telegram
+  group what the deploy brought ([web/scripts/telegram-changelog.ts](../web/scripts/telegram-changelog.ts); only with the repo secrets
+  `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`, and the optional variable `WEB_URL` for the link). Coolify auto-deploy must stay off,
   or a push deploys before the tests pass.
 - **CI broken by GitHub:** during a GitHub Actions incident a run can end as failure without creating
   some of its jobs, and the required checks it never created stay "Waiting for status".
@@ -130,6 +132,7 @@ when set to an empty string. Containers use real environment variables only.
 | `ALLOWED_ORIGINS` | api: comma-separated origins allowed to change data; the default is `http://localhost:3000`; in production the web domain |
 | `INSTAGRAM_VIDEO_BASE_URL` | api, optional: public https address Instagram fetches a Reel's MP4 from (`video_url`); empty uses the first https origin of `ALLOWED_ORIGINS` (the web domain). With neither, the MP4 is sent by resumable upload |
 | `MCP_PUBLIC_URL` | api, optional: public web URL ending in `/api/mcp`; enables private ChatGPT and Claude MCP/OAuth. Empty disables it. HTTPS required except localhost; the origin must be in `ALLOWED_ORIGINS`. See [chatgpt.md](chatgpt.md) |
+| `CHANGELOG_URL` | api, optional: where the MCP tool `get_whats_new` reads the web's `changelog.json`; empty: the origin of `MCP_PUBLIC_URL` + `/changelog.json`. Tests point it at the fake services |
 | `REELS_SERVER`, `REELS_NODE_TOKEN` | render machine only (`python -m reels_api node` on a member's computer), never the api or the worker: the web address and the machine's token from Cài đặt › Máy render. `api/scripts/render-node.ps1` sets both for its run. See [Render machine](#render-machine) |
 | `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set on the Coolify application, empty on localhost |
 | `ELEVENLABS_API_KEY` | api + worker: scene narration and the voice list; a key pasted on Cài đặt › AI và nguồn tư liệu wins over it; with neither, a render with voice text fails with a clear reason |

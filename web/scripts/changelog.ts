@@ -9,9 +9,12 @@ import {
   buildEntries,
   type Changelog,
   type ChangeEntry,
+  type DeployRun,
+  deployTimes,
   guidesFromFiles,
   MAX_ENTRIES,
   type MergedPull,
+  pagesFromFiles,
   type PullFile,
 } from "../src/lib/changelog.ts";
 
@@ -44,21 +47,33 @@ async function mergedPulls(): Promise<MergedPull[]> {
   return pulls;
 }
 
-/** "Xem hướng dẫn": the guides each change's PR added or changed. A PR whose files cannot be read just has none. */
-async function withGuides(entries: ChangeEntry[]): Promise<ChangeEntry[]> {
+/** "Xem hướng dẫn" and "Thử ngay": the guides and screens each change's PR touched. A PR whose files cannot be read has
+ * neither. */
+async function withFiles(entries: ChangeEntry[]): Promise<ChangeEntry[]> {
   return Promise.all(
     entries.map(async (entry) => {
       const files = await get<PullFile[]>(`pulls/${entry.number}/files?per_page=100`).catch(() => []);
-      return { ...entry, guides: guidesFromFiles(files) };
+      return { ...entry, guides: guidesFromFiles(files), pages: pagesFromFiles(files) };
     }),
   );
 }
 
+/** The deploys that went live: successful runs of this workflow for pushes to main. None when they cannot be read, and
+ * every change then counts as part of this deploy. */
+async function deployRuns(): Promise<DeployRun[]> {
+  const answer = await get<{ workflow_runs: DeployRun[] }>(
+    "actions/workflows/ci-cd.yml/runs?branch=main&event=push&status=success&per_page=100",
+  ).catch(() => ({ workflow_runs: [] }));
+  return answer.workflow_runs;
+}
+
 try {
+  const generatedAt = new Date().toISOString();
+  const entries = await withFiles(buildEntries(await mergedPulls()));
   const changelog: Changelog = {
     version: process.env.GITHUB_SHA || "local",
-    generated_at: new Date().toISOString(),
-    entries: await withGuides(buildEntries(await mergedPulls())),
+    generated_at: generatedAt,
+    entries: deployTimes(entries, await deployRuns(), generatedAt),
   };
   writeFileSync(out, `${JSON.stringify(changelog, null, 2)}\n`);
   console.log(`changelog.json: ${changelog.entries.length} changes, version ${changelog.version}`);

@@ -114,7 +114,7 @@ export default function WhatsNew({ children, vertical = false }: { children: Rea
         }
         styles={{ body: { maxHeight: "60vh", overflowY: "auto", paddingRight: 4 } }}
       >
-        <ChangeList entries={entries} unseen={unseenNumbers} onOpenGuide={close} />
+        <ChangeList entries={entries} unseen={unseenNumbers} onLeave={close} />
       </Modal>
       {newVersion && (
         <Flex

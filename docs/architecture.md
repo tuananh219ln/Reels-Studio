@@ -1307,6 +1307,13 @@ The page `/whats-new` ("Có gì mới" in the menu, under Tài nguyên) lists ev
 seen, and the window does not open by itself there ("Xem tất cả" in the window leads to it). Its "Hướng dẫn" is
 `guides/whats-new.md`. Each change also lists the in-app guides its PR added or changed (`guides` in the file, from
 `GET /pulls/{n}/files`): "Xem hướng dẫn" opens `/guides?guide=<slug>`, so a feature shipped with a guide links to it by itself.
+Likewise "Thử ngay" links the screens whose folder in `web/src/app/(app)/` the PR changed (none when more than two).
+Changes are grouped by the deploy that brought them ("Cập nhật <time>"): the end of the first successful CI/CD run on
+`main` started at or after the merge (`actions: read`), or the file's own time for the deploy running now. After the
+web is live, [web/scripts/telegram-changelog.ts](../web/scripts/telegram-changelog.ts) posts this deploy's changes to the
+team's Telegram group when the secrets are set. Assistants read the same list through the MCP tool `get_whats_new`
+([changelog.py](../api/src/reels_api/changelog.py)), which fetches the web's `changelog.json` (`CHANGELOG_URL`, else next
+to `MCP_PUBLIC_URL`); the api keeps no copy.
 
 ### Review gate
 

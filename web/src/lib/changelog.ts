@@ -18,6 +18,10 @@ export type ChangeEntry = {
   url: string;
   /** The in-app guides (api/src/reels_api/guides) the PR added or changed: "Xem hướng dẫn" links to them. */
   guides: string[];
+  /** "Thử ngay": the screens the PR changed (at most two; a change across more is not one place to try). */
+  pages: string[];
+  /** When the deploy that brought it went live; changes are grouped by it. Missing in a file written before. */
+  deployed_at?: string;
 };
 
 /** What the deploy writes: `version` is the commit deployed, so an open tab can tell a newer one went live. */
@@ -102,6 +106,7 @@ export function buildEntries(pulls: MergedPull[]): ChangeEntry[] {
       merged_at: pull.merged_at,
       url: pull.html_url,
       guides: [],
+      pages: [],
     });
   }
   entries.sort((a, b) => b.merged_at.localeCompare(a.merged_at));
@@ -119,6 +124,90 @@ export function guidesFromFiles(files: PullFile[]): string[] {
     if (match && file.status !== "removed" && !slugs.includes(match[1])) slugs.push(match[1]);
   }
   return slugs;
+}
+
+/** The screens behind the login, by their folder in web/src/app/(app): the path and its name in the menu. */
+export const SCREENS: Record<string, string> = {
+  videos: "Video",
+  articles: "Bài viết",
+  posts: "Bài đăng",
+  stats: "Thống kê",
+  fanpages: "Quản lý kênh",
+  affiliate: "Affiliate",
+  knowledge: "Kho kiến thức",
+  guides: "Tất cả hướng dẫn",
+  media: "Kho tư liệu",
+  music: "Thư viện nhạc",
+  competitors: "Phân tích đối thủ",
+  users: "Quản lý người dùng",
+  jobs: "Nhật ký job",
+  settings: "Cài đặt",
+  "whats-new": "Có gì mới",
+};
+const MAX_PAGES = 2;
+
+/** "Thử ngay": the screens whose own folder the PR changed, as paths ("/videos"); none when it changed more than two. */
+export function pagesFromFiles(files: PullFile[]): string[] {
+  const pages: string[] = [];
+  for (const file of files) {
+    const match = file.filename.match(/^web\/src\/app\/\(app\)\/([a-z0-9-]+)\//);
+    if (match && SCREENS[match[1]] && file.status !== "removed" && !pages.includes(`/${match[1]}`)) {
+      pages.push(`/${match[1]}`);
+    }
+  }
+  return pages.length > MAX_PAGES ? [] : pages;
+}
+
+/** A successful run of the CI/CD workflow on main: it deployed when it finished. */
+export type DeployRun = { created_at: string; updated_at: string };
+
+/** When each change went live: the end of the first successful deploy started at or after its merge (a few seconds
+ * of clock difference allowed); `now` for the deploy running at the moment, which has not finished yet. */
+export function deployTimes(entries: ChangeEntry[], runs: DeployRun[], now: string): ChangeEntry[] {
+  const sorted = [...runs].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return entries.map((entry) => {
+    const from = Date.parse(entry.merged_at) - 5_000;
+    const run = sorted.find((one) => Date.parse(one.created_at) >= from);
+    return { ...entry, deployed_at: run ? run.updated_at : now };
+  });
+}
+
+/** The changes in groups, one per deploy, newest first; a file without deploy times is one group. */
+export function byDeploy(entries: ChangeEntry[]): { deployed_at: string | null; entries: ChangeEntry[] }[] {
+  const groups: { deployed_at: string | null; entries: ChangeEntry[] }[] = [];
+  const sorted = [...entries].sort(
+    (a, b) => (b.deployed_at ?? "").localeCompare(a.deployed_at ?? "") || b.merged_at.localeCompare(a.merged_at),
+  );
+  for (const entry of sorted) {
+    const at = entry.deployed_at ?? null;
+    const last = groups[groups.length - 1];
+    if (last && last.deployed_at === at) last.entries.push(entry);
+    else groups.push({ deployed_at: at, entries: [entry] });
+  }
+  return groups;
+}
+
+/** The changes the deploy that wrote the file brought (deployed "now", when it was written). */
+export function thisDeploy(changelog: Changelog): ChangeEntry[] {
+  return changelog.entries.filter((entry) => entry.deployed_at === changelog.generated_at);
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** The Telegram message for the team's group after a deploy (HTML parse mode); null when it brought nothing new. */
+export function telegramMessage(changelog: Changelog, webUrl = ""): string | null {
+  const entries = thisDeploy(changelog);
+  if (entries.length === 0) return null;
+  const lines = ["<b>Reels Studio vừa cập nhật</b>", ""];
+  for (const entry of entries) {
+    lines.push(`• <b>${escapeHtml(entry.title)}</b> (${KIND_LABEL[entry.kind]})`);
+    if (entry.summary) lines.push(escapeHtml(entry.summary));
+  }
+  const base = webUrl.replace(/\/$/, "");
+  if (base) lines.push("", `<a href="${escapeHtml(base)}/whats-new">Xem trong app</a>`);
+  return lines.join("\n");
 }
 
 /** The newest changelog.json, never from a cache; null where the deploy wrote none (development, E2E). */

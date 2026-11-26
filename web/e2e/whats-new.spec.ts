@@ -1,10 +1,14 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
   buildEntries,
+  byDeploy,
   type Changelog,
+  deployTimes,
   guidesFromFiles,
   type MergedPull,
+  pagesFromFiles,
   summarize,
+  telegramMessage,
   unseenEntries,
 } from "../src/lib/changelog";
 import { loginAsSeed, resetDatabase } from "./helpers";
@@ -71,6 +75,68 @@ test.describe("the changelog read from merged PRs", () => {
     ).toEqual(["whats-new", "videos"]);
   });
 
+  test("Thử ngay is the screens a PR changed, none when it changed more than two", () => {
+    const file = (filename: string, status = "modified") => ({ filename, status });
+    expect(
+      pagesFromFiles([
+        file("web/src/app/(app)/videos/page.tsx"),
+        file("web/src/app/(app)/videos/[id]/page.tsx"),
+        file("web/src/app/(app)/posts/page.tsx"),
+        file("web/src/app/(app)/layout.tsx"),
+        file("web/src/components/AppShell.tsx"),
+      ]),
+    ).toEqual(["/videos", "/posts"]);
+    expect(
+      pagesFromFiles([
+        file("web/src/app/(app)/videos/page.tsx"),
+        file("web/src/app/(app)/posts/page.tsx"),
+        file("web/src/app/(app)/stats/page.tsx"),
+      ]),
+    ).toEqual([]);
+    expect(pagesFromFiles([file("web/src/app/(app)/calendar/page.tsx")])).toEqual([]);
+  });
+
+  test("changes are grouped by the deploy that brought them", () => {
+    const entries = buildEntries([
+      pull(3, "feat: ba", "2026-11-26T11:00:00Z"),
+      pull(2, "feat: hai", "2026-11-26T09:01:00Z"),
+      pull(1, "fix: một", "2026-11-26T09:00:00Z"),
+    ]);
+    const runs = [
+      // Its own run failed, so #1 went live with #2's; #3 is in the deploy running now.
+      { created_at: "2026-11-26T09:01:03Z", updated_at: "2026-11-26T09:20:00Z" },
+      { created_at: "2026-11-25T08:00:00Z", updated_at: "2026-11-25T08:20:00Z" },
+    ];
+    const timed = deployTimes(entries, runs, "2026-11-26T11:05:00Z");
+    expect(byDeploy(timed).map((group) => [group.deployed_at, group.entries.map((entry) => entry.number)])).toEqual([
+      ["2026-11-26T11:05:00Z", [3]],
+      ["2026-11-26T09:20:00Z", [2, 1]],
+    ]);
+  });
+
+  test("the Telegram message lists what this deploy brought, and nothing for a deploy without changes", () => {
+    const entries = deployTimes(
+      buildEntries([
+        pull(2, "feat: Đăng <nhanh> hơn", "2026-11-26T11:00:00Z", "## Làm gì và vì sao\n\nMột bước & xong."),
+        pull(1, "fix: cũ", "2026-11-20T09:00:00Z"),
+      ]),
+      [{ created_at: "2026-11-20T09:00:01Z", updated_at: "2026-11-20T09:20:00Z" }],
+      "2026-11-26T11:05:00Z",
+    );
+    const file = { version: "x", generated_at: "2026-11-26T11:05:00Z", entries };
+    expect(telegramMessage(file, "https://reels.vn/")).toBe(
+      [
+        "<b>Reels Studio vừa cập nhật</b>",
+        "",
+        "• <b>Đăng &lt;nhanh&gt; hơn</b> (Tính năng mới)",
+        "Một bước &amp; xong.",
+        "",
+        '<a href="https://reels.vn/whats-new">Xem trong app</a>',
+      ].join("\n"),
+    );
+    expect(telegramMessage({ ...file, generated_at: "2026-11-27T00:00:00Z" })).toBeNull();
+  });
+
   test("new changes are those merged after the member's mark, or in the last three days without one", () => {
     const now = Date.parse("2026-11-26T12:00:00Z");
     const entries = buildEntries([
@@ -99,7 +165,9 @@ test.describe("Có gì mới in the app", () => {
   function withGuide(file: Changelog, number: number, slug: string): Changelog {
     return {
       ...file,
-      entries: file.entries.map((entry) => (entry.number === number ? { ...entry, guides: [slug] } : entry)),
+      entries: file.entries.map((entry) =>
+        entry.number === number ? { ...entry, guides: [slug], pages: ["/posts"], deployed_at: hoursAgo(0.5) } : entry,
+      ),
     };
   }
   async function serve(page: Page, file: () => Changelog) {
@@ -169,6 +237,9 @@ test.describe("Có gì mới in the app", () => {
     await expect(dialog).toBeHidden();
     const entries = page.getByRole("main").getByTestId("whats-new-entry");
     await expect(entries).toHaveCount(2);
+    // Grouped by deploy: the newer change under its own "Cập nhật", the one without a time apart.
+    await expect(page.getByRole("main").getByTestId("whats-new-deploy")).toHaveCount(2);
+    await expect(page.getByRole("main").getByTestId("whats-new-deploy").first()).toContainText("Cập nhật");
 
     // The page's own guide, and a change's guide.
     await page.getByRole("button", { name: "Hướng dẫn" }).click();
@@ -177,6 +248,9 @@ test.describe("Có gì mới in the app", () => {
     await entries.nth(0).getByRole("link", { name: "Xem hướng dẫn" }).click();
     await expect(page).toHaveURL(/\/guides\?guide=whats-new/);
     await expect(page.getByRole("heading", { name: "Hướng dẫn: Có gì mới" })).toBeVisible();
+    await page.goto("/whats-new");
+    await entries.nth(0).getByRole("link", { name: "Thử ngay: Bài đăng" }).click();
+    await expect(page).toHaveURL(/\/posts/);
 
     await page.goto("/videos");
     await expect(page.getByTestId("whats-new-bell")).toBeVisible();

@@ -336,10 +336,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
-    # Reading the merged PRs for "Có gì mới" needs pull-requests: read beside the workflow's contents: read.
+    # "Có gì mới" reads the merged PRs (pull-requests: read) and this workflow's past deploys (actions: read).
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     concurrency:
       group: deploy-production-web
       cancel-in-progress: false
@@ -366,3 +367,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npm run deploy
+      # Then the team's Telegram group hears what this deploy brought; without the two secrets nothing is sent.
+      - name: Tell the team on Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WEB_URL: ${{ vars.WEB_URL }}
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/telegram-changelog.ts
