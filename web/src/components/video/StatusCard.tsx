@@ -187,7 +187,11 @@ export default function StatusCard({
           <Flex vertical gap={12} style={{ minWidth: 0 }}>
             <Flex vertical gap={2}>
               <Typography.Text strong style={{ fontSize: 15, lineHeight: "20px" }}>
-                {count.tried === 0 ? "Video đã render xong" : `Đã đăng lên ${count.out}/${count.tried} nền tảng`}
+                {count.tried === 0
+                  ? video.mode === "upload"
+                    ? "MP4 đã tải lên"
+                    : "Video đã render xong"
+                  : `Đã đăng lên ${count.out}/${count.tried} nền tảng`}
               </Typography.Text>
               <VideoMeta video={video} short={state !== "ready"} onRender={onRender} />
             </Flex>
@@ -226,7 +230,12 @@ function VideoMeta({ video, short, onRender }: { video: VideoDetail; short: bool
   const bytes = useFileSize(mp4.url);
   const facts = short
     ? ["MP4", `${formatDecimal(mp4.seconds)} giây`]
-    : ["MP4", `${formatDecimal(mp4.seconds)} giây`, "1080×1920", bytes ? megabytes(bytes) : null];
+    : [
+        "MP4",
+        `${formatDecimal(mp4.seconds)} giây`,
+        video.media_info ? `${video.media_info.width}×${video.media_info.height}` : "1080×1920",
+        bytes ? megabytes(bytes) : null,
+      ];
   const link = { padding: 0, height: "auto", fontSize: 13 } as const;
 
   function askRender() {
@@ -246,7 +255,7 @@ function VideoMeta({ video, short, onRender }: { video: VideoDetail; short: bool
       <a href={mp4.download_url} style={{ whiteSpace: "nowrap" }}>
         <DownloadOutlined aria-hidden /> Tải MP4
       </a>
-      {!short && (
+      {!short && video.mode !== "upload" && (
         <>
           <span aria-hidden>·</span>
           <Button

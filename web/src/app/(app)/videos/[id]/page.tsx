@@ -21,6 +21,7 @@ import type { PostBlockKey } from "@/components/video/PostContent";
 import { VIDEO_MODES, isBackdrop } from "@/components/video/videoModes";
 import VideoPreview from "@/components/video/VideoPreview";
 import ResizableColumns from "@/components/video/ResizableColumns";
+import UploadedMp4 from "@/components/video/UploadedMp4";
 import VideoProgress from "@/components/video/VideoProgress";
 import { ContentTypeField, PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import VideoStatusTags from "@/components/VideoStatusTags";
@@ -571,6 +572,8 @@ export default function VideoPage() {
   }
 
   const viewing = editing === false;
+  // "MP4 tải lên": a finished MP4 sent in whole. No scenes, no render, no voice, music or text settings.
+  const upload = video?.mode === "upload";
   const job = video.active_job;
   const failed = video.failed_job;
   const scenes = video.scenes;
@@ -664,7 +667,7 @@ export default function VideoPage() {
                 </Button>
               ))}
             {/* In "Duyệt phân tích trước" the "Video mẫu" card writes, after saving the edited analysis. */}
-            {!video.has_script && !job && !video.reference?.awaiting_review && (
+            {!video.has_script && !upload && !job && !video.reference?.awaiting_review && (
               <Button
                 type="primary"
                 disabled={busy}
@@ -749,9 +752,9 @@ export default function VideoPage() {
                 }}
               />
             )}
-            {video.has_script && !sideBySide && (
+            {(video.has_script || upload) && !sideBySide && (
               <Button icon={<SendOutlined />} onClick={() => openSide()} data-testid="open-side-panel">
-                Đăng bài / Thiết lập
+                {upload ? "Đăng bài" : "Đăng bài / Thiết lập"}
               </Button>
             )}
             <Tooltip title={folded ? "Mở rộng đầu trang" : "Thu gọn đầu trang"}>
@@ -773,7 +776,9 @@ export default function VideoPage() {
           data-testid="header-details"
         >
           <Flex wrap gap="4px 8px" align="center" style={{ minWidth: 0 }}>
-            <VideoProgress video={video} onOpenTab={(tab) => openSide(tab === "post" ? "products" : "ready")} />
+            {!upload && (
+              <VideoProgress video={video} onOpenTab={(tab) => openSide(tab === "post" ? "products" : "ready")} />
+            )}
             {video.mp4?.qc && <QcChip qc={video.mp4.qc} />}
           </Flex>
           {video.has_script && (
@@ -1034,7 +1039,29 @@ export default function VideoPage() {
           onChanged={() => void load()}
         />
       )}
-      {!video.has_script ? (
+      {upload ? (
+        <SideLayout
+          wide={sideBySide}
+          top={headerHeight}
+          storageKey={`video-split:${me.id}`}
+          open={sideOpen}
+          onClose={() => setSideOpen(false)}
+          panel={
+            <PublishTab
+              video={video}
+              postEditor={postEditor}
+              onApproved={load}
+              tab={sideTab}
+              onTab={setSideTab}
+              posting={postRound.running}
+              onPost={postRound.start}
+              onRender={() => undefined}
+            />
+          }
+        >
+          <UploadedMp4 video={video} onReplaced={receive} />
+        </SideLayout>
+      ) : !video.has_script ? (
         !job &&
         !video.reference && (
           <Card>

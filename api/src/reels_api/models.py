@@ -350,6 +350,14 @@ class Video(Base):
     aff_set_ids: Mapped[list | None] = mapped_column(JSONB)
     mp4_key: Mapped[str | None] = mapped_column(String(200))
     mp4_seconds: Mapped[float | None] = mapped_column(Float)
+    # "MP4 tải lên" (mode "upload", upload_mp4.py): the finished MP4 a member or Muse sent, as stored
+    # ({storage_key, url, size_bytes, sha256, uploaded_at, uploaded_by}), what ffprobe read from it ({width, height,
+    # duration_s, fps, video_codec, audio_codec, has_audio}), the sender's note and the key that makes a repeated send
+    # return this video. None on every other video.
+    source_mp4: Mapped[dict | None] = mapped_column(JSONB)
+    media_info: Mapped[dict | None] = mapped_column(JSONB)
+    upload_note: Mapped[str | None] = mapped_column(Text)
+    upload_key: Mapped[str | None] = mapped_column(String(100), index=True)
     # The MP4's automatic QC (qc.py), measured by the render job that made it: {"status", "checks": [...]}.
     qc: Mapped[dict | None] = mapped_column(JSONB)
     render_seconds: Mapped[float | None] = mapped_column(Float)
@@ -400,7 +408,8 @@ class Video(Base):
     platform: Mapped[str] = mapped_column(String(16), default="facebook", server_default="facebook")
     # How the video is built (videos.MODES): "slides", each scene over its own photo or clip; "single" ("Video xuyên
     # suốt"), the title scene's photo or clip under every scene, a scene's own photo shown only as its photo layer.
-    # Switching keeps every photo, clip and layer, so switching back loses nothing.
+    # Switching keeps every photo, clip and layer, so switching back loses nothing. "upload" is a finished MP4 sent in
+    # whole: no scenes, never rendered (videos.UPLOAD).
     mode: Mapped[str] = mapped_column(String(16), default="slides", server_default="slides")
     # "Loại nội dung": what kind of content a member says it is (Hướng dẫn, Mẹo nhanh...), free text; "" for none.
     content_type: Mapped[str] = mapped_column(String(40), default="", server_default="")

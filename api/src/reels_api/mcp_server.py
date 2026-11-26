@@ -1,5 +1,7 @@
 """Stateless MCP transport; tools use the editor's validation, locks and job queue."""
 
+import base64
+import binascii
 import io
 import json
 import logging
@@ -53,9 +55,11 @@ from . import (
     slot_comments,
     title_motion,
     topic_docs,
+    upload_mp4,
     video_options,
     youtube_meta,
 )
+from . import plans as plans_module
 from . import routes_affiliate as affiliate_routes
 from . import routes_article_plans as article_plans_routes
 from . import routes_articles as article_routes
@@ -69,6 +73,7 @@ from . import routes_posts as post_routes
 from . import routes_queue as queue_routes
 from . import routes_sounds as sound_routes
 from . import routes_templates as template_routes
+from . import routes_video_upload as upload_routes
 from . import routes_videos as videos
 from . import videos as videos_module
 from .claude import ScriptOutputError, parse_output
@@ -101,6 +106,7 @@ log = logging.getLogger(__name__)
 # `videos.written_via` of a script the member's own Claude wrote here; the video page names it as such.
 ASSISTANT = "assistant"
 # The assistant of the connection a tool runs for (mcp_auth.app_of), set by invoke for the operation it runs.
+MAX_BASE64_BYTES = 25 * 1024 * 1024
 CALLING_APP: ContextVar[str] = ContextVar("calling_app", default="")
 # The script JSON the assistant sends back: about 5 KB in practice, well under the 128 KB request limit.
 MAX_SCRIPT_JSON = 60_000
@@ -636,6 +642,158 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
         # Everything or nothing: a refused post leaves the video waiting for review, not approved and unposted.
         return await run_in_threadpool(invoke, operation, write=True, publish=publish != "none")
+
+    def mp4_source(folder: Path, mp4_url: str | None, mp4_base64: str | None) -> Path:
+        """The finished MP4 as a file in `folder`: from a link (Google Drive share links included) or base64."""
+        if bool(mp4_url) == bool(mp4_base64):
+            raise ApiError(422, "invalid_value", "Hãy đưa đúng một nguồn file: mp4_url hoặc mp4_base64")
+        if mp4_url:
+            return upload_routes.download(mp4_url, folder)
+        try:
+            data = base64.b64decode(mp4_base64 or "", validate=True)
+        except (binascii.Error, ValueError):
+            raise ApiError(422, "invalid_value", "mp4_base64 không phải base64 hợp lệ") from None
+        if len(data) > MAX_BASE64_BYTES:
+            raise ApiError(413, "file_too_large", "mp4_base64 chỉ nhận file tới 25 MB, hãy dùng mp4_url")
+        path = folder / "upload.mp4"
+        path.write_bytes(data)
+        return path
+
+    def upload_answer(db, video) -> dict:
+        idea = plans_module.idea_of_video(db, video.id)
+        topic = db.get(KnowledgeTopic, idea.knowledge_topic_id) if idea else None
+        when = plans_module.suggested_post_at(topic, idea) if idea and topic else None
+        base = resource.removesuffix("/api/mcp")
+        return {
+            "video_id": video.id,
+            "status": video.review_status,
+            "mode": video.mode,
+            "mp4_url": f"{base}/api/videos/{video.id}/video.mp4",
+            "media_info": video.media_info,
+            "plan_day": idea.day if idea else None,
+            "suggested_post_at": when.isoformat() if when else None,
+            "warnings": upload_mp4.warnings(db, video),
+            "edit_url": f"{base}/videos/{video.id}",
+        }
+
+    def refusal(err: ApiError) -> dict:
+        return {"error": err.code, "message": err.message, "detail": None}
+
+    @tool("Tải lên video MP4 đã dựng", read=False, external=True)
+    async def upload_finished_video(
+        topic_id: int,
+        mp4_url: Annotated[
+            str | None,
+            Field(max_length=2000, description="Link http(s) tải được, hoặc link chia sẻ một file Google Drive"),
+        ] = None,
+        mp4_base64: Annotated[str | None, Field(description="File MP4 mã hoá base64, tối đa 25 MB")] = None,
+        plan_item_id: Annotated[
+            int | None, Field(description="Ý tưởng của kế hoạch 30 ngày thuộc nhóm topic_id")
+        ] = None,
+        title: Annotated[str | None, Field(max_length=300)] = None,
+        caption: Annotated[str, Field(max_length=6000)] = "",
+        hashtags: Annotated[list[Annotated[str, Field(max_length=100)]] | None, Field(max_length=60)] = None,
+        pinned_comment_text: Annotated[str, Field(max_length=3000)] = "",
+        schedule: Annotated[
+            Literal["none", "suggested"],
+            Field(description="Chưa hẹn giờ được ở bước này: video phải được duyệt trước (xem mô tả)"),
+        ] = "none",
+        idempotency_key: Annotated[
+            str | None, Field(max_length=100, description="Gửi lại cùng key trong 24 giờ trả về video cũ")
+        ] = None,
+        upload_note: Annotated[str | None, Field(max_length=1500)] = None,
+        replace_existing: bool = False,
+    ) -> dict:
+        """Dùng khi video đã được dựng xong ngoài Studio (hình, giọng đọc, nhạc, đoạn kết đều có trong file): tạo
+        video "MP4 tải lên" từ file MP4 đó, dùng NGUYÊN file để đăng, không render lại. Không dùng
+        create_video_from_group_prompt cho video đã dựng sẵn. Video ra ở trạng thái Chờ duyệt, gắn ý tưởng plan_item_id
+        nếu có. Studio KHÔNG tự hẹn giờ: sau khi người dùng đồng ý trong chat, gọi approve_video với publish "schedule"
+        (cần fanpage_id, schedule_at lấy từ suggested_post_at) hoặc schedule_video_at. Lỗi trả {error, message, detail}:
+        invalid_media (file sai, kèm lý do), plan_item_not_found, plan_item_taken (ý tưởng đã có video; muốn thay thì
+        replace_existing true), file_too_large, source_url_unreachable. warnings là cảnh báo không chặn (khung hình,
+        thời lượng, từ cấm): nêu cho người dùng."""
+
+        def operation(db, me):
+            try:
+                if (again := upload_mp4.existing(db, idempotency_key)) is not None:
+                    return upload_answer(db, again)
+                with tempfile.TemporaryDirectory(prefix="reels_upload_") as folder:
+                    path = mp4_source(Path(folder), mp4_url, mp4_base64)
+                    fields = upload_routes.UploadFields(
+                        knowledge_topic_id=topic_id,
+                        plan_item_id=plan_item_id,
+                        title=title,
+                        caption=caption,
+                        hashtags=hashtags or [],
+                        pinned_comment_text=pinned_comment_text,
+                        upload_note=upload_note,
+                        idempotency_key=idempotency_key,
+                        replace_existing=replace_existing,
+                    )
+                    video = upload_routes.create_from_path(
+                        db, get_storage(), me, path, fields, via=ASSISTANT, app=CALLING_APP.get()
+                    )
+                answer = upload_answer(db, video)
+                if schedule != "none":
+                    answer["warnings"].append(
+                        "Chưa hẹn giờ: video phải được duyệt trước. Sau khi người dùng đồng ý, gọi approve_video "
+                        "(publish schedule) với giờ gợi ý"
+                    )
+                return answer
+            except ApiError as err:
+                db.rollback()
+                return refusal(err)
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Thay MP4 của video tải lên", read=False, external=True)
+    async def replace_finished_video(
+        video_id: int,
+        mp4_url: Annotated[str | None, Field(max_length=2000)] = None,
+        mp4_base64: Annotated[str | None, Field(description="File MP4 mã hoá base64, tối đa 25 MB")] = None,
+        upload_note: Annotated[str | None, Field(max_length=1500)] = None,
+    ) -> dict:
+        """Thay MP4 của một video "MP4 tải lên" chưa đăng khi Muse sửa lỗi dựng: giữ caption, hashtag, bình luận ghim
+        và ý tưởng kế hoạch. File mới là file khác nên video quay về Chờ duyệt và lịch hẹn của file cũ bị huỷ: cần duyệt
+        và hẹn giờ lại. Lỗi trả {error, message, detail} như upload_finished_video."""
+
+        def operation(db, me):
+            try:
+                with tempfile.TemporaryDirectory(prefix="reels_upload_") as folder:
+                    path = mp4_source(Path(folder), mp4_url, mp4_base64)
+                    video = upload_mp4.replace(db, get_storage(), me, video_id, path, upload_note)
+                return upload_answer(db, video)
+            except ApiError as err:
+                db.rollback()
+                return refusal(err)
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Hẹn giờ đăng video", read=False, publish=True)
+    async def schedule_video_at(
+        video_id: int,
+        fanpage_id: Annotated[int, Field(description="Page của bạn (xem Đọc Page và hàng chờ)")],
+        post_at: Annotated[
+            datetime | None, Field(description="Giờ đăng kèm múi giờ; bỏ trống = giờ gợi ý của ý tưởng kế hoạch")
+        ] = None,
+    ) -> dict:
+        """Hẹn giờ đăng THẬT một video đã duyệt lên Page (mọi kiểu video; schedule_video chỉ thêm vào hàng chờ, không chọn giờ). Video chưa duyệt bị từ chối (not_approved):
+        chỉ gọi sau khi người dùng đồng ý, và duyệt bằng approve_video trước. Thiếu post_at thì dùng giờ gợi ý của
+        ý tưởng; không có giờ gợi ý (hoặc đã qua) thì báo lỗi."""
+
+        def operation(db, me):
+            when = post_at
+            if when is None:
+                idea = plans_module.idea_of_video(db, video_id)
+                topic = db.get(KnowledgeTopic, idea.knowledge_topic_id) if idea else None
+                when = plans_module.suggested_post_at(topic, idea) if idea and topic else None
+                if when is None:
+                    raise ToolError("Video chưa có giờ gợi ý (hoặc giờ đã qua), hãy truyền post_at")
+            videos.publish(video_id, videos.PublishBody(fanpage_id=fanpage_id, scheduled_at=when), me, db)
+            video = db.get(Video, video_id)
+            return {"video_id": video_id, "post_at": when.isoformat(), "review": review.payload(db, video)}
+
+        return await run_in_threadpool(invoke, operation, write=True, publish=True)
 
     @tool("Bỏ video chờ duyệt", read=False)
     async def reject_video(
