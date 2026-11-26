@@ -175,8 +175,9 @@ news. Set up once by the owner:
 1. In Telegram, open **@BotFather**, send `/newbot`, give a name and a username ending in `bot`; it answers with the
    bot's token. Keep it secret. `/setjoingroups` › the bot › Enable lets it be added to groups.
 2. Create the team's group (**New Group**, not a channel) and add the bot (it only sends, so it needs no admin rights).
-3. The group's chat id: type `/chatid` in the group and the bot answers it (once the api runs with the token and a
-   member has pressed "Kết nối Telegram", which sets the bot's webhook). Before that, send any message in the group, open
+3. The group's chat id: type `/chatid@<bot username>` in the group (the bot's privacy mode, shown as "has no access to
+   messages", passes it only commands addressed to it) and the bot answers it (once the api runs with the token and a
+   member has pressed "Kết nối Telegram", which sets the bot's webhook). Before that, send `/start@<bot username>` in the group, open
    `https://api.telegram.org/bot<TOKEN>/getUpdates` and read `"chat":{"id":-100…}` (this works only while no webhook is
    set; if the list is empty, remove and re-add the bot, send again).
 4. In the repo's Settings › Secrets and variables › Actions: secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`;
