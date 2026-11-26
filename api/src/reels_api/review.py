@@ -67,10 +67,15 @@ def qc_report(db: DbSession, video: Video, checks: Checks | None = None) -> dict
     the review rules, so the web, Muse and "Tự duyệt" read one list."""
     items: list[dict] = []
 
-    def add(code: str, level: str, message: str, issue: Issue | None = None) -> None:
+    beat_of = {scene_id: beat["id"] for beat in video.beats or [] for scene_id in beat.get("scene_ids", [])}
+
+    def add(code: str, level: str, message: str, issue: Issue | None = None, beat: str | None = None) -> None:
         item = {"code": code, "level": level, "message": message}
         if issue is not None and issue.scene_id is not None:
             item["scene_id"] = issue.scene_id
+            beat = beat or beat_of.get(issue.scene_id)
+        if beat:
+            item["beat"] = beat  # the beat the item belongs to: the page shows it on that beat's row
         items.append(item)
 
     if not video.mp4_key:
@@ -86,6 +91,9 @@ def qc_report(db: DbSession, video: Video, checks: Checks | None = None) -> dict
         add("SCRIPT_BLOCKING", "blocker", issue.message, issue)
     for issue in checks.warnings:
         add("SCRIPT_WARNING", "warn", issue.message, issue)
+    for beat in video.beats or []:
+        if not beat.get("scene_ids"):
+            add("BEAT_WITHOUT_SCENE", "warn", f"Nhịp “{beat['type']}” chưa có cảnh", beat=beat["id"])
     measured = video.qc or {}
     if measured.get("status", "pass") != "pass":
         for check in measured.get("checks", []):

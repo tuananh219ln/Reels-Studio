@@ -15,6 +15,7 @@ import {
   openSetup,
   openPublishDrawer,
   approveReview,
+  markWrittenByMuse,
   openScene,
   resetDatabase,
   openVideoTab,
@@ -194,6 +195,84 @@ test("review gate: a rendered video waits for approval before it can be posted",
   await expect(
     page.getByTestId("publish-more").getByRole("button", { name: "Tùy chọn đăng khác", exact: true }),
   ).toBeEnabled();
+});
+
+test("strategy and beats: a Muse video is edited by its beats, not by its scenes", async ({ page }) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  await page.getByRole("dialog", { name: "Tạo video" }).getByLabel("Chủ đề", { exact: true }).fill("mỡ máu cao");
+  await page.getByRole("dialog", { name: "Tạo video" }).getByRole("button", { name: "Viết kịch bản" }).click();
+  await expect(page.getByTestId("scene")).toHaveCount(5, { timeout: 90_000 });
+  const id = Number(page.url().match(/\/videos\/(\d+)/)?.[1]);
+  const headers = { Origin: new URL(page.url()).origin };
+
+  // Muse writes the strategy and the beats through MCP (its tool calls the same save); the video is marked as its.
+  const detail = await (await page.request.get(`/api/videos/${id}`)).json();
+  const first = detail.scenes[0].id;
+  const saved = await page.request.put(`/api/strategy/${id}`, {
+    headers,
+    data: {
+      strategy: {
+        content_type: "hook_pain_solution",
+        audience: "Người 40+",
+        pain_point: "Sợ uống thuốc cả đời",
+        promise: "3 món dễ mua",
+      },
+      beats: [
+        {
+          id: "b1",
+          type: "hook",
+          start: 0,
+          end: 3,
+          text: "Mỡ máu cao? Đừng bỏ qua 3 món này",
+          scene_ids: [detail.title_scene.id],
+          alt_hooks: ["Bác sĩ ít nói điều này", "90% người bỏ lỡ món số 2"],
+        },
+        { id: "b2", type: "pain", start: 3, end: 7, text: "Sợ phải uống thuốc cả đời", scene_ids: [] },
+        { id: "b3", type: "cta", start: 7, end: 10, text: "Lưu lại và theo dõi", scene_ids: [first] },
+      ],
+    },
+  });
+  expect(saved.ok()).toBe(true);
+  markWrittenByMuse(id);
+  await page.reload();
+
+  // The left column is the strategy and the beats: no scene cards, no "Thêm cảnh", no title row.
+  await expect(page.getByTestId("strategy-card")).toContainText("Hook – Nỗi đau – Giải pháp");
+  await expect(page.getByLabel("Đối tượng")).toHaveValue("Người 40+");
+  await expect(page.getByTestId("beat")).toHaveCount(3);
+  await expect(page.getByTestId("scene")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Thêm cảnh" })).toHaveCount(0);
+  await expect(page.getByTestId("scenes-toolbar")).toHaveCount(0);
+
+  // A beat's text is edited in place; it reaches its scene, which a render would show.
+  const pain = page.getByTestId("beat").filter({ has: page.getByLabel("Nhịp b2") });
+  await pain.getByLabel("Nhịp b2").fill("Sợ phải uống thuốc mãi");
+  await pain.getByLabel("Nhịp b2").blur();
+  await expect
+    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).beats[1].text)
+    .toBe("Sợ phải uống thuốc mãi");
+
+  // "Đổi hook" puts another hook in the beat and the scene it names; the old one becomes a choice.
+  const hook = page.getByTestId("beat").filter({ has: page.getByLabel("Nhịp b1") });
+  await hook.getByTestId("beat-swap-hook").click();
+  await page.getByRole("menuitem", { name: "Bác sĩ ít nói điều này" }).click();
+  await expect(hook.getByLabel("Nhịp b1")).toHaveValue("Bác sĩ ít nói điều này");
+  await expect
+    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).title_scene.text)
+    .toBe("Bác sĩ ít nói điều này");
+  const after = await (await page.request.get(`/api/videos/${id}`)).json();
+  expect(after.beats[0].alt_hooks).toContain("Mỡ máu cao? Đừng bỏ qua 3 món này");
+
+  // The title and caption card replaces the title row.
+  await closeSetup(page);
+  await expect(page.getByTestId("title-caption-card").getByLabel("Tiêu đề video")).toHaveValue(
+    "Bác sĩ ít nói điều này",
+  );
+  // The call to act names the products tab.
+  await page.getByTestId("beat-products").click();
+  await expect(page.getByRole("tab", { name: /Bình luận & Sản phẩm/ })).toHaveAttribute("aria-selected", "true");
 });
 
 test("after a render, editing a scene text marks the MP4 outdated", async ({ page }) => {

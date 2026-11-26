@@ -1525,6 +1525,9 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "content_type": video.content_type,
         "options": effective(video),
         **_review_fields(video),
+        # "Chiến lược & Kịch bản theo nhịp" (strategy.py): None for a video made without them.
+        "strategy": video.strategy,
+        "beats": video.beats,
         "review": review.payload(db, video, checks if video.has_script else None) if video.mp4_key else None,
         "publication": publication_payload(publication_of(db, video.id), by_page),
         "publications": [publication_payload(post, by_page) for post in posts],

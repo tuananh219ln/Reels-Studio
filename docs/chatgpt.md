@@ -339,6 +339,12 @@ refused post leaves the video waiting. Errors: `not_pending`, `render_not_done`,
 content type, length, `qc` and link, asks "Duyệt / Làm bản khác / Bỏ", and calls `approve_video` only after the member
 agreed in the chat, with `acknowledge_qc` only after they confirmed each warning.
 
+`set_video_strategy` writes a video's "Chiến lược nội dung" (`content_type` of hook_pain_solution, listicle, myth_buster,
+before_after, story, `audience`, `pain_point`, `promise`) and its "Kịch bản theo nhịp" (`beats`, each with a real
+`scene_ids` from "Đọc video"; a beat without a scene is warned about). Only the part sent is replaced and the scenes are
+not touched. A Muse video that has beats is edited by them on the video page, not scene by scene
+([the decision](decisions/2026-11-26-strategy-beats.md)).
+
 ## Tự duyệt (Muse)
 
 "Xem kết quả tự duyệt" (read-only) lists the signed-in member's new results of "Tự duyệt": which video was just

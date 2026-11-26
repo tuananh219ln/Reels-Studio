@@ -13,6 +13,22 @@ export function resetDatabase() {
   });
 }
 
+/** Marks a video as written by Muse through MCP: the api only sets that on a connection's own video, which a test
+ * cannot make without a real assistant. Runs against the e2e database only. */
+export function markWrittenByMuse(videoId: number) {
+  execFileSync(
+    API_PYTHON,
+    [
+      "-c",
+      "import os, sys\nfrom sqlalchemy import create_engine, text\n" +
+        "with create_engine(os.environ['DATABASE_URL']).begin() as c:\n" +
+        "    c.execute(text(\"UPDATE videos SET assistant_app='Muse', written_via='assistant' WHERE id=:i\"), {'i': int(sys.argv[1])})",
+      String(videoId),
+    ],
+    { env: { ...process.env, DATABASE_URL: E2E_DATABASE_URL }, stdio: "inherit" },
+  );
+}
+
 /** Connects the fake Facebook Page (api/scripts/fake_services.py). */
 export async function connectFacebook(page: Page) {
   await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();

@@ -637,6 +637,41 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         # Everything or nothing: a refused post leaves the video waiting for review, not approved and unposted.
         return await run_in_threadpool(invoke, operation, write=True, publish=publish != "none")
 
+    @tool("Ghi chiến lược và kịch bản theo nhịp", read=False)
+    async def set_video_strategy(
+        video_id: int,
+        strategy: Annotated[
+            dict | None,
+            Field(
+                description='{"content_type": một trong hook_pain_solution, listicle, myth_buster, before_after, '
+                'story; "audience": đối tượng; "pain_point": nỗi đau; "promise": lời hứa}'
+            ),
+        ] = None,
+        beats: Annotated[
+            list[dict] | None,
+            Field(
+                description='Danh sách nhịp, thay toàn bộ: {"id": "b1", "type": hook|pain|solution|item|myth|truth|'
+                'proof|before|after|turning_point|setup|conflict|resolution|cta, "start": giây, "end": giây, '
+                '"text": chữ của nhịp, "scene_ids": [ID cảnh thật của video], "alt_hooks": [tối đa 5 hook thay thế, '
+                'chỉ nhịp hook], "items": [tên món], "affiliate_product_id": ID hoặc null (nhịp cta)}'
+            ),
+        ] = None,
+    ) -> dict:
+        """Ghi "Chiến lược nội dung" và "Kịch bản theo nhịp" của video, hiện ở cột trái trang video (video Muse có
+        nhịp thì không còn khối Cảnh). Gọi sau khi tạo video và gắn cảnh: lấy ID cảnh bằng "Đọc video" rồi điền
+        scene_ids cho từng nhịp (nhịp không có cảnh sẽ bị cảnh báo). Chỉ phần nào gửi thì được thay. Không đổi chữ
+        của cảnh: sửa cảnh bằng "Sửa cảnh" như thường."""
+        from . import routes_strategy
+
+        def operation(db, me):
+            video = videos_module.lock_video(db, video_id)
+            videos_module.ensure_unlocked(db, video)
+            routes_strategy.apply(db, video, strategy, beats, me, "muse_chat", get_storage(), sync_scenes=False)
+            db.commit()
+            return video_link({"id": video.id, "strategy": video.strategy, "beats": video.beats})
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
     @tool("Bỏ video chờ duyệt", read=False)
     async def reject_video(
         video_id: int, reason: Annotated[str | None, Field(max_length=500, description="Lý do bỏ, nếu có")] = None

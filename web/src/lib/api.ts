@@ -52,7 +52,35 @@ export type VideoPlatform = "facebook" | "tiktok";
 export type ReviewStatus = "pending_review" | "approved" | "rejected";
 
 /** One thing the review lists: `blocker` stops an approval, `warn` asks the member to acknowledge it. */
-export type ReviewItem = { code: string; level: "warn" | "blocker"; message: string; scene_id?: number };
+export type ReviewItem = {
+  code: string;
+  level: "warn" | "blocker";
+  message: string;
+  scene_id?: number;
+  /** The beat of the script it belongs to (a row on "Kịch bản theo nhịp"). */
+  beat?: string;
+};
+
+/** "Chiến lược nội dung" (api strategy.py): what the video is about; written by Muse, edited on the page. */
+export type VideoStrategy = { content_type: string; audience: string; pain_point: string; promise: string };
+
+/** One beat of the script: its seconds, its text, the scenes that show it. */
+export type VideoBeat = {
+  id: string;
+  type: string;
+  start: number;
+  end: number;
+  text: string;
+  scene_ids: number[];
+  alt_hooks?: string[];
+  items?: string[];
+  affiliate_product_id?: number | null;
+};
+
+export type StrategyCatalog = {
+  content_types: { code: string; name: string; beats: string[] }[];
+  beat_types: { code: string; name: string }[];
+};
 
 export type VideoReview = {
   status: ReviewStatus;
@@ -432,6 +460,9 @@ export type ImageFrame = {
 };
 
 export type VideoDetail = VideoRow & {
+  /** Null for a video made without them (everything before Muse wrote them). */
+  strategy: VideoStrategy | null;
+  beats: VideoBeat[] | null;
   /** Null while the video has no MP4. */
   review: VideoReview | null;
   /** The video's channel ("Kênh") and whether its logo is laid on the MP4 (api brands.payload_of). */
