@@ -17,6 +17,7 @@ const SCREENS: Record<string, string> = {
   videos: "Video",
   knowledge: "Kho kiến thức",
   "whats-new": "Có gì mới",
+  telegram: "Thông báo Telegram",
 };
 const OTHER = "Khác";
 
