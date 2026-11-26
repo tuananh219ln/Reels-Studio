@@ -87,7 +87,7 @@ export type StrategyCatalog = {
 export type VideoReview = {
   status: ReviewStatus;
   approved_at: string | null;
-  /** web | muse_chat | auto | legacy */
+  /** web | muse_chat | auto | telegram | legacy */
   approved_via: string | null;
   approved_by: string | null;
   /** The approval holds for the MP4 it was given for: false once a render or a script change has outdated it. */
