@@ -969,6 +969,10 @@ export type PageCompare = {
 
 /** The hours the Page's posts were watched most, by platform (api GET /fanpages/{id}/best-times). */
 export type BestTimes = {
+  /** IANA zone the hours are read in: the Page's schedule zone. */
+  timezone: string;
+  /** The times the Page posts at now, in `timezone`. */
+  post_times: string[];
   min_posts: number;
   facebook: BestHours;
   instagram: BestHours | null;
@@ -1030,12 +1034,16 @@ export type PageDashboard = {
       id: number;
       status: string;
       scheduled_at: string;
+      /** The queue gave it a slot that is no longer one of the Page's slots (its times or zone changed since). */
+      off_slot: boolean;
       video: DashboardVideo;
       /** What the Page's Instagram does with it: its own post's state, "auto" (follows Facebook), or null. */
       instagram: "pending" | "scheduled" | "published" | "auto" | null;
     }[];
     free_slots: string[];
     post_times: string[];
+    /** IANA zone the Page's posting times are written in; the calendar groups days by it. */
+    timezone: string;
   };
 };
 
@@ -1309,6 +1317,8 @@ export type Plan = {
   per_day: number;
   /** "HH:MM": the n-th idea of a day is suggested to go out at the n-th time. */
   post_times: string[];
+  /** IANA zone `post_times` are written in. */
+  schedule_timezone: string;
   prompt: string;
   default_prompt: string;
   /** The 30 days, then the Backlog (day null). */
@@ -2403,6 +2413,8 @@ export type QueuePage = {
   topic: { id: number; name: string } | null;
   /** "HH:MM" in Vietnam: the Page's own times, else its topic group's. */
   post_times: string[];
+  /** IANA zone `post_times` are written in (api schedule_tz.ZONES). */
+  schedule_timezone: string;
   own_times: boolean;
   healthy: boolean;
   check_error: string | null;
@@ -2676,6 +2688,8 @@ export type StatsFacebookRow = {
   /** Posted in the period and not yet read at 48 hours. */
   measuring: { post_id: number; video: DashboardVideo; live_at: string }[];
   best_times: BestHours;
+  /** IANA zone `best_times` hours are read in. */
+  best_times_zone: string;
   /** Median views at 48 hours by video length over the period; `median_views_48h` null under 5 posts. */
   duration_buckets: { bucket: string; videos: number; median_views_48h: number | null; best: boolean }[];
 };
@@ -2687,5 +2701,6 @@ export type StatsInstagramRow = {
   series: StatsSeries;
   post_numbers: Record<"comments" | "shares" | "saves" | "likes", number | null>;
   best_times: BestHours | null;
+  best_times_zone: string;
 };
 export type Stats<Row> = { days: number; platform: "facebook" | "instagram"; start: string; end: string; rows: Row[] };

@@ -280,3 +280,76 @@ def test_the_queue_page_lists_free_times_and_topics(an, db, me, storage):
     assert (shown["mine"], shown["healthy"], len(shown["items"]), answer["fill_ahead_hours"]) == (True, True, 1, 48)
     assert 1 <= len(shown["free_slots"]) <= 2
     assert {"id": first_topic(db).id, "name": first_topic(db).name} in answer["topics"]
+
+
+# --- The zone the times are written in ---
+
+
+def test_a_page_of_a_us_group_posts_at_its_new_york_time(db, me):
+    row = page(db, me)
+    topic = first_topic(db)
+    topic.plan_post_times, topic.schedule_timezone = ["20:00"], "America/New_York"
+    db.commit()
+    assert page_queue.timezone_of(db, row) == "America/New_York"
+    start = datetime(2027, 3, 13, 12, 0, tzinfo=VIETNAM)
+    got = page_queue.free_slots(db, row, start, start + page_queue.FILL_AHEAD)
+    # 13/3 20:00 EST is 01:00 UTC on the 14th; 14/3 20:00 EDT is 00:00 UTC on the 15th.
+    assert [slot.isoformat() for slot in got] == ["2027-03-14T01:00:00+00:00", "2027-03-15T00:00:00+00:00"]
+
+
+def test_a_page_with_own_times_and_no_zone_stays_in_vietnam(db, me):
+    row = page(db, me, times=["09:00"])
+    first_topic(db).schedule_timezone = "America/New_York"
+    db.commit()
+    assert page_queue.timezone_of(db, row) == "Asia/Ho_Chi_Minh"
+    row.schedule_timezone = "America/Chicago"
+    assert page_queue.timezone_of(db, row) == "America/Chicago"
+
+
+def test_the_page_zone_is_set_through_the_api(an, db, me):
+    row = page(db, me)
+    url = f"/api/queue/pages/{row.id}"
+    refused = an.patch(url, json={"schedule_timezone": "America/New_York"})
+    assert refused.status_code == 422  # a zone of its own needs times of its own
+    ok = an.patch(url, json={"post_times": ["20:00"], "schedule_timezone": "America/New_York"})
+    assert ok.status_code == 200
+    assert next(p for p in ok.json()["pages"] if p["id"] == row.id)["schedule_timezone"] == "America/New_York"
+    assert an.patch(url, json={"schedule_timezone": "Europe/London"}).status_code == 422
+    # Back to the group's times: the Page's own zone goes with them.
+    back = an.patch(url, json={"post_times": None, "schedule_timezone": None})
+    assert back.status_code == 200
+
+
+def test_changing_the_zone_keeps_the_hours_or_converts_them(an, db, me):
+    row = page(db, me, times=["20:00"])
+    url = f"/api/queue/pages/{row.id}"
+    kept = an.patch(url, json={"schedule_timezone": "America/New_York"})
+    assert kept.status_code == 200
+    db.refresh(row)
+    assert (row.post_times, row.schedule_timezone) == (["20:00"], "America/New_York")
+    assert an.patch(url, json={"schedule_timezone": "Asia/Ho_Chi_Minh", "convert_times": True}).status_code == 200
+    db.refresh(row)
+    # 20:00 New York is 07:00 or 08:00 in Vietnam the next morning, whichever side of the clock change today is on.
+    assert row.post_times in (["07:00"], ["08:00"]) and row.schedule_timezone == "Asia/Ho_Chi_Minh"
+
+
+def test_a_queued_post_remembers_its_slot_and_is_off_slot_after_the_times_change(db, me, storage, an):
+    row = page(db, me, times=["20:00"])
+    video = rendered(db, storage, me)
+    queue_item(db, row, video, me)
+    page_queue.fill(db, MORNING)
+    post = db.scalars(select(Publication)).one()
+    assert (post.slot_local, post.slot_timezone) == ("20:00", "Asia/Ho_Chi_Minh")
+    # The dashboard looks ahead from the real now, so put the post on the next real 20:00 slot.
+    from reels_api import schedule_tz
+    from reels_api.sessions import now
+
+    post.status = "scheduled"
+    post.scheduled_at = schedule_tz.slots_between(["20:00"], "Asia/Ho_Chi_Minh", now(), now() + timedelta(days=2))[0]
+    db.commit()
+    shown = an.get(f"/api/fanpages/{row.id}/dashboard").json()["upcoming"]["posts"]
+    assert [p["off_slot"] for p in shown] == [False]
+    row.post_times = ["21:00"]
+    db.commit()
+    shown = an.get(f"/api/fanpages/{row.id}/dashboard").json()["upcoming"]["posts"]
+    assert [p["off_slot"] for p in shown] == [True]

@@ -203,6 +203,9 @@ class KnowledgeTopic(Base):
     plan_post_times: Mapped[list] = mapped_column(
         JSONB, default=lambda: list(DEFAULT_POST_TIMES), server_default=text(DEFAULT_POST_TIMES_SQL)
     )
+    # The IANA zone `plan_post_times` are written in (schedule_tz.py, migration 0134): VN or a US zone.
+    # Server default only, so a row made while the database is at an older revision (the migration tests) leaves it out.
+    schedule_timezone: Mapped[str] = mapped_column(String(40), server_default="Asia/Ho_Chi_Minh")
     # How many videos the group's trial counts towards ("Tiến độ verdict" on its plan); None: no banner. Only a count:
     # the verdict itself is decided by the team in a meeting.
     video_target: Mapped[int | None] = mapped_column(Integer)
@@ -732,6 +735,8 @@ class Fanpage(Base):
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="SET NULL"))
     # "HH:MM" in Vietnam, when its queue posts; None: the group's posting times.
     post_times: Mapped[list | None] = mapped_column(JSONB)
+    # The zone `post_times` are written in; None: Vietnam when the Page has its own times, else the group's zone.
+    schedule_timezone: Mapped[str | None] = mapped_column(String(40))
     # Pacing of the comments the worker writes under its reels (post_comments.py, migration 0104): the earliest time the
     # next one may go, and how many went out on `comments_day` (Vietnam date).
     comments_next_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -1100,6 +1105,10 @@ class Publication(Base):
     # time they planned, only a reminder) | pending_link
     status: Mapped[str] = mapped_column(String(16), default="pending")
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The Page's slot this post was given by its queue ("HH:MM" in `slot_timezone`, migration 0135); null for a post
+    # scheduled by hand. A post whose moment is no longer one of the Page's slots is "Ngoài khung".
+    slot_local: Mapped[str | None] = mapped_column(String(5))
+    slot_timezone: Mapped[str | None] = mapped_column(String(40))
     # The platform's id, saved before the upload, so "Thử lại" continues this reel instead of posting a second one.
     remote_id: Mapped[str | None] = mapped_column(String(64))
     remote_mp4_key: Mapped[str | None] = mapped_column(String(200))  # the MP4 sent as `remote_id`

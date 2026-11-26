@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import edit_log, plans
+from . import edit_log, plans, schedule_tz
 from .db import get_db
 from .errors import ApiError
 from .models import KnowledgeTopic, Session, TopicPlanItem
@@ -31,6 +31,8 @@ class PlanPatchBody(BaseModel):
     prompt: str | None = None
     post_times: list[str] | None = None  # "HH:MM", 1 to plans.MAX_POST_TIMES
     video_target: int | None = None  # null clears it
+    schedule_timezone: str | None = None  # schedule_tz.ZONES; the zone of post_times
+    convert_times: bool = False  # with a new zone: read the group's times in it ("Quy đổi") instead of keeping them
 
 
 class IdeaBody(BaseModel):
@@ -258,6 +260,16 @@ def patch_plan(
         if body.video_target is not None and body.video_target < 1:
             raise invalid("Số video mục tiêu phải từ 1 trở lên")
         topic.video_target = body.video_target
+    if body.schedule_timezone is not None:
+        try:
+            new_zone = schedule_tz.check_zone(body.schedule_timezone)
+        except schedule_tz.ZoneError as err:
+            raise invalid(str(err)) from None
+        if body.convert_times and body.post_times is None and new_zone != topic.schedule_timezone:
+            topic.plan_post_times = schedule_tz.convert_times(
+                topic.plan_post_times, topic.schedule_timezone, new_zone, plans.today()
+            )
+        topic.schedule_timezone = new_zone
     if body.post_times is not None:
         try:
             topic.plan_post_times = plans.check_post_times(body.post_times)

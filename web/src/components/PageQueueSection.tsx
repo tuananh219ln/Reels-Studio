@@ -7,6 +7,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { api, errorMessage, formatDateTime, type QueueOverview, type QueuePage } from "@/lib/api";
 import VideoThumbnail from "@/components/VideoThumbnail";
+import ScheduleZonePicker from "@/components/ScheduleZonePicker";
+import { timeWithZone, VN_ZONE, zoneName } from "@/lib/scheduleZone";
 
 const TIME = /^([01]?\d|2[0-3]):[0-5]\d$/;
 // The next few free times are enough to see when the queue will post; the rest is a count.
@@ -23,7 +25,7 @@ export default function PageQueueSection({
   overview: QueueOverview;
   onChanged: (overview: QueueOverview) => void;
 }) {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [busy, setBusy] = useState(false);
 
   async function run(path: string, method: "PATCH" | "POST" | "DELETE", body?: object) {
@@ -49,8 +51,15 @@ export default function PageQueueSection({
       message.error(`Giờ đăng “${bad}” phải có dạng HH:MM`);
       return;
     }
-    void run(`/queue/pages/${page.id}`, "PATCH", { post_times: times.length ? times : null });
+    // Without times of its own the Page follows its group, zone included.
+    void run(
+      `/queue/pages/${page.id}`,
+      "PATCH",
+      times.length ? { post_times: times } : { post_times: null, schedule_timezone: null },
+    );
   }
+
+  const zone = page.schedule_timezone;
 
   return (
     <Spin spinning={busy}>
@@ -67,7 +76,7 @@ export default function PageQueueSection({
               onChange={(value) => run(`/queue/pages/${page.id}`, "PATCH", { knowledge_topic_id: value ?? null })}
               options={overview.topics.map((topic) => ({ value: topic.id, label: topic.name }))}
             />
-            <Typography.Text style={{ fontSize: 12 }}>Giờ đăng mỗi ngày (giờ Việt Nam)</Typography.Text>
+            <Typography.Text style={{ fontSize: 12 }}>Giờ đăng mỗi ngày ({zoneName(zone)})</Typography.Text>
             <Flex gap={6} align="center">
               <Select
                 size="small"
@@ -86,24 +95,52 @@ export default function PageQueueSection({
                 </Button>
               )}
             </Flex>
+            {page.own_times ? (
+              <ScheduleZonePicker
+                label={page.name}
+                value={zone}
+                onChange={(next) => {
+                  if (next === zone) return;
+                  // Two ways to change a zone; only the buttons answer, so Esc or the X never picks one.
+                  modal.confirm({
+                    title: `Đổi sang ${zoneName(next)}`,
+                    content: `Giờ đăng ${page.post_times.join(", ")} đang theo ${zoneName(zone)}. Quy đổi để giữ đúng thời điểm cũ, hay giữ nguyên số giờ và đọc theo múi mới? Bài đã hẹn giờ không đổi.`,
+                    okText: "Quy đổi",
+                    cancelText: "Giữ số giờ",
+                    closable: false,
+                    maskClosable: false,
+                    keyboard: false,
+                    onOk: () =>
+                      run(`/queue/pages/${page.id}`, "PATCH", { schedule_timezone: next, convert_times: true }),
+                    onCancel: () => run(`/queue/pages/${page.id}`, "PATCH", { schedule_timezone: next }),
+                  });
+                }}
+              />
+            ) : (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Múi giờ theo nhóm chủ đề; nhập giờ riêng để chọn múi giờ riêng cho Page.
+              </Typography.Text>
+            )}
           </Flex>
         ) : (
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {page.topic ? `Nhóm “${page.topic.name}”` : "Chưa gắn nhóm chủ đề"}
-            {page.post_times.length > 0 && `, đăng lúc ${page.post_times.join(", ")}`}
+            {page.post_times.length > 0 && `, đăng lúc ${page.post_times.join(", ")} (${zoneName(zone)})`}
           </Typography.Text>
         )}
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           {page.post_times.length === 0
             ? "Chưa có giờ đăng: hãy gắn nhóm chủ đề hoặc nhập giờ riêng."
             : page.own_times
-              ? "Giờ riêng của Page (giờ Việt Nam)."
-              : "Theo giờ đăng của nhóm chủ đề (giờ Việt Nam)."}
+              ? `Giờ riêng của Page (${zoneName(zone)}).`
+              : `Theo giờ đăng của nhóm chủ đề (${zoneName(zone)}).`}
           {page.post_times.length > 0 &&
             (page.free_slots.length > 0
               ? ` Khung trống trong ${overview.fill_ahead_hours} giờ tới: ${page.free_slots
                   .slice(0, SHOWN_SLOTS)
-                  .map(formatDateTime)
+                  .map((at) =>
+                    zone === VN_ZONE ? formatDateTime(at) : `${formatDateTime(at)} (${timeWithZone(at, zone)})`,
+                  )
                   .join(
                     ", ",
                   )}${page.free_slots.length > SHOWN_SLOTS ? ` và ${page.free_slots.length - SHOWN_SLOTS} khung khác` : ""}.`

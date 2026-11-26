@@ -6,7 +6,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from conftest import API_DIR, first_topic, login, make_user, make_video
-from sqlalchemy import select
+from sqlalchemy import insert, select
 from sqlalchemy.orm import Session
 from test_mcp import call, grant, mcp_client, payload  # noqa: F401  (mcp_client is a fixture)
 from test_voice import needs_ffmpeg
@@ -164,18 +164,25 @@ def test_migration_0128_moves_groups_6_7_and_10_to_huyen_my(engine):
 
     def formats() -> dict:
         with Session(engine) as session:
-            rows = session.scalars(select(KnowledgeTopic).where(KnowledgeTopic.name.in_([gia, an_lanh, test_group])))
-            return {row.name: row.voice_format for row in rows}
+            # Two columns, not whole rows: the database is at revision 0127 here, before later columns existed.
+            rows = session.execute(
+                select(KnowledgeTopic.name, KnowledgeTopic.voice_format).where(
+                    KnowledgeTopic.name.in_([gia, an_lanh, test_group])
+                )
+            )
+            return {name: voice_format for name, voice_format in rows}
 
     command.downgrade(config, "0127")
     try:
         with Session(engine) as session:
-            session.add_all(
+            # Core inserts: the ORM would read back columns that do not exist yet at revision 0127.
+            session.execute(
+                insert(KnowledgeTopic.__table__),
                 [
-                    KnowledgeTopic(name=gia, voice_format=seed[gia]),
-                    KnowledgeTopic(name=an_lanh, voice_format=edited),
-                    KnowledgeTopic(name=test_group, voice_format=seed[test_group]),
-                ]
+                    {"name": gia, "voice_format": seed[gia]},
+                    {"name": an_lanh, "voice_format": edited},
+                    {"name": test_group, "voice_format": seed[test_group]},
+                ],
             )
             session.commit()
         command.upgrade(config, "head")

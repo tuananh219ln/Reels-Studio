@@ -8,13 +8,13 @@ scheduled, so a video edited after that would go out as it was. Nothing here cal
 
 import logging
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
 
-from . import brands, review
-from .analytics import VIETNAM
+from . import brands, review, schedule_tz
 from .models import Fanpage, Job, KnowledgeTopic, PageQueueItem, Publication, Video
 from .sessions import now
 from .videos import (
@@ -46,22 +46,17 @@ def post_times(db: DbSession, page: Fanpage) -> list[str]:
     return list(topic.plan_post_times) if topic and topic.plan_post_times else []
 
 
-def _slots(times: list[str], start: datetime, until: datetime) -> list[datetime]:
-    day, last = start.astimezone(VIETNAM).date(), until.astimezone(VIETNAM).date()
-    found = []
-    while day <= last:
-        for value in times:
-            hour, minute = (int(part) for part in value.split(":"))
-            at = datetime(day.year, day.month, day.day, hour, minute, tzinfo=VIETNAM)
-            if start <= at <= until:
-                found.append(at)
-        day += timedelta(days=1)
-    return sorted(found)
+def timezone_of(db: DbSession, page: Fanpage) -> str:
+    """The zone `post_times` are read in: the Page's own (Vietnam when it has own times and no zone), else its group's."""
+    if page.post_times:
+        return page.schedule_timezone or schedule_tz.VIETNAM_ZONE
+    topic = db.get(KnowledgeTopic, page.knowledge_topic_id) if page.knowledge_topic_id else None
+    return topic.schedule_timezone if topic else schedule_tz.DEFAULT_ZONE
 
 
 def free_slots(db: DbSession, page: Fanpage, start: datetime, until: datetime) -> list[datetime]:
     """The Page's posting times between the two moments that no post of the Page already takes."""
-    slots = _slots(post_times(db, page), start, until)
+    slots = schedule_tz.slots_between(post_times(db, page), timezone_of(db, page), start, until)
     if not slots:
         return []
     at = func.coalesce(Publication.scheduled_at, Publication.published_at, Publication.created_at)
@@ -148,12 +143,15 @@ def _fill_page(db: DbSession, page: Fanpage, slot: datetime, at: datetime) -> in
                 item.error = reason
             item.tried_at = at
             continue
+        zone = timezone_of(db, page)
         db.add(
             Publication(
                 video_id=video.id,
                 platform="facebook",
                 fanpage_id=page.id,
                 scheduled_at=slot,
+                slot_local=slot.astimezone(ZoneInfo(zone)).strftime("%H:%M"),
+                slot_timezone=zone,
                 created_by_id=item.added_by_id,
                 auto_comment=item.auto_comment,
             )

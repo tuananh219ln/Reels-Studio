@@ -73,6 +73,8 @@ import {
 } from "antd";
 import dayjs from "dayjs";
 import "dayjs/locale/vi";
+import ScheduleZonePicker from "@/components/ScheduleZonePicker";
+import { zoneName } from "@/lib/scheduleZone";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
@@ -895,6 +897,9 @@ function PlanSettings({ plan, change, onClose }: { plan: Plan; change: Change; o
   const [start, setStart] = useState(plan.start_date);
   const [perDay, setPerDay] = useState<number | null>(plan.per_day);
   const [times, setTimes] = useState(plan.post_times);
+  const [zone, setZone] = useState(plan.schedule_timezone);
+  const [convert, setConvert] = useState(false);
+  const { modal } = App.useApp();
   const [target, setTarget] = useState<number | null>(plan.video_target);
   const [busy, setBusy] = useState(false);
 
@@ -903,6 +908,10 @@ function PlanSettings({ plan, change, onClose }: { plan: Plan; change: Change; o
     if (start !== plan.start_date) changes.start_date = start;
     if (perDay !== null && perDay !== plan.per_day) changes.per_day = perDay;
     if (times.join() !== plan.post_times.join()) changes.post_times = times;
+    if (zone !== plan.schedule_timezone) {
+      changes.schedule_timezone = zone;
+      if (convert && times.join() === plan.post_times.join()) changes.convert_times = true;
+    }
     if (target !== plan.video_target) changes.video_target = target;
     if (Object.keys(changes).length === 0) {
       onClose();
@@ -940,6 +949,31 @@ function PlanSettings({ plan, change, onClose }: { plan: Plan; change: Change; o
           />
         </Flex>
         <PostTimes value={times} onChange={setTimes} />
+        <ScheduleZonePicker
+          label={plan.name}
+          value={zone}
+          onChange={(next) => {
+            if (next === zone) return;
+            // Two ways to change a zone; only the buttons answer, so Esc or the X never picks one.
+            modal.confirm({
+              title: `Đổi sang ${zoneName(next)}`,
+              content: `Giờ đăng ${times.join(", ")} đang theo ${zoneName(zone)}. Quy đổi để giữ đúng thời điểm cũ, hay giữ nguyên số giờ và đọc theo múi mới? Bài đã hẹn giờ không đổi. Bấm “Lưu” để áp dụng.`,
+              okText: "Quy đổi",
+              cancelText: "Giữ số giờ",
+              closable: false,
+              maskClosable: false,
+              keyboard: false,
+              onOk: () => {
+                setConvert(true);
+                setZone(next);
+              },
+              onCancel: () => {
+                setConvert(false);
+                setZone(next);
+              },
+            });
+          }}
+        />
         <Flex align="center" gap={8}>
           <Typography.Text>Số video cần làm trước khi đánh giá nhóm</Typography.Text>
           <InputNumber

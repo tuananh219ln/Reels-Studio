@@ -16,6 +16,7 @@ from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta, timezone
 from functools import cache
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -150,7 +151,7 @@ def suggested_post_at(topic: KnowledgeTopic, item: TopicPlanItem, now: datetime 
     times = topic.plan_post_times
     hour, minute = (int(part) for part in times[min(item.position, len(times)) - 1].split(":"))
     on = topic.plan_start_date + timedelta(days=item.day - 1)
-    at = datetime(on.year, on.month, on.day, hour, minute, tzinfo=VIETNAM)
+    at = datetime(on.year, on.month, on.day, hour, minute, tzinfo=ZoneInfo(topic.schedule_timezone))
     return at if at > (now or datetime.now(VIETNAM)) else None
 
 
@@ -725,6 +726,7 @@ def plan_payload(db: DbSession, topic: KnowledgeTopic) -> dict:
         "today_day": day_of(topic.plan_start_date, today()),
         "per_day": topic.plan_per_day,
         "post_times": topic.plan_post_times,
+        "schedule_timezone": topic.schedule_timezone,
         "prompt": topic.plan_prompt or default_prompt(),
         "default_prompt": default_prompt(),
         "items": items,
