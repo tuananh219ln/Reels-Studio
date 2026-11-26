@@ -8,7 +8,7 @@ from sqlalchemy import select
 from test_mcp import call, grant, mcp_client, payload, rpc  # noqa: F401  (mcp_client is a fixture)
 from test_page_queue import add_mp4, page
 
-from reels_api import page_queue
+from reels_api import analytics, page_queue
 from reels_api.models import (
     AffiliateProduct,
     Brand,
@@ -189,7 +189,7 @@ def test_a_rendered_copy_is_queued_on_the_members_page_and_filled_at_its_next_ti
     post = db.scalar(select(Publication).where(Publication.video_id == video.id))
     assert post.fanpage_id == target.id and post.created_by_id == me.id
     assert post.scheduled_at - now() >= page_queue.FILL_LEAD - timedelta(seconds=1)
-    assert post.scheduled_at.astimezone(page_queue.VIETNAM).strftime("%H:%M") in target.post_times
+    assert post.scheduled_at.astimezone(analytics.VIETNAM).strftime("%H:%M") in target.post_times
     assert db.scalar(select(PageQueueItem.id)) is None
 
 

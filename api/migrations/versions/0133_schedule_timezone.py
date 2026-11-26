@@ -37,7 +37,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint("ck_fanpages_schedule_timezone", "fanpages")
-    op.drop_constraint("ck_knowledge_topics_schedule_timezone", "knowledge_topics")
+    # IF EXISTS: a database built from the models (the migration tests') never had the checks.
+    op.execute("ALTER TABLE fanpages DROP CONSTRAINT IF EXISTS ck_fanpages_schedule_timezone")
+    op.execute("ALTER TABLE knowledge_topics DROP CONSTRAINT IF EXISTS ck_knowledge_topics_schedule_timezone")
     op.drop_column("fanpages", "schedule_timezone")
     op.drop_column("knowledge_topics", "schedule_timezone")

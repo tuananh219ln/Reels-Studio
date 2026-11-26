@@ -25,7 +25,7 @@ def test_new_york_keeps_its_wall_time_across_the_spring_change():
 
 def test_new_york_keeps_its_wall_time_across_the_autumn_change():
     # 7/11/2027: back to EST.
-    got = slots_between(["20:00"], NY, utc(2027, 11, 6, 1), utc(2027, 11, 9, 0))
+    got = slots_between(["20:00"], NY, utc(2027, 11, 6, 1), utc(2027, 11, 9, 2))
     assert got == [utc(2027, 11, 7, 0), utc(2027, 11, 8, 1), utc(2027, 11, 9, 1)]
 
 
