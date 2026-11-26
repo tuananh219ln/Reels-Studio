@@ -107,6 +107,24 @@ export async function openSetup(page: Page) {
 }
 
 /**
+ * The review gate (docs/decisions/2026-11-26-review-gate.md): a rendered video reads "Chờ duyệt" and cannot be posted
+ * until "✓ Duyệt" on the "Đăng bài" tab's review card. The e2e videos are short, so the script checks warn and the
+ * member answers "Vẫn duyệt".
+ */
+export async function approveReview(page: Page) {
+  await closeSetup(page);
+  const card = page.getByTestId("review-card");
+  await expect(card).toHaveAttribute("data-status", "pending_review");
+  await card.getByTestId("review-approve").click();
+  const ask = page.locator(".ant-modal-confirm").filter({ hasText: "mục chưa đạt" });
+  if (await ask.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await ask.getByRole("button", { name: "Vẫn duyệt" }).click();
+  }
+  await expect(card).toHaveAttribute("data-status", "approved");
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng");
+}
+
+/**
  * "Tùy chọn đăng khác" under the status card of the side panel's "Đăng bài" tab: the drawer with every platform's own
  * options (a Page's queue, TikTok posted directly, a post made by hand). A red QC check asks first (the e2e MP4s have
  * silent narration); the test goes on to the drawer either way.

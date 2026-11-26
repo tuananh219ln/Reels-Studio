@@ -1260,6 +1260,17 @@ def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | Non
     }
 
 
+REVIEW_LABELS = {"pending_review": "Chờ duyệt", "approved": "Đã duyệt", "rejected": "Đã bỏ"}
+
+
+def _review_fields(video: Video) -> dict:
+    """The review gate on a list row: a video with no MP4 has nothing to review yet."""
+    return {
+        "review_status": video.review_status,
+        "review_label": REVIEW_LABELS.get(video.review_status, "") if video.mp4_key else "",
+    }
+
+
 def _labels(video: Video, title: Scene | None, scenes: list[Scene], job: Job | None, failed: Job | None) -> dict:
     return {
         "mp4_outdated": bool(video.mp4_key) and video.rendered_signature != render_signature(video, title, scenes),
@@ -1412,6 +1423,8 @@ def notes_payload(db: DbSession, video: Video, title: Scene | None, scenes: list
 
 
 def video_payload(db: DbSession, video: Video) -> dict:
+    from . import review  # review.py reads this module's checks, so it cannot be imported at the top
+
     title, scenes = split_scenes(db, video)
     job = active_job(db, video.id)
     failed = _last_failed(db, video.id)
@@ -1511,6 +1524,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "assistant_app": video.assistant_app,
         "content_type": video.content_type,
         "options": effective(video),
+        **_review_fields(video),
+        "review": review.payload(db, video, checks if video.has_script else None) if video.mp4_key else None,
         "publication": publication_payload(publication_of(db, video.id), by_page),
         "publications": [publication_payload(post, by_page) for post in posts],
         "posted_fanpage_ids": posted_fanpage_ids(video, posts),
@@ -1809,6 +1824,7 @@ def list_payload(
         # A "Nhân bản xáo cảnh" copy still showing its source's title: the card says to change it.
         "title_review": title_review(video, title),
         **_labels(video, title, scenes, job, failed),
+        **_review_fields(video),
         "thumbnail_url": thumbnail_url(video),
         **extras,
         **_with_post_stage(_status(db, video, job, failed), extras),

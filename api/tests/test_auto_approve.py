@@ -56,7 +56,7 @@ def own_page(db, user, same_group=True):
 def ready(db, storage, user, **kwargs):
     """A rendered video with a plan time and a Page of its maker, the maker having turned the switch on."""
     video = make_video(db, storage, user)
-    add_mp4(db, storage, video)
+    add_mp4(db, storage, video, approved=False)
     plan(db, video, **kwargs)
     user.auto_approve = True
     db.commit()
@@ -106,7 +106,7 @@ def test_a_video_that_could_not_be_approved_by_hand_waits_with_its_reason(db, me
             page.owner_id = None
         db.commit()
     video = make_video(db, storage, me)
-    add_mp4(db, storage, video)
+    add_mp4(db, storage, video, approved=False)
     if setup != "no_time":
         plan(db, video, days_ahead=-3 if setup == "past_time" else 2)
     if setup == "warning":

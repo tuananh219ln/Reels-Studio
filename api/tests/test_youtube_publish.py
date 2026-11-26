@@ -47,6 +47,7 @@ def mp4_video(db, storage, user, mp4=True) -> Video:
     if mp4:
         video.mp4_key = f"videos/{video.id}/video-x.mp4"
         storage.save_bytes(video.mp4_key, MP4)
+        video.rendered_signature, video.approved_signature, video.review_status = "sig", "sig", "approved"
     db.commit()
     return video
 

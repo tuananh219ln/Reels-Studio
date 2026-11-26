@@ -20,7 +20,13 @@ export default function ApproveVideoButton({
   const { me } = useMe();
   const { message } = App.useApp();
   const [busy, setBusy] = useState(false);
-  const [prepared, setPrepared] = useState<{ when: string; fanpage: number; name: string } | null>(null);
+  const [prepared, setPrepared] = useState<{
+    when: string;
+    fanpage: number;
+    name: string;
+    review: string;
+    warnings: string[];
+  } | null>(null);
   async function approve() {
     setBusy(true);
     try {
@@ -36,7 +42,18 @@ export default function ApproveVideoButton({
       if (fanpage === null) throw new Error(NO_PAGE_OF_MINE);
       if (video.posted_fanpage_ids.includes(fanpage))
         throw new Error("Bản MP4 này đang có trên Fanpage đó. Hãy render bản mới hoặc xóa bài cũ.");
-      setPrepared({ when, fanpage, name: video.fanpages.find((page) => page.id === fanpage)?.name ?? "" });
+      if (video.review_status === "rejected") throw new Error("Video đã bị bỏ, hãy khôi phục trước khi duyệt");
+      const items = video.review?.qc.items ?? [];
+      const blocker = items.find((item) => item.level === "blocker");
+      if (video.review_status !== "approved" && blocker) throw new Error(`Chưa duyệt được: ${blocker.message}`);
+      setPrepared({
+        when,
+        fanpage,
+        name: video.fanpages.find((page) => page.id === fanpage)?.name ?? "",
+        review: video.review_status,
+        // Shown in the confirmation: "Vẫn duyệt" acknowledges them, as on the video's own review card.
+        warnings: video.review_status === "approved" ? [] : items.map((item) => item.message),
+      });
     } catch (err) {
       message.error(errorMessage(err));
     } finally {
@@ -46,6 +63,11 @@ export default function ApproveVideoButton({
   async function send() {
     if (!prepared) return;
     try {
+      // The review gate: "Duyệt" approves the MP4 first (the warnings were shown in the confirmation), then
+      // schedules it exactly as before.
+      if (prepared.review !== "approved") {
+        await api(`/review/${videoId}/approve`, "POST", { acknowledge_qc: prepared.warnings.length > 0 });
+      }
       await api(`/videos/${videoId}/publish`, "POST", {
         fanpage_id: prepared.fanpage,
         scheduled_at: prepared.when,
@@ -67,8 +89,19 @@ export default function ApproveVideoButton({
         else setPrepared(null);
       }}
       title={prepared ? `Duyệt đăng lúc ${formatDateTime(prepared.when)}?` : "Duyệt đăng?"}
-      description={prepared ? `Video sẽ tự đăng lên Facebook, Page “${prepared.name}”, vào giờ này.` : undefined}
-      okText="Duyệt"
+      description={
+        prepared ? (
+          <>
+            Video sẽ tự đăng lên Facebook, Page “{prepared.name}”, vào giờ này.
+            {prepared.warnings.length > 0 && (
+              <div style={{ marginTop: 6 }} data-testid="approve-warnings">
+                Còn {prepared.warnings.length} mục chưa đạt: {prepared.warnings.join("; ")}
+              </div>
+            )}
+          </>
+        ) : undefined
+      }
+      okText={prepared && prepared.warnings.length > 0 ? "Vẫn duyệt" : "Duyệt"}
       cancelText="Huỷ"
       onConfirm={send}
     >

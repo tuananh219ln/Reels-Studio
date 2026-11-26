@@ -12,7 +12,7 @@ import { useVideoView, VideoSearch, ViewToggle } from "@/components/videoList/to
 import VideoTitleCell from "@/components/VideoTitleCell";
 import { api, errorMessage, type VideoRow } from "@/lib/api";
 import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
-import { VIDEO_STATUS_FILTERS } from "@/lib/videoStatus";
+import { TOPIC_STATUS_FILTERS } from "@/lib/videoStatus";
 import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { App, Button, Col, Flex, Row, Tabs, Tooltip } from "antd";
 import Link from "next/link";
@@ -102,7 +102,7 @@ export default function TopicVideos({
   );
 
   // Every choice, with how many of the group's videos are in it, so a group of finished videos still shows the rest.
-  const choice = VIDEO_STATUS_FILTERS.find((item) => item.value === status);
+  const choice = TOPIC_STATUS_FILTERS.find((item) => item.value === status);
   const wanted = plain(search.trim());
   const shown = (rows ?? []).filter(
     (row) =>
@@ -121,7 +121,7 @@ export default function TopicVideos({
         tabBarStyle={{ marginBottom: 0 }}
         items={[
           { key: "all", label: `Tất cả (${(rows ?? []).length})` },
-          ...VIDEO_STATUS_FILTERS.map(({ value, label, match }) => ({
+          ...TOPIC_STATUS_FILTERS.map(({ value, label, match }) => ({
             key: value,
             label: `${label} (${(rows ?? []).filter(match).length})`,
           })),

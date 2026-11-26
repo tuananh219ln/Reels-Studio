@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import crypto, hashtags, youtube_connections, youtube_upload
+from . import crypto, hashtags, review, youtube_connections, youtube_upload
 from .db import get_db
 from .errors import ApiError
 from .models import Channel, Job, Publication, Session, YouTubeConnection
@@ -136,6 +136,7 @@ def upload(
     video = lock_video(db, video_id)
     if not video.mp4_key:
         raise invalid("Video chưa render MP4 để đăng")
+    review.ensure_approved(video)
     channel = db.get(Channel, body.channel_id)
     connection = youtube_connections.of_channel(db, body.channel_id)
     if channel is None or connection is None or connection.owner_id != me.user_id:

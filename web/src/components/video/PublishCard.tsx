@@ -32,6 +32,7 @@ import {
   type VideoDetail,
 } from "@/lib/api";
 import { POST_STATUS } from "@/lib/postStatus";
+import { postBlock } from "@/lib/videoStatus";
 import { useEditor } from "./AutoSaveField";
 import ManualPostCard from "./ManualPostCard";
 import PostActions from "./PostActions";
@@ -227,7 +228,8 @@ export function PublishButton({
           type={type}
           block={block}
           icon={type === "primary" ? <SendOutlined /> : undefined}
-          disabled={video.locked}
+          disabled={video.locked || postBlock(video) !== null}
+          title={postBlock(video) ?? undefined}
           onClick={() => {
             // A red QC check does not stop posting, but the member says so first.
             if (video.mp4?.qc?.status !== "fail") {

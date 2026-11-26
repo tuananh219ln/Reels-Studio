@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { chooseOption, connectFacebook, loginAsSeed, openPublishDrawer, resetDatabase } from "./helpers";
+import { approveReview, chooseOption, connectFacebook, loginAsSeed, openPublishDrawer, resetDatabase } from "./helpers";
 
 // The api, a real worker with FFmpeg, and the fake Facebook (api/scripts/fake_services.py) all run.
 test.beforeEach(() => resetDatabase());
@@ -46,7 +46,8 @@ async function renderedVideo(page: Page) {
     await expect(scenes.nth(index).getByTestId("scene-preview")).toHaveCount(1);
   }
   await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).click();
-  await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ duyệt", { timeout: 120_000 });
+  await approveReview(page);
 }
 
 test("a Page's owner gives it a topic group and its own posting times on Quản lý Page", async ({ page }) => {

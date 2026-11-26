@@ -467,6 +467,7 @@ def test_publishing_keeps_the_members_choice(an, db, me, storage, fakes, monkeyp
     page = fanpages.save(db, FACEBOOK_PAGE, "Trang Dưỡng Sinh", FACEBOOK_TOKEN, me.id)
     video = make_video(db, storage, me, scene_count=1)
     video.mp4_key, video.rendered_signature = "video.mp4", "same"
+    video.review_status, video.approved_signature = "approved", "same"
     db.commit()
     an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": page.id, "auto_comment": False})
     post = db.scalar(select(Publication).where(Publication.video_id == video.id))

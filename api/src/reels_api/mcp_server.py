@@ -48,6 +48,7 @@ from . import (
     media_tags,
     motion,
     remote_media,
+    review,
     shuffle,
     slot_comments,
     title_motion,
@@ -69,6 +70,7 @@ from . import routes_queue as queue_routes
 from . import routes_sounds as sound_routes
 from . import routes_templates as template_routes
 from . import routes_videos as videos
+from . import videos as videos_module
 from .claude import ScriptOutputError, parse_output
 from .db import get_db
 from .errors import ApiError
@@ -448,6 +450,11 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             'bài và sửa mọi mục blocking của checks. "Đăng hoặc hẹn giờ Bài viết" đăng THẬT lên Page: chỉ gọi khi '
             "người dùng yêu cầu rõ sau khi họ đã xem caption và ảnh; cần quyền đăng bài, chưa có thì nhờ họ kết nối lại. "
             "Job chạy bất đồng bộ: đọc lại video để xem trạng thái, không tự gửi lại yêu cầu. "
+            "Duyệt video: video làm xong dừng ở Chờ duyệt, không video nào được hẹn hay đăng khi chưa duyệt. Đầu mỗi "
+            'phiên gọi "Xem video chờ duyệt" và nhắc nếu còn video chờ. Làm video xong thì trình bày tiêu đề, kiểu nội '
+            'dung, thời lượng, kết quả qc và link xem, rồi hỏi "Duyệt / Làm bản khác / Bỏ". "Duyệt video" chỉ gọi khi '
+            "người dùng đã đồng ý rõ ràng trong chat; qc có mục warn thì nêu từng mục trước và chỉ đặt acknowledge_qc "
+            "khi họ đã xác nhận; publish now hoặc schedule đăng THẬT lên Page và cần quyền đăng bài. "
             "Link video mở trong Reels Studio và cần đăng nhập. " + CLIP_RULES + " " + QUALITY
         ),
         token_verifier=MemberTokenVerifier(app, resource),
@@ -551,6 +558,99 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         return await run_in_threadpool(
             invoke, lambda db, me: {"results": auto_approve.recent(db, me.user_id, after_id, limit)}
         )
+
+    @tool("Xem video chờ duyệt", read=True)
+    async def get_pending_videos(
+        limit: Annotated[int, Field(ge=1, le=50)] = 10,
+        mine_only: Annotated[bool, Field(description="Chỉ video bạn làm (mặc định); false: của cả nhóm")] = True,
+    ) -> dict:
+        """Video đã render xong và đang chờ người duyệt (mới nhất trước): tiêu đề, kiểu nội dung, thời lượng, số cảnh,
+        kết quả kiểm tra (qc, mỗi mục có level warn hoặc blocker), link xem. Gọi đầu mỗi phiên làm việc và nhắc người
+        dùng nếu còn video chờ."""
+
+        def operation(db, me):
+            query = select(Video).where(Video.review_status == review.PENDING, Video.mp4_key.is_not(None))
+            if mine_only:
+                query = query.where(Video.created_by_id == me.user_id)
+            rows = db.scalars(query.order_by(Video.rendered_at.desc().nulls_last(), Video.id.desc()).limit(limit))
+            found = []
+            for video in rows:
+                title, scenes = videos_module.split_scenes(db, video)
+                found.append(
+                    video_link(
+                        {
+                            "id": video.id,
+                            "title": videos_module.title_of(video, title),
+                            "content_type": video.content_type,
+                            "duration_sec": video.mp4_seconds,
+                            "scene_count": len(scenes),
+                            "qc": review.qc_report(db, video),
+                            "created_at": video.created_at.isoformat(),
+                            "rendered_at": video.rendered_at.isoformat() if video.rendered_at else None,
+                        }
+                    )
+                )
+            return {"videos": found, "total": review.pending_count(db)}
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Duyệt video", read=False, publish=True)
+    async def approve_video(
+        video_id: int,
+        publish: Annotated[
+            Literal["none", "queue", "now", "schedule"],
+            Field(
+                description="none: chỉ duyệt (mặc định); queue: duyệt rồi thêm vào hàng chờ Page; now: duyệt và đăng "
+                "ngay; schedule: duyệt và hẹn giờ schedule_at. Ba cách sau cần fanpage_id (trừ queue) và quyền đăng bài"
+            ),
+        ] = "none",
+        fanpage_id: Annotated[int | None, Field(description="Page của bạn; bắt buộc với now và schedule")] = None,
+        schedule_at: Annotated[
+            datetime | None, Field(description="Giờ đăng kèm múi giờ (vd 2026-11-26T19:00:00+07:00); với schedule")
+        ] = None,
+        acknowledge_qc: Annotated[
+            bool, Field(description="true chỉ khi người dùng đã xác nhận rõ từng mục cảnh báo trong qc")
+        ] = False,
+    ) -> dict:
+        """Duyệt video đang chờ duyệt. KHÔNG BAO GIỜ gọi khi người dùng chưa đồng ý rõ ràng trong chat: sau khi tạo
+        video, trình bày tiêu đề, kiểu nội dung, thời lượng, kết quả qc và link xem, rồi hỏi "Duyệt / Làm bản khác / Bỏ".
+        qc có mục warn thì nêu từng mục trước khi hỏi; mục blocker thì không duyệt được. Lỗi: not_pending,
+        render_not_done, qc_blocker, qc_not_acknowledged. now và schedule đăng THẬT lên Page."""
+        if publish in ("now", "schedule") and fanpage_id is None:
+            raise ToolError("Hãy chọn Page để đăng (fanpage_id, xem Đọc Page và hàng chờ)")
+        if publish == "schedule" and schedule_at is None:
+            raise ToolError("Hẹn giờ cần schedule_at")
+
+        def operation(db, me):
+            video = videos_module.lock_video(db, video_id)
+            review.approve(db, video, me.user_id, "muse_chat", acknowledge_qc)
+            if publish == "queue":
+                queue_routes.add(queue_routes.AddBody(video_id=video_id, fanpage_id=fanpage_id), me, db)
+            elif publish in ("now", "schedule"):
+                body = videos.PublishBody(
+                    fanpage_id=fanpage_id, scheduled_at=schedule_at if publish == "schedule" else None
+                )
+                videos.publish(video_id, body, me, db)
+            db.commit()
+            return {"video_id": video_id, "review": review.payload(db, video), "published": publish}
+
+        # Everything or nothing: a refused post leaves the video waiting for review, not approved and unposted.
+        return await run_in_threadpool(invoke, operation, write=True, publish=publish != "none")
+
+    @tool("Bỏ video chờ duyệt", read=False)
+    async def reject_video(
+        video_id: int, reason: Annotated[str | None, Field(max_length=500, description="Lý do bỏ, nếu có")] = None
+    ) -> dict:
+        """Bỏ một video chưa đăng (người dùng đã nói rõ là bỏ). Khôi phục được trên web. Không bỏ được video đã hẹn
+        giờ hoặc đã đăng."""
+
+        def operation(db, me):
+            video = videos_module.lock_video(db, video_id)
+            review.reject(db, video, me.user_id, "muse_chat", reason)
+            db.commit()
+            return {"video_id": video_id, "review": review.payload(db, video)}
+
+        return await run_in_threadpool(invoke, operation, write=True)
 
     @tool("Bỏ khỏi hàng chờ", read=False)
     async def unschedule_video(video_id: int) -> dict:

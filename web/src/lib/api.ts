@@ -49,6 +49,22 @@ export type VideoStatus =
 /** Where a video is made for: a Facebook reel (Shopee links), or TikTok (posted by hand, TikTok Shop's cart). */
 export type VideoPlatform = "facebook" | "tiktok";
 
+export type ReviewStatus = "pending_review" | "approved" | "rejected";
+
+/** One thing the review lists: `blocker` stops an approval, `warn` asks the member to acknowledge it. */
+export type ReviewItem = { code: string; level: "warn" | "blocker"; message: string; scene_id?: number };
+
+export type VideoReview = {
+  status: ReviewStatus;
+  approved_at: string | null;
+  /** web | muse_chat | auto | legacy */
+  approved_via: string | null;
+  approved_by: string | null;
+  /** The approval holds for the MP4 it was given for: false once a render or a script change has outdated it. */
+  can_post: boolean;
+  qc: { passed: boolean; items: ReviewItem[] };
+};
+
 export type VideoRow = {
   id: number;
   topic: string;
@@ -81,6 +97,10 @@ export type VideoRow = {
   post_stage: "ready" | "scheduled" | "posted" | null;
   mp4_outdated: boolean;
   rerender_failed: boolean;
+  /** The review gate (api review.py): nothing is scheduled or posted until a member approves the MP4. */
+  review_status: ReviewStatus;
+  /** "Chờ duyệt", "Đã duyệt", "Đã bỏ"; "" while the video has no MP4 to review. */
+  review_label: string;
   thumbnail_url: string | null;
   knowledge_topic: string | null;
   /** The 30-day plan day of the idea it was made from. */
@@ -412,6 +432,8 @@ export type ImageFrame = {
 };
 
 export type VideoDetail = VideoRow & {
+  /** Null while the video has no MP4. */
+  review: VideoReview | null;
   /** The video's channel ("Kênh") and whether its logo is laid on the MP4 (api brands.payload_of). */
   brand: { id: number; name: string; logo_badge_url: string | null } | null;
   logo_enabled: boolean;

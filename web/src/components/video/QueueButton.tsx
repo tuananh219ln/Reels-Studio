@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type QueueItem, type VideoDetail } from "@/lib/api";
 import { useMe } from "@/components/MeContext";
 import { myPages, pageOptions } from "@/lib/myPages";
+import { postBlock } from "@/lib/videoStatus";
 import { loadLastChoices, myPageOfGroup, saveLastChoice } from "@/lib/lastChoices";
 import FormDrawer from "@/components/FormDrawer";
 
@@ -100,7 +101,12 @@ export default function QueueButton({
   }
   return (
     <>
-      <Button icon={<UnorderedListOutlined />} disabled={video.locked || video.mp4_outdated} onClick={openDrawer}>
+      <Button
+        icon={<UnorderedListOutlined />}
+        disabled={video.locked || video.mp4_outdated || postBlock(video) !== null}
+        title={postBlock(video) ?? undefined}
+        onClick={openDrawer}
+      >
         Thêm vào hàng chờ
       </Button>
       <FormDrawer

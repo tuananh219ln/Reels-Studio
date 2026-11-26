@@ -110,6 +110,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (answer) setFailedArticles(answer.failed);
   }, []);
   usePolling(pollAttention, ATTENTION_MS);
+  // The review gate: rendered videos waiting for a member to approve them, a count on "Video".
+  const [toReview, setToReview] = useState(0);
+  const pollReview = useCallback(async () => {
+    const answer = await api<{ count: number }>("/review/pending-count").catch(() => null);
+    if (answer) setToReview(answer.count);
+  }, []);
+  usePolling(pollReview, ATTENTION_MS);
+  // The first reading at once: polling alone waits a whole interval, and the count is what members look for.
+  useEffect(() => {
+    let live = true;
+    api<{ count: number }>("/review/pending-count")
+      .then((answer) => live && setToReview(answer.count))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const load = useCallback(() => {
     api<Me>("/me")
@@ -174,7 +191,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     // current page is still loading; a click renders it then.
     label: (
       <Link href={item.key} prefetch={false}>
-        {item.key === "/articles" && failedArticles > 0 ? (
+        {item.key === "/videos" && toReview > 0 ? (
+          <Flex align="center" justify="space-between" gap={8}>
+            {item.label}
+            <Badge
+              count={toReview}
+              size="small"
+              color="orange"
+              overflowCount={99}
+              title={`${toReview} video chờ duyệt`}
+              data-testid="videos-review-badge"
+            />
+          </Flex>
+        ) : item.key === "/articles" && failedArticles > 0 ? (
           <Flex align="center" justify="space-between" gap={8}>
             {item.label}
             <Badge

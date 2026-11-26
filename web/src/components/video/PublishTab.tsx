@@ -3,8 +3,10 @@
 import { App, Badge, Button, Flex, Tabs, Typography } from "antd";
 import { useState, type ContextType } from "react";
 import type { VideoDetail } from "@/lib/api";
+import { postBlock } from "@/lib/videoStatus";
 import { EditorContext } from "./AutoSaveField";
 import PostContent, { EngageContent } from "./PostContent";
+import ReviewCard from "./ReviewCard";
 import type { PostStep } from "./postRound";
 import SetupTab from "./SetupTab";
 import StatusCard, { type DrawerRequest } from "./StatusCard";
@@ -56,6 +58,9 @@ export default function PublishTab({
           forceRender: true,
           children: (
             <Flex vertical gap={12} data-testid="publish-tab">
+              <EditorContext.Provider value={postEditor}>
+                <ReviewCard video={video} />
+              </EditorContext.Provider>
               <StatusCard
                 video={video}
                 onApproved={onApproved}
@@ -72,7 +77,8 @@ export default function PublishTab({
                     Hàng chờ của Page, đăng thẳng lên TikTok, ghi lại bài đã đăng tay.
                   </Typography.Text>
                   <Button
-                    disabled={video.locked}
+                    disabled={video.locked || postBlock(video) !== null}
+                    title={postBlock(video) ?? undefined}
                     onClick={() => {
                       // A red QC check does not stop posting, but the member says so first.
                       if (video.mp4?.qc?.status !== "fail") {

@@ -30,6 +30,7 @@ def add_mp4(db, storage: DirectoryStorage, video) -> None:
     storage.save_bytes(video.mp4_key, b"mp4 bytes")
     title, scenes = split_scenes(db, video)
     video.rendered_signature = render_signature(video, title, scenes)
+    video.review_status, video.approved_signature = "approved", video.rendered_signature
     db.commit()
 
 

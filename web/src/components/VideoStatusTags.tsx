@@ -3,7 +3,7 @@
 import { Flex, theme } from "antd";
 import type { VideoRow } from "@/lib/api";
 import StatusText from "@/components/StatusText";
-import { videoStatusTone } from "@/lib/videoStatus";
+import { videoStatusLabel, videoStatusTone } from "@/lib/videoStatus";
 
 /** A video's status as a dot and a word, with its warnings after it in words. `only`: the status alone, or the
  * other labels alone (beside a card's title, when the status is said elsewhere). */
@@ -11,7 +11,7 @@ export default function VideoStatusTags({ video, only }: { video: VideoRow; only
   const { token } = theme.useToken();
   const status = (
     <StatusText tone={videoStatusTone(video)} data-testid="video-status">
-      {video.status_label}
+      {videoStatusLabel(video)}
     </StatusText>
   );
   if (only === "status") {
