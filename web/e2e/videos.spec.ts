@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   SEED,
   addUser,
@@ -2619,6 +2619,17 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   page,
 }) => {
   test.setTimeout(180_000);
+  const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh/video", exact: true });
+  async function openPicker(scene: Locator) {
+    await scene.getByRole("button", { name: "Chọn từ kho" }).click();
+    const item = page.getByRole("menuitem", { name: /Kho ảnh\/video miễn phí/ });
+    const menu = page.locator(".ant-dropdown:visible", { has: item });
+    await expect(menu).toBeVisible();
+    // Wait for the dropdown to finish moving before clicking the option.
+    await expect(menu).not.toHaveClass(/-(appear|enter|leave)/);
+    await menu.getByRole("menuitem", { name: /Kho ảnh\/video miễn phí/ }).click();
+    await expect(picker).toBeVisible();
+  }
   await loginAsSeed(page);
   await page.getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
@@ -2630,9 +2641,7 @@ test("photos from the stock picker: pick from the grid for the title and a scene
 
   // The title scene: the grid opens on its first keyword and shows every result as a large-enough thumbnail.
   const title = page.getByTestId("title-scene");
-  await title.getByRole("button", { name: "Chọn từ kho" }).click();
-  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
-  let picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  await openPicker(title);
   await expect(picker.getByLabel("Từ khóa tìm ảnh")).toHaveValue("calcium rich food");
   await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
   // Measured once the dialog's opening zoom has finished.
@@ -2673,9 +2682,7 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   const scenes = page.getByTestId("scene");
   const first = scenes.nth(0);
   await openScene(first);
-  await first.getByRole("button", { name: "Chọn từ kho" }).click();
-  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
-  picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  await openPicker(first);
   await expect(picker.getByLabel("Từ khóa tìm ảnh")).toHaveValue("small fried fish");
   const firstResult = picker.getByTestId("stock-hit").first().locator("img");
   await expect(firstResult).toBeVisible();
@@ -2710,9 +2717,7 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   await expect(third.getByTestId("image-error")).toHaveText("Hãy nhập từ khóa tìm ảnh trước");
   await expect(third.getByTestId("keywords-hint")).toBeVisible();
   // The grid then waits for a keyword to be typed instead of searching nothing.
-  await third.getByRole("button", { name: "Chọn từ kho" }).click();
-  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
-  picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  await openPicker(third);
   await expect(picker.getByTestId("picker-hint")).toBeVisible();
   await expect(picker.getByTestId("stock-hit")).toHaveCount(0);
   await page.keyboard.press("Escape");
@@ -2735,9 +2740,7 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   // On a phone the grid fits the screen: no sideways scroll, thumbnails still large enough to tell apart.
   await page.setViewportSize({ width: 390, height: 844 });
   await openScene(page.getByTestId("scene").first());
-  await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ kho" }).click();
-  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
-  picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  await openPicker(page.getByTestId("scene").first());
   // The photo this scene already shows is hidden ("Ẩn ảnh đã dùng trong video này" is on by default).
   await expect(picker.getByTestId("stock-hit")).toHaveCount(2);
   for (const hit of await picker.getByTestId("stock-hit").all()) {
