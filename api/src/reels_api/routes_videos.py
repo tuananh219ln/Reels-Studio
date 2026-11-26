@@ -51,6 +51,7 @@ from . import (
     text_looks,
     tts,
     video_options,
+    voice_format,
     youtube_meta,
 )
 from .claude import GeneratedScript
@@ -98,6 +99,7 @@ from .uploads import (
 from .videos import (
     JOB_KINDS,
     LIVE_POST_STATUSES,
+    MAX_VOICE_BYTES,
     MODES,
     OPEN_POST_STATUSES,
     active_job,
@@ -120,10 +122,12 @@ from .videos import (
     posted_fanpage_ids,
     publications_of,
     refresh_thumbnail,
+    remove_custom_voice,
     render_signature,
     resolve_video_mode,
     run_checks,
     scene_still,
+    set_custom_voice,
     split_scenes,
     spoken,
     text_floor,
@@ -2458,6 +2462,53 @@ def scene_voice(
     return _inline(storage, _scene(db, scene_id).voice_key, "audio/mpeg")
 
 
+def custom_voice(db: DbSession, storage: DirectoryStorage, me: Session, scene_id: int, data: bytes, name: str) -> dict:
+    """An MP3 made outside the app (another voice, a recorded one) as the scene's narration, from an upload or a link
+    (MCP "Tải giọng đọc cho cảnh"): only the video's maker sets it, never while a job holds the video."""
+    try:
+        check_mp3(data)
+    except UploadRejected:
+        raise ApiError(
+            415, "invalid_voice", "File giọng đọc phải là MP3 thật (đổi đuôi file khác thành .mp3 không dùng được)"
+        ) from None
+    video, scene = lock_scene(db, scene_id)
+    ensure_owner(video.created_by_id, me.user_id, "video này", "đổi được giọng đọc")
+    ensure_unlocked(db, video)
+    old = set_custom_voice(db, storage, video, scene, data, name)
+    payload = _saved(db, video)
+    storage.delete(old)
+    return payload
+
+
+@router.post("/scenes/{scene_id}/voice")
+def upload_scene_voice(
+    scene_id: int,
+    file: UploadFile = File(...),
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    data = read_limited(file, MAX_VOICE_BYTES, "File giọng đọc quá 20 MB, hãy chọn file nhỏ hơn")
+    return custom_voice(db, storage, me, scene_id, data, file_label(file.filename, "giong-doc.mp3"))
+
+
+@router.delete("/scenes/{scene_id}/voice")
+def delete_scene_voice(
+    scene_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Bỏ giọng tải lên": the scene goes back to its voice; the next voice job or render reads it again."""
+    video, scene = lock_scene(db, scene_id)
+    ensure_owner(video.created_by_id, me.user_id, "video này", "đổi được giọng đọc")
+    ensure_unlocked(db, video)
+    old = remove_custom_voice(scene)
+    payload = _saved(db, video)
+    storage.delete(old)
+    return payload
+
+
 @router.get("/videos/{video_id}/thumbnail.jpg")
 def thumbnail(
     video_id: int,
@@ -2520,6 +2571,7 @@ class TopicPatchBody(BaseModel):
     article_prompt: str | None = None  # "Bài viết": empty brings back the default prompt.
     voice_id: str | None = None  # the group's own voice; "" leaves it to each maker's defaults
     voice_backup_id: str | None = None  # the voice read instead when the voice above cannot; "" for none
+    voice_format: dict | None = None  # "Giọng đọc theo vai" (voice_format.py); {} for none
     templates: list[int] | None = None  # the group's own "Mẫu dựng" (saved ones' ids)
     stock_order: list[str] | None = None  # "Thứ tự nguồn ảnh"; [] goes back to the app's order
     edit_template_default: object = None  # "app", one of `templates`, or null: what its new videos take (if sent)
@@ -2592,6 +2644,7 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "article_prompt": topic.article_prompt,
                 "voice_id": topic.voice_id,
                 "voice_backup_id": topic.voice_backup_id,
+                "voice_format": topic.voice_format or {},
                 # "Kiểu video" and the mode a video made now takes by it ("Xen kẽ theo ngày" resolved for today).
                 "video_mode": topic.video_mode,
                 "video_mode_today": group_video_mode(topic),
@@ -2719,6 +2772,7 @@ COPIED_TOPIC_FIELDS = (
     "photo_hint",
     "voice_id",
     "voice_backup_id",
+    "voice_format",
     "video_mode",
     "text_ai",
     "no_people",
@@ -2815,6 +2869,11 @@ def patch_topic(
     if body.voice_backup_id is not None:
         try:
             topic.voice_backup_id = video_options.clean({"voice_id": body.voice_backup_id})["voice_id"]
+        except video_options.OptionError as err:
+            raise invalid(str(err)) from None
+    if body.voice_format is not None:
+        try:
+            topic.voice_format = voice_format.clean(body.voice_format)
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
     if body.video_mode is not None:

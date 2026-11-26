@@ -80,6 +80,7 @@ import { silentVideo } from "./silentVideo";
 import SceneViewer from "./SceneViewer";
 import StockPicker, { DEFAULT_SOURCE } from "./StockPicker";
 import TextPositionModal from "./TextPositionModal";
+import SceneVoiceUpload from "./SceneVoiceUpload";
 import VoiceText from "./VoiceText";
 import { VoicePicker } from "./VideoSettings";
 import { COLORS } from "@/app/theme";
@@ -153,7 +154,8 @@ export function SceneVoiceField({ scene, voiceEnabled }: { scene: SceneData; voi
   return (
     <Flex vertical gap={4}>
       <VoiceText scene={scene} save={(voice_text) => patchScene(scene, { voice_text })} />
-      <SceneVoicePicker scene={scene} />
+      <SceneVoiceUpload scene={scene} />
+      {!scene.voice_custom && <SceneVoicePicker scene={scene} />}
     </Flex>
   );
 }

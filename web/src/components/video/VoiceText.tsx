@@ -17,6 +17,7 @@ export default function VoiceText({ scene, save }: { scene: SceneData; save: (te
     [
       !scene.voice_text.trim() && scene.spoken_text && `Sẽ đọc chữ trên màn hình: ${scene.spoken_text}`,
       scene.spoken_text && !scene.voice_url && "Giọng đọc được tạo khi render",
+      scene.voice_custom && "lời đọc chỉ dùng làm phụ đề, giọng lấy từ file tải lên",
     ]
       .filter(Boolean)
       .join(", ") || undefined;

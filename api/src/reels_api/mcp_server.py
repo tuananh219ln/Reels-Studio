@@ -166,7 +166,7 @@ def _compact_scene(scene: dict) -> dict:
     }
     if video:
         row["clip"] = {key: video.get(key) for key in ("start", "seconds", "speed", "blur")}
-    for key in ("image_credit", "image_error", "voice_id"):
+    for key in ("image_credit", "image_error", "voice_id", "voice_custom", "voice_name"):
         if scene.get(key):
             row[key] = scene[key]
     if frame := scene.get("image_frame"):
@@ -783,8 +783,10 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
     @tool("Đọc nhóm chủ đề", read=True)
     async def list_topic_groups() -> dict:
-        """Lấy ID và tên nhóm chủ đề để tạo video, kèm thứ tự nguồn ảnh của nhóm (tìm nguồn đứng đầu trước); không
-        thay đổi prompt của nhóm."""
+        """Lấy ID và tên nhóm chủ đề để tạo video, kèm thứ tự nguồn ảnh của nhóm (tìm nguồn đứng đầu trước), giọng
+        của nhóm (voice_id, giọng phụ voice_backup_id) và "Giọng đọc theo vai" (voice_format: mỗi vai đọc bằng giọng
+        nào, source "custom" là file MP3 tải lên bằng "Tải giọng đọc cho cảnh", cùng luật của nhóm). Dựng video thì
+        đặt giọng từng cảnh theo voice_format, không tự chọn giọng khác; không thay đổi prompt của nhóm."""
         return await run_in_threadpool(
             invoke,
             lambda db, me: {
@@ -797,6 +799,11 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                         # "Kiểu video" of the group and the mode a video made now takes by it.
                         "video_mode": row.video_mode,
                         "video_mode_today": videos.group_video_mode(row),
+                        # The group's voice (new videos start with it), its backup, and "Giọng đọc theo vai": the
+                        # voice and source of each role and the rules a build follows ({} when not set).
+                        "voice_id": row.voice_id,
+                        "voice_backup_id": row.voice_backup_id,
+                        "voice_format": row.voice_format or {},
                     }
                     for row in db.scalars(select(KnowledgeTopic).order_by(KnowledgeTopic.id))
                 ]
@@ -1238,6 +1245,25 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             lambda db, me: changed(videos.media_from_url(scene_id, body, me, db, get_storage())),
             write=True,
         )
+
+    @tool("Tải giọng đọc cho cảnh", read=False, external=True)
+    async def upload_scene_voice(scene_id: int, url: Annotated[str, Field(max_length=2000)]) -> dict:
+        """Dùng một file MP3 làm lời đọc của cảnh thay cho giọng của dịch vụ đọc (giọng làm ngoài app, giọng thu
+        âm), như nút "Tải giọng lên" trên trang video. url là link tải thẳng file MP3, tối đa 20 MB: link Google Drive
+        phải là dạng uc?export=download&id=…, link /file/d/…/view trả trang web nên không dùng được. Chỉ người tạo
+        video đổi được. Lời đọc (voice_text) giữ nguyên để làm phụ đề; cảnh "Tự khớp lời đọc" dài theo file. Render
+        và "Tạo giọng thật" không đọc lại cảnh này (không tốn phí dịch vụ đọc) cho tới khi bỏ file trên web."""
+
+        def operation(db, me):
+            with tempfile.TemporaryDirectory(prefix="reels_voice_") as folder:
+                try:
+                    data = remote_media.download_music(url, Path(folder))
+                except remote_media.RemoteMediaError as err:
+                    raise ToolError(str(err)) from None
+            name = url.rsplit("/", 1)[-1].split("?", 1)[0] or "giong-doc.mp3"
+            return changed(videos.custom_voice(db, get_storage(), me, scene_id, data, name[:200]))
+
+        return await run_in_threadpool(invoke, operation, write=True)
 
     @tool("Tìm sản phẩm affiliate", read=True)
     async def list_affiliate_products(

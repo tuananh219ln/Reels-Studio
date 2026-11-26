@@ -174,6 +174,9 @@ class KnowledgeTopic(Base):
     # The group's backup voice: a narration whose own voice cannot be read (every key of its service wrong or spent) is
     # read with this one instead (jobs.narrate). Empty: no backup.
     voice_backup_id: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    # "Giọng đọc theo vai" (migration 0127, voice_format.py): each role's voice and source (a TTS service or an
+    # uploaded file) and the group's narration rules, read by whoever builds its videos; {} for none. Not applied.
+    voice_format: Mapped[dict] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
     # "Từ video mẫu" (reference.py): the prompt that writes a script from a sample video, and the one that analyses
     # the sample on its own (ways B, C and D). Empty: the default in prompts/.
     learn_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
@@ -465,8 +468,11 @@ class Scene(Base):
     # The last narration MP3 made for this scene and the tts.voice_signature it was made from: it is reused
     # while the signature still matches, so a re-render does not pay ElevenLabs again.
     voice_key: Mapped[str | None] = mapped_column(String(200))
+    # "custom:<hash>" for an MP3 a member uploaded (videos.set_custom_voice): never made again by a voice job, and
+    # `voice_name` is its file's name. Both go when it is removed.
     voice_signature: Mapped[str | None] = mapped_column(String(64))
     voice_seconds: Mapped[float | None] = mapped_column(Float)
+    voice_name: Mapped[str | None] = mapped_column(String(200))
     # A clip shown instead of the photo: a scene has one or the other, never both.
     video_key: Mapped[str | None] = mapped_column(String(200))
     video_seconds: Mapped[float | None] = mapped_column(Float)  # the clip's probed length

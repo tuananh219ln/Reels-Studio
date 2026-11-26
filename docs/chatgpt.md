@@ -182,6 +182,11 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
   music library with its mood, topics ("chung" by default) and a licence note, which is required; TikTok and YouTube
   links are refused, as their sound is someone's work that Facebook mutes or blocks. The track is then put on a video
   with `set_audio`'s `music_track_id`.
+- **A scene's voice from a link**: `upload_scene_voice` takes a scene and a direct MP3 link (a Google Drive
+  `uc?export=download&id=…` link works, a `/file/d/…/view` page does not) and makes it the scene's narration, as
+  "Tải giọng lên" on the web: the voice text stays for the captions, the scene follows the file's length, and voice
+  jobs and renders never pay a voice service for it. Only the video's maker may. `list_topic_groups` gives each
+  group's `voice_id`, `voice_backup_id` and `voice_format` ("Giọng đọc theo vai"), which a build follows per role.
 
 The server's instructions hold the team's quality bar: a strong hook in the first two seconds, one idea per scene,
 short on-screen text, a clear call to buy; fix every blocking item and warning, look at every scene before
