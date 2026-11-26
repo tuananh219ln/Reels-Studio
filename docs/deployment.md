@@ -162,6 +162,23 @@ Shopee key in `.env`; the fakes also
 set `IMAGE_GEN_CF_ACCOUNT_ID=test-account` and a fake `IMAGE_GEN_CF_API_KEY`, so with `IMAGE_GEN_PROVIDER` unset Cloudflare is
 the default; Gemini and Cloudflare tests set `IMAGE_GEN_PROVIDER` themselves). The Graph API version (Facebook and Instagram) is `config.GRAPH_VERSION`; change it there when Meta retires it. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
 
+## Telegram ("Có gì mới" in the team's group)
+
+After each deploy the CI posts what it brought to the team's shared Telegram group
+([decision](decisions/2026-11-26-whats-new.md)). The shared group only ever gets team-wide news; anything about one
+member's own work goes to that member privately. Set up once by the owner:
+
+1. In Telegram, open **@BotFather**, send `/newbot`, give a name and a username ending in `bot`; it answers with the
+   bot's token. Keep it secret. `/setjoingroups` › the bot › Enable lets it be added to groups.
+2. Add the bot to the team's group (it only sends, so it needs no admin rights).
+3. Send any message in the group, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read
+   `"chat":{"id":-100…}`: that negative number is the chat id (if the list is empty, remove and re-add the bot, send
+   again).
+4. In the repo's Settings › Secrets and variables › Actions: secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`;
+   optionally the variable `WEB_URL` (the web app's address) for the "Xem trong app" link.
+
+Without the secrets the step sends nothing and passes. A deploy with no `feat`/`fix`/`perf` change sends nothing.
+
 ## Render machine
 
 A member's own computer can render for the team, so the VPS only prepares jobs (narration, checks, files) and keeps
