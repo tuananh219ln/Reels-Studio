@@ -117,6 +117,12 @@ why and does not report success.
   "Còn N mục chưa đạt" with "Vẫn duyệt" / "Huỷ"), "Bỏ video" (asks first) and "Khôi phục" on a dropped one. While it is
   not approved, "Đăng lên N nền tảng", "Tùy chọn đăng khác", the posting drawer's button and "Thêm vào hàng chờ" are
   disabled with "Cần duyệt video trước khi đăng". A new render sends the video back to "Chờ duyệt".
+- **Strategy and beats** ([decision](decisions/2026-11-26-strategy-beats.md)): a video Muse wrote with beats has, in its
+  left column, the "Chiến lược nội dung" card (the content type as a tag, "Đối tượng", "Nỗi đau" and "Lời hứa" saved when
+  left) and the "Kịch bản theo nhịp" card, one row per beat: a coloured tag by type, its seconds (a button that opens the
+  MP4 there), its text to edit in place, "Đổi hook" on a hook, "Gắn sản phẩm affiliate" on a call to act, and the QC
+  items of its scenes. The scene cards, "Thêm cảnh", the scene-count banner and the title / kind row are not shown. The
+  "Đăng bài" tab has a "Tiêu đề & caption" card under the review card. Other videos keep the scene editor.
 - **Articles:** the list offers the detail page's publishing drawer and the maker's delete confirmation,
   side by side in one row ("Làm reel từ bài này" is on the detail page only). The table is `size="middle"` with
   48 px thumbnails so a 1440×900 screen shows 7 rows or more; "Số 48h" reads "—" (draft), "Chưa đo" (posted, under

@@ -16,6 +16,8 @@ import { QcChip } from "@/components/video/QcCard";
 import { FoldedStatus, RenderButtons, RenderStatus, showFirstBlocking } from "@/components/video/RenderBar";
 import SampleCard from "@/components/video/SampleCard";
 import SceneCard from "@/components/video/SceneCard";
+import StrategyColumn from "@/components/video/StrategyColumn";
+import { showsBeats } from "@/lib/strategy";
 import ShuffleModal from "@/components/video/ShuffleModal";
 import type { PostBlockKey } from "@/components/video/PostContent";
 import { VIDEO_MODES, isBackdrop } from "@/components/video/videoModes";
@@ -1103,170 +1105,187 @@ export default function VideoPage() {
             {video.video_blocking.map((reason) => (
               <Alert key={reason} type="error" showIcon title={reason} data-testid="video-blocking" />
             ))}
-            {video.video_warnings
-              .filter((warning) => warning.field === "total" || warning.field === "scenes")
-              .map((warning) => (
-                <Alert key={warning.message} type="warning" showIcon title={warning.message} />
-              ))}
-            {/* One row instead of two cards: the title picked from the script's options, and the video's kind. */}
-            <Flex wrap align="center" gap="8px 16px" style={{ minHeight: 48 }} data-testid="scenes-toolbar">
-              {video.title_scene && (
-                <Flex align="center" gap={8} style={{ flex: "1 1 280px", minWidth: 0 }}>
-                  <Typography.Text type="secondary" style={{ flex: "none", fontSize: 13 }}>
-                    Tiêu đề
-                  </Typography.Text>
-                  <Dropdown
-                    trigger={["click"]}
-                    // Drawn while closed too, so the script's author can be read without opening it.
-                    forceRender
-                    disabled={video.title_options.length === 0}
-                    popupRender={() => (
-                      <Card size="small" style={{ maxWidth: 440 }} data-testid="title-options">
-                        <Typography.Text type="secondary">Chọn 1 tiêu đề để chép vào chữ cảnh tiêu đề:</Typography.Text>
-                        <Radio.Group
-                          style={{ display: "flex", flexDirection: "column", gap: 6, margin: "8px 0 0" }}
-                          value={video.title_options.indexOf(video.title_scene!.text)}
-                          disabled={video.locked || viewing}
-                          onChange={(event) => {
-                            const text = video.title_options[event.target.value as number];
-                            void act(() => api<VideoDetail>(`/scenes/${video.title_scene!.id}`, "PATCH", { text }));
-                          }}
-                          options={video.title_options.map((option, index) => ({ value: index, label: option }))}
-                        />
-                        {/* A script typed through MCP was written by the member's Claude: script_by names it. */}
-                        {(video.script_by || video.hand_written) && (
-                          <Typography.Text
-                            type="secondary"
-                            style={{ display: "block", marginTop: 10, fontSize: 12 }}
-                            data-testid="script-by"
-                          >
-                            {video.script_by
-                              ? `Kịch bản viết bởi ${video.script_by}`
-                              : "Kịch bản tự viết, không qua AI"}
-                          </Typography.Text>
+            {showsBeats(video) ? (
+              <StrategyColumn video={video} onOpenProducts={() => openSide("products")} />
+            ) : (
+              <>
+                {video.video_warnings
+                  .filter((warning) => warning.field === "total" || warning.field === "scenes")
+                  .map((warning) => (
+                    <Alert key={warning.message} type="warning" showIcon title={warning.message} />
+                  ))}
+                {/* One row instead of two cards: the title picked from the script's options, and the video's kind. */}
+                <Flex wrap align="center" gap="8px 16px" style={{ minHeight: 48 }} data-testid="scenes-toolbar">
+                  {video.title_scene && (
+                    <Flex align="center" gap={8} style={{ flex: "1 1 280px", minWidth: 0 }}>
+                      <Typography.Text type="secondary" style={{ flex: "none", fontSize: 13 }}>
+                        Tiêu đề
+                      </Typography.Text>
+                      <Dropdown
+                        trigger={["click"]}
+                        // Drawn while closed too, so the script's author can be read without opening it.
+                        forceRender
+                        disabled={video.title_options.length === 0}
+                        popupRender={() => (
+                          <Card size="small" style={{ maxWidth: 440 }} data-testid="title-options">
+                            <Typography.Text type="secondary">
+                              Chọn 1 tiêu đề để chép vào chữ cảnh tiêu đề:
+                            </Typography.Text>
+                            <Radio.Group
+                              style={{ display: "flex", flexDirection: "column", gap: 6, margin: "8px 0 0" }}
+                              value={video.title_options.indexOf(video.title_scene!.text)}
+                              disabled={video.locked || viewing}
+                              onChange={(event) => {
+                                const text = video.title_options[event.target.value as number];
+                                void act(() => api<VideoDetail>(`/scenes/${video.title_scene!.id}`, "PATCH", { text }));
+                              }}
+                              options={video.title_options.map((option, index) => ({ value: index, label: option }))}
+                            />
+                            {/* A script typed through MCP was written by the member's Claude: script_by names it. */}
+                            {(video.script_by || video.hand_written) && (
+                              <Typography.Text
+                                type="secondary"
+                                style={{ display: "block", marginTop: 10, fontSize: 12 }}
+                                data-testid="script-by"
+                              >
+                                {video.script_by
+                                  ? `Kịch bản viết bởi ${video.script_by}`
+                                  : "Kịch bản tự viết, không qua AI"}
+                              </Typography.Text>
+                            )}
+                          </Card>
                         )}
-                      </Card>
-                    )}
-                  >
-                    <Button style={{ flex: 1, minWidth: 0, justifyContent: "space-between" }} aria-label="Chọn tiêu đề">
-                      <Typography.Text ellipsis style={{ minWidth: 0 }}>
-                        {video.title_scene.text.replaceAll("*", "").replace(/\s+/g, " ").trim() || "(chưa có tiêu đề)"}
-                      </Typography.Text>
-                      <Typography.Text type="secondary" style={{ flex: "none", fontSize: 12 }}>
-                        {video.title_options.length} gợi ý <DownOutlined style={{ fontSize: 10 }} />
-                      </Typography.Text>
-                    </Button>
-                  </Dropdown>
+                      >
+                        <Button
+                          style={{ flex: 1, minWidth: 0, justifyContent: "space-between" }}
+                          aria-label="Chọn tiêu đề"
+                        >
+                          <Typography.Text ellipsis style={{ minWidth: 0 }}>
+                            {video.title_scene.text.replaceAll("*", "").replace(/\s+/g, " ").trim() ||
+                              "(chưa có tiêu đề)"}
+                          </Typography.Text>
+                          <Typography.Text type="secondary" style={{ flex: "none", fontSize: 12 }}>
+                            {video.title_options.length} gợi ý <DownOutlined style={{ fontSize: 10 }} />
+                          </Typography.Text>
+                        </Button>
+                      </Dropdown>
+                    </Flex>
+                  )}
+                  <Flex align="center" gap={8} data-testid="video-mode">
+                    <Typography.Text type="secondary" style={{ flex: "none", fontSize: 13 }}>
+                      Kiểu video
+                    </Typography.Text>
+                    <Tooltip title={VIDEO_MODES.find((item) => item.value === video.mode)?.hint}>
+                      <Segmented
+                        aria-label="Kiểu video"
+                        value={video.mode}
+                        disabled={video.locked || viewing}
+                        options={VIDEO_MODES.map((item) => ({ value: item.value, label: item.label }))}
+                        onChange={(value) =>
+                          modal.confirm({
+                            title: `Đổi sang “${VIDEO_MODES.find((item) => item.value === value)?.label}”?`,
+                            content: "Ảnh, clip và ảnh món đã chọn vẫn được giữ, đổi lại lúc nào cũng được.",
+                            okText: "Đổi",
+                            cancelText: "Huỷ",
+                            onOk: () =>
+                              act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { mode: value as VideoMode })),
+                          })
+                        }
+                      />
+                    </Tooltip>
+                  </Flex>
                 </Flex>
-              )}
-              <Flex align="center" gap={8} data-testid="video-mode">
-                <Typography.Text type="secondary" style={{ flex: "none", fontSize: 13 }}>
-                  Kiểu video
-                </Typography.Text>
-                <Tooltip title={VIDEO_MODES.find((item) => item.value === video.mode)?.hint}>
-                  <Segmented
-                    aria-label="Kiểu video"
-                    value={video.mode}
-                    disabled={video.locked || viewing}
-                    options={VIDEO_MODES.map((item) => ({ value: item.value, label: item.label }))}
-                    onChange={(value) =>
-                      modal.confirm({
-                        title: `Đổi sang “${VIDEO_MODES.find((item) => item.value === value)?.label}”?`,
-                        content: "Ảnh, clip và ảnh món đã chọn vẫn được giữ, đổi lại lúc nào cũng được.",
-                        okText: "Đổi",
-                        cancelText: "Huỷ",
-                        onOk: () => act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { mode: value as VideoMode })),
-                      })
+                <Flex justify="space-between" align="center" gap={4}>
+                  <Typography.Text strong data-testid="scene-count">
+                    Cảnh ({scenes.length + (video.title_scene ? 1 : 0)})
+                  </Typography.Text>
+                  <Flex gap={4}>
+                    {video.shuffle && !viewing && scenes.length >= 2 && (
+                      <Dropdown
+                        trigger={["click"]}
+                        disabled={busy || video.locked}
+                        menu={{
+                          items: [
+                            { key: "all", label: "Xáo tất cả cảnh nội dung", onClick: () => void reshuffle(false) },
+                            { key: "last", label: "Giữ cố định cảnh cuối", onClick: () => void reshuffle(true) },
+                          ],
+                        }}
+                      >
+                        <Button size="small" type="link" icon={<SwapOutlined />}>
+                          Xáo lại cảnh
+                        </Button>
+                      </Dropdown>
+                    )}
+                    <Button size="small" type="link" onClick={() => setAllExpanded(true)}>
+                      Mở tất cả
+                    </Button>
+                    <Button size="small" type="link" onClick={() => setAllExpanded(false)}>
+                      Thu gọn tất cả
+                    </Button>
+                  </Flex>
+                </Flex>
+                {video.title_scene && (
+                  <SceneCard
+                    scene={video.title_scene}
+                    label="Cảnh tiêu đề"
+                    backdrop={isBackdrop(video)}
+                    generating={job?.kind === "image" && job.scene_id === video.title_scene.id}
+                    editing={job?.kind === "image_edit" && job.scene_id === video.title_scene.id}
+                    voiceEnabled={video.voice_enabled}
+                    onPreview={() => setPreviewFrom(0)}
+                    expanded={expanded[video.title_scene.id] ?? false}
+                    onToggle={() => toggle(video.title_scene!.id)}
+                  />
+                )}
+                {scenes.map((scene, index) => (
+                  <SceneCard
+                    key={scene.id}
+                    scene={scene}
+                    label={`Cảnh ${index + 1}`}
+                    backdrop={isBackdrop(video)}
+                    backdropScene={video.title_scene}
+                    generating={job?.kind === "image" && job.scene_id === scene.id}
+                    editing={job?.kind === "image_edit" && job.scene_id === scene.id}
+                    voiceEnabled={video.voice_enabled}
+                    onPreview={() => setPreviewFrom(index + (video.title_scene ? 1 : 0))}
+                    expanded={expanded[scene.id] ?? false}
+                    onToggle={() => toggle(scene.id)}
+                    onMove={(step) => move(index, step)}
+                    reorder={
+                      viewing || video.locked
+                        ? undefined
+                        : {
+                            dragging: dragged === scene.id,
+                            over: dropTarget === scene.id && dragged !== scene.id,
+                            onStart: () => setDragged(scene.id),
+                            onOver: () => setDropTarget(scene.id),
+                            onDrop: (movedId) => {
+                              if (movedId) dropScene(movedId, scene.id);
+                              setDragged(null);
+                              setDropTarget(null);
+                            },
+                            onEnd: () => {
+                              setDragged(null);
+                              setDropTarget(null);
+                            },
+                          }
+                    }
+                    onDelete={
+                      video.created_by_id === me.id
+                        ? () => act(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))
+                        : undefined
                     }
                   />
-                </Tooltip>
-              </Flex>
-            </Flex>
-            <Flex justify="space-between" align="center" gap={4}>
-              <Typography.Text strong data-testid="scene-count">
-                Cảnh ({scenes.length + (video.title_scene ? 1 : 0)})
-              </Typography.Text>
-              <Flex gap={4}>
-                {video.shuffle && !viewing && scenes.length >= 2 && (
-                  <Dropdown
-                    trigger={["click"]}
-                    disabled={busy || video.locked}
-                    menu={{
-                      items: [
-                        { key: "all", label: "Xáo tất cả cảnh nội dung", onClick: () => void reshuffle(false) },
-                        { key: "last", label: "Giữ cố định cảnh cuối", onClick: () => void reshuffle(true) },
-                      ],
-                    }}
-                  >
-                    <Button size="small" type="link" icon={<SwapOutlined />}>
-                      Xáo lại cảnh
-                    </Button>
-                  </Dropdown>
-                )}
-                <Button size="small" type="link" onClick={() => setAllExpanded(true)}>
-                  Mở tất cả
+                ))}
+                <Button
+                  icon={<PlusOutlined />}
+                  disabled={video.locked || viewing || busy}
+                  onClick={() => void addScene()}
+                >
+                  Thêm cảnh
                 </Button>
-                <Button size="small" type="link" onClick={() => setAllExpanded(false)}>
-                  Thu gọn tất cả
-                </Button>
-              </Flex>
-            </Flex>
-            {video.title_scene && (
-              <SceneCard
-                scene={video.title_scene}
-                label="Cảnh tiêu đề"
-                backdrop={isBackdrop(video)}
-                generating={job?.kind === "image" && job.scene_id === video.title_scene.id}
-                editing={job?.kind === "image_edit" && job.scene_id === video.title_scene.id}
-                voiceEnabled={video.voice_enabled}
-                onPreview={() => setPreviewFrom(0)}
-                expanded={expanded[video.title_scene.id] ?? false}
-                onToggle={() => toggle(video.title_scene!.id)}
-              />
+              </>
             )}
-            {scenes.map((scene, index) => (
-              <SceneCard
-                key={scene.id}
-                scene={scene}
-                label={`Cảnh ${index + 1}`}
-                backdrop={isBackdrop(video)}
-                backdropScene={video.title_scene}
-                generating={job?.kind === "image" && job.scene_id === scene.id}
-                editing={job?.kind === "image_edit" && job.scene_id === scene.id}
-                voiceEnabled={video.voice_enabled}
-                onPreview={() => setPreviewFrom(index + (video.title_scene ? 1 : 0))}
-                expanded={expanded[scene.id] ?? false}
-                onToggle={() => toggle(scene.id)}
-                onMove={(step) => move(index, step)}
-                reorder={
-                  viewing || video.locked
-                    ? undefined
-                    : {
-                        dragging: dragged === scene.id,
-                        over: dropTarget === scene.id && dragged !== scene.id,
-                        onStart: () => setDragged(scene.id),
-                        onOver: () => setDropTarget(scene.id),
-                        onDrop: (movedId) => {
-                          if (movedId) dropScene(movedId, scene.id);
-                          setDragged(null);
-                          setDropTarget(null);
-                        },
-                        onEnd: () => {
-                          setDragged(null);
-                          setDropTarget(null);
-                        },
-                      }
-                }
-                onDelete={
-                  video.created_by_id === me.id
-                    ? () => act(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))
-                    : undefined
-                }
-              />
-            ))}
-            <Button icon={<PlusOutlined />} disabled={video.locked || viewing || busy} onClick={() => void addScene()}>
-              Thêm cảnh
-            </Button>
           </Flex>
         </SideLayout>
       )}

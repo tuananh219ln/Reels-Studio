@@ -7,6 +7,8 @@ import { postBlock } from "@/lib/videoStatus";
 import { EditorContext } from "./AutoSaveField";
 import PostContent, { EngageContent } from "./PostContent";
 import ReviewCard from "./ReviewCard";
+import TitleCaptionCard from "./TitleCaptionCard";
+import { showsBeats } from "@/lib/strategy";
 import type { PostStep } from "./postRound";
 import SetupTab from "./SetupTab";
 import StatusCard, { type DrawerRequest } from "./StatusCard";
@@ -60,6 +62,7 @@ export default function PublishTab({
             <Flex vertical gap={12} data-testid="publish-tab">
               <EditorContext.Provider value={postEditor}>
                 <ReviewCard video={video} />
+                {showsBeats(video) && <TitleCaptionCard video={video} />}
               </EditorContext.Provider>
               <StatusCard
                 video={video}

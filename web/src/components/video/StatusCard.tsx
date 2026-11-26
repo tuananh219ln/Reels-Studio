@@ -32,6 +32,7 @@ import {
 import { loadLastChoices, myPageOfGroup } from "@/lib/lastChoices";
 import { myPages, pageOptions } from "@/lib/myPages";
 import { postBlock } from "@/lib/videoStatus";
+import { PLAY_MP4_EVENT } from "./StrategyColumn";
 import {
   AUTO_PLATFORMS,
   PLATFORM_LABELS,
@@ -853,24 +854,42 @@ function Platforms({
  */
 function VideoThumb({ url, seconds, poster }: { url: string; seconds: number; poster: string | null }) {
   const [open, setOpen] = useState(false);
+  // A beat of "Kịch bản theo nhịp" opens the MP4 at its first second.
+  const [startAt, setStartAt] = useState(0);
+  useEffect(() => {
+    const onPlay = (event: Event) => {
+      setStartAt(Number((event as CustomEvent<{ at: number }>).detail?.at) || 0);
+      setOpen(true);
+    };
+    window.addEventListener(PLAY_MP4_EVENT, onPlay);
+    return () => window.removeEventListener(PLAY_MP4_EVENT, onPlay);
+  }, []);
   const length = `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`;
   return (
     <div className="publish-card__thumb">
       {/* The title's thumbnail stands for a poster (a motion title's first frame is nearly empty). */}
       <video src={url} poster={poster ?? undefined} preload="metadata" muted playsInline tabIndex={-1} aria-hidden />
-      <button type="button" className="publish-card__play" aria-label="Phát MP4" onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        className="publish-card__play"
+        aria-label="Phát MP4"
+        onClick={() => {
+          setStartAt(0);
+          setOpen(true);
+        }}
+      >
         <CaretRightFilled />
       </button>
       <span className="publish-card__length">{length}</span>
       <Modal open={open} onCancel={() => setOpen(false)} footer={null} title="Xem MP4" width={380} destroyOnHidden>
-        <Mp4Player url={url} />
+        <Mp4Player url={url} startAt={startAt} />
       </Modal>
     </div>
   );
 }
 
 /** The MP4 with the browser's controls, playing at once, at the listener's volume. */
-function Mp4Player({ url }: { url: string }) {
+function Mp4Player({ url, startAt = 0 }: { url: string; startAt?: number }) {
   const player = useRef<HTMLVideoElement>(null);
   const { level, muted } = useListen();
   useEffect(() => {
@@ -886,6 +905,9 @@ function Mp4Player({ url }: { url: string }) {
         controls
         autoPlay
         playsInline
+        onLoadedMetadata={(event) => {
+          if (startAt > 0) event.currentTarget.currentTime = startAt;
+        }}
         data-testid="mp4-player"
         // The browser's own mute button moves the shared level too, so every player stays in step.
         onVolumeChange={(event) => {

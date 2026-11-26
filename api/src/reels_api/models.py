@@ -374,6 +374,10 @@ class Video(Base):
     approved_via: Mapped[str | None] = mapped_column(String(16))
     # The MP4's fingerprint (rendered_signature) at approval: an approval holds only for that MP4.
     approved_signature: Mapped[str | None] = mapped_column(String(64))
+    # "Chiến lược" and "Kịch bản theo nhịp" (strategy.py): what the video is about and its beats, written by Muse
+    # through MCP and edited on the video page; None for a video made without them.
+    strategy: Mapped[dict | None] = mapped_column(JSONB)
+    beats: Mapped[list | None] = mapped_column(JSONB)
     music_key: Mapped[str | None] = mapped_column(String(200))
     music_name: Mapped[str | None] = mapped_column(String(200))  # the uploaded file's name, display only
     music_volume: Mapped[int] = mapped_column(Integer, default=25)  # percent
