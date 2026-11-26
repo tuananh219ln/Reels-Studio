@@ -926,15 +926,18 @@ test.describe("connection problems", () => {
     await context.addCookies([{ name: "reels_session", value: "bat-ky", url: "http://localhost:3100" }]);
   });
 
+  // Every request of the page fails as it would with the api or its database down. Answering only /api/me let the
+  // page's other first requests (the menu's counts, the list) reach the real api, whose 401 for this made-up session
+  // sends the page to /login (lib/api.ts) before or after the error shows: the test failed now and then.
   test("api not running", async ({ page }) => {
     // What the Next.js proxy answers when nothing listens on API_URL: a 500 without our JSON body.
-    await page.route("**/api/me", (route) => route.fulfill({ status: 500, body: "Internal Server Error" }));
+    await page.route("**/api/**", (route) => route.fulfill({ status: 500, body: "Internal Server Error" }));
     await page.goto("/videos");
     await expect(page.getByText("Không kết nối được máy chủ, thử lại sau")).toBeVisible();
   });
 
   test("database unavailable", async ({ page }) => {
-    await page.route("**/api/me", (route) =>
+    await page.route("**/api/**", (route) =>
       route.fulfill({
         status: 503,
         contentType: "application/json",

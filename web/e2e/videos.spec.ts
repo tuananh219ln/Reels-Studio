@@ -136,10 +136,12 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await deleting.getByRole("button", { name: "Huỷ" }).click();
   await expect(deleting).toBeHidden();
 
-  // Once posted, the card says so rather than "Chờ đăng".
+  // Once posted, the card says so rather than "Chờ đăng". The worker checks a new post on its own (jobs
+  // queue_post_checks), and while that job runs the card reads "Đang kiểm tra bài" until the list's next refresh, every
+  // 5 s (videos/page.tsx REFRESH_MS): the same as expect's own 5 s, so wait for the job and a refresh after it.
   await page.goto("/videos");
   const card = page.getByTestId("video-card").first();
-  await expect(card.getByTestId("video-status")).toHaveText("Đã đăng");
+  await expect(card.getByTestId("video-status")).toHaveText("Đã đăng", { timeout: 20_000 });
   await expect(card.locator("img")).toBeVisible();
   await expect(card).toContainText("6 MÓN");
 });
@@ -2134,6 +2136,9 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await posts.getByRole("button", { name: "Cập nhật view" }).click();
   await expect(posts.getByTestId("post-views")).toHaveText("1.200", { timeout: 30_000 });
   await expect(groups.getByTestId("cell-facebook")).toContainText("1.200 view", { timeout: 30_000 });
+  // The reading asked for is done: until then the button under the mouse is "Đang đo view", disabled, and its tooltip
+  // can stay open over the one hovered next.
+  await expect(posts.getByRole("button", { name: "Cập nhật view" })).toBeEnabled({ timeout: 30_000 });
   // The views stay on one line: the details sit in a tooltip.
   await expect(posts.getByText("3 share, 5 bình luận, 40 cảm xúc")).toHaveCount(0);
   await posts.getByTestId("post-views").hover();
