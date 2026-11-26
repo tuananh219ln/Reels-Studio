@@ -1076,6 +1076,8 @@ def run_article_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) 
     post.retry_at = None
     post.scheduled_at = (status["scheduled_at"] or post.scheduled_at) if post.status == "scheduled" else None
     post.published_at = now()
+    if post.status == "published":
+        post.checked_at = post.published_at
     db.commit()
     log.info("Job %s posted article %s to Facebook as %s", job.id, article.id, post.remote_id)
 

@@ -43,6 +43,7 @@ from . import (
     changelog,
     clips,
     duplicate,
+    edit_log,
     food_comments,
     footage_tools,
     frames,
@@ -50,6 +51,7 @@ from . import (
     mcp_competitors,
     media_tags,
     motion,
+    qc_config,
     remote_media,
     review,
     shuffle,
@@ -495,6 +497,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                     raise ToolError("Kết nối đã bị thu hồi hoặc hết hạn")
                 connection, me = found
                 CALLING_APP.set(app_of(registered(connection.client.redirect_uri)[0]))
+                edit_log.SOURCE.set("mcp")  # the video's and the group's "Lịch sử" say the edit came through MCP
                 if write and "reels:write" not in connection.scopes.split():
                     raise ToolError("Kết nối chỉ có quyền đọc, hãy cấp thêm quyền sửa")
                 if publish and "reels:publish" not in connection.scopes.split():
@@ -1251,6 +1254,147 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
         return await run_in_threadpool(invoke, operation, write=True)
 
+    def qc_config_of(topic: KnowledgeTopic) -> dict:
+        config = qc_config.of(topic.qc_config)
+        return {
+            "knowledge_topic_id": topic.id,
+            "name": topic.name,
+            "qc_config": config,
+            "is_set": qc_config.is_set(topic.qc_config),
+            "summary": qc_config.text(config),
+        }
+
+    def group_of(db, knowledge_topic_id: int) -> KnowledgeTopic:
+        topic = db.get(KnowledgeTopic, knowledge_topic_id)
+        if topic is None:
+            raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+        return topic
+
+    @tool("Đọc QC & duyệt của nhóm", read=True)
+    async def get_qc_config(
+        knowledge_topic_id: Annotated[int, Field(description="ID nhóm chủ đề (lấy ở “Đọc nhóm chủ đề”)")],
+    ) -> dict:
+        """Ngưỡng kiểm tra của nhóm khi duyệt video: title_required (có bắt chữ tiêu đề không), total_seconds (độ dài
+        kịch bản không cảnh báo), scene_count (số cảnh nội dung không cảnh báo), channel_seconds (độ dài MP4 không cảnh
+        báo), mỗi khoảng {min, max}. is_set false: nhóm dùng mặc định của app. Âm lượng chuẩn −14 LUFS chung cho mọi
+        nhóm."""
+        return await run_in_threadpool(invoke, lambda db, me: qc_config_of(group_of(db, knowledge_topic_id)))
+
+    @tool("Sửa QC & duyệt của nhóm", read=False)
+    async def update_qc_config(
+        knowledge_topic_id: Annotated[int, Field(description="ID nhóm chủ đề")],
+        title_required: Annotated[
+            bool | None, Field(description="false: video không có chữ tiêu đề vẫn duyệt được (vd. Threads)")
+        ] = None,
+        total_seconds: Annotated[
+            dict | None, Field(description='Độ dài kịch bản không cảnh báo, {"min": 45, "max": 100} (giây, tối đa 150)')
+        ] = None,
+        scene_count: Annotated[
+            dict | None, Field(description='Số cảnh nội dung không cảnh báo, {"min": 5, "max": 13}')
+        ] = None,
+        channel_seconds: Annotated[
+            dict | None, Field(description='Độ dài MP4 không cảnh báo, {"min": 60, "max": 90} (giây)')
+        ] = None,
+        reset: Annotated[bool, Field(description="true: đưa nhóm về mặc định của app (bỏ qua các mục khác)")] = False,
+    ) -> dict:
+        """Sửa các mục được truyền của QC & duyệt của nhóm (như thẻ QC & duyệt ở Kho kiến thức); chỉ người được sửa
+        nhóm mới sửa được, và chỉ khi thành viên yêu cầu rõ. Áp dụng ngay cho mọi video của nhóm, kể cả video đã render
+        (độ dài MP4 được chấm lại). Không duyệt, không đăng."""
+
+        def operation(db, me):
+            topic = group_of(db, knowledge_topic_id)
+            config = {} if reset else qc_config.of(topic.qc_config)
+            if not reset:
+                sent = {
+                    "title_required": title_required,
+                    "total_seconds": total_seconds,
+                    "scene_count": scene_count,
+                    "channel_seconds": channel_seconds,
+                }
+                config.update({field: value for field, value in sent.items() if value is not None})
+            videos.patch_topic(knowledge_topic_id, videos.TopicPatchBody(qc_config=config), me, db)
+            db.refresh(topic)
+            return qc_config_of(topic)
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Sửa Giọng đọc theo vai của nhóm", read=False)
+    async def update_voice_format(
+        knowledge_topic_id: Annotated[int, Field(description="ID nhóm chủ đề")],
+        voice_format: Annotated[
+            dict,
+            Field(
+                description=(
+                    'Cả mục Giọng đọc theo vai, thay toàn bộ: {"mode": "single"|"multi", "roles": [{"role": '
+                    '"all"|"op"|"comment"|"cta", "source": "provider"|"custom", "voice": "<mã giọng>", "voices": '
+                    '["<mã giọng>", ...], "volume": 0-100, "note": "..."}], "rules": {"max_gemini_scenes": 0-50, '
+                    '"excited_tag": "..."}}. "single" chỉ có vai "all"; "custom" là file MP3 tải lên, không ghi giọng. '
+                    'Mã giọng: mã ElevenLabs, "vieneu:<tên>", "gemini:<tên>", "google:<tên>". {} xóa mục này.'
+                )
+            ),
+        ],
+    ) -> dict:
+        """Thay "Giọng đọc theo vai" của nhóm (như thẻ cùng tên ở Kho kiến thức), là nguồn đúng duy nhất về giọng của
+        nhóm: mọi video sau sẽ đặt giọng theo mục này. Chỉ gọi khi thành viên yêu cầu rõ và đã nói giọng cho từng vai;
+        đọc mục hiện tại bằng "Đọc nhóm chủ đề" trước. Chỉ người được sửa nhóm mới sửa được; lần sửa vào Lịch sử nhóm.
+        Không đổi giọng của video đã làm."""
+
+        def operation(db, me):
+            topic = group_of(db, knowledge_topic_id)
+            videos.patch_topic(knowledge_topic_id, videos.TopicPatchBody(voice_format=voice_format), me, db)
+            db.refresh(topic)
+            return {"knowledge_topic_id": topic.id, "name": topic.name, "voice_format": topic.voice_format or {}}
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Đặt tiêu đề video", read=False)
+    async def set_video_title(
+        video_id: int,
+        text: Annotated[
+            str | None, Field(description="Chữ tiêu đề nhập tay, ghi thẳng vào chữ cảnh tiêu đề", max_length=500)
+        ] = None,
+        option: Annotated[
+            int | None, Field(ge=1, description="Chọn tiêu đề gợi ý thứ mấy trong title_options (đếm từ 1)")
+        ] = None,
+        no_title: Annotated[
+            bool | None,
+            Field(
+                description=(
+                    'true: "Không dùng tiêu đề" (xóa chữ cảnh tiêu đề, cất chữ cũ, duyệt được dù nhóm bắt tiêu đề); '
+                    "false: bỏ, trả lại chữ đã cất"
+                )
+            ),
+        ] = None,
+    ) -> dict:
+        """Đặt chữ tiêu đề hiện trên màn hình của video, đúng một trong ba cách: text (nhập tay), option (chọn gợi ý),
+        no_title. Như ô tiêu đề trên trang video. Đổi tiêu đề sau khi render thì MP4 thành bản cũ, cần render lại trước
+        khi duyệt. Không render, không duyệt."""
+        chosen = [value for value in (text, option, no_title) if value is not None]
+        if len(chosen) != 1:
+            raise ToolError("Truyền đúng một trong text, option, no_title")
+
+        def operation(db, me):
+            video = db.get(Video, video_id)
+            if video is None:
+                raise ApiError(404, "video_not_found", "Không tìm thấy video")
+            title, _ = videos.split_scenes(db, video)
+            if title is None:
+                raise ApiError(409, "no_title_scene", "Video này không có cảnh tiêu đề")
+            if no_title is not None:
+                payload = videos.patch_video(video_id, videos.VideoPatchBody(no_title=no_title), me, db, get_storage())
+                return changed(payload)
+            words = text
+            if option is not None:
+                if option > len(video.title_options):
+                    raise ApiError(422, "invalid", f"Video chỉ có {len(video.title_options)} tiêu đề gợi ý")
+                words = video.title_options[option - 1]
+            if not (words or "").strip():
+                raise ApiError(422, "invalid", "Tiêu đề trống: dùng no_title nếu không muốn có tiêu đề")
+            body = videos.ScenePatchBody(text=words)
+            return changed(videos.patch_scene(title.id, body, me, db, get_storage()))
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
     @tool("Sửa nội dung đăng", read=False)
     async def update_video(
         video_id: int,
@@ -1299,6 +1443,15 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         video_start: float | None = None,
         video_speed: float | None = None,
         video_sound: bool | None = None,
+        video_loop: Annotated[
+            bool | None,
+            Field(
+                description=(
+                    '"Lặp clip": clip ngắn hơn cảnh chạy lại từ đầu thay vì đứng ở khung cuối (nền gameplay lặp); '
+                    "không bật cùng video_sound"
+                )
+            ),
+        ] = None,
         text_position: Annotated[
             list[int] | None, Field(description="Tâm hộp chữ của riêng cảnh này [x, y] trong khung 1080×1920")
         ] = None,
@@ -1329,7 +1482,8 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     ) -> dict:
         """Sửa chữ/lời đọc/thời lượng/từ khóa/prompt ảnh của một cảnh, kể cả cảnh tiêu đề. Với cảnh có clip:
         video_start là giây trong clip nơi cảnh bắt đầu, video_speed là tốc độ (1 là thường), video_sound bật/tắt
-        "Tiếng gốc" (tiếng của clip có trong video xuất ra; clip phải có tiếng). text_position dời hộp chữ của riêng
+        "Tiếng gốc" (tiếng của clip có trong video xuất ra; clip phải có tiếng), video_loop bật "Lặp clip" (hết cảnh báo
+        "Video ngắn hơn cảnh"). Sửa chữ cảnh tiêu đề thì dùng "Đặt tiêu đề video". text_position dời hộp chữ của riêng
         cảnh này (như kéo chữ trên web; render giữ hộp trong vùng an toàn, cảnh tiêu đề chỉ dời lên xuống),
         reset_text_position đưa về chỗ chung của video. voice_id đặt giọng riêng cho cảnh (ví dụ đoạn kết đọc
         bằng giọng khác); chỉ cảnh đó được tạo lại giọng ở lần render sau (tốn ký tự cho riêng cảnh đó), giọng
@@ -1346,6 +1500,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             video_start=video_start,
             video_speed=video_speed,
             video_sound=video_sound,
+            video_loop=video_loop,
             text_position=text_position,
             voice_id=voice_id,
         )

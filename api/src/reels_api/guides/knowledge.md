@@ -21,11 +21,18 @@ Dưới tên nhóm. **Bắt buộc:** có Page đăng nhóm (gắn ở Quản l�
 | **Tư liệu** | Thư mục ảnh và clip của nhóm lấy từ Kho tư liệu. |
 | **Tài liệu** | Tài liệu Markdown vận hành nhóm (job, mẫu, kế hoạch, prompt, báo cáo). Bản ở đây là bản chính, trợ lý đọc qua MCP. Có tìm kiếm, ghim, **Sao chép** và mục lục "Trên trang này". |
 | **Prompt** | Prompt viết kịch bản, nhân bản, sửa theo góp ý, học và phân tích video mẫu, viết bài. Để trống thì dùng bản mặc định (trừ prompt viết kịch bản: không có thì nhóm không tạo được video bằng AI trên web). |
-| **Cài đặt nhóm** | Từ cấm, gợi ý tìm ảnh, thứ tự nguồn ảnh, kiểu video, chữ và phụ đề, giọng đọc, cảnh kết, mẫu dựng: video mới của nhóm bắt đầu theo đây. |
+| **Cài đặt nhóm** | Từ cấm, gợi ý tìm ảnh, thứ tự nguồn ảnh, kiểu video, chữ và phụ đề, giọng đọc, cảnh kết, mẫu dựng: video mới của nhóm bắt đầu theo đây. Thêm **Đăng YouTube** và **QC & duyệt** (xem dưới). |
+
+## QC & duyệt (Cài đặt nhóm)
+Ngưỡng kiểm tra khi duyệt video của nhóm, vì mỗi format dài ngắn khác nhau:
+- **Bắt tiêu đề khi duyệt:** tắt cho format không có chữ tiêu đề trên màn hình (Threads: tiêu đề nằm trong thẻ OP).
+- **Độ dài kịch bản**, **Số cảnh nội dung**, **Độ dài MP4:** video trong khoảng thì không bị cảnh báo vàng. Độ dài MP4 của video đã render cũng được chấm lại theo ngưỡng mới, không cần render lại.
+- Để mặc định (bắt tiêu đề, 20–55 giây, 5–7 cảnh, MP4 20–40 giây) là nhóm kiểm tra như trước; **Về mặc định của app** bỏ ngưỡng riêng. Âm lượng chuẩn −14 LUFS chung cho mọi nhóm.
+- Claude/Muse đọc và sửa mục này được (khi bạn yêu cầu), cũng như **Giọng đọc theo vai**: cài đặt nhóm là nguồn đúng duy nhất về giọng và ngưỡng của nhóm.
 
 ## Menu "Quản lý nhóm"
 - **Đổi tên nhóm** (nhấp đúp vào tên cũng được), **Lịch sử thay đổi**.
-- **Nhân bản nhóm:** tạo nhóm của bạn tên "<tên> (bản sao)" với prompt, từ cấm, gợi ý ảnh, giọng, kiểu video, chữ, cảnh kết, mẫu dựng và thứ tự nguồn ảnh của nhóm gốc. **Không** sao chép video, kế hoạch, tài liệu và thư mục tư liệu. Ai cũng nhân bản được nhóm của người khác.
+- **Nhân bản nhóm:** tạo nhóm của bạn tên "<tên> (bản sao)" với prompt, từ cấm, gợi ý ảnh, giọng, kiểu video, chữ, cảnh kết, mẫu dựng, QC & duyệt và thứ tự nguồn ảnh của nhóm gốc. **Không** sao chép video, kế hoạch, tài liệu và thư mục tư liệu. Ai cũng nhân bản được nhóm của người khác.
 - **Cho cả đội sửa** (chỉ người tạo nhóm): tắt thì người khác chỉ đọc prompt, từ cấm, mẫu dựng và kế hoạch; mọi người vẫn tạo video từ nhóm. Nhóm chưa có người tạo hiện **Nhận nhóm**.
 - **Xoá nhóm:** chỉ người tạo, và chỉ khi nhóm không còn video.
 - Lối tắt tới **Quản lý kênh** và **sản phẩm của nhóm** trong Affiliate.

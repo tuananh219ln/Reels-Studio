@@ -201,7 +201,11 @@ export function PublishButton({
         okText="Đăng"
         onOk={() => send(false)}
         confirmLoading={busy}
-        okButtonProps={{ disabled: !fanpage || (mode === "later" && !when) || blocking.length > 0 }}
+        okButtonProps={{
+          "aria-label": "Đăng",
+          "aria-busy": busy,
+          disabled: !fanpage || (mode === "later" && !when) || blocking.length > 0,
+        }}
       >
         {pages.length === 0 ? (
           <Flex vertical gap={4} align="flex-start">
