@@ -642,6 +642,8 @@ def sound_payload(sound: SceneSound) -> dict:
 def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> str:
     """Fingerprint of what changes the MP4 (text, seconds, photo, order, music, volume, narration); captions and
     keywords are left out."""
+    if video.mode == "upload":  # a finished MP4 sent in whole: the fingerprint is the file's own (upload_mp4.py)
+        return hashlib.sha256(f"upload:{(video.source_mp4 or {}).get('sha256', '')}".encode()).hexdigest()
     every = ([title] if title else []) + scenes
     # A clip joins its scene's part only when there is one, so MP4s rendered before clips existed stay current.
     # So does a clip speed other than 1×, and a moved text box, so a box in the template's place keeps the fingerprint from before.
@@ -1271,6 +1273,22 @@ def _review_fields(video: Video) -> dict:
     }
 
 
+def _upload_payload(db: DbSession, video: Video) -> dict | None:
+    if video.mode != "upload" or not video.source_mp4:
+        return None
+    source = video.source_mp4
+    sender = db.get(User, source.get("uploaded_by")) if source.get("uploaded_by") else None
+    return {
+        "size_bytes": source.get("size_bytes"),
+        "sha256": source.get("sha256"),
+        "uploaded_at": source.get("uploaded_at"),
+        "uploaded_by": sender.name if sender else None,
+        "via": video.written_via,
+        "app": video.assistant_app,
+        "note": video.upload_note,
+    }
+
+
 def _labels(video: Video, title: Scene | None, scenes: list[Scene], job: Job | None, failed: Job | None) -> dict:
     return {
         "mp4_outdated": bool(video.mp4_key) and video.rendered_signature != render_signature(video, title, scenes),
@@ -1336,6 +1354,8 @@ def script_at(db: DbSession, video: Video) -> str | None:
 
 
 def title_of(video: Video, title: Scene | None) -> str:
+    if title is None and video.mode == "upload":  # a finished MP4 has no title scene: its name is the title
+        return plain_title(video.name or "")
     return plain_title(title.text) if title is not None and title.text.strip() else ""
 
 
@@ -1520,6 +1540,9 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "notes": notes_payload(db, video, title, scenes),
         "voice_enabled": video.voice_enabled,
         "mode": video.mode,
+        # "MP4 tải lên" (upload_mp4.py): what ffprobe read, who sent the file and when, and their note.
+        "media_info": video.media_info,
+        "upload": _upload_payload(db, video),
         "made_via": made_via(video),
         "assistant_app": video.assistant_app,
         "content_type": video.content_type,

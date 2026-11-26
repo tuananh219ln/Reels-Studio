@@ -14,6 +14,7 @@ import { useMe } from "@/components/MeContext";
 import GuideButton from "@/components/GuideButton";
 import PageHeader from "@/components/PageHeader";
 import SampleFields, { type SampleValues } from "@/components/video/SampleFields";
+import ImportMp4Modal from "@/components/video/ImportMp4Modal";
 import { groupVideoModeLabel, VIDEO_MODES, videoModeLabel } from "@/components/video/videoModes";
 import VideoNameEditor from "@/components/VideoNameEditor";
 import { videoDetails } from "@/components/videoList/format";
@@ -39,7 +40,7 @@ import { usePolling } from "@/lib/polling";
 import { useGuardedClose } from "@/lib/unsaved";
 import { useUrlChoice, useUrlPage, useUrlParam } from "@/lib/urlState";
 import { VIDEO_STATUS_FILTERS, type VideoStatusFilter } from "@/lib/videoStatus";
-import { EditOutlined, FilterOutlined, PlusOutlined } from "@ant-design/icons";
+import { EditOutlined, FilterOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import {
   Alert,
   App,
@@ -141,6 +142,9 @@ function Videos() {
     "facebook",
     "tiktok",
   ]);
+  // "Kiểu video": every video, or only the finished MP4s sent in whole ("MP4 tải lên").
+  const [kind, setKind] = useUrlChoice<"all" | "upload" | "built">("kind", "all", ["upload", "built"]);
+  const [importing, setImporting] = useState(false);
   const [fanpage, setFanpage] = useUrlChoice<string | null>("fanpage", null);
   // The topic group shown: the address's, else the one remembered in this browser, as a member usually works on one
   // group at a time. (`group` in the address is the group "Tạo video" opens with, below.)
@@ -258,6 +262,7 @@ function Videos() {
       match(row) &&
       (!creator || (creator === me.name ? row.created_by_id === me.id : row.created_by === creator)) &&
       (platform === "all" || row.platform === platform) &&
+      (kind === "all" || (kind === "upload") === (row.mode === "upload")) &&
       (!fanpage || Boolean(row.post?.fanpages.includes(fanpage))) &&
       (!group || row.knowledge_topic === group),
   );
@@ -289,6 +294,7 @@ function Videos() {
     status !== "all" ||
     Boolean(creator) ||
     platform !== "all" ||
+    kind !== "all" ||
     Boolean(fanpage) ||
     Boolean(group);
 
@@ -313,6 +319,17 @@ function Videos() {
           { value: "tiktok", label: "TikTok" },
         ]}
         style={{ width: full ? "100%" : 140 }}
+      />
+      <FilterSelect<"upload" | "built">
+        aria-label="Lọc theo kiểu video"
+        placeholder="Mọi kiểu video"
+        value={kind === "all" ? null : kind}
+        onChange={(value) => setKind(value ?? "all")}
+        options={[
+          { value: "upload", label: "MP4 tải lên" },
+          { value: "built", label: "Video dựng trong Studio" },
+        ]}
+        style={{ width: full ? "100%" : 160 }}
       />
       <FilterSelect<string>
         aria-label="Lọc theo Fanpage"
@@ -341,9 +358,14 @@ function Videos() {
     </>
   );
   // "Cả đội" (an empty `by`) is everyone's videos, no filter.
-  const activeFilters = [status !== "all", platform !== "all", fanpage !== null, group !== null, Boolean(by)].filter(
-    Boolean,
-  ).length;
+  const activeFilters = [
+    status !== "all",
+    platform !== "all",
+    kind !== "all",
+    fanpage !== null,
+    group !== null,
+    Boolean(by),
+  ].filter(Boolean).length;
 
   return (
     <>
@@ -352,6 +374,9 @@ function Videos() {
         actions={
           <>
             <GuideButton screen="videos" />
+            <Button icon={<UploadOutlined />} onClick={() => setImporting(true)} data-testid="import-mp4">
+              Import MP4
+            </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => startFrom(null)}>
               Tạo video
             </Button>
@@ -431,6 +456,11 @@ function Videos() {
       ) : (
         <VideoRows rows={shown} columns={videoColumns.columns} onChanged={() => reload(query, true)} />
       )}
+      <ImportMp4Modal
+        open={importing}
+        onClose={() => setImporting(false)}
+        onDone={(video) => router.push(`/videos/${video.id}`)}
+      />
       <NewVideoModal
         key={opened}
         open={creating}

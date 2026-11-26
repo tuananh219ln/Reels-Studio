@@ -9,6 +9,7 @@ from pathlib import PurePosixPath
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
+from .errors import ApiError
 from .models import Scene, SceneLayer, SceneSound, Video, VideoAffiliateProduct
 from .storage import DirectoryStorage
 from .videos import base_name, new_key, split_scenes, video_name
@@ -105,6 +106,8 @@ def copy_video(
     db: DbSession, storage: DirectoryStorage, source: Video, user_id: int, name: str
 ) -> tuple[Video, dict[int, Scene]]:
     """The copy, named `name`, and its scenes by the id of the source's scene each copies."""
+    if source.mode == "upload":
+        raise ApiError(409, "upload_video", "Video “MP4 tải lên” không nhân bản được, hãy tải MP4 lên lại")
     draft = Video(**_columns(source, _VIDEO_SKIP), name=name, created_by_id=user_id)
     db.add(draft)
     db.flush()

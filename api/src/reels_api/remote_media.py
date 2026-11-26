@@ -358,3 +358,25 @@ def download_music(url: str, folder: Path) -> bytes:
     except UploadRejected:
         raise RemoteMediaError("Link không phải file MP3: hãy dùng link tải thẳng file .mp3") from None
     return data
+
+
+MAX_MP4_BYTES = 200 * 1024 * 1024
+MP4_TOO_BIG = "File MP4 quá 200 MB, hãy nén nhỏ hơn"
+MP4_DEADLINE_SECONDS = 110
+
+
+def download_mp4(url: str, folder: Path) -> Path:
+    """A finished MP4 from a pasted link ("MP4 tải lên", upload_mp4.py): a direct link or a Google Drive file shared
+    with "Anyone with the link", at most MAX_MP4_BYTES. ffprobe judges the file afterwards."""
+    url = normalize_link(check_url(url))
+    parts = urllib.parse.urlsplit(url)
+    _check_host(parts)
+    target = folder / "linked.mp4"
+    _fetch(url, target, MAX_MP4_BYTES, MP4_TOO_BIG, MP4_DEADLINE_SECONDS)
+    with open(target, "rb") as file:
+        head = file.read(16)
+    if not looks_like_clip(head):
+        if parts.hostname == DRIVE_DOWNLOAD_HOST:
+            raise RemoteMediaError(DRIVE_NOT_PUBLIC, NOT_PUBLIC)
+        raise RemoteMediaError("Link này không phải file MP4", NOT_A_FILE)
+    return target

@@ -326,6 +326,18 @@ tool discovery and revocation. Its callback is intercepted locally and never rea
 AI calls use the project's fake services. A real workspace connection after deployment remains
 an owner check; agents do not access production or trigger real jobs to test it.
 
+## MP4 đã dựng sẵn (Muse)
+
+Ba tool ([the decision](decisions/2026-11-26-upload-mp4.md)) cho video Muse dựng xong ngoài Studio.
+`upload_finished_video` (`topic_id`, `mp4_url` hoặc `mp4_base64` (chỉ file tới 90 KB: kênh MCP từ chối request quá 128 KB, video thật dùng `mp4_url`), `plan_item_id`, `title`, `caption`,
+`hashtags`, `pinned_comment_text`, `idempotency_key`, `upload_note`, `replace_existing`) tạo video "MP4 tải lên" từ
+nguyên file đó, ở trạng thái Chờ duyệt; `replace_finished_video` thay file khi sửa lỗi (video quay lại Chờ duyệt, lịch
+của file cũ bị huỷ). `schedule_video_at` (`fanpage_id`, `post_at` hoặc giờ gợi ý của ý tưởng, cần quyền đăng bài) hẹn giờ
+một video ĐÃ DUYỆT; `schedule_video` vẫn chỉ thêm vào hàng chờ. Lỗi của hai tool đầu trả `{error, message, detail}`
+(`invalid_media`, `plan_item_taken`, `plan_item_not_found`, `file_too_large`, `source_url_unreachable`, `not_upload`) để
+Muse báo lại đúng. `schedule` của `upload_finished_video` chưa hẹn giờ được: theo cổng duyệt, Muse hỏi người dùng rồi
+gọi `approve_video` với `publish` `schedule`.
+
 ## Duyệt video (Muse)
 
 Three tools ([the decision](decisions/2026-11-26-review-gate.md)) put Muse in the review gate: nothing is scheduled or
