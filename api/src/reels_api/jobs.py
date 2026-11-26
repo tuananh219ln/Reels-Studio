@@ -1017,6 +1017,9 @@ def run_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     post.status = "scheduled" if facebook.is_scheduled(status) else "published"
     post.scheduled_at = (facebook.scheduled_time(status) or post.scheduled_at) if post.status == "scheduled" else None
     post.published_at = now()
+    if post.status == "published":
+        # The publish job already confirmed this reel was live on Facebook.
+        post.checked_at = post.published_at
     db.commit()
     title, _ = split_scenes(db, video)
     _set_cover(page, post, storage, (title_poster_second(title) if title is not None else None) or 0)
