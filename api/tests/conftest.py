@@ -177,6 +177,7 @@ def isolated_files(tmp_path, monkeypatch):
         "TIKTOK_CLIENT_SECRET",
         "TELEGRAM_BOT_TOKEN",
         "TELEGRAM_API_URL",
+        "TELEGRAM_CHAT_ID",
     ):
         monkeypatch.setenv(name, "")
 
