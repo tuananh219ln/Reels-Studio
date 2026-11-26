@@ -1,15 +1,17 @@
 """Posting articles ("Bài viết"): the endpoints, the publish/unpublish/check jobs, the products' comment, the numbers
 and their analysis, and that reels are left as they were."""
 
+import threading
+import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import first_topic, login, make_user, make_video
 from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN
-from sqlalchemy import select
+from sqlalchemy import event, select, text
 from worker_helpers import add_user, committed, job_row  # noqa: F401  (fixtures)
 
-from reels_api import analytics, article_posts, articles, fanpages, jobs, metrics, post_comments
+from reels_api import analytics, article_posts, articles, fanpages, jobs, metrics, post_comments, routes_articles
 from reels_api.models import (
     AffiliateProduct,
     Article,
@@ -413,6 +415,58 @@ def test_the_numbers_of_an_article_are_its_reach_and_counts_without_views(db, me
     row = db.scalar(select(PostMetrics).where(PostMetrics.publication_id == post.id, PostMetrics.window == "latest"))
     assert (row.views, row.reach, row.shares, row.comments, row.reactions) == (None, 320, 1, 4, 18)
     assert row.plays is None and row.retention is None
+
+
+def test_cap_nhat_so_while_the_worker_reads_the_numbers_waits_instead_of_deadlocking(committed, fakes):
+    """A member's "Cập nhật số" landing while the worker saves a reading of the same post. The request held the article
+    and waited for the post; the worker, updating the post a second time, checks its foreign key to the article and
+    waited for the request: Postgres dropped one of them (the e2e test of posting an article, CI 2026-11-25). The
+    request waits for the reading now."""
+    user = add_user(committed)
+    with committed() as db:
+        post_id = live_post(db, user, fakes).id
+    failures: list[Exception] = []
+
+    def press_cap_nhat_so():
+        try:
+            with committed() as db:
+                routes_articles.refresh_metrics(post_id, me=None, db=db)
+        except Exception as err:  # the thread's failure is the test's
+            failures.append(err)
+
+    member = threading.Thread(target=press_cap_nhat_so)
+
+    def blocked(db) -> bool:
+        return bool(
+            db.scalar(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()"
+                )
+            )
+        )
+
+    with committed() as worker:
+        connection = worker.connection()
+
+        def press_once_the_reading_has_started(conn, cursor, statement, *args):
+            # Right after the reading's snapshot went in under the post, the member presses: their request waits.
+            if statement.startswith("INSERT INTO post_metric_snapshots ") and member.ident is None:
+                member.start()
+                with committed() as watcher:
+                    deadline = time.monotonic() + 5
+                    while not blocked(watcher) and time.monotonic() < deadline:
+                        time.sleep(0.05)
+
+        event.listen(connection, "after_cursor_execute", press_once_the_reading_has_started)
+        try:
+            metrics.measure(worker, worker.get(Publication, post_id))
+        except Exception as err:
+            failures.append(err)
+    member.join(10)
+    assert failures == []
+    with committed() as db:
+        post = db.get(Publication, post_id)
+        assert post.metrics_requested_at is not None and post.next_snapshot_at is not None
 
 
 def test_a_retired_reach_leaves_only_reach_empty(db, me, fakes):

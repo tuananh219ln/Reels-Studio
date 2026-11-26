@@ -151,7 +151,11 @@ def _not_found() -> ApiError:
 def _article(db: DbSession, article_id: int, lock: bool = False) -> Article:
     query = select(Article).where(Article.id == article_id)
     if lock:
-        query = query.with_for_update().execution_options(populate_existing=True)
+        # NO KEY UPDATE, as Postgres's own UPDATE takes: requests on the article still go one at a time, but the rows
+        # that point at it (its posts, jobs, photos) keep taking the share lock of their foreign key meanwhile. A plain
+        # FOR UPDATE blocked that, and "Cập nhật số" deadlocked with the worker saving the same post's numbers (CI,
+        # 2026-11-25; test_article_posts).
+        query = query.with_for_update(key_share=True).execution_options(populate_existing=True)
     article = db.scalar(query)
     if article is None:
         raise _not_found()
