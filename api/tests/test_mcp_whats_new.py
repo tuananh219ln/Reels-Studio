@@ -15,6 +15,8 @@ ENTRIES = [
         "guides": ["videos"],
         "pages": ["/posts"],
         "deployed_at": "2026-11-26T10:10:00Z",
+        "author": "Nam dev",
+        "author_login": "namtc07",
     },
     {
         "number": 11,
@@ -44,10 +46,12 @@ def test_the_assistant_reads_the_newest_changes(mcp_client, db, fakes):  # noqa:
         "kind": "Tính năng mới",
         "merged_at": "2026-11-26T10:00:00Z",
         "deployed_at": "2026-11-26T10:10:00Z",
+        "by": "Nam dev",
         "screens": ["/posts"],
         "guides": ["videos"],
     }
     assert changes[1]["kind"] == "Sửa lỗi"
+    assert changes[1]["by"] is None
 
 
 def test_since_and_limit_narrow_the_list(mcp_client, db, fakes):  # noqa: F811

@@ -50,6 +50,7 @@ def read(since: datetime | None = None, limit: int = 20) -> dict:
                 "kind": KIND_LABEL.get(entry.get("kind"), entry.get("kind")),
                 "merged_at": entry["merged_at"],
                 "deployed_at": entry.get("deployed_at"),
+                "by": entry.get("author") or None,
                 "screens": entry.get("pages", []),
                 "guides": entry.get("guides", []),
             }

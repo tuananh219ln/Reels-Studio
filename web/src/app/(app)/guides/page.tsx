@@ -3,9 +3,12 @@
 import EmptyState from "@/components/EmptyState";
 import MarkdownReader from "@/components/MarkdownReader";
 import PageHeader from "@/components/PageHeader";
-import { api, errorMessage } from "@/lib/api";
+import { COLORS } from "@/app/theme";
+import { api, errorMessage, formatDateTime } from "@/lib/api";
+import { type ChangeEntry, guideUpdates, isRecent, readChangelog } from "@/lib/changelog";
 import { useUrlChoice } from "@/lib/urlState";
 import { App, Card, Col, Flex, Menu, Row, Spin, Typography } from "antd";
+import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 
 type Listed = { slug: string; screen: string | null; title: string };
@@ -26,6 +29,14 @@ function Guides() {
   const [guides, setGuides] = useState<Listed[] | null>(null);
   const [slug, setSlug] = useUrlChoice<string | null>("guide", null);
   const [guide, setGuide] = useState<Guide | null>(null);
+  // "Có gì mới": the change that last wrote each guide, so a guide a new feature brought is marked by itself.
+  const [updates, setUpdates] = useState<Record<string, ChangeEntry>>({});
+
+  useEffect(() => {
+    readChangelog()
+      .then((changelog) => changelog && setUpdates(guideUpdates(changelog.entries)))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     api<Listed[]>("/guides")
@@ -76,13 +87,31 @@ function Guides() {
                   label: SCREENS[screen] ?? screen,
                   children: guides
                     .filter((one) => (one.screen ?? OTHER) === screen)
-                    .map((one) => ({ key: one.slug, label: one.title.replace(/^Hướng dẫn:\s*/, "") })),
+                    .map((one) => ({
+                      key: one.slug,
+                      label: (
+                        <Flex align="center" gap={8}>
+                          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {one.title.replace(/^Hướng dẫn:\s*/, "")}
+                          </span>
+                          {isRecent(updates[one.slug]) && (
+                            <span style={{ color: COLORS.primary, fontSize: 12, flex: "none" }}>Mới</span>
+                          )}
+                        </Flex>
+                      ),
+                    })),
                 }))}
               />
             </Card>
           </Col>
           <Col xs={24} md={16} xl={18}>
             <Card>
+              {guide && updates[guide.slug] && (
+                <Typography.Paragraph type="secondary" style={{ fontSize: 13 }} data-testid="guide-updated">
+                  Cập nhật cùng <Link href="/whats-new">{updates[guide.slug].title}</Link>,{" "}
+                  {formatDateTime(updates[guide.slug].merged_at)}
+                </Typography.Paragraph>
+              )}
               {guide ? (
                 <MarkdownReader body={guide.body} />
               ) : (
