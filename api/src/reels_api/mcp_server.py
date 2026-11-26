@@ -61,6 +61,7 @@ from . import (
     topic_docs,
     upload_mp4,
     video_options,
+    youtube_claims,
     youtube_meta,
 )
 from . import plans as plans_module
@@ -238,6 +239,8 @@ def _compact_video(payload: dict) -> dict:
         "scenes": [_compact_scene(scene) for scene in payload.get("scenes", [])],
         "video_blocking": payload.get("video_blocking", []),
         "video_warnings": payload.get("video_warnings", []),
+        # A YouTube claim noted by hand and not cleared (youtube_claims.py), else None.
+        "youtube_claim": (payload.get("youtube_claim") or {}).get("active"),
         "note": 'Bản rút gọn; đọc đủ (caption, hashtag, bình luận ghim, thiết lập) bằng "Đọc video".',
     }
 
@@ -1881,7 +1884,8 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     @tool("Đọc lựa chọn dựng video", read=True)
     async def list_edit_options() -> dict:
         """Các giá trị hợp lệ khi dựng: chuyển cảnh, màu, mức nhạc theo cảnh, kiểu/cỡ/hiệu ứng lớp chữ, sticker,
-        âm thanh và mức âm, cùng thư viện nhạc nền của nhóm (id, tên, tâm trạng). Gọi trước khi dựng."""
+        âm thanh và mức âm, cùng thư viện nhạc nền của nhóm (id, tên, tâm trạng). Gọi trước khi dựng. Bài có
+        claimed_on_youtube = true đã bị claim trên YouTube: không chọn cho video nào."""
 
         def operation(db, me):
             def named(presets: dict) -> dict:
@@ -1898,9 +1902,10 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                 "stickers": named(STICKERS),
                 "sounds": named(SOUNDS),
                 "sound_volumes": named(SOUND_VOLUMES),
-                "music_tracks": [{key: track[key] for key in ("id", "name", "mood", "topics")} for track in tracks][
-                    :100
-                ],
+                "music_tracks": [
+                    {key: track[key] for key in ("id", "name", "mood", "topics", "claimed_on_youtube", "claimed_note")}
+                    for track in tracks
+                ][:100],
                 "frame": {"width": 1080, "height": 1920},
                 # The video's own settings (tab "Thiết lập"), for "Thiết lập video".
                 "video_options": video_options.choices(),
@@ -2363,7 +2368,8 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         voice_enabled: bool | None = None,
     ) -> dict:
         """Chọn nhạc nền từ thư viện của nhóm (music_track_id, xem "Đọc lựa chọn dựng video") hoặc bỏ nhạc
-        (remove_music), đặt âm lượng nhạc 0–100, và bật/tắt giọng đọc ElevenLabs của video."""
+        (remove_music), đặt âm lượng nhạc 0–100, và bật/tắt giọng đọc ElevenLabs của video. Bài nhạc đã bị claim
+        trên YouTube bị từ chối: chọn bài khác."""
 
         def operation(db, me):
             storage = get_storage()
@@ -2378,6 +2384,35 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             if settings or payload is None:
                 payload = videos.patch_video(video_id, videos.VideoPatchBody(**settings), me, db, storage)
             return changed(payload)
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Ghi claim YouTube", read=False)
+    async def note_youtube_claim(
+        video_id: int,
+        note: Annotated[
+            str,
+            Field(
+                description="Bài/nhạc bị claim, ai claim, ngày, cách xử lý; bắt buộc khi ghi claim",
+                max_length=youtube_claims.MAX_NOTE_LENGTH,
+            ),
+        ] = "",
+        cleared: bool = False,
+    ) -> dict:
+        """Ghi một claim Content ID tìm thấy trong YouTube Studio lên video (hàng YouTube của video hiện "Bị chặn"),
+        hoặc cleared = true khi claim đã xử lý xong. App không đọc được claim từ YouTube nên chỉ ghi khi người dùng
+        báo. Không gửi gì lên YouTube. Nhạc bị claim thì đánh dấu bài nhạc ở Thư viện nhạc trên web."""
+
+        def operation(db, me):
+            video = videos_module.lock_video(db, video_id)
+            text = unicodedata.normalize("NFC", note).strip()
+            if cleared and youtube_claims.payload(db, video.id)["active"] is None:
+                raise videos.invalid("Video không có claim YouTube nào đang ghi")
+            if not cleared and not text:
+                raise videos.invalid("Hãy ghi bài/nhạc bị claim, ai claim và ngày")
+            youtube_claims.record(db, video, cleared=cleared, note=text, user_id=me.user_id, channel="muse_chat")
+            db.commit()
+            return changed(videos.video_payload(db, video))
 
         return await run_in_threadpool(invoke, operation, write=True)
 

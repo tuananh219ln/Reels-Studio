@@ -19,6 +19,7 @@ const SCREENS: Record<string, string> = {
   affiliate: "Affiliate",
   videos: "Video",
   knowledge: "Kho kiến thức",
+  music: "Thư viện nhạc",
   "whats-new": "Có gì mới",
   telegram: "Thông báo Telegram",
 };

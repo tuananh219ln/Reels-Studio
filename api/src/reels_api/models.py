@@ -938,13 +938,15 @@ class UserVideoDefaults(Base):
 
 
 class VideoEvent(Base):
-    """One step of a video's review (review.py): who did what, from which channel, and when."""
+    """One step of a video's review (review.py), or a YouTube claim noted by hand (youtube_claims.py): who did what,
+    from which channel, and when."""
 
     __tablename__ = "video_events"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
-    type: Mapped[str] = mapped_column(String(24))  # approved | rejected | restored | review_requested | publish_skipped
+    # approved | rejected | restored | review_requested | publish_skipped | youtube_claim | youtube_claim_cleared
+    type: Mapped[str] = mapped_column(String(24))
     from_status: Mapped[str | None] = mapped_column(String(16))
     to_status: Mapped[str | None] = mapped_column(String(16))
     actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
@@ -1546,6 +1548,11 @@ class MusicTrack(Base):
     )  # names of Kho kiến thức groups, or "chung" (music_topics.py)
     mood: Mapped[str] = mapped_column(String(40))  # a value from music.MOODS
     license_note: Mapped[str] = mapped_column(Text, default="")
+    # "Đã bị claim trên YouTube" (migration 0136, docs/decisions/2026-11-26-youtube-claimed-music.md): YouTube's Content
+    # ID claimed a video that used it, so no video takes it any more (music_claims.py); copies already in videos stay.
+    claimed_on_youtube: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    claimed_note: Mapped[str] = mapped_column(Text, default="", server_default="")  # which video, who claimed, when
     storage_key: Mapped[str] = mapped_column(String(200))
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

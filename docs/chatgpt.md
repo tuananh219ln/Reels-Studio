@@ -124,7 +124,11 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
 - Deleting through MCP (`delete_scene`, `delete_layer`, `delete_sound`) works only on the connected member's own
   videos (part 4, [architecture.md](architecture.md#web-app-and-auth)).
 - `add_layer`, `update_layer`, `delete_layer` for text and sticker layers and half-frame photos on a "Video xuyên suốt" (`kind` "photo": the scene's own photo at 1080×960; only `y`, `start`, `seconds` change); `add_sound`, `delete_sound`;
-  `set_audio` for the music from the library, its volume and the narration on or off.
+  `set_audio` for the music from the library, its volume and the narration on or off. A track claimed on YouTube
+  (`claimed_on_youtube` in `list_edit_options`) is refused for every video.
+- **A YouTube claim**: `note_youtube_claim` notes a Content ID claim the member found in YouTube Studio on a video (the
+  app cannot read Content ID), or clears it with `cleared`; the video's YouTube row shows "Bị chặn" meanwhile. Only a
+  note: nothing goes to YouTube ([decision](decisions/2026-11-26-youtube-claimed-music.md)).
 - **Looking at its work**, like AIEV's "every frame verified": `view_scene` returns the scene's preview frame (the
   photo or the clip's first frame with the scene's text placed as the render places it), and
   `view_render_frames` returns up to eight frames of the rendered MP4 at the seconds it picks, both at 540×960.

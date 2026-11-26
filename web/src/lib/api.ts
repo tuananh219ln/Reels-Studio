@@ -517,6 +517,8 @@ export type VideoDetail = VideoRow & {
   tiktok_posts: TikTokPost[];
   /** YouTube Shorts and Instagram Reels, posted by hand from the same MP4 and recorded with their link. */
   manual_posts: ManualPost[];
+  /** YouTube claims noted by hand (the app cannot read Content ID): `active` while one is not cleared. */
+  youtube_claim: { active: YouTubeClaim | null; history: YouTubeClaim[] };
   /** Shopee's product suggestions for the video (the worker searches with a member's own account). */
   suggest: { state: "idle" | "pending" | "failed"; error: string | null; at: string | null };
   /** "Dòng khảo sát": the pinned comment's last line, under the title and the scenes (lib/pinned.ts); "" for none. */
@@ -704,6 +706,16 @@ export type ManualPost = {
   /** When it was found gone from the platform (status "deleted"), and when the worker last looked at it. */
   closed_at: string | null;
   checked_at: string | null;
+};
+
+/** A Content ID claim found in YouTube Studio and noted on the video, or its clearing (`cleared`). */
+export type YouTubeClaim = {
+  id: number;
+  cleared: boolean;
+  note: string;
+  at: string;
+  by: string | null;
+  channel: string;
 };
 
 /** A member's YouTube channel connected through Google; the tokens never leave the server. */
@@ -1182,7 +1194,7 @@ export type VideoDefaults = VideoOptions & {
   /** The library track a new video starts with, copied into it; null for no music. */
   music_track_id: number | null;
   /** Read-only, never sent back: the default track's name and player link, null when none or deleted since. */
-  music_track?: { id: number; name: string; url: string } | null;
+  music_track?: { id: number; name: string; url: string; claimed_on_youtube?: boolean } | null;
 };
 
 /** The signed-in member's own defaults (/settings/my-video-defaults): the app's built-in ones until they save their
@@ -1372,6 +1384,10 @@ export type MusicTrack = {
   topics: string[];
   mood: string;
   license_note: string;
+  /** "Đã bị claim trên YouTube": no video may take it any more (the api refuses it); when, and what was claimed. */
+  claimed_on_youtube: boolean;
+  claimed_at: string | null;
+  claimed_note: string;
   url: string;
   created_by: string;
   /** Only they delete it. */

@@ -39,6 +39,7 @@ from . import (
     image_providers,
     knowledge,
     llm,
+    music_claims,
     music_topics,
     outro,
     pinned,
@@ -439,10 +440,11 @@ def start_video(
 def apply_default_music(db: DbSession, video: Video, storage: DirectoryStorage, user_id: int) -> None:
     """A new video starts with its maker's default music (Cài đặt › Thiết lập mặc định, theirs or the team's),
     copied like "Chọn từ thư viện" does, so editing or deleting the track later never changes the video. Nothing when
-    no default is set or the track is gone. Only new videos: the music a video already has is never replaced."""
+    no default is set, the track is gone or it was claimed on YouTube since (music_claims.py). Only new videos: the
+    music a video already has is never replaced."""
     track_id = video_options.member_defaults(db, user_id).get("music_track_id")
     track = db.get(MusicTrack, track_id) if track_id else None
-    if track is None or not storage.exists(track.storage_key):
+    if track is None or track.claimed_on_youtube or not storage.exists(track.storage_key):
         return
     video.music_key, video.music_name = new_key(video.id, "music", "mp3"), track.name
     storage.save_file(video.music_key, storage.path(track.storage_key))
@@ -1049,6 +1051,7 @@ def music_from_library(
     track = db.get(MusicTrack, body.track_id)
     if track is None or not storage.exists(track.storage_key):
         raise ApiError(404, "track_not_found", "Không tìm thấy bài nhạc (có thể đã bị xóa)")
+    music_claims.ensure_usable(track)
     old = video.music_key
     # A copy of its own, like a clone's music: editing or deleting the track never changes this video.
     video.music_key, video.music_name = new_key(video.id, "music", "mp3"), track.name

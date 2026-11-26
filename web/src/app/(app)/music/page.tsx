@@ -2,6 +2,7 @@
 
 import { fillColumn } from "@/components/fillColumn";
 import EmptyState from "@/components/EmptyState";
+import GuideButton from "@/components/GuideButton";
 import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Popconfirm, Space, Table, Typography } from "antd";
@@ -128,9 +129,12 @@ function Music() {
       <PageHeader
         title="Thư viện nhạc"
         actions={
-          <Button type="primary" icon={<UploadOutlined />} onClick={() => input.current?.click()}>
-            Tải nhạc lên
-          </Button>
+          <>
+            <GuideButton screen="music" />
+            <Button type="primary" icon={<UploadOutlined />} onClick={() => input.current?.click()}>
+              Tải nhạc lên
+            </Button>
+          </>
         }
       >
         <TrackFilters value={filters} onChange={setFilters} />

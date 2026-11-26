@@ -1887,6 +1887,20 @@ test("Đăng bài: a Facebook video's MP4 goes to TikTok and YouTube Shorts from
 
   // The video's posts on every platform are listed together, and its card says where else it is out.
   await expect(page.getByTestId("platform-row-youtube")).toContainText("YouTube Shorts");
+
+  // A Content ID claim found in YouTube Studio is noted by hand: the YouTube row shows "Bị chặn" until it is cleared.
+  const claim = page.getByTestId("youtube-claim");
+  await claim.getByRole("button", { name: "Ghi claim YouTube" }).click();
+  const noting = page.getByRole("dialog", { name: "Ghi claim YouTube" });
+  await noting.getByLabel("Ghi chú claim").fill("Nhạc nền, HAAWK Publishing, chặn toàn cầu 26/11");
+  await noting.getByRole("button", { name: "Ghi claim" }).click();
+  await expect(page.getByTestId("youtube-blocked")).toBeVisible();
+  await expect(claim).toContainText("HAAWK Publishing");
+  await claim.getByRole("button", { name: "Đã xử lý claim" }).click();
+  await page.getByRole("button", { name: "Đã xử lý", exact: true }).click();
+  await expect(page.getByTestId("youtube-blocked")).toHaveCount(0);
+  await expect(claim.getByRole("button", { name: "Ghi claim YouTube" })).toBeVisible();
+
   await page.getByRole("menuitem", { name: "Video" }).click();
   const platforms = page.getByTestId("video-card").first().getByTestId("posted-platforms");
   await expect(platforms.locator('[data-platform="youtube"]')).toHaveAttribute("data-posted", "true");
