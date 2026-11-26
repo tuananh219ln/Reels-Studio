@@ -4,6 +4,7 @@ Shown where the thing is edited (docs/decisions/2026-11-09-edit-history.md). Eve
 any version can be read and put back. Topic groups ("Kho kiến thức") are the first logged; other things follow.
 """
 
+from contextvars import ContextVar
 from datetime import date
 from typing import Any
 
@@ -12,7 +13,7 @@ from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import selectinload
 
-from .models import EditLog, KnowledgeTopic
+from .models import EditLog, KnowledgeTopic, Scene, Video
 
 TOPIC = "knowledge_topic"
 # A member on Quản lý người dùng: disabled, enabled, given a temporary password (never its value), their things handed on.
@@ -23,7 +24,15 @@ SETTINGS_AI = "settings_ai"
 SETTINGS_SOURCES = "settings_sources"
 RENDER = "render_settings"
 TEMPLATE = "edit_template"
-ENTITY_TYPES = (TOPIC, USER, SETTINGS_AI, SETTINGS_SOURCES, RENDER, TEMPLATE)
+# A video and its scenes ("Lịch sử sửa" on the video page, docs/decisions/2026-11-26-per-group-qc.md): one history per
+# video, a scene's fields keyed "scene:<id>:<field>" so the history outlives a deleted scene.
+VIDEO = "video"
+ENTITY_TYPES = (TOPIC, USER, SETTINGS_AI, SETTINGS_SOURCES, RENDER, TEMPLATE, VIDEO)
+
+# Where the edits of the running request come from: "mcp" while an MCP tool runs (mcp_server.invoke), else "web".
+SOURCE: ContextVar[str] = ContextVar("edit_source", default="web")
+# The entry being undone while its values are put back (routes_video_story.undo): what is recorded is a "restore".
+RESTORING: ContextVar[int | None] = ContextVar("edit_restoring", default=None)
 
 # What a topic group's history follows: what members edit on Kho kiến thức, including its plan's settings.
 TOPIC_FIELDS = (
@@ -46,6 +55,7 @@ TOPIC_FIELDS = (
     "no_people",
     "outro_cta",
     "youtube_meta",
+    "qc_config",
     "stock_order",
     "media_folder",
     "templates",
@@ -72,6 +82,71 @@ TOPIC_RESTORABLE = (
 )
 # Prompts with the app's default as a version of their own ("Bản mặc định của app" in their history).
 TOPIC_PROMPTS = TOPIC_RESTORABLE[:7]
+
+
+# What a video's history follows: what members edit on its page or through MCP (routes_videos.patch_video).
+VIDEO_FIELDS = (
+    "name",
+    "caption",
+    "hashtags",
+    "affiliates",
+    "pinned_survey",
+    "extra_comments",
+    "music_suggestions",
+    "music_volume",
+    "music_start",
+    "voice_enabled",
+    "options",
+    "mode",
+    "content_type",
+    "no_title",
+)
+# And of each scene (routes_videos.patch_scene).
+SCENE_FIELDS = (
+    "text",
+    "voice_text",
+    "seconds",
+    "seconds_auto",
+    "keywords",
+    "keywords_en",
+    "image_prompt",
+    "voice_id",
+    "video_start",
+    "video_speed",
+    "video_sound",
+    "video_loop",
+    "text_x",
+    "text_y",
+    "transition",
+    "color",
+    "music_level",
+    "image_fit",
+    "image_crop_offset",
+)
+# What "Hoàn tác" puts back: the fields that the same edit routes take back as they were saved. A video's options and a
+# text box's place are followed but not put back (they are saved through other shapes).
+VIDEO_RESTORABLE = tuple(field for field in VIDEO_FIELDS if field not in ("options",))
+SCENE_RESTORABLE = tuple(field for field in SCENE_FIELDS if field not in ("text_x", "text_y"))
+
+
+def scene_key(scene_id: int, field: str) -> str:
+    return f"scene:{scene_id}:{field}"
+
+
+def parse_scene_key(key: str) -> tuple[int, str] | None:
+    """(scene id, field) of a "scene:<id>:<field>" key; None for a field of the video itself."""
+    kind, _, rest = key.partition(":")
+    scene_id, _, field = rest.partition(":")
+    return (int(scene_id), field) if kind == "scene" and scene_id.isdigit() and field else None
+
+
+def video_snapshot(video: Video, *scenes: Scene | None) -> dict[str, Any]:
+    """The video's followed fields, and those of `scenes`, as JSON values."""
+    values: dict[str, Any] = {field: getattr(video, field) for field in VIDEO_FIELDS}
+    for scene in scenes:
+        if scene is not None:
+            values |= {scene_key(scene.id, field): getattr(scene, field) for field in SCENE_FIELDS}
+    return values
 
 
 def topic_snapshot(topic: KnowledgeTopic) -> dict[str, Any]:
@@ -108,12 +183,16 @@ def record(
     """Adds one entry, committed with the edit. An edit that changed nothing is not logged."""
     if action in ("update", "restore") and not changes:
         return None
+    restoring = RESTORING.get()
+    if restoring is not None and action == "update":
+        action, restored_from_id = "restore", restoring
     entry = EditLog(
         entity_type=entity_type,
         entity_id=entity_id,
         action=action,
         label=label[:200],
         changes=changes or {},
+        source=SOURCE.get(),
         user_id=user_id,
         restored_from_id=restored_from_id,
     )

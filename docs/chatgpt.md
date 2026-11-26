@@ -441,6 +441,13 @@ and never a Page token.
 - `get_youtube_meta` (`reels:read`), `update_youtube_meta` (`reels:write`): a topic group's "Mô tả YouTube" (YouTube
   hashtags, keywords sent as tags, Subscribe line with `{channel}`, disclaimer), the same as its card on Kho kiến thức
   and with the same editors; only the fields sent change. The next YouTube upload of the group's videos uses it.
+- `get_qc_config` (`reels:read`), `update_qc_config` (`reels:write`): a topic group's "QC & duyệt" (whether approving
+  asks for a title, the yellow ranges of the script's length and scene count and of the MP4's length; `reset` back to the
+  app's defaults), same editors and history as its card on Kho kiến thức.
+- `update_voice_format` (`reels:write`): replaces a group's "Giọng đọc theo vai" (the card of the same name, checked by
+  `voice_format.clean`); the tool asks the assistant to change it only when the member asked and named each role's voice.
+- `set_video_title` (`reels:write`): the title scene's text from a suggestion (`option`, from 1), typed (`text`), or
+  `no_title` ("Không dùng tiêu đề"); exactly one. `update_scene` also takes `video_loop` ("Lặp clip").
 - `get_whats_new` (`reels:read`): "Có gì mới", the changes the web lists after each deploy (title, detail, kind, when
   merged and deployed, the screens and in-app guides they touched), newest first, optionally only after `since`. Read
   from the web's `changelog.json` (CHANGELOG_URL, else next to MCP_PUBLIC_URL); an error until the first deploy wrote it.
