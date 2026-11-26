@@ -157,12 +157,10 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await deleting.getByRole("button", { name: "Huỷ" }).click();
   await expect(deleting).toBeHidden();
 
-  // Once posted, the card says so rather than "Chờ đăng". The worker checks a new post on its own (jobs
-  // queue_post_checks), and while that job runs the card reads "Đang kiểm tra bài" until the list's next refresh, every
-  // 5 s (videos/page.tsx REFRESH_MS): the same as expect's own 5 s, so wait for the job and a refresh after it.
+  // Once posted, the card says so rather than "Chờ đăng".
   await page.goto("/videos");
   const card = page.getByTestId("video-card").first();
-  await expect(card.getByTestId("video-status")).toHaveText("Đã đăng", { timeout: 20_000 });
+  await expect(card.getByTestId("video-status")).toHaveText("Đã đăng");
   await expect(card.locator("img")).toBeVisible();
   await expect(card).toContainText("6 MÓN");
 });
