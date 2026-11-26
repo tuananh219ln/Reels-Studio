@@ -53,9 +53,30 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
 
   // The choice is saved first, then shown as selected; the options open from the toolbar's "Tiêu đề".
   await page.getByRole("button", { name: "Chọn tiêu đề" }).click();
+  const titleOptions = page.getByTestId("title-options");
+  // A title typed by hand goes to the title scene too; the line under it says what the screen shows.
+  await titleOptions.getByLabel("Tiêu đề tự nhập").fill("TIÊU ĐỀ TỰ GÕ");
+  await titleOptions.getByRole("button", { name: "Lưu" }).click();
+  await expect(title.getByLabel("Chữ trên màn hình")).toHaveValue("TIÊU ĐỀ TỰ GÕ");
+  await expect(titleOptions.getByTestId("title-preview")).toContainText("Trên màn hình sẽ hiện: TIÊU ĐỀ TỰ GÕ");
   await page.getByRole("radio", { name: /^6 MÓN/ }).click();
   await expect(page.getByRole("radio", { name: /^6 MÓN/ })).toBeChecked();
   await expect(title.getByLabel("Chữ trên màn hình")).toHaveValue(/^6 MÓN/);
+  // "Không dùng tiêu đề" empties it; "Hoàn tác" in "Lịch sử sửa" brings it back.
+  // Saved first, then shown as ticked, as the suggestions are.
+  await titleOptions.getByRole("checkbox", { name: "Không dùng tiêu đề" }).click();
+  await expect(titleOptions.getByRole("checkbox", { name: "Không dùng tiêu đề" })).toBeChecked();
+  await expect(title.getByLabel("Chữ trên màn hình")).toHaveValue("");
+  await expect(titleOptions.getByTestId("title-preview")).toContainText("Không có chữ tiêu đề");
+  await page.keyboard.press("Escape");
+  const story = page.getByTestId("video-story");
+  await story.getByText("Video này được làm như thế nào").click();
+  await story.getByRole("tab", { name: /Lịch sử sửa/ }).click();
+  const history = story.getByTestId("video-history");
+  await expect(history).toContainText("Không dùng tiêu đề");
+  await history.getByRole("button", { name: "Hoàn tác" }).first().click();
+  await expect(title.getByLabel("Chữ trên màn hình")).toHaveValue(/^6 MÓN/);
+  await expect(history).toContainText("đã hoàn tác");
 
   const first = scenes.first();
   await openScene(first);
