@@ -53,6 +53,7 @@ TOPIC_FIELDS = (
     "plan_start_date",
     "plan_per_day",
     "plan_post_times",
+    "schedule_timezone",
     "video_target",
 )
 # What can be put back from its history: text and lists that were valid when saved and depend on nothing else.

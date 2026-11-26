@@ -241,3 +241,30 @@ def test_a_page_without_instagram_has_no_instagram_in_its_schedule(an, db, me, s
     page.instagram_auto, page.instagram_user_id = True, None
     db.commit()
     assert upcoming_instagram(an, page) == [None]
+
+
+def test_best_hours_follow_the_pages_zone_through_daylight_saving(db, page, monkeypatch):
+    from types import SimpleNamespace
+
+    def fake(at, views):
+        return SimpleNamespace(at=at, metrics=[SimpleNamespace(window="latest", views=views)])
+
+    # 20:00 in New York: 01:00 UTC in winter (EST), 00:00 UTC in summer (EDT). Both are the 20:00 hour there.
+    now = datetime(2026, 11, 20, tzinfo=UTC)
+    posts = [
+        fake(datetime(2026, 1, 15, 1, tzinfo=UTC), 1000),
+        fake(datetime(2026, 1, 16, 1, tzinfo=UTC), 1000),
+        fake(datetime(2026, 7, 15, 0, tzinfo=UTC), 3000),
+        fake(datetime(2026, 7, 16, 0, tzinfo=UTC), 3000),
+        fake(datetime(2026, 10, 1, 12, tzinfo=UTC), 100),
+        fake(datetime(2026, 10, 2, 12, tzinfo=UTC), 100),
+    ]
+    monkeypatch.setattr(page_dashboard, "now", lambda: now)
+    monkeypatch.setattr(page_dashboard, "_posts", lambda *args: posts)
+    monkeypatch.setattr(page_dashboard, "live_at", lambda post: post.at)
+    monkeypatch.setattr(page_dashboard, "_instagram_posts", lambda *args: [])
+    page.schedule_timezone, page.post_times = "America/New_York", ["20:00"]
+    db.commit()
+    best = page_dashboard.best_times(db, page)
+    assert best["timezone"] == "America/New_York" and best["post_times"] == ["20:00"]
+    assert best["facebook"]["hours"][0] == {"hour": 20, "average_views": 2000, "posts": 4}

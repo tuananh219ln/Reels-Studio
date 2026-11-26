@@ -37,6 +37,8 @@ type Days = (typeof PERIODS)[number];
 const REFRESH_MS = 60_000;
 const QUEUE_REFRESH_MS = 30_000;
 // The "Đã hẹn giờ" strip on Tổng quan names the first few; "Lịch đăng" lists the whole week.
+import { dayKeyIn, dayLabelIn, isUs, secondaryTime, timeWithZone, VN_ZONE, zoneName } from "@/lib/scheduleZone";
+
 const STRIP = 6;
 const INSTAGRAM_TABS = ["overview", "content", "audience", "compare", "schedule"];
 
@@ -154,13 +156,24 @@ function slotsOf(data: PageDashboard): Slot[] {
   return slots.sort((a, b) => a.at.localeCompare(b.at));
 }
 
-function SlotRow({ slot }: { slot: Slot }) {
+function SlotRow({ slot, zone }: { slot: Slot; zone: string }) {
   const when = new Date(slot.at);
+  const us = isUs(zone);
   return (
     <Flex gap={10} align="center" data-testid={slot.post ? "scheduled-post" : "free-slot"}>
-      <Typography.Text style={{ width: 92, flex: "none", fontSize: 13 }}>
-        {vietnamDay.format(when)} {vietnamTime.format(when)}
-      </Typography.Text>
+      {us ? (
+        // A US Page reads its calendar in its own zone, with Vietnam's time small beside it.
+        <Flex vertical style={{ width: 130, flex: "none" }}>
+          <Typography.Text style={{ fontSize: 13 }}>{timeWithZone(when, zone)}</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+            {secondaryTime(when, zone, VN_ZONE)}
+          </Typography.Text>
+        </Flex>
+      ) : (
+        <Typography.Text style={{ width: 92, flex: "none", fontSize: 13 }}>
+          {vietnamDay.format(when)} {vietnamTime.format(when)}
+        </Typography.Text>
+      )}
       {slot.post ? (
         <>
           <VideoThumbnail name={slot.post.video.title} url={slot.post.video.thumbnail_url} width={24} />
@@ -170,6 +183,12 @@ function SlotRow({ slot }: { slot: Slot }) {
             </Link>
           </Typography.Text>
           <StatusText tone="waiting">{slot.post.status === "pending" ? "Đang đăng" : "Đã hẹn giờ"}</StatusText>
+          {slot.post.off_slot && (
+            // Facebook keeps the time it was sent; change it in Meta Business Suite if it should move.
+            <StatusText tone="idle" data-testid="off-slot">
+              Ngoài khung
+            </StatusText>
+          )}
           {slot.post.instagram && (
             // Instagram has no scheduled time of its own: "auto" is the Page's switch sending it after Facebook.
             <StatusText tone={slot.post.instagram === "published" ? "success" : "idle"} data-testid="slot-instagram">
@@ -189,6 +208,7 @@ function SlotRow({ slot }: { slot: Slot }) {
 function Scheduled({ data, limit }: { data: PageDashboard; limit?: number }) {
   const slots = slotsOf(data);
   const shown = limit ? slots.slice(0, limit) : slots;
+  const zone = data.upcoming.timezone;
   return (
     <Card size="small" title="Đã hẹn giờ, 7 ngày tới" data-testid="scheduled-strip">
       {slots.length === 0 ? (
@@ -199,8 +219,20 @@ function Scheduled({ data, limit }: { data: PageDashboard; limit?: number }) {
         </Typography.Text>
       ) : (
         <Flex vertical gap={6}>
-          {shown.map((slot) => (
-            <SlotRow key={`${slot.at}-${slot.post?.id ?? "free"}`} slot={slot} />
+          {isUs(zone) && (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Lịch theo {zoneName(zone)}; giờ Việt Nam nhỏ bên cạnh.
+            </Typography.Text>
+          )}
+          {shown.map((slot, index) => (
+            <Flex vertical gap={6} key={`${slot.at}-${slot.post?.id ?? "free"}`}>
+              {isUs(zone) && (index === 0 || dayKeyIn(shown[index - 1].at, zone) !== dayKeyIn(slot.at, zone)) && (
+                <Typography.Text strong style={{ fontSize: 12, marginTop: index === 0 ? 0 : 4 }}>
+                  {dayLabelIn(slot.at, zone)}
+                </Typography.Text>
+              )}
+              <SlotRow slot={slot} zone={zone} />
+            </Flex>
           ))}
           {shown.length < slots.length && (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>

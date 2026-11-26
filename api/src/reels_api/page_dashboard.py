@@ -10,11 +10,12 @@ non-followers, traffic sources, unfollows, 3-second views) are left out rather t
 import statistics
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import analytics, facebook, fanpages, page_queue
+from . import analytics, facebook, fanpages, page_queue, schedule_tz
 from .models import (
     Fanpage,
     FanpageFollowers,
@@ -170,6 +171,9 @@ def _latest_post(db: DbSession, posts: list[Publication]) -> dict | None:
     }
 
 
+OFF_SLOT_TOLERANCE = timedelta(minutes=1)
+
+
 def _upcoming(db: DbSession, page: Fanpage, at: datetime) -> dict:
     """The Page's posts waiting for their time in the next week, and its free posting times then."""
     posts = db.scalars(
@@ -202,12 +206,31 @@ def _upcoming(db: DbSession, page: Fanpage, at: datetime) -> dict:
             return None
         return on_instagram.get(post.video_id) or ("auto" if page.instagram_auto else None)
 
+    # "Ngoài khung": a post the queue gave a slot whose moment is no longer one of the Page's slots, because its times
+    # or zone changed afterwards. Facebook keeps the time it was sent, so the post stays and is only marked.
+    current = (
+        schedule_tz.slots_between(
+            page_queue.post_times(db, page),
+            page_queue.timezone_of(db, page),
+            at - OFF_SLOT_TOLERANCE,
+            at + AHEAD + OFF_SLOT_TOLERANCE,
+        )
+        if posts
+        else []
+    )
+
+    def off_slot(post: Publication) -> bool:
+        return post.slot_local is not None and all(
+            abs(post.scheduled_at - slot) > OFF_SLOT_TOLERANCE for slot in current
+        )
+
     return {
         "posts": [
             {
                 "id": post.id,
                 "status": post.status,
                 "scheduled_at": post.scheduled_at.isoformat(),
+                "off_slot": off_slot(post),
                 "video": _video(db, db.get(Video, post.video_id)),
                 # The Page's Instagram for this post: "pending", "scheduled", "published", "auto" or None.
                 "instagram": instagram_of(post),
@@ -218,6 +241,7 @@ def _upcoming(db: DbSession, page: Fanpage, at: datetime) -> dict:
             slot.isoformat() for slot in page_queue.free_slots(db, page, at + page_queue.FILL_LEAD, at + AHEAD)
         ],
         "post_times": page_queue.post_times(db, page),
+        "timezone": page_queue.timezone_of(db, page),
     }
 
 
@@ -551,8 +575,8 @@ BEST_SHOWN = 3
 
 
 def _best_hours(samples: list[tuple[int, int]]) -> dict:
-    """Which hours (Vietnam time) the Page's posts were watched most: [(hour, views)] of posts with a reading, grouped by
-    the hour they went live, the average of each hour with enough posts, the best BEST_SHOWN. Too few posts say nothing."""
+    """Which hours (wall-clock, in the Page's schedule zone) the Page's posts were watched most: [(hour, views)] of posts
+    with a reading, grouped by the hour they went live, the average of each hour with enough posts, the best BEST_SHOWN. Too few posts say nothing."""
     if len(samples) < BEST_MIN_POSTS:
         return {"posts": len(samples), "hours": [], "enough": False}
     by_hour: dict[int, list[int]] = {}
@@ -574,18 +598,25 @@ def best_times(db: DbSession, page: Fanpage) -> dict:
     """The hours the Page's Facebook reels and Instagram Reels (the app's posts of the last 90 days) were watched most,
     to help choose the Page's posting times; each platform on its own, since their audiences differ."""
     since = now() - timedelta(days=90)
+    # Each post's hour is read in the zone on its own date, so the same New York hour groups together across daylight
+    # saving (decisions/2026-11-26-schedule-timezone.md).
+    zone = page_queue.timezone_of(db, page)
+    tz = ZoneInfo(zone)
     facebook_samples = []
     for post in _posts(db, page.id, since):
         latest = next((row for row in post.metrics if row.window == "latest"), None)
         if latest is not None and latest.views is not None:
-            facebook_samples.append((live_at(post).astimezone(analytics.VIETNAM).hour, latest.views))
+            facebook_samples.append((live_at(post).astimezone(tz).hour, latest.views))
     instagram_samples = []
     for post in _instagram_posts(db, page.id, since):
         numbers = _instagram_numbers(db, post)
         if numbers is not None and numbers["views"] is not None:
-            instagram_samples.append((live_at(post).astimezone(analytics.VIETNAM).hour, numbers["views"]))
+            instagram_samples.append((live_at(post).astimezone(tz).hour, numbers["views"]))
     return {
         "days": 90,
+        "timezone": zone,
+        # What "Thêm vào giờ đăng" extends: the times the Page posts at now, in `timezone`.
+        "post_times": page_queue.post_times(db, page),
         "min_posts": BEST_MIN_POSTS,
         "facebook": _best_hours(facebook_samples),
         "instagram": _best_hours(instagram_samples) if page.instagram_user_id else None,

@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import page_queue, plans
+from . import page_queue, plans, schedule_tz
 from .db import get_db
 from .errors import ApiError
 from .models import Fanpage, KnowledgeTopic, PageQueueItem, Session, Video
@@ -31,6 +31,10 @@ class AddBody(BaseModel):
 class PageBody(BaseModel):
     knowledge_topic_id: int | None = None
     post_times: list[str] | None = None  # None: the group's times
+    convert_times: bool = False  # with a new zone: read the Page's own times in it ("Quy đổi") instead of keeping them
+    schedule_timezone: str | None = (
+        None  # IANA zone of its own times; None: Vietnam (or the group's, without own times)
+    )
 
 
 class OrderBody(BaseModel):
@@ -71,6 +75,7 @@ def _page_payload(db: DbSession, page: Fanpage, me: Session) -> dict:
         "topic": {"id": topic.id, "name": topic.name} if topic else None,
         "post_times": page_queue.post_times(db, page),
         "own_times": bool(page.post_times),
+        "schedule_timezone": page_queue.timezone_of(db, page),
         "healthy": page.check_error is None,
         "check_error": page.check_error,
         "free_slots": [
@@ -216,6 +221,19 @@ def update_page(
             page.post_times = plans.check_post_times(body.post_times) if body.post_times is not None else None
         except plans.PlanError as err:
             raise invalid(str(err)) from None
+    if "schedule_timezone" in fields:
+        old_zone = page.schedule_timezone or schedule_tz.VIETNAM_ZONE
+        try:
+            page.schedule_timezone = (
+                schedule_tz.check_zone(body.schedule_timezone) if body.schedule_timezone is not None else None
+            )
+        except schedule_tz.ZoneError as err:
+            raise invalid(str(err)) from None
+        new_zone = page.schedule_timezone or schedule_tz.VIETNAM_ZONE
+        if body.convert_times and page.post_times and "post_times" not in fields and new_zone != old_zone:
+            page.post_times = schedule_tz.convert_times(page.post_times, old_zone, new_zone, plans.today())
+    if page.schedule_timezone is not None and not page.post_times:
+        raise invalid("Múi giờ riêng của Page cần có khung giờ riêng; bỏ trống để dùng giờ của nhóm")
     page.updated_by_id = me.user_id
     db.commit()
     return _queue(db, me)

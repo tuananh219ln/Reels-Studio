@@ -206,6 +206,7 @@ def test_upcoming_lists_the_weeks_scheduled_posts_and_free_times(an, db, storage
     upcoming = get(an, page)["upcoming"]
     assert [row["id"] for row in upcoming["posts"]] == [soon.id]
     assert upcoming["post_times"] == ["20:00"]
+    assert upcoming["timezone"] == "Asia/Ho_Chi_Minh"
     # 20:00 each evening from the 5th to the 11th, but the 6th, taken by the scheduled post; the 12th is past the week.
     assert [slot[:10] for slot in upcoming["free_slots"]] == [
         "2026-11-05",

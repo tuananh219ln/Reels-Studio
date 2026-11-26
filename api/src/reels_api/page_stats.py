@@ -8,7 +8,7 @@ import statistics
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import analytics, page_dashboard
+from . import analytics, page_dashboard, page_queue
 from .models import Fanpage, Video
 
 PLATFORMS = ("facebook", "instagram")
@@ -97,6 +97,7 @@ def _facebook_row(db: DbSession, page: Fanpage, days: int) -> dict:
             if post["views_48h"] is None and post["status"] == "published"
         ],
         "best_times": page_dashboard.best_times(db, page)["facebook"],
+        "best_times_zone": page_queue.timezone_of(db, page),
         "duration_buckets": duration_buckets(db, posts),
     }
 
@@ -118,6 +119,7 @@ def _instagram_row(db: DbSession, page: Fanpage, days: int) -> dict:
             key: _total([row[key] for row in numbers]) for key in ("comments", "shares", "saves", "likes")
         },
         "best_times": page_dashboard.best_times(db, page)["instagram"],
+        "best_times_zone": page_queue.timezone_of(db, page),
     }
 
 

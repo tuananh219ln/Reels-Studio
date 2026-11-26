@@ -1312,8 +1312,9 @@ steps open the status card or the products block on its tab, the QC chip its pop
     two columns, Facebook and Instagram, showing one metric at a time (a switch "Lượt xem | Tiếp cận | Tương tác", kept in
     this browser as `page-compare-metric`) with the other worth a glance, interactions or views, in grey under each number;
     "Chưa đăng" where it is not on one; a grey note that the two count differently.
-  - **"Giờ đăng hiệu quả"** (on "Lịch đăng", both sides): per platform, the best three Vietnam hours of the last 90 days by
-    average views (two posts an hour at least), or "Mới có N bài đã đo, cần từ 6 bài".
+  - **"Giờ đăng hiệu quả"** (on "Lịch đăng", both sides): per platform, the best three hours of the last 90 days (wall time in the Page's schedule zone, so a US Page's 20:00 groups across daylight
+    saving; the zone is named when not Vietnam) by average views (two posts an hour at least), each with "Thêm vào giờ đăng" (adds it to
+    the Page's own times, owner only), or "Mới có N bài đã đo, cần từ 6 bài".
   - **Falling views** on a Page card, one amber line per platform: "Lượt xem Facebook giảm 62% so với tuần trước (140 so
     với 700)" ([decision](decisions/2026-11-23-instagram-dashboard.md)).
   - **A Page's dashboard** (`/fanpages/[id]`, modelled on Facebook's Professional Dashboard, built from what the

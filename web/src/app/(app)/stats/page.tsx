@@ -15,6 +15,7 @@ import {
   type StatsInstagramRow,
   type StatsSeries,
 } from "@/lib/api";
+import { VN_ZONE, zoneName } from "@/lib/scheduleZone";
 import { percentFormat } from "@/lib/format";
 import { useUrlChoice } from "@/lib/urlState";
 import { DownloadOutlined } from "@ant-design/icons";
@@ -55,7 +56,8 @@ const TIMES_LABEL = { measuring: "Đang đo", pass: "Đạt cửa đo", hold: "C
 function hours(row: StatsFacebookRow | StatsInstagramRow): string | null {
   const best = row.best_times;
   if (!best || !best.enough || best.hours.length === 0) return null;
-  return best.hours.map((one) => `${String(one.hour).padStart(2, "0")}:00`).join(", ");
+  const list = best.hours.map((one) => `${String(one.hour).padStart(2, "0")}:00`).join(", ");
+  return row.best_times_zone === VN_ZONE ? list : `${list} (${zoneName(row.best_times_zone)})`;
 }
 
 const FACEBOOK_CELLS: Cell[] = [
