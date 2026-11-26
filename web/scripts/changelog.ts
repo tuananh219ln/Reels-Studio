@@ -16,6 +16,7 @@ import {
   type MergedPull,
   pagesFromFiles,
   type PullFile,
+  withNames,
 } from "../src/lib/changelog.ts";
 
 const repo = process.env.GITHUB_REPOSITORY || "tuananh219ln/Reels-Studio";
@@ -29,7 +30,11 @@ const headers = {
 };
 
 async function get<T>(pathAndQuery: string): Promise<T> {
-  const response = await fetch(`https://api.github.com/repos/${repo}/${pathAndQuery}`, { headers });
+  return getFrom<T>(`repos/${repo}/${pathAndQuery}`);
+}
+
+async function getFrom<T>(pathAndQuery: string): Promise<T> {
+  const response = await fetch(`https://api.github.com/${pathAndQuery}`, { headers });
   if (!response.ok) throw new Error(`GitHub answered ${response.status} for ${pathAndQuery}`);
   return (await response.json()) as T;
 }
@@ -58,6 +63,17 @@ async function withFiles(entries: ChangeEntry[]): Promise<ChangeEntry[]> {
   );
 }
 
+/** The GitHub names of the authors (a login without one, or that cannot be read, stays a login). */
+async function authorNames(entries: ChangeEntry[]): Promise<Record<string, string>> {
+  const logins = [...new Set(entries.map((entry) => entry.author_login).filter((login): login is string => !!login))];
+  const names: Record<string, string> = {};
+  for (const login of logins) {
+    const user = await getFrom<{ name: string | null }>(`users/${login}`).catch(() => null);
+    if (user?.name) names[login] = user.name;
+  }
+  return names;
+}
+
 /** The deploys that went live: successful runs of this workflow for pushes to main. None when they cannot be read, and
  * every change then counts as part of this deploy. */
 async function deployRuns(): Promise<DeployRun[]> {
@@ -69,7 +85,8 @@ async function deployRuns(): Promise<DeployRun[]> {
 
 try {
   const generatedAt = new Date().toISOString();
-  const entries = await withFiles(buildEntries(await mergedPulls()));
+  const built = await withFiles(buildEntries(await mergedPulls()));
+  const entries = withNames(built, await authorNames(built));
   const changelog: Changelog = {
     version: process.env.GITHUB_SHA || "local",
     generated_at: generatedAt,
