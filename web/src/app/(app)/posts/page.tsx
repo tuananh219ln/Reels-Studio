@@ -29,6 +29,7 @@ import {
 } from "@/lib/api";
 import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
+import { usePageSize } from "@/lib/pageSize";
 import { useUrlChoice, useUrlPage, useUrlParam } from "@/lib/urlState";
 import {
   CalendarOutlined,
@@ -43,7 +44,6 @@ import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
-const PAGE_SIZE = 50;
 const PLATFORMS: BoardPlatform[] = ["facebook", "tiktok", "youtube"];
 
 const TABS: { value: BoardTab; label: string }[] = [
@@ -118,6 +118,7 @@ function Posts() {
   const [from, setFrom] = useUrlParam("from");
   const [to, setTo] = useUrlParam("to");
   const tablePage = useUrlPage();
+  const [pageSize] = usePageSize();
   const channels = useMemo(() => (channelParam ? channelParam.split(",") : []), [channelParam]);
 
   const [board, setBoard] = useState<Board | null>(null);
@@ -131,8 +132,8 @@ function Posts() {
     const search = new URLSearchParams({
       tab,
       owner: whose === "mine" ? "me" : "team",
-      cursor: String((page - 1) * PAGE_SIZE),
-      limit: String(PAGE_SIZE),
+      cursor: String((page - 1) * pageSize),
+      limit: String(pageSize),
     });
     if (platform) search.set("platform", platform);
     if (missing) search.set("missing_on", missing);
@@ -142,7 +143,7 @@ function Posts() {
     if (to) search.set("date_to", to);
     for (const key of channels) search.append("channel", key);
     return search.toString();
-  }, [tab, whose, page, platform, missing, sort, query, from, to, channels]);
+  }, [tab, whose, page, pageSize, platform, missing, sort, query, from, to, channels]);
 
   const load = useCallback(
     () =>
@@ -455,7 +456,6 @@ function Posts() {
             }
             actionsWidth={56}
             rows={board.items}
-            pageSize={PAGE_SIZE}
             total={board.total}
             page={tablePage}
             rowTestId="post-group"
