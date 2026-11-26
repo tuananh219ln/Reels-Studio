@@ -762,6 +762,32 @@ test("knowledge topics: a group's text look from an AI suggestion is what its ne
   expect(video.options).toMatchObject({ text_style: "box", box_color: "#E10600", captions: "word" });
 });
 
+test("video list: 5 videos a page until a member picks more, and the choice survives a reload", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  const knowledge = await (await page.request.get("/api/knowledge")).json();
+  for (let index = 1; index <= 7; index += 1) {
+    const made = await page.request.post("/api/videos", {
+      data: { topic: `món số ${index}`, knowledge_topic_id: knowledge.topics[0].id, mode: "manual", script: "Một" },
+      headers: { Origin: new URL(page.url()).origin },
+    });
+    expect(made.ok()).toBe(true);
+  }
+  await page.goto("/videos");
+  await page.getByLabel("Kiểu hiển thị").getByText("Bảng", { exact: true }).click();
+  const rows = page.getByTestId("video-row");
+  await expect(rows).toHaveCount(5);
+  const pager = page.locator(".ant-table-pagination");
+  await expect(pager.getByText("5 / trang")).toBeVisible();
+
+  await pager.locator(".ant-pagination-options .ant-select").click();
+  await page.locator(".ant-select-item-option").filter({ hasText: "10 / trang" }).click();
+  await expect(rows).toHaveCount(7);
+  await page.reload();
+  await expect(rows).toHaveCount(7);
+  await expect(pager.getByText("10 / trang")).toBeVisible();
+});
+
 test("knowledge topics: a group's video mode is what its new videos take unless one is picked", async ({ page }) => {
   test.setTimeout(120_000);
   await loginAsSeed(page);

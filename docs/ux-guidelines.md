@@ -270,7 +270,7 @@ analysis, comment and reel-link actions).
 
 **One list of videos.** Every list of videos or posts (Video, a group's "Video" tab, "Nội dung" of a Page, Bài đăng, Affiliate's
 videos) is built from the same parts in [components/videoList](../web/src/components/videoList/): the table
-(`VideoTable`: the same paging, sideways scroll and empty state, size "middle" on a page and "small" in a card, and the row's
+(`VideoTable`: the same paging, 5 rows a page until the member picks 10, 15, 20, 50 or 100 in "/ trang", kept on that browser for every such list, sideways scroll and empty state, size "middle" on a page and "small" in a card, and the row's
 "⋮" menu in a **last column pinned to the right**, with no heading); the cells after the title (`useVideoColumns`: **Trạng
 thái**: the status and where it is out, the kind tags, the Winner flag with "Tạo 3 biến thể", TikTok versions; **Số liệu**: "N
 view", then "48h: x×, y% share", a dash before the first reading; **Tạo**: who and when; and, off until ticked in "Cột",
