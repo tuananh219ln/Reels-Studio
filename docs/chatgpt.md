@@ -329,7 +329,7 @@ an owner check; agents do not access production or trigger real jobs to test it.
 ## MP4 đã dựng sẵn (Muse)
 
 Ba tool ([the decision](decisions/2026-11-26-upload-mp4.md)) cho video Muse dựng xong ngoài Studio.
-`upload_finished_video` (`topic_id`, `mp4_url` hoặc `mp4_base64` tới 25 MB, `plan_item_id`, `title`, `caption`,
+`upload_finished_video` (`topic_id`, `mp4_url` hoặc `mp4_base64` (chỉ file tới 700 KB: kênh MCP từ chối request quá 1 MB, video thật dùng `mp4_url`), `plan_item_id`, `title`, `caption`,
 `hashtags`, `pinned_comment_text`, `idempotency_key`, `upload_note`, `replace_existing`) tạo video "MP4 tải lên" từ
 nguyên file đó, ở trạng thái Chờ duyệt; `replace_finished_video` thay file khi sửa lỗi (video quay lại Chờ duyệt, lịch
 của file cũ bị huỷ). `schedule_video_at` (`fanpage_id`, `post_at` hoặc giờ gợi ý của ý tưởng, cần quyền đăng bài) hẹn giờ

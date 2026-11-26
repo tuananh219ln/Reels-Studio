@@ -174,7 +174,7 @@ def test_muse_uploads_through_mcp_and_errors_come_back_with_a_code(mcp_client, d
     idea = TopicPlanItem(knowledge_topic_id=group.id, day=1, position=1, topic="Ngày 1", created_by_id=user.id)
     db.add(idea)
     db.commit()
-    data = base64.b64encode(make_mp4(tmp_path)).decode()
+    data = base64.b64encode(make_mp4(tmp_path, seconds=4)).decode()
     made = payload(
         call(
             mcp_client,
@@ -219,7 +219,7 @@ def test_muse_uploads_through_mcp_and_errors_come_back_with_a_code(mcp_client, d
             token,
             "replace_finished_video",
             video_id=made["video_id"],
-            mp4_base64=base64.b64encode(make_mp4(tmp_path, "b.mp4", seconds=18)).decode(),
+            mp4_base64=base64.b64encode(make_mp4(tmp_path, "b.mp4", seconds=5)).decode(),
         )
     )
-    assert replaced["video_id"] == made["video_id"] and replaced["media_info"]["duration_s"] > 17
+    assert replaced["video_id"] == made["video_id"] and replaced["media_info"]["duration_s"] > 4

@@ -1163,6 +1163,8 @@ def duplicable(db: DbSession, video_id: int) -> Video:
     source = db.get(Video, video_id)
     if source is None:
         raise video_not_found()
+    if source.mode == "upload":
+        raise ApiError(409, "upload_video", "Video “MP4 tải lên” không nhân bản được, hãy tải MP4 lên lại")
     if not source.has_script:
         raise ApiError(409, "no_script", "Video gốc chưa có kịch bản để nhân bản")
     return source

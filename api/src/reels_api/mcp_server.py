@@ -106,7 +106,8 @@ log = logging.getLogger(__name__)
 # `videos.written_via` of a script the member's own Claude wrote here; the video page names it as such.
 ASSISTANT = "assistant"
 # The assistant of the connection a tool runs for (mcp_auth.app_of), set by invoke for the operation it runs.
-MAX_BASE64_BYTES = 25 * 1024 * 1024
+# The MCP transport refuses a request body over 1 MB, base64 included: only a small file fits, a real video goes by link.
+MAX_BASE64_BYTES = 700 * 1024
 CALLING_APP: ContextVar[str] = ContextVar("calling_app", default="")
 # The script JSON the assistant sends back: about 5 KB in practice, well under the 128 KB request limit.
 MAX_SCRIPT_JSON = 60_000
@@ -654,7 +655,9 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         except (binascii.Error, ValueError):
             raise ApiError(422, "invalid_value", "mp4_base64 không phải base64 hợp lệ") from None
         if len(data) > MAX_BASE64_BYTES:
-            raise ApiError(413, "file_too_large", "mp4_base64 chỉ nhận file tới 25 MB, hãy dùng mp4_url")
+            raise ApiError(
+                413, "file_too_large", "mp4_base64 chỉ nhận file tới 700 KB (giới hạn của kênh MCP), hãy dùng mp4_url"
+            )
         path = folder / "upload.mp4"
         path.write_bytes(data)
         return path
@@ -686,7 +689,10 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             str | None,
             Field(max_length=2000, description="Link http(s) tải được, hoặc link chia sẻ một file Google Drive"),
         ] = None,
-        mp4_base64: Annotated[str | None, Field(description="File MP4 mã hoá base64, tối đa 25 MB")] = None,
+        mp4_base64: Annotated[
+            str | None,
+            Field(description="File MP4 mã hoá base64, chỉ file nhỏ (tối đa 700 KB); video thật dùng mp4_url"),
+        ] = None,
         plan_item_id: Annotated[
             int | None, Field(description="Ý tưởng của kế hoạch 30 ngày thuộc nhóm topic_id")
         ] = None,
@@ -750,7 +756,10 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     async def replace_finished_video(
         video_id: int,
         mp4_url: Annotated[str | None, Field(max_length=2000)] = None,
-        mp4_base64: Annotated[str | None, Field(description="File MP4 mã hoá base64, tối đa 25 MB")] = None,
+        mp4_base64: Annotated[
+            str | None,
+            Field(description="File MP4 mã hoá base64, chỉ file nhỏ (tối đa 700 KB); video thật dùng mp4_url"),
+        ] = None,
         upload_note: Annotated[str | None, Field(max_length=1500)] = None,
     ) -> dict:
         """Thay MP4 của một video "MP4 tải lên" chưa đăng khi Muse sửa lỗi dựng: giữ caption, hashtag, bình luận ghim
