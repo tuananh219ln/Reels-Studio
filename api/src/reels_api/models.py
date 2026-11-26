@@ -954,10 +954,6 @@ class AutoApproval(Base):
     reason: Mapped[str] = mapped_column(Text, default="", server_default="")
     fanpage_name: Mapped[str] = mapped_column(String(200), default="", server_default="")
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # The Page's slot this post was given by its queue ("HH:MM" in `slot_timezone`, migration 0134); null for a post
-    # scheduled by hand. A post whose moment is no longer one of the Page's slots is "Ngoài khung".
-    slot_local: Mapped[str | None] = mapped_column(String(5))
-    slot_timezone: Mapped[str | None] = mapped_column(String(40))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -1078,6 +1074,10 @@ class Publication(Base):
     # time they planned, only a reminder) | pending_link
     status: Mapped[str] = mapped_column(String(16), default="pending")
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The Page's slot this post was given by its queue ("HH:MM" in `slot_timezone`, migration 0134); null for a post
+    # scheduled by hand. A post whose moment is no longer one of the Page's slots is "Ngoài khung".
+    slot_local: Mapped[str | None] = mapped_column(String(5))
+    slot_timezone: Mapped[str | None] = mapped_column(String(40))
     # The platform's id, saved before the upload, so "Thử lại" continues this reel instead of posting a second one.
     remote_id: Mapped[str | None] = mapped_column(String(64))
     remote_mp4_key: Mapped[str | None] = mapped_column(String(200))  # the MP4 sent as `remote_id`
