@@ -3,16 +3,16 @@
 Every group is Vietnam and every Page uses its group's zone (or Vietnam for its own times), so no posting moment
 changes and no `scheduled_at` is touched.
 
-Revision ID: 0132
-Revises: 0131
+Revision ID: 0133
+Revises: 0132
 Create Date: 2026-11-26
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0132"
-down_revision = "0131"
+revision = "0133"
+down_revision = "0132"
 branch_labels = None
 depends_on = None
 

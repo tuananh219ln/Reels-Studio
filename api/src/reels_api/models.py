@@ -195,7 +195,7 @@ class KnowledgeTopic(Base):
     plan_post_times: Mapped[list] = mapped_column(
         JSONB, default=lambda: list(DEFAULT_POST_TIMES), server_default=text(DEFAULT_POST_TIMES_SQL)
     )
-    # The IANA zone `plan_post_times` are written in (schedule_tz.py, migration 0132): VN or a US zone.
+    # The IANA zone `plan_post_times` are written in (schedule_tz.py, migration 0133): VN or a US zone.
     schedule_timezone: Mapped[str] = mapped_column(
         String(40), default="Asia/Ho_Chi_Minh", server_default="Asia/Ho_Chi_Minh"
     )
@@ -954,7 +954,7 @@ class AutoApproval(Base):
     reason: Mapped[str] = mapped_column(Text, default="", server_default="")
     fanpage_name: Mapped[str] = mapped_column(String(200), default="", server_default="")
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # The Page's slot this post was given by its queue ("HH:MM" in `slot_timezone`, migration 0133); null for a post
+    # The Page's slot this post was given by its queue ("HH:MM" in `slot_timezone`, migration 0134); null for a post
     # scheduled by hand. A post whose moment is no longer one of the Page's slots is "Ngoài khung".
     slot_local: Mapped[str | None] = mapped_column(String(5))
     slot_timezone: Mapped[str | None] = mapped_column(String(40))

@@ -26,7 +26,7 @@ written in the zone of their group or Page. Everything else the app shows stays 
   since daylight saving makes the answer depend on the day: `convert_times` on the two PATCHes) or "Giữ số giờ"
   (the default of the API: same wall hours, new zone). Posts already scheduled keep their moment either way.
 - **"Ngoài khung":** posts the queue schedules record their slot (`publications.slot_local`, `slot_timezone`,
-  migration 0133; null for hand-made posts and every older one). The dashboard marks a scheduled post `off_slot` when
+  migration 0134; null for hand-made posts and every older one). The dashboard marks a scheduled post `off_slot` when
   its moment is no longer one of the Page's slots. **No "Xếp lại theo khung mới" button:** the app cannot change the
   time of a reel already scheduled on Facebook (that is done in Meta Business Suite), so rescheduling would mean
   cancelling and posting again on Facebook; left for the owner to decide.
