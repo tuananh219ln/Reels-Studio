@@ -410,6 +410,7 @@ test("the menu is four headed groups in the order of the work, with no Bình lu�
     "Affiliate",
     "Kho kiến thức",
     "Tất cả hướng dẫn",
+    "Có gì mới",
     "Kho tư liệu",
     "Thư viện nhạc",
     "Phân tích đối thủ",
