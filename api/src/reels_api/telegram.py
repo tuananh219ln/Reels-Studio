@@ -74,7 +74,7 @@ HELP = (
     "Đây là bot của Reels Studio. Bot nhắn riêng cho bạn khi video của bạn chờ duyệt, khi việc của bạn bị lỗi, "
     "khi kết nối hết hạn, và nhắc việc mỗi sáng.\n\n"
     "Để kết nối: vào Reels Studio › Cài đặt › Thông báo Telegram và bấm <b>Kết nối Telegram</b>.\n"
-    "/stop: ngừng nhận tin."
+    "/help: các lệnh của bot. /stop: ngừng nhận tin."
 )
 JOB_LABELS = {
     "script": "Viết kịch bản",
@@ -155,6 +155,10 @@ def ensure_webhook() -> None:
         "setWebhook",
         {"url": url, "secret_token": webhook_secret(), "allowed_updates": ["message", "callback_query"]},
     )
+    from .telegram_commands import COMMANDS
+
+    # The "/" menu, in private chats and in groups (where Telegram adds @<bot> to what is picked).
+    call("setMyCommands", {"commands": [{"command": name, "description": text} for name, text in COMMANDS]})
     _webhooks.add((config.telegram_bot_token(), url))
 
 
@@ -268,8 +272,12 @@ def _message(db: DbSession, message: dict) -> None:
         # For setting up the team's group (docs/deployment.md): the id the CI posts "Có gì mới" to.
         send_text(chat["id"], f"Chat id: <code>{chat['id']}</code>")
         return
+    from . import telegram_commands
+
+    if telegram_commands.handle(db, message, command, rest.strip()):
+        return
     if chat.get("type") != "private":
-        return  # the bot never talks in a group about anything else
+        return  # in a group the bot answers its commands only, never anything personal
     if command == "/start":
         _link(db, chat["id"], message.get("from") or {}, rest.strip())
     elif command == "/stop":
@@ -319,6 +327,11 @@ def _button(db: DbSession, query: dict) -> None:
         return
     action, _, rest = (query.get("data") or "").partition(":")
     video_id, _, signature = rest.partition(":")
+    if action in ("qa", "rv"):
+        from . import telegram_commands
+
+        answer(telegram_commands.button(db, user, action, rest, chat))
+        return
     if action not in ("ap", "aq", "rj") or not video_id.isdigit():
         answer("Nút này không còn dùng được")
         return
@@ -363,8 +376,12 @@ def _button(db: DbSession, query: dict) -> None:
             )
         except TelegramError:
             pass  # the message may be too old to edit; the answer below says what happened
-    after = " Vào app để hẹn giờ đăng hoặc thêm vào hàng chờ." if action != "rj" else " Khôi phục được trong app."
-    send_text(chat, f"{done}: <b>{html.escape(_video_name(video))}</b>.{after}")
+    from . import telegram_commands
+
+    if action == "rj":
+        telegram_commands.ask_reason(chat, video)
+    else:
+        telegram_commands.offer_queue(db, user, chat, video, done)
 
 
 # --- What to tell (collect) ---
@@ -656,9 +673,16 @@ def _send(db: DbSession, storage, user: User, notice: TelegramNotice) -> str | N
     video = db.get(Video, notice.video_id) if notice.video_id else None
     if video is None or video.review_status != review.PENDING or not video.mp4_key:
         return "Không gửi: video đã được duyệt, bị bỏ hoặc xóa"
+    send_review(db, storage, user.telegram_chat_id, video, notice.text)
+    return None
+
+
+def send_review(db: DbSession, storage, chat_id: int, video: Video, heading: str | None = None) -> None:
+    """A video waiting for review: its MP4 (or a link when too big), its QC summary and the Duyệt / Bỏ buttons."""
+    heading = heading or f"🎬 <b>Video chờ bạn duyệt</b>\n{html.escape(_video_name(video))}"
     items = review.qc_report(db, video)["items"]
     blockers = [item for item in items if item["level"] == "blocker"]
-    lines = [notice.text]
+    lines = [heading]
     if blockers:
         lines.append(f"⛔ Chưa duyệt được: {html.escape(blockers[0]['message'][:200])}")
     elif items:
@@ -671,13 +695,13 @@ def _send(db: DbSession, storage, user: User, notice: TelegramNotice) -> str | N
         lines.pop()
         caption = "\n".join(lines)
     buttons = _buttons(video, not blockers)
-    path = storage.path(video.mp4_key)
-    if path.is_file() and path.stat().st_size <= VIDEO_LIMIT:
+    path = storage.path(video.mp4_key) if video.mp4_key else None
+    if path is not None and path.is_file() and path.stat().st_size <= VIDEO_LIMIT:
         with open(path, "rb") as file:
             call(
                 "sendVideo",
                 {
-                    "chat_id": str(user.telegram_chat_id),
+                    "chat_id": str(chat_id),
                     "caption": caption,
                     "parse_mode": "HTML",
                     "supports_streaming": "true",
@@ -686,8 +710,7 @@ def _send(db: DbSession, storage, user: User, notice: TelegramNotice) -> str | N
                 files={"video": (f"video-{video.id}.mp4", file, "video/mp4")},
             )
     else:
-        send_text(user.telegram_chat_id, caption + "\n(MP4 quá lớn để gửi qua Telegram, xem trong app)", buttons)
-    return None
+        send_text(chat_id, caption + "\n(MP4 quá lớn để gửi qua Telegram, xem trong app)", buttons)
 
 
 _next_round = 0.0
@@ -706,5 +729,8 @@ def run_round(factory: sessionmaker) -> None:
             collect(db)
             db.commit()
             deliver(db, get_storage())
+            from . import telegram_commands
+
+            telegram_commands.group_summary(db)
     except Exception:
         log.exception("Telegram round failed")
