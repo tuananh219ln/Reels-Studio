@@ -51,6 +51,7 @@ from . import (
     qc,
     reference,
     render_nodes,
+    review,
     revise,
     rework,
     service_usage,
@@ -165,6 +166,8 @@ def run_job(
         )
         log.info("Job %s (%s) for %s started", job.id, job.kind, owner)
         try:
+            if job.kind in review.POSTING_JOBS and job.video_id is not None and (reason := review.skip_reason(db, job)):
+                raise JobFailure(reason)
             if job.kind in ("script", "clone"):
                 run_script_job(db, job, call, storage)
             elif job.kind == "learn":
@@ -256,6 +259,7 @@ def run_job(
         _finish(db, job_id, "done")
         log.info("Job %s done", job_id)
         if job.kind == "render":
+            review.after_render(db, job.video_id)
             auto_approve.settle(db, job.video_id)
         if job.kind in ("script", "clone") or (job.kind == "learn" and _has_script(db, job)):
             _queue_photos(db, job)

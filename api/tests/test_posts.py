@@ -141,6 +141,7 @@ def test_the_poster_is_who_sent_it_last_after_a_failed_attempt(an, db, me, stora
     video.mp4_key = f"videos/{video.id}/video-x.mp4"
     storage.save_bytes(video.mp4_key, b"mp4 bytes")
     video.rendered_signature = render_signature(video, title, scenes)
+    video.review_status, video.approved_signature = "approved", video.rendered_signature
     post = Publication(video_id=video.id, platform="facebook", created_by_id=other.id)
     db.add(post)
     page = fanpages.save(db, FACEBOOK_PAGE, "Trang Dưỡng Sinh", FACEBOOK_TOKEN, me.id)

@@ -36,6 +36,7 @@ def mp4_video(db, storage, user) -> Video:
     storage.save_bytes(video.mp4_key, MP4)
     title, scenes = split_scenes(db, video)
     video.rendered_signature = render_signature(video, title, scenes)
+    video.review_status, video.approved_signature = "approved", video.rendered_signature
     db.commit()
     return video
 

@@ -14,6 +14,7 @@ import {
   closeSetup,
   openSetup,
   openPublishDrawer,
+  approveReview,
   openScene,
   resetDatabase,
   openVideoTab,
@@ -81,7 +82,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(second.getByText(/Sẽ đọc chữ trên màn hình: .+\. Giàu canxi\./)).toBeVisible();
 
   await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).click();
-  await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ duyệt", { timeout: 120_000 });
   // A script's scenes follow their narration ("Tự khớp lời đọc"): each lasts its fake narration of 0.3 s per word plus
   // 0.6 s and the MP3 padding, shorter or longer than it was set to: the title's 6 words take 2.5 s (it was set to 3),
   // the five scenes' 4 words 1.9 s each.
@@ -112,6 +113,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   expect(download.headers()["content-type"]).toBe("video/mp4");
   expect(download.headers()["content-disposition"]).toContain("attachment");
 
+  await approveReview(page);
   await openPublish(page);
   await page.getByRole("dialog", { name: "Đăng bài" }).getByRole("button", { name: "Đăng", exact: true }).click();
   await expect(page.getByTestId("platform-row-facebook")).toHaveAttribute("data-status", "published", {
@@ -141,6 +143,59 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(card).toContainText("6 MÓN");
 });
 
+test("review gate: a rendered video waits for approval before it can be posted", async ({ page }) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  await page.getByRole("dialog", { name: "Tạo video" }).getByLabel("Chủ đề", { exact: true }).fill("xương khớp");
+  await page.getByRole("dialog", { name: "Tạo video" }).getByRole("button", { name: "Viết kịch bản" }).click();
+  await expect(page.getByTestId("scene")).toHaveCount(5, { timeout: 90_000 });
+  await uploadPhotos(page);
+  await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).click();
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ duyệt", { timeout: 120_000 });
+
+  // Nothing can be posted yet: the review card says so and every posting button is off.
+  await closeSetup(page);
+  const review = page.getByTestId("review-card");
+  await expect(review).toHaveAttribute("data-status", "pending_review");
+  await expect(page.getByTestId("post-to-platforms")).toBeDisabled();
+  await expect(page.getByTestId("needs-approval")).toContainText("Cần duyệt video trước khi đăng");
+  await expect(
+    page.getByTestId("publish-more").getByRole("button", { name: "Tùy chọn đăng khác", exact: true }),
+  ).toBeDisabled();
+  // The api refuses too, whatever the buttons say.
+  const id = page.url().match(/\/videos\/(\d+)/)?.[1];
+  const refused = await page.request.post(`/api/videos/${id}/publish`, {
+    headers: { Origin: new URL(page.url()).origin },
+    data: { fanpage_id: 1 },
+  });
+  expect(refused.status()).toBe(409);
+  expect((await refused.json()).code).toBe("not_approved");
+  // The menu counts the videos waiting (the video page folds the menu to icons, so look on the list).
+  await page.goto("/videos");
+  await expect(page.getByTestId("videos-review-badge")).toBeVisible();
+  await expect(page.getByTestId("video-card").first().getByTestId("video-status")).toHaveText("Chờ duyệt");
+  await page.goBack();
+  await closeSetup(page);
+
+  // Dropped, then restored.
+  await review.getByTestId("review-reject").click();
+  await page.locator(".ant-modal-confirm").getByRole("button", { name: "Bỏ video" }).click();
+  await expect(review).toHaveAttribute("data-status", "rejected");
+  await expect(page.getByTestId("video-status")).toHaveText("Đã bỏ");
+  await review.getByTestId("review-restore").click();
+  await expect(review).toHaveAttribute("data-status", "pending_review");
+
+  // Approved: posting opens up.
+  await approveReview(page);
+  await expect(review).toContainText("Đã duyệt");
+  await expect(page.getByTestId("post-to-platforms")).toBeEnabled();
+  await expect(
+    page.getByTestId("publish-more").getByRole("button", { name: "Tùy chọn đăng khác", exact: true }),
+  ).toBeEnabled();
+});
+
 test("after a render, editing a scene text marks the MP4 outdated", async ({ page }) => {
   test.setTimeout(240_000);
   await loginAsSeed(page);
@@ -157,11 +212,12 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   // The bar says the render is on its way, wherever the member has scrolled, and when it is done.
   await expect(bar.getByTestId("render-bar-job")).toBeVisible();
   await expect(page.getByText("Đã render xong MP4")).toBeVisible({ timeout: 120_000 });
-  await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng");
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ duyệt");
   await expect(bar.getByTestId("render-bar-job")).toHaveCount(0);
   await expect(bar).toContainText("MP4 đã theo bản mới nhất.");
   await expect(bar.getByRole("button", { name: "Render lại" })).toBeEnabled();
 
+  await approveReview(page);
   await openPublish(page);
   await page.getByRole("dialog", { name: "Đăng bài" }).getByRole("radio", { name: "Hẹn giờ" }).click();
   await page.getByRole("dialog", { name: "Đăng bài" }).getByLabel("Giờ đăng").fill(vietnamTimeIn(2));
@@ -192,7 +248,7 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await text.fill("Sữa chua\nThêm *đạm*");
   // "Xong" saves the field being typed in, then locks the page again.
   await page.getByRole("button", { name: "Xong" }).click();
-  await expect(page.getByText("MP4 chưa cập nhật theo bản sửa")).toBeVisible();
+  await expect(page.getByTestId("render-bar").getByText("MP4 chưa cập nhật theo bản sửa")).toBeVisible();
   await expect(bar.getByTestId("render-bar-outdated")).toBeVisible();
   await expect(page.getByRole("button", { name: "Chỉnh sửa" })).toBeVisible();
   await expect(text).toHaveAttribute("readonly", "");
@@ -237,7 +293,7 @@ test("30-day plan: a ready video is approved from its idea card", async ({ page 
   await expect(page.getByTestId("scene")).toHaveCount(5, { timeout: 90_000 });
   await uploadPhotos(page);
   await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).click();
-  await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ duyệt", { timeout: 120_000 });
 
   // The same approval is available on the video and its list card.
   await expect(page.getByRole("button", { name: "Duyệt", exact: true })).toBeVisible();
@@ -286,7 +342,8 @@ test("30-day plan: a ready video is approved from its idea card", async ({ page 
   await card.getByTestId("plan-idea-approve").click();
   const confirm = page.locator(".ant-popover", { hasText: "Duyệt đăng lúc" });
   await expect(confirm).toBeVisible();
-  await confirm.getByRole("button", { name: "Duyệt", exact: true }).click();
+  // The e2e video is short, so the confirmation lists its script warnings and the button says "Vẫn duyệt".
+  await confirm.getByRole("button", { name: /^(Vẫn )?[Dd]uyệt$/ }).click();
   // The plan reloads: the idea is scheduled at the plan's suggested time.
   await expect(card).toContainText("Đã hẹn giờ", { timeout: 30_000 });
   await expect(card).toContainText("23:00");
@@ -1657,7 +1714,8 @@ async function renderedVideo(page: Page) {
   await jobFinished(page);
   await uploadPhotos(page);
   await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).click();
-  await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ duyệt", { timeout: 120_000 });
+  await approveReview(page);
 }
 
 async function openPublish(page: Page) {
@@ -3204,13 +3262,13 @@ test("a title clip with a start time renders, and removing it asks for a photo a
   await expect(title.getByText("Ở tốc độ 2× video ngắn hơn cảnh, khung cuối sẽ đứng yên")).toBeVisible();
 
   await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).click();
-  await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ duyệt", { timeout: 120_000 });
 
   await title.getByRole("button", { name: "Xoá video" }).click();
   await page.getByRole("tooltip").getByRole("button", { name: "Xoá" }).click();
   await expect(title.getByTestId("scene-video")).toHaveCount(0);
   await expect(title.getByTestId("scene-no-preview")).toHaveText("Chưa có ảnh");
-  await expect(page.getByText("MP4 chưa cập nhật theo bản sửa")).toBeVisible();
+  await expect(page.getByTestId("render-bar").getByText("MP4 chưa cập nhật theo bản sửa")).toBeVisible();
 });
 
 test("AI model settings: set up an OpenAI-compatible provider, check it, and write a script with it", async ({

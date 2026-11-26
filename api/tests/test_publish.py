@@ -25,11 +25,14 @@ def an(client, me):
     return client
 
 
-def add_mp4(db, storage, video) -> None:
+def add_mp4(db, storage, video, approved=True) -> None:
+    """A rendered video; approved (the review gate) unless a test is about the gate itself."""
     video.mp4_key = f"videos/{video.id}/video-x.mp4"
     storage.save_bytes(video.mp4_key, b"mp4 bytes")
     title, scenes = split_scenes(db, video)
     video.rendered_signature = render_signature(video, title, scenes)
+    if approved:
+        video.review_status, video.approved_signature = "approved", video.rendered_signature
     db.commit()
 
 
@@ -559,6 +562,8 @@ def re_render(factory, storage, video_id, data=b"mp4 moi hon"):
         video.mp4_key = f"videos/{video.id}/video-y.mp4"
         storage.save_bytes(video.mp4_key, data)
         video.rendered_signature = render_signature(video, title, scenes)
+        # The member approved the new MP4 too: a render alone sends a video back to review (review.after_render).
+        video.review_status, video.approved_signature = "approved", video.rendered_signature
         db.commit()
 
 

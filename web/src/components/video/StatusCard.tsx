@@ -31,6 +31,7 @@ import {
 } from "@/lib/api";
 import { loadLastChoices, myPageOfGroup } from "@/lib/lastChoices";
 import { myPages, pageOptions } from "@/lib/myPages";
+import { postBlock } from "@/lib/videoStatus";
 import {
   AUTO_PLATFORMS,
   PLATFORM_LABELS,
@@ -588,7 +589,8 @@ function Platforms({
     (picked.includes("tiktok") && account === null) ||
     (picked.includes("youtube") && channel === null) ||
     (mode === "later" && timed && !when);
-  const blocked = video.mp4_outdated || video.locked || posting || picked.length === 0 || missing;
+  const approval = postBlock(video);
+  const blocked = video.mp4_outdated || video.locked || posting || picked.length === 0 || missing || approval !== null;
 
   async function post() {
     // The post uses the saved caption: leave the field being typed in and wait until it is saved.
@@ -800,6 +802,11 @@ function Platforms({
       {samePage && picked.includes("facebook") && (
         <Typography.Text type="danger" style={{ fontSize: 12.5 }}>
           Bản MP4 này đang có trên Fanpage đó. Hãy render bản mới hoặc xóa bài cũ.
+        </Typography.Text>
+      )}
+      {approval && (
+        <Typography.Text type="warning" style={{ fontSize: 12.5 }} data-testid="needs-approval">
+          {approval}: bấm “Duyệt” ở trên.
         </Typography.Text>
       )}
       {video.mp4_outdated && (

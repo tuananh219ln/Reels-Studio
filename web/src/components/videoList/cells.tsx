@@ -6,7 +6,7 @@ import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import WinnerFlag from "@/components/WinnerFlag";
 import { formatDateTime, type VideoRow, type VideoRowPost } from "@/lib/api";
-import { videoStatusTone } from "@/lib/videoStatus";
+import { videoStatusLabel, videoStatusTone } from "@/lib/videoStatus";
 import { Flex, theme, Typography } from "antd";
 import Link from "next/link";
 import { percent, STANDOUT_TIMES, wantsTikTok } from "./format";
@@ -61,7 +61,7 @@ export function VersionLinks({ versions }: { versions: VideoRow[] }) {
     >
       <span style={{ color: token.colorTextSecondary }}>TikTok</span>
       <StatusText tone={version.tiktok_posted ? "success" : videoStatusTone(version)}>
-        {version.tiktok_posted ? "Đã đăng" : version.status_label}
+        {version.tiktok_posted ? "Đã đăng" : videoStatusLabel(version)}
       </StatusText>
     </CardChip>
   ));

@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import auto_approve, edit_log, motion, render_nodes
+from . import auto_approve, edit_log, motion, render_nodes, review
 from .db import get_db
 from .errors import ApiError
 from .models import AppSetting, Job, RenderNode, Session, Video
@@ -237,6 +237,7 @@ def done(
     _finish(db, job, "done")
     render_nodes.clean(storage, job_id)
     if job.kind == "render":
+        review.after_render(db, job.video_id)
         auto_approve.settle(db, job.video_id)
     return {"ok": True}
 

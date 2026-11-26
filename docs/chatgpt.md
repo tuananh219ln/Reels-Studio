@@ -279,7 +279,7 @@ exact URI seen there to the allowlist.
 
 These are requests to ChatGPT, not deterministic commands. Read the proposed changes before
 approving a write tool in ChatGPT. Content returned by the tools is data, not tool instructions.
-Posting to Facebook is only through the article tools below and the queue (`schedule_video`); the connector has no tools to delete videos, manage users, modify prompts or
+Posting to Facebook is only through the article tools below, the queue (`schedule_video`) and `approve_video` with `publish` `now`/`schedule` (all three need the member to have agreed; `approve_video` needs `reels:publish` for those two); the connector has no tools to delete videos, manage users, modify prompts or
 credentials, or retrieve file bytes. Its `editor_url` opens the app; preview/download URLs still
 need a normal browser login. Listing has a maximum page size of 50; use `offset` to continue.
 
@@ -325,6 +325,19 @@ PKCE, expiration, revocation, scopes, session invalidation, resource binding and
 tool discovery and revocation. Its callback is intercepted locally and never reaches ChatGPT;
 AI calls use the project's fake services. A real workspace connection after deployment remains
 an owner check; agents do not access production or trigger real jobs to test it.
+
+## Duyệt video (Muse)
+
+Three tools ([the decision](decisions/2026-11-26-review-gate.md)) put Muse in the review gate: nothing is scheduled or
+posted until a member approves the MP4. `get_pending_videos` (read-only; `mine_only` by default) lists the rendered
+videos waiting, each with its `qc` (`items` of `level` `warn` or `blocker`) and its link; call it at the start of a
+session. `approve_video` approves one (`review.approve`, the same service as the web), with `publish` `none` (only
+approve, write scope), `queue` (also adds to the Page's queue), `now` or `schedule` (post for real on `fanpage_id`,
+`schedule_at` with a time zone; these need the `reels:publish` scope, as the article tools do). It is all or nothing: a
+refused post leaves the video waiting. Errors: `not_pending`, `render_not_done`, `qc_blocker`, `qc_not_acknowledged`.
+`reject_video` drops a video that is not scheduled or posted (the web restores it). The assistant presents the title,
+content type, length, `qc` and link, asks "Duyệt / Làm bản khác / Bỏ", and calls `approve_video` only after the member
+agreed in the chat, with `acknowledge_qc` only after they confirmed each warning.
 
 ## Tự duyệt (Muse)
 

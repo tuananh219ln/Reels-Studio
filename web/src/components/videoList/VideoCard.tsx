@@ -8,7 +8,7 @@ import VideoNameEditor from "@/components/VideoNameEditor";
 import VideoThumbnail from "@/components/VideoThumbnail";
 import WinnerFlag from "@/components/WinnerFlag";
 import type { VideoRow } from "@/lib/api";
-import { videoStatusTone } from "@/lib/videoStatus";
+import { videoStatusLabel, videoStatusTone } from "@/lib/videoStatus";
 import { ClockCircleOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import { Card, Flex, theme, Typography } from "antd";
 import Link from "next/link";
@@ -162,7 +162,7 @@ export default function VideoCard({
           <Flex justify="space-between" align="flex-end" gap={8} style={{ marginTop: "auto", paddingTop: 10 }}>
             <Flex gap={10} align="center" style={small}>
               <StatusText tone={videoStatusTone(row)} data-testid="video-status">
-                {row.status_label}
+                {videoStatusLabel(row)}
               </StatusText>
             </Flex>
             <Typography.Text type="secondary" style={{ ...small, textAlign: "right", flex: "none" }}>

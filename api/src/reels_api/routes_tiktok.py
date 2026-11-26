@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import crypto, tiktok, tiktok_connections
+from . import crypto, review, tiktok, tiktok_connections
 from .db import get_db
 from .errors import ApiError
 from .models import AffiliateAccount, Job, Publication, Session, TikTokConnection, Video
@@ -220,6 +220,7 @@ def publish(
     video = lock_video(db, video_id)
     if not video.mp4_key:
         raise invalid("Video chưa render MP4 để đăng")
+    review.ensure_approved(video)
     account = db.get(AffiliateAccount, body.account_id)
     if account is None or account.owner_id != me.user_id or account.platform != "tiktok":
         raise invalid("Hãy chọn một tài khoản TikTok của bạn")

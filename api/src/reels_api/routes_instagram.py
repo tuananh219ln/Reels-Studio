@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import brands, hashtags, instagram
+from . import brands, hashtags, instagram, review
 from .db import get_db
 from .errors import ApiError
 from .models import Fanpage, Job, Publication, Session
@@ -42,6 +42,7 @@ def publish(
     title, scenes = split_scenes(db, video)
     if video.rendered_signature != render_signature(video, title, scenes):
         raise ApiError(409, "mp4_outdated", "MP4 chưa cập nhật theo bản sửa, hãy render lại rồi đăng")
+    review.ensure_approved(video)
     when = body.scheduled_at
     if when is not None:
         if when.tzinfo is None:

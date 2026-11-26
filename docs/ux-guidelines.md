@@ -106,8 +106,17 @@ why and does not report success.
 - **Approval:** the ready plan video's own page, list and plan cards (including Today) say "Duyệt".
   Opening it reads fresh data before showing the time and Page in a confirmation. An absent/past
   suggested time, missing/stale MP4, active job, unavailable own Page or duplicate MP4 refuses it
-  with a reason. Approval sends the existing publish request with automatic comments, then reloads
-  the surface. An ordinary video without a planned time uses "Đăng bài".
+  with a reason, as does a video with script or MP4 warnings (open it and approve there) or one that was dropped.
+  Approval first approves the MP4 (the review gate below), then sends the existing publish request with automatic
+  comments, then reloads the surface. An ordinary video without a planned time uses "Đăng bài".
+- **Review gate** ([decision](decisions/2026-11-26-review-gate.md)): a rendered video nobody approved reads "Chờ duyệt"
+  (orange) in place of "Chờ đăng" on every list and card, "Đã bỏ" (grey) once dropped; the lists and a group's "Video" tab
+  have a "Chờ duyệt" status filter, and "Video" in the menu carries an orange count of them. On the video page,
+  "Đăng bài" opens with a review card above the MP4: its state ("Đã duyệt" with who, when and through which channel),
+  the `blocker` and `warn` items, "✓ Duyệt" (disabled while a blocker stands or a job runs; with warnings it opens
+  "Còn N mục chưa đạt" with "Vẫn duyệt" / "Huỷ"), "Bỏ video" (asks first) and "Khôi phục" on a dropped one. While it is
+  not approved, "Đăng lên N nền tảng", "Tùy chọn đăng khác", the posting drawer's button and "Thêm vào hàng chờ" are
+  disabled with "Cần duyệt video trước khi đăng". A new render sends the video back to "Chờ duyệt".
 - **Articles:** the list offers the detail page's publishing drawer and the maker's delete confirmation,
   side by side in one row ("Làm reel từ bài này" is on the detail page only). The table is `size="middle"` with
   48 px thumbnails so a 1440×900 screen shows 7 rows or more; "Số 48h" reads "—" (draft), "Chưa đo" (posted, under

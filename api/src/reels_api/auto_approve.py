@@ -9,7 +9,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import plans
+from . import plans, review
 from .errors import ApiError
 from .models import AutoApproval, Fanpage, KnowledgeTopic, Session, TopicPlanItem, User, Video
 from .videos import pending_publication, run_checks, split_scenes
@@ -37,8 +37,11 @@ def _settle(db: DbSession, video_id: int) -> None:
     reason, page, when = _blocker(db, video, maker)
     if reason is None:
         from .routes_videos import PublishBody, publish
+        from .videos import lock_video
 
         try:
+            # Approved by the app for its maker, then posted by the same rules as their "Duyệt" button.
+            review.approve(db, lock_video(db, video.id), maker.id, "auto")
             publish(
                 video.id,
                 PublishBody(fanpage_id=page.id, scheduled_at=when, auto_comment=True),

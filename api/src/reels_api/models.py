@@ -356,6 +356,16 @@ class Video(Base):
     # Fingerprint of everything that changes the MP4, taken at render time (see videos.render_signature).
     rendered_signature: Mapped[str | None] = mapped_column(String(64))
     rendered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The review gate (review.py, docs/decisions/2026-11-26-review-gate.md): nothing is scheduled or posted until a
+    # member approves the MP4. `pending_review` is the start (and what every render goes back to), then `approved`
+    # or `rejected`. "Scheduled" and "published" are not stored: they are read from the video's posts.
+    review_status: Mapped[str] = mapped_column(String(16), default="pending_review", server_default="pending_review")
+    approved_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # web | muse_chat | auto | legacy (approved by being posted before the gate existed)
+    approved_via: Mapped[str | None] = mapped_column(String(16))
+    # The MP4's fingerprint (rendered_signature) at approval: an approval holds only for that MP4.
+    approved_signature: Mapped[str | None] = mapped_column(String(64))
     music_key: Mapped[str | None] = mapped_column(String(200))
     music_name: Mapped[str | None] = mapped_column(String(200))  # the uploaded file's name, display only
     music_volume: Mapped[int] = mapped_column(Integer, default=25)  # percent
@@ -890,6 +900,24 @@ class UserVideoDefaults(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class VideoEvent(Base):
+    """One step of a video's review (review.py): who did what, from which channel, and when."""
+
+    __tablename__ = "video_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    type: Mapped[str] = mapped_column(String(24))  # approved | rejected | restored | review_requested | publish_skipped
+    from_status: Mapped[str | None] = mapped_column(String(16))
+    to_status: Mapped[str | None] = mapped_column(String(16))
+    actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    channel: Mapped[str] = mapped_column(
+        String(16), default="web", server_default="web"
+    )  # web | muse_chat | auto | system
+    payload: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class AutoApproval(Base):
