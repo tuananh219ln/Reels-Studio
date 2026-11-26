@@ -30,6 +30,11 @@ export default function DefaultMusicCard({
               {track.name}
             </Typography.Text>
             <audio src={track.url} controls preload="none" style={{ width: "100%" }} />
+            {track.claimed_on_youtube && (
+              <Typography.Text type="warning" data-testid="default-music-claimed">
+                Bài này đã bị claim trên YouTube: video mới đang không có nhạc. Hãy chọn bài khác.
+              </Typography.Text>
+            )}
           </>
         ) : (
           <Typography.Text type={gone ? "warning" : "secondary"}>

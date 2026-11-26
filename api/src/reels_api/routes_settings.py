@@ -15,6 +15,7 @@ from . import (
     image_providers,
     image_style,
     llm,
+    music_claims,
     routes_videos,
     service_usage,
     settings_log,
@@ -202,17 +203,30 @@ def _defaults_payload(db: DbSession, values: dict) -> dict:
     """The team defaults, with the default music's name and player link for the page ("music_track", read-only):
     None when there is none or the track was deleted from the library since (new videos then start silent)."""
     track = db.get(MusicTrack, values["music_track_id"]) if values.get("music_track_id") else None
-    music = {"id": track.id, "name": track.name, "url": f"/api/music/{track.id}/audio.mp3"} if track else None
+    music = (
+        {
+            "id": track.id,
+            "name": track.name,
+            "url": f"/api/music/{track.id}/audio.mp3",
+            # Claimed since it was chosen: new videos start silent until another track is picked (music_claims.py).
+            "claimed_on_youtube": track.claimed_on_youtube,
+        }
+        if track
+        else None
+    )
     return values | {"music_track": music}
 
 
 def _check_track_in(db: DbSession, values: dict) -> None:
-    """A well-formed default track id must name a track in the library (a malformed one is refused by
-    video_options.clean)."""
+    """A well-formed default track id must name a track in the library that is not claimed on YouTube (a malformed
+    one is refused by video_options.clean)."""
     track_id = values.get("music_track_id")
     known = isinstance(track_id, int) and not isinstance(track_id, bool) and track_id >= 1
-    if known and db.get(MusicTrack, track_id) is None:
+    track = db.get(MusicTrack, track_id) if known else None
+    if known and track is None:
         raise ApiError(404, "track_not_found", "Không tìm thấy bài nhạc (có thể đã bị xóa)")
+    if track is not None:
+        music_claims.ensure_usable(track)
 
 
 # --- The signed-in member's own defaults: theirs once saved, the app's built-in ones until then (no team level) ---

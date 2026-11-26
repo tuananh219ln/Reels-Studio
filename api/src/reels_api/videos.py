@@ -35,6 +35,7 @@ from . import (
     pinned,
     plans,
     post_comments,
+    youtube_claims,
 )
 from .clips import ClipError, frame_at
 from .errors import ApiError
@@ -1484,6 +1485,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "tiktok_posts": [tiktok_post_payload(post) for post in tiktok_posts_of(db, video.id)],
         # YouTube Shorts and Instagram Reels, posted by hand from the same MP4.
         "manual_posts": [manual_post_payload(post) for post in manual_posts_of(db, video.id)],
+        # A YouTube claim noted by hand (youtube_claims.py): the YouTube row shows "Bị chặn" while one is active.
+        "youtube_claim": youtube_claims.payload(db, video.id),
         "suggest": {
             "state": "pending" if video.suggest_requested_at else ("failed" if video.suggest_error else "idle"),
             "error": video.suggest_error,

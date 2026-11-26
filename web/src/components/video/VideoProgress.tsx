@@ -103,13 +103,15 @@ function steps(video: VideoDetail, now: number): Step[] {
       }
     : scheduled.length
       ? { key: "post", label: "Đăng", state: "done", detail: <>Hẹn {when(scheduled[0])}</>, tab: "publish" }
-      : {
-          key: "post",
-          label: "Đăng",
-          state: results.some((result) => result.state === "err") ? "warn" : "todo",
-          detail: suggested ? <>Chưa đăng, kế hoạch gợi ý {when(suggested)}</> : "Chưa đăng",
-          tab: "publish",
-        };
+      : results.some((result) => result.state === "private")
+        ? { key: "post", label: "Đăng", state: "done", detail: "YouTube riêng tư, chờ công khai", tab: "publish" }
+        : {
+            key: "post",
+            label: "Đăng",
+            state: results.some((result) => result.state === "err") ? "warn" : "todo",
+            detail: suggested ? <>Chưa đăng, kế hoạch gợi ý {when(suggested)}</> : "Chưa đăng",
+            tab: "publish",
+          };
 
   const products = video.affiliate_product_ids.length;
   const affiliate: Step = {

@@ -29,3 +29,9 @@ Trang một video (`/videos/<số>`) tự cập nhật khi có job chạy và kh
 - **Job lỗi:** nút **Thử lại** ở thẻ lỗi hoặc ở Nhật ký job.
 - **"MP4 cũ hơn bản sửa":** bạn sửa cảnh sau lần render cuối, bấm **Render lại**.
 - **Đăng thất bại:** hàng nền tảng hiện lý do màu đỏ và nút **Thử lại**.
+
+## YouTube: riêng tư và claim bản quyền
+- App tải video lên YouTube ở chế độ **riêng tư**. Hàng YouTube màu cam ghi **"Riêng tư, chưa công khai"** và chưa tính vào "Đã đăng lên X/Y nền tảng". Bấm **YouTube Studio ↗** để mở video và bật công khai.
+- **Trước khi công khai**, xem mục Hạn chế / Bản quyền của video trong YouTube Studio. Nhạc nền có thể bị claim Content ID dù có giấy phép miễn phí.
+- Gặp claim: ở thẻ Đăng bài bấm **Ghi claim YouTube**, ghi nhạc nào bị claim, ai claim, ngày. Hàng YouTube chuyển đỏ **"Bị chặn (claim)"** và bạn đăng lại YouTube được (ví dụ bản render với nhạc khác). Xử lý xong trong Studio (xoá bài hát, kháng nghị thắng, thay video) thì bấm **Đã xử lý claim**.
+- Claim do nhạc nền: vào **Thư viện nhạc**, **Sửa** bài đó, bật **Đã bị claim trên YouTube**. Từ đó không video nào chọn được bài này, kể cả làm nhạc mặc định. Video đã có bài này giữ nguyên: đổi nhạc rồi render lại nếu cần.

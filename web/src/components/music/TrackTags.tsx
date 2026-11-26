@@ -12,6 +12,11 @@ export default function TrackTags({ track }: { track: MusicTrack }) {
         </Tag>
       ))}
       <Tag color="purple">{track.mood}</Tag>
+      {track.claimed_on_youtube && (
+        <Tag color="error" data-testid="track-claimed" title={track.claimed_note || undefined}>
+          Đã bị claim trên YouTube
+        </Tag>
+      )}
     </Flex>
   );
 }
