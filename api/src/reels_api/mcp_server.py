@@ -54,6 +54,7 @@ from . import (
     review,
     shuffle,
     slot_comments,
+    telegram,
     title_motion,
     topic_docs,
     upload_mp4,
@@ -93,6 +94,7 @@ from .models import (
     SceneLayer,
     SceneSound,
     TopicPlanItem,
+    User,
     Video,
     VideoAffiliateProduct,
 )
@@ -563,7 +565,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     ) -> dict:
         """Kết quả "Tự duyệt" của thành viên: video nào vừa được hẹn đăng (kèm Page, giờ) và video nào còn chờ duyệt
         tay (kèm lý do). Gọi đều đặn, nhớ `id` lớn nhất đã báo và truyền lại làm after_id để chỉ lấy kết quả mới, rồi
-        nhắn thành viên qua WhatsApp."""
+        nhắn thành viên (qua “Nhắn riêng qua Telegram” nếu họ đã kết nối, không thì WhatsApp)."""
         return await run_in_threadpool(
             invoke, lambda db, me: {"results": auto_approve.recent(db, me.user_id, after_id, limit)}
         )
@@ -1150,6 +1152,26 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             return topic_docs.payload(db, topic_docs.find(db, knowledge_topic_id, doc_id, file_name), with_body=True)
 
         return await run_in_threadpool(invoke, operation)
+
+    @tool("Nhắn riêng qua Telegram", read=False, external=True)
+    async def send_telegram(
+        text: Annotated[str, Field(description="Nội dung tin, chữ thường (không HTML)", min_length=1, max_length=3000)],
+        link: Annotated[
+            str | None, Field(description="Link kèm theo (https), ví dụ editor_url của video", max_length=500)
+        ] = None,
+    ) -> dict:
+        """Nhắn riêng cho chính thành viên đang dùng kết nối này qua bot Telegram của nhóm, vào đoạn chat riêng của họ
+        với bot, không bao giờ vào nhóm chung. Dùng để báo việc của họ khi họ không ở trong chat: kết quả tự duyệt,
+        ảnh cần ghi nguồn, một việc dài đã xong. Ưu tiên Telegram hơn WhatsApp khi thành viên đã kết nối. Báo lỗi
+        nếu họ chưa kết nối Telegram hoặc đã tắt tin của Muse: khi đó báo trong chat."""
+
+        def operation(db, me):
+            if link and not link.startswith("https://"):
+                raise ApiError(422, "bad_link", "Link phải bắt đầu bằng https://")
+            telegram.tell(db.get(User, me.user_id), text, link)
+            return {"sent": True}
+
+        return await run_in_threadpool(invoke, operation, True)
 
     @tool("Có gì mới trong app", read=True, external=True)
     async def get_whats_new(

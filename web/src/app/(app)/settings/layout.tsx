@@ -6,6 +6,7 @@ import {
   ControlOutlined,
   DesktopOutlined,
   RobotOutlined,
+  SendOutlined,
   ShoppingOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
@@ -36,6 +37,12 @@ const GROUPS: { key: string; label: string; tabs: Tab[] }[] = [
         icon: <ShoppingOutlined />,
       },
       { key: "/settings/mcp", label: "Kết nối MCP", hint: "ChatGPT, Claude của tôi", icon: <ApiOutlined /> },
+      {
+        key: "/settings/telegram",
+        label: "Thông báo Telegram",
+        hint: "Tin riêng bot gửi cho tôi",
+        icon: <SendOutlined />,
+      },
     ],
   },
   {

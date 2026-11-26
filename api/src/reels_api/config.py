@@ -277,3 +277,21 @@ def voice_id() -> str:
 def voice_model() -> str:
     # eleven_multilingual_v2 does not speak Vietnamese; v3 and the v2.5 models do.
     return read_env("ELEVENLABS_MODEL") or "eleven_v3"
+
+
+def telegram_bot_token() -> str:
+    # The team's bot (the one that posts "Có gì mới" to the group): private messages to members (telegram.py). Empty
+    # turns them off.
+    return read_env("TELEGRAM_BOT_TOKEN")
+
+
+def telegram_api_url() -> str:
+    # Tests point it at api/scripts/fake_services.py.
+    return (read_env("TELEGRAM_API_URL") or "https://api.telegram.org").rstrip("/")
+
+
+def web_url() -> str:
+    # The web app's address, for links in messages and Telegram's webhook: the first https origin of ALLOWED_ORIGINS,
+    # else the first origin (local dev).
+    origins = sorted(allowed_origins())
+    return next((origin for origin in origins if origin.startswith("https://")), origins[0] if origins else "")

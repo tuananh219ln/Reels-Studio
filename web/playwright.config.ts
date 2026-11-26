@@ -51,6 +51,9 @@ const BACKEND_ENV = {
   TIKTOK_API_URL: `${FAKES_URL}/tiktok`,
   TIKTOK_CLIENT_KEY: "fake-tiktok-client-key",
   TIKTOK_CLIENT_SECRET: "fake-tiktok-client-secret",
+  // The team's bot (api telegram.py): private messages to members; e2e/telegram.spec.ts plays Telegram's webhook.
+  TELEGRAM_BOT_TOKEN: "123456:fake-telegram-token",
+  TELEGRAM_API_URL: `${FAKES_URL}/telegram`,
   PYTHONUNBUFFERED: "1",
   PYTHONIOENCODING: "utf-8",
 };

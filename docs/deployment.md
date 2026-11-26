@@ -132,6 +132,8 @@ when set to an empty string. Containers use real environment variables only.
 | `ALLOWED_ORIGINS` | api: comma-separated origins allowed to change data; the default is `http://localhost:3000`; in production the web domain |
 | `INSTAGRAM_VIDEO_BASE_URL` | api, optional: public https address Instagram fetches a Reel's MP4 from (`video_url`); empty uses the first https origin of `ALLOWED_ORIGINS` (the web domain). With neither, the MP4 is sent by resumable upload |
 | `MCP_PUBLIC_URL` | api, optional: public web URL ending in `/api/mcp`; enables private ChatGPT and Claude MCP/OAuth. Empty disables it. HTTPS required except localhost; the origin must be in `ALLOWED_ORIGINS`. See [chatgpt.md](chatgpt.md) |
+| `TELEGRAM_BOT_TOKEN` | api + worker, optional: the team's Telegram bot (the same token as the repo secret of "Có gì mới"), for private messages to each member ([Telegram](#telegram)). Empty turns them off |
+| `TELEGRAM_API_URL` | api + worker, tests only: the Bot API's address; tests point it at the fake services |
 | `CHANGELOG_URL` | api, optional: where the MCP tool `get_whats_new` reads the web's `changelog.json`; empty: the origin of `MCP_PUBLIC_URL` + `/changelog.json`. Tests point it at the fake services |
 | `REELS_SERVER`, `REELS_NODE_TOKEN` | render machine only (`python -m reels_api node` on a member's computer), never the api or the worker: the web address and the machine's token from Cài đặt › Máy render. `api/scripts/render-node.ps1` sets both for its run. See [Render machine](#render-machine) |
 | `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set on the Coolify application, empty on localhost |
@@ -162,22 +164,30 @@ Shopee key in `.env`; the fakes also
 set `IMAGE_GEN_CF_ACCOUNT_ID=test-account` and a fake `IMAGE_GEN_CF_API_KEY`, so with `IMAGE_GEN_PROVIDER` unset Cloudflare is
 the default; Gemini and Cloudflare tests set `IMAGE_GEN_PROVIDER` themselves). The Graph API version (Facebook and Instagram) is `config.GRAPH_VERSION`; change it there when Meta retires it. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
 
-## Telegram ("Có gì mới" in the team's group)
+## Telegram
 
-After each deploy the CI posts what it brought to the team's shared Telegram group
-([decision](decisions/2026-11-26-whats-new.md)). The shared group only ever gets team-wide news; anything about one
-member's own work goes to that member privately. Set up once by the owner:
+One bot does two things ([group](decisions/2026-11-26-whats-new.md),
+[private](decisions/2026-11-26-telegram-private.md)): after each deploy the CI posts what it brought to the team's
+shared group, and the api and worker message each member privately about their own work (videos waiting for review
+with Duyệt / Bỏ buttons, failed jobs, broken connections, a morning reminder). The shared group only ever gets team-wide
+news. Set up once by the owner:
 
 1. In Telegram, open **@BotFather**, send `/newbot`, give a name and a username ending in `bot`; it answers with the
    bot's token. Keep it secret. `/setjoingroups` › the bot › Enable lets it be added to groups.
-2. Add the bot to the team's group (it only sends, so it needs no admin rights).
-3. Send any message in the group, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read
-   `"chat":{"id":-100…}`: that negative number is the chat id (if the list is empty, remove and re-add the bot, send
-   again).
+2. Create the team's group (**New Group**, not a channel) and add the bot (it only sends, so it needs no admin rights).
+3. The group's chat id: type `/chatid` in the group and the bot answers it (once the api runs with the token and a
+   member has pressed "Kết nối Telegram", which sets the bot's webhook). Before that, send any message in the group, open
+   `https://api.telegram.org/bot<TOKEN>/getUpdates` and read `"chat":{"id":-100…}` (this works only while no webhook is
+   set; if the list is empty, remove and re-add the bot, send again).
 4. In the repo's Settings › Secrets and variables › Actions: secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`;
    optionally the variable `WEB_URL` (the web app's address) for the "Xem trong app" link.
+5. On Coolify, the same `TELEGRAM_BOT_TOKEN` as an environment variable of the api and the worker, then redeploy them.
+   `ALLOWED_ORIGINS` must hold the web's https address: Telegram's webhook goes there (`/api/telegram/webhook`, proxied to
+   the api like every `/api` path).
+6. Each member opens Cài đặt › Thông báo Telegram, presses **Kết nối Telegram**, then **Start** in Telegram.
 
-Without the secrets the step sends nothing and passes. A deploy with no `feat`/`fix`/`perf` change sends nothing.
+Without the secrets the CI step sends nothing and passes; without the api's token the private messages are off and the
+settings page says so. A deploy with no `feat`/`fix`/`perf` change sends nothing to the group.
 
 ## Render machine
 

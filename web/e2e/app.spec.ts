@@ -586,6 +586,7 @@ test("Cài đặt holds the defaults, AI model and sources as tabs, each with it
     "Thiết lập mặc định",
     "Tài khoản và kênh",
     "Kết nối MCP",
+    "Thông báo Telegram",
     "Chung cả nhóm",
     "AI và nguồn tư liệu",
     "Phân tích đối thủ",
