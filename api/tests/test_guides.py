@@ -33,11 +33,12 @@ def test_every_screen_with_a_guide_lists_them_in_order(client, db):
     login(client)
     by_screen = {
         screen: [guide["slug"] for guide in client.get("/api/guides", params={"screen": screen}).json()]
-        for screen in ("affiliate", "knowledge", "videos", "whats-new")
+        for screen in ("affiliate", "knowledge", "music", "videos", "whats-new")
     }
     assert by_screen == {
         "affiliate": ["affiliate", "custom-link"],
         "knowledge": ["knowledge"],
+        "music": ["music"],
         "videos": ["videos", "videos-editor"],
         "whats-new": ["whats-new"],
     }

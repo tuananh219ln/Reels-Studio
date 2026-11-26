@@ -922,33 +922,36 @@ test("phone width: the calendar's month picker is on screen and the month fits w
 });
 
 test.describe("connection problems", () => {
-  test.beforeEach(async ({ context }) => {
-    await context.addCookies([{ name: "reels_session", value: "bat-ky", url: "http://localhost:3100" }]);
+  test.beforeEach(async ({ page }) => {
+    // Keep a valid session for the app shell's other requests, such as the review badge.
+    await loginAsSeed(page);
+    await expect(page.getByTestId("header-name")).toHaveText(SEED.name);
   });
 
-  // Every request of the page fails as it would with the api or its database down. Answering only /api/me let the
-  // page's other first requests (the menu's counts, the list) reach the real api, whose 401 for this made-up session
-  // sends the page to /login (lib/api.ts) before or after the error shows: the test failed now and then.
   test("api not running", async ({ page }) => {
     // What the Next.js proxy answers when nothing listens on API_URL: a 500 without our JSON body.
-    await page.route("**/api/**", (route) => route.fulfill({ status: 500, body: "Internal Server Error" }));
-    await page.goto("/videos");
+    await page.route("**/api/me", (route) => route.fulfill({ status: 500, body: "Internal Server Error" }));
+    await page.reload();
     await expect(page.getByText("Không kết nối được máy chủ, thử lại sau")).toBeVisible();
   });
 
   test("database unavailable", async ({ page }) => {
-    await page.route("**/api/**", (route) =>
-      route.fulfill({
-        status: 503,
-        contentType: "application/json",
-        body: JSON.stringify({
-          code: "database_unavailable",
-          message: "Không kết nối được cơ sở dữ liệu, thử lại sau",
+    await page.route(
+      "**/api/me",
+      (route) =>
+        route.fulfill({
+          status: 503,
+          json: {
+            code: "database_unavailable",
+            message: "Không kết nối được cơ sở dữ liệu, thử lại sau",
+          },
         }),
-      }),
+      { times: 1 },
     );
-    await page.goto("/videos");
+    await page.reload();
     await expect(page.getByText("Không kết nối được cơ sở dữ liệu, thử lại sau")).toBeVisible();
+    await page.getByRole("button", { name: "Thử lại", exact: true }).click();
+    await expect(page.getByTestId("header-name")).toHaveText(SEED.name);
   });
 });
 

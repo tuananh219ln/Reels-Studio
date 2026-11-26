@@ -39,11 +39,13 @@ from . import (
     image_providers,
     knowledge,
     llm,
+    music_claims,
     music_topics,
     outro,
     pinned,
     plans,
     post_comments,
+    qc_config,
     remote_media,
     review,
     slot_comments,
@@ -201,6 +203,9 @@ class VideoPatchBody(BaseModel):
     options: dict | None = None  # some of video_options.DEFAULTS
     mode: str | None = None  # videos.MODES; switching keeps every photo, clip and layer
     content_type: str | None = None  # "Loại nội dung"; "" for none
+    # "Không dùng tiêu đề": true empties the title scene's text (kept in `kept_title`) and lets the video be approved
+    # without one; false gives the kept text back.
+    no_title: bool | None = None
 
 
 class ScenePatchBody(BaseModel):
@@ -435,10 +440,11 @@ def start_video(
 def apply_default_music(db: DbSession, video: Video, storage: DirectoryStorage, user_id: int) -> None:
     """A new video starts with its maker's default music (Cài đặt › Thiết lập mặc định, theirs or the team's),
     copied like "Chọn từ thư viện" does, so editing or deleting the track later never changes the video. Nothing when
-    no default is set or the track is gone. Only new videos: the music a video already has is never replaced."""
+    no default is set, the track is gone or it was claimed on YouTube since (music_claims.py). Only new videos: the
+    music a video already has is never replaced."""
     track_id = video_options.member_defaults(db, user_id).get("music_track_id")
     track = db.get(MusicTrack, track_id) if track_id else None
-    if track is None or not storage.exists(track.storage_key):
+    if track is None or track.claimed_on_youtube or not storage.exists(track.storage_key):
         return
     video.music_key, video.music_name = new_key(video.id, "music", "mp3"), track.name
     storage.save_file(video.music_key, storage.path(track.storage_key))
@@ -530,6 +536,8 @@ def patch_video(
     video = lock_video(db, video_id)
     ensure_unlocked(db, video)
     fields = body.model_fields_set
+    title_before, _ = split_scenes(db, video)
+    before = edit_log.video_snapshot(video, title_before)
     comments = video.pinned_survey, list(video.extra_comments)
     if "name" in fields:
         name = " ".join(unicodedata.normalize("NFC", body.name or "").split())
@@ -576,6 +584,8 @@ def patch_video(
         if len(kind) > MAX_CONTENT_TYPE_LENGTH:
             raise invalid(f"Loại nội dung tối đa {MAX_CONTENT_TYPE_LENGTH} ký tự")
         video.content_type = kind
+    if "no_title" in fields and body.no_title is not None and body.no_title != video.no_title:
+        _set_no_title(db, storage, video, body.no_title)
     look = video_options.text_look(video), video_options.effective(video)["title_text_position"]
     pause = video_options.voice_pause(video)
     if body.options:
@@ -601,7 +611,33 @@ def patch_video(
         # The thumbnail is the title scene's first frame, drawn in the text box style at the title's place.
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)
+    _log_video_edit(db, video, me, before, title_before)
     return _saved(db, video)
+
+
+def _log_video_edit(db: DbSession, video: Video, me: Session, before: dict, *scenes: Scene | None) -> None:
+    """One "Lịch sử sửa" entry for what this edit changed in the video and `scenes` (edit_log.VIDEO)."""
+    changes = edit_log.diff(before, edit_log.video_snapshot(video, *scenes))
+    title, _ = split_scenes(db, video)
+    label = video_name(video, title)
+    edit_log.record(db, edit_log.VIDEO, video.id, "update", me.user_id, label=label, changes=changes)
+
+
+def _set_no_title(db: DbSession, storage: DirectoryStorage, video: Video, no_title: bool) -> None:
+    """ "Không dùng tiêu đề": ticked, the title scene's text is kept aside and emptied; unticked, it comes back (unless
+    a member has typed a new one since). The MP4 is then outdated, as with any edit of the title."""
+    title, _ = split_scenes(db, video)
+    if title is None:
+        raise invalid("Video này không có cảnh tiêu đề")
+    if no_title:
+        video.kept_title = title.text if title.text.strip() else None
+        title.text = ""
+    else:
+        if not title.text.strip() and video.kept_title:
+            title.text = video.kept_title
+        video.kept_title = None
+    video.no_title = no_title
+    refresh_thumbnail(db, storage, video, title)
 
 
 class GroupBody(BaseModel):
@@ -1015,6 +1051,7 @@ def music_from_library(
     track = db.get(MusicTrack, body.track_id)
     if track is None or not storage.exists(track.storage_key):
         raise ApiError(404, "track_not_found", "Không tìm thấy bài nhạc (có thể đã bị xóa)")
+    music_claims.ensure_usable(track)
     old = video.music_key
     # A copy of its own, like a clone's music: editing or deleting the track never changes this video.
     video.music_key, video.music_name = new_key(video.id, "music", "mp3"), track.name
@@ -1285,6 +1322,7 @@ def patch_scene(
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     fields = body.model_fields_set
+    before = edit_log.video_snapshot(video, scene)
     text_changed = False
     if "text" in fields and body.text is not None:
         text = _clean_text(body.text, MAX_TEXT_LENGTH, "Chữ")
@@ -1399,10 +1437,14 @@ def patch_scene(
         if level is not None and (not isinstance(level, str) or level not in MUSIC_LEVELS):
             raise invalid(f"Mức nhạc không hợp lệ: {level!r}")
         scene.music_level = level
+    if scene.is_title and text_changed and scene.text.strip() and video.no_title:
+        # Typing a title is choosing one: "Không dùng tiêu đề" goes off by itself.
+        video.no_title, video.kept_title = False, None
     _follow_voice(video, scene)
     if scene.is_title and (text_changed or start_changed or moved):
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)
+    _log_video_edit(db, video, me, before, scene)
     return _saved(db, video)
 
 
@@ -2590,6 +2632,7 @@ class TopicPatchBody(BaseModel):
     no_people: bool | None = None  # "Không dùng cảnh có người"
     outro_cta: bool | None = None  # "Cảnh kết Theo dõi & Chia sẻ" (outro.py)
     youtube_meta: dict | None = None  # "Mô tả YouTube" (youtube_meta.py); null or {} (when sent): none
+    qc_config: dict | None = None  # "QC & duyệt" (qc_config.py); null or {} (when sent): the app's defaults
     media_folder: str | None = None  # "Tư liệu": its folder in the "Kho tư liệu"; null or "" (when sent) unlinks
 
 
@@ -2665,6 +2708,9 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 # "Mô tả YouTube": every field present; `youtube_meta_set` false while the group uploads the caption.
                 "youtube_meta": youtube_meta.of(topic.youtube_meta),
                 "youtube_meta_set": youtube_meta.is_set(topic.youtube_meta),
+                # "QC & duyệt": every field present (the app's defaults where nothing is set).
+                "qc_config": qc_config.of(topic.qc_config),
+                "qc_config_set": qc_config.is_set(topic.qc_config),
                 "text_suggestions": topic.text_suggestions,
                 "text_job": text_looks.job_payload(text_looks.job_of(db, topic.id)),
                 "created_by_id": topic.created_by_id,
@@ -2785,6 +2831,7 @@ COPIED_TOPIC_FIELDS = (
     "text_ai",
     "no_people",
     "outro_cta",
+    "qc_config",
     "edit_template_default",
 )
 
@@ -2901,6 +2948,11 @@ def patch_topic(
         try:
             topic.youtube_meta = youtube_meta.clean(body.youtube_meta)
         except youtube_meta.MetaError as err:
+            raise invalid(str(err)) from None
+    if "qc_config" in body.model_fields_set:
+        try:
+            topic.qc_config = qc_config.clean(body.qc_config)
+        except qc_config.ConfigError as err:
             raise invalid(str(err)) from None
     if "media_folder" in body.model_fields_set:
         from .routes_media import link_folder

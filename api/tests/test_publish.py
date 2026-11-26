@@ -1032,6 +1032,17 @@ def queued_for(factory, post_id) -> int:
     return len([job for job in queue_checks(factory) if job.publication_id == post_id and job.status == "queued"])
 
 
+def test_a_newly_published_reel_is_checked_again_only_when_due(committed, ready, fakes):
+    user, storage, video_id = ready
+    assert run_publish(committed, storage, video_id, user.id).status == "done"
+    post = post_of(committed, video_id)
+    assert queue_checks(committed) == [], "publishing already confirmed the reel was live"
+    assert post.checked_at == post.published_at
+
+    set_checked(committed, post.id, timedelta(hours=7), age=timedelta(hours=7))
+    assert queued_for(committed, post.id) == 1
+
+
 def test_a_live_post_is_checked_again_now_and_then_less_often_as_it_ages(committed, ready, fakes):
     """The bug: a reel deleted on Facebook after it went live was shown as "Đã đăng" for good, because the one automatic
     check ran only once, after its scheduled time."""

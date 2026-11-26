@@ -35,6 +35,9 @@ from . import (
     pinned,
     plans,
     post_comments,
+    qc,
+    qc_config,
+    youtube_claims,
 )
 from .clips import ClipError, frame_at
 from .errors import ApiError
@@ -787,13 +790,33 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
 
 
+def group_qc(db: DbSession, video: Video) -> dict:
+    """The "QC & duyệt" of the video's group, every field present (qc_config.py)."""
+    topic = db.get(KnowledgeTopic, video.knowledge_topic_id) if video.knowledge_topic_id else None
+    return qc_config.of(topic.qc_config if topic is not None else None)
+
+
+def mp4_qc(db: DbSession, video: Video, config: dict | None = None) -> dict | None:
+    """The render's QC with its length judged against the group's range now (qc.rejudge_length)."""
+    low, high = qc_config.range_of(config or group_qc(db, video), "channel_seconds")
+    return qc.rejudge_length(video.qc, video.mp4_seconds, low, high)
+
+
 def run_checks(db: DbSession, video: Video, title: Scene | None, scenes: list[Scene]) -> Checks:
     title_input, scene_input = scene_inputs(video, title, scenes)
     # Of the pinned comment, only its survey line is checked for banned words: its title and its list are the title
     # scene and the scenes, which warn by themselves; a word there would otherwise warn twice (pinned.py).
     source = pinned.scenes_source(title, scenes, pinned.product_names(db, video.id), video.topic)
     posts = {"caption": video.caption, "pinned_comment": video.pinned_survey}
-    checks = check_script(title_input, scene_input, posts, knowledge.banned_words(db, video))
+    config = group_qc(db, video)
+    checks = check_script(
+        title_input,
+        scene_input,
+        posts,
+        knowledge.banned_words(db, video),
+        qc_config.range_of(config, "total_seconds"),
+        qc_config.range_of(config, "scene_count"),
+    )
     checks.warnings.extend(pinned.validate(video.pinned_survey, source, video.extra_comments))
     for scene in scenes:
         # A photo layer without a photo of its own shows its scene's: a clip, or no picture, leaves it nothing.
@@ -1484,6 +1507,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "tiktok_posts": [tiktok_post_payload(post) for post in tiktok_posts_of(db, video.id)],
         # YouTube Shorts and Instagram Reels, posted by hand from the same MP4.
         "manual_posts": [manual_post_payload(post) for post in manual_posts_of(db, video.id)],
+        # A YouTube claim noted by hand (youtube_claims.py): the YouTube row shows "Bị chặn" while one is active.
+        "youtube_claim": youtube_claims.payload(db, video.id),
         "suggest": {
             "state": "pending" if video.suggest_requested_at else ("failed" if video.suggest_error else "idle"),
             "error": video.suggest_error,
@@ -1505,6 +1530,9 @@ def video_payload(db: DbSession, video: Video) -> dict:
         **_with_post_stage(_status(db, video, job, failed), extras),
         **_labels(video, title, scenes, job, failed),
         "locked": job is not None,
+        # "Không dùng tiêu đề" and whether the group asks for a title at all (qc_config.title_required).
+        "no_title": video.no_title,
+        "title_required": group_qc(db, video)["title_required"],
         "queue": extras.get("queue"),
         "suggested_post_at": extras.get("suggested_post_at"),
         "active_job": _job_payload(job),
@@ -1516,7 +1544,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
             "render_seconds": video.render_seconds,
             "rendered_at": video.rendered_at.isoformat() if video.rendered_at else None,
             # Automatic QC of this MP4 (qc.py); None for an MP4 rendered before QC existed.
-            "qc": video.qc,
+            "qc": mp4_qc(db, video),
         }
         if video.mp4_key
         else None,

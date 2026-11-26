@@ -454,8 +454,15 @@ written when the reel is live; Instagram to the Instagram account linked to that
 ("Nháp vào hộp thư") as a draft to the inbox of the member's connected account (a select when several); YouTube Shorts
 ("Tải lên riêng tư") uploaded private to the member's connected channel, the Page's channel first (a select when
 several), titled with the video's title. With "Hẹn giờ" Facebook and Instagram go at that time (Instagram's row then
-says "Hẹn đăng lúc …" with "Hủy hẹn"); TikTok and YouTube still go at once, the time kept as YouTube's reminder, and
-each counts as done ("✓") once its draft or private upload is through (2026-11-19, Instagram through the Page). The
+says "Hẹn đăng lúc …" with "Hủy hẹn"); TikTok and YouTube still go at once, the time kept as YouTube's reminder. A
+TikTok draft counts as done ("✓") once it is through (2026-11-19, Instagram through the Page); a YouTube private upload
+does not any more: its row is amber (#fff8ed) "Riêng tư, chưa công khai" with "YouTube Studio ↗" and the line
+"Trước khi công khai: kiểm tra Content ID trong YouTube Studio (mục Hạn chế / Bản quyền).", it is left out of "Đã đăng
+lên X/Y", and a card with only that says "Chờ công khai trên YouTube" (2026-11-26,
+[decision](decisions/2026-11-26-youtube-claimed-music.md)). A YouTube claim noted by hand turns the row red "✕ Bị chặn
+(claim)" and lets YouTube be picked again; under the rows "Claim YouTube: <note>", who noted it and when, and "Đã xử
+lý claim" (asks first), or, once the video has a YouTube post, "YouTube Studio báo claim Content ID? Ghi claim YouTube"
+(a dialog with the note). The
 posting drawer, with every platform's own options (a Page's queue, TikTok posted directly, a YouTube title, "Đã đăng
 tay"), has no button on the card: it is
 "Tùy chọn đăng khác" just under the card on "Đăng bài" (2026-11-15, MCP clip flow), which opens it there. The member's last pick is kept in the browser. "Đăng ngay" / "Hẹn giờ",
@@ -1027,7 +1034,10 @@ steps open the status card or the products block on its tab, the QC chip its pop
 - **Thư viện nhạc** (`/music`): the team's tracks with a player, topic and mood tags, source/license
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
   "Tải nhạc lên" (MP3 up to 20 MB, then name, topics, mood, and source), "Sửa", "Xoá" (videos that
-  used the track keep their copy). The topics to choose and filter by are the groups of Kho kiến thức, in its order,
+  used the track keep their copy). "Sửa" also has "Đã bị claim trên YouTube" (a switch, then "Ghi chú claim"): a
+  flagged track shows a red tag "Đã bị claim trên YouTube" (its note as tooltip), "Dùng bài này" is off for it in the
+  picker with the reason in red, and the api refuses it for every video and as default music
+  ([decision](decisions/2026-11-26-youtube-claimed-music.md)). The topics to choose and filter by are the groups of Kho kiến thức, in its order,
   then "chung" (a hint under the field says so).
 - **Affiliate** (`/affiliate`), a line saying what the page is for, then three tabs:
   - "Video đã đăng": one row of filters ("Của tôi / Cả đội", where a video is mine when I posted it or it

@@ -64,6 +64,7 @@ import GroupVideoModeCard from "@/components/knowledge/GroupVideoModeCard";
 import GroupNoPeopleCard from "@/components/knowledge/GroupNoPeopleCard";
 import GroupOutroCard from "@/components/knowledge/GroupOutroCard";
 import GroupYouTubeCard from "@/components/knowledge/GroupYouTubeCard";
+import GroupQcCard from "@/components/knowledge/GroupQcCard";
 import GroupTextLookCard from "@/components/knowledge/GroupTextLookCard";
 import { usePlanTabs } from "@/components/plan/PlanTab";
 import { VoicePicker } from "@/components/video/VideoSettings";
@@ -782,6 +783,7 @@ const TOPIC_FIELDS: Record<string, string> = {
   text_ai: "AI chọn kiểu chữ cho từng video",
   outro_cta: "Cảnh kết Theo dõi & Chia sẻ",
   youtube_meta: "Mô tả YouTube",
+  qc_config: "QC & duyệt",
   stock_order: "Thứ tự nguồn ảnh",
   media_folder: "Thư mục tư liệu",
   templates: "Mẫu dựng của nhóm",
@@ -1080,6 +1082,18 @@ function TopicBody({
                   <Row gutter={[16, 16]}>
                     <Col xs={24} xl={12}>
                       <GroupYouTubeCard key={JSON.stringify(topic.youtube_meta)} topic={topic} update={update} />
+                    </Col>
+                  </Row>
+                </section>
+                <section aria-labelledby={`qc-${topic.id}`}>
+                  <SectionHead
+                    id={`qc-${topic.id}`}
+                    title="QC & duyệt"
+                    hint="Ngưỡng kiểm tra khi duyệt video của nhóm: video trong ngưỡng không bị cảnh báo độ dài, số cảnh."
+                  />
+                  <Row gutter={[16, 16]}>
+                    <Col xs={24} xl={12}>
+                      <GroupQcCard key={JSON.stringify(topic.qc_config)} topic={topic} update={update} />
                     </Col>
                   </Row>
                 </section>
