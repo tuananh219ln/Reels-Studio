@@ -250,6 +250,8 @@ DEFAULT_REEL_NUMBERS = {
 class FakeServices:
     def __init__(self, port: int = 0):
         self.lock = threading.Lock()
+        # The web's changelog.json ("Có gì mới", written by the deploy); None answers 404 as before the first deploy.
+        self.changelog: dict | None = None
         self.claude_replies: list[object] = []  # str (raw text) or dict (JSON); empty: a valid script
         self.claude_hang = False
         self.claude_prompts: list[str] = []
@@ -558,6 +560,7 @@ class FakeServices:
             "GOOGLE_CLIENT_SECRET": GOOGLE_CLIENT_SECRET,
             "GOOGLE_OAUTH_URL": f"{self.url}/google",
             "YOUTUBE_UPLOAD_URL": f"{self.url}/youtube-upload",
+            "CHANGELOG_URL": f"{self.url}/changelog.json",
         }
 
     def image_url(self, name: str) -> str:
@@ -2412,6 +2415,8 @@ class FakeServices:
                 parts = urllib.parse.urlsplit(self.path)
                 if parts.path == "/health":
                     self._send(200, {"ok": True})
+                elif parts.path == "/changelog.json":
+                    self._send(*((200, fake.changelog) if fake.changelog is not None else (404, {})))
                 elif parts.path == "/v1/voices":
                     self._send(*fake._voices(self.headers.get("xi-api-key")))
                 elif parts.path == "/v1/user/subscription":

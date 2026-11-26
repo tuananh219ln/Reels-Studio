@@ -77,3 +77,6 @@ web/.wrangler/
 
 # E2E storage and temp files (web/playwright.config.ts)
 web/.e2e-data/
+
+# "Có gì mới": written by the deploy from the merged PRs (web/scripts/changelog.ts)
+web/public/changelog.json

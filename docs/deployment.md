@@ -70,7 +70,10 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
   PR's last commit and every check passed there (the `passed` job; `main` requires PRs to be up to
   date before merging, so this holds for a merge, squash or rebase). Then, with every check passed,
   it deploys in order, each waiting for Coolify to report `finished`: the api (it runs the
-  migrations), then the worker, then `npm run deploy` in `web/`. Coolify auto-deploy must stay off,
+  migrations), then the worker, then `npm run deploy` in `web/` (after writing `public/changelog.json` for "Có gì
+  mới" from the merged PRs, [web/scripts/changelog.ts](../web/scripts/changelog.ts); no secret needed), then tells the team's Telegram
+  group what the deploy brought ([web/scripts/telegram-changelog.ts](../web/scripts/telegram-changelog.ts); only with the repo secrets
+  `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`, and the optional variable `WEB_URL` for the link). Coolify auto-deploy must stay off,
   or a push deploys before the tests pass.
 - **CI broken by GitHub:** during a GitHub Actions incident a run can end as failure without creating
   some of its jobs, and the required checks it never created stay "Waiting for status".
@@ -129,6 +132,7 @@ when set to an empty string. Containers use real environment variables only.
 | `ALLOWED_ORIGINS` | api: comma-separated origins allowed to change data; the default is `http://localhost:3000`; in production the web domain |
 | `INSTAGRAM_VIDEO_BASE_URL` | api, optional: public https address Instagram fetches a Reel's MP4 from (`video_url`); empty uses the first https origin of `ALLOWED_ORIGINS` (the web domain). With neither, the MP4 is sent by resumable upload |
 | `MCP_PUBLIC_URL` | api, optional: public web URL ending in `/api/mcp`; enables private ChatGPT and Claude MCP/OAuth. Empty disables it. HTTPS required except localhost; the origin must be in `ALLOWED_ORIGINS`. See [chatgpt.md](chatgpt.md) |
+| `CHANGELOG_URL` | api, optional: where the MCP tool `get_whats_new` reads the web's `changelog.json`; empty: the origin of `MCP_PUBLIC_URL` + `/changelog.json`. Tests point it at the fake services |
 | `REELS_SERVER`, `REELS_NODE_TOKEN` | render machine only (`python -m reels_api node` on a member's computer), never the api or the worker: the web address and the machine's token from Cài đặt › Máy render. `api/scripts/render-node.ps1` sets both for its run. See [Render machine](#render-machine) |
 | `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set on the Coolify application, empty on localhost |
 | `ELEVENLABS_API_KEY` | api + worker: scene narration and the voice list; a key pasted on Cài đặt › AI và nguồn tư liệu wins over it; with neither, a render with voice text fails with a clear reason |
@@ -157,6 +161,23 @@ Only tests and E2E set these, to reach the local fake Claude, Pixabay, ElevenLab
 Shopee key in `.env`; the fakes also
 set `IMAGE_GEN_CF_ACCOUNT_ID=test-account` and a fake `IMAGE_GEN_CF_API_KEY`, so with `IMAGE_GEN_PROVIDER` unset Cloudflare is
 the default; Gemini and Cloudflare tests set `IMAGE_GEN_PROVIDER` themselves). The Graph API version (Facebook and Instagram) is `config.GRAPH_VERSION`; change it there when Meta retires it. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
+
+## Telegram ("Có gì mới" in the team's group)
+
+After each deploy the CI posts what it brought to the team's shared Telegram group
+([decision](decisions/2026-11-26-whats-new.md)). The shared group only ever gets team-wide news; anything about one
+member's own work goes to that member privately. Set up once by the owner:
+
+1. In Telegram, open **@BotFather**, send `/newbot`, give a name and a username ending in `bot`; it answers with the
+   bot's token. Keep it secret. `/setjoingroups` › the bot › Enable lets it be added to groups.
+2. Add the bot to the team's group (it only sends, so it needs no admin rights).
+3. Send any message in the group, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read
+   `"chat":{"id":-100…}`: that negative number is the chat id (if the list is empty, remove and re-add the bot, send
+   again).
+4. In the repo's Settings › Secrets and variables › Actions: secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`;
+   optionally the variable `WEB_URL` (the web app's address) for the "Xem trong app" link.
+
+Without the secrets the step sends nothing and passes. A deploy with no `feat`/`fix`/`perf` change sends nothing.
 
 ## Render machine
 

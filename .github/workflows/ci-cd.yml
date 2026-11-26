@@ -336,6 +336,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
+    # "Có gì mới" reads the merged PRs (pull-requests: read) and this workflow's past deploys (actions: read).
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     concurrency:
       group: deploy-production-web
       cancel-in-progress: false
@@ -350,9 +355,22 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      # "Có gì mới" (docs/decisions/2026-11-26-whats-new.md): the feat/fix/perf PRs merged into main, written to
+      # public/changelog.json and deployed with the app. Nobody writes it by hand; a failure only leaves it out.
+      - name: Changelog from the merged PRs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/changelog.ts
       - name: Build and deploy to Cloudflare
         env:
           API_URL: ${{ vars.API_URL }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npm run deploy
+      # Then the team's Telegram group hears what this deploy brought; without the two secrets nothing is sent.
+      - name: Tell the team on Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WEB_URL: ${{ vars.WEB_URL }}
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/telegram-changelog.ts

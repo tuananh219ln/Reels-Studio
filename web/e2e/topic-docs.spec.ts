@@ -49,5 +49,8 @@ test("the group's Lịch đăng tab only links to the Page's own", async ({ page
   await loginAsSeed(page);
   const group = await healthGroup(page);
   await page.goto(`/knowledge?group=${group}&tab=schedule`);
-  await expect(page.getByText("Chưa có Page nào đăng nhóm này", { exact: false })).toBeVisible();
+  // The tab's own empty state: the group's "Sẵn sàng tạo video" box says the first half too once it has loaded.
+  await expect(
+    page.getByText("Chưa có Page nào đăng nhóm này. Chọn nhóm cho Page ở Quản lý kênh, tab Lịch đăng."),
+  ).toBeVisible();
 });

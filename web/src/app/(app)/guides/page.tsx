@@ -12,7 +12,12 @@ type Listed = { slug: string; screen: string | null; title: string };
 type Guide = Listed & { body: string };
 
 // What each screen is called in the menu; a screen without a name here is listed under its own key.
-const SCREENS: Record<string, string> = { affiliate: "Affiliate", videos: "Video", knowledge: "Kho kiến thức" };
+const SCREENS: Record<string, string> = {
+  affiliate: "Affiliate",
+  videos: "Video",
+  knowledge: "Kho kiến thức",
+  "whats-new": "Có gì mới",
+};
 const OTHER = "Khác";
 
 function Guides() {

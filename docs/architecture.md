@@ -694,7 +694,7 @@ Built (migrations in [api/migrations/](../api/migrations/), models in
 
 | Table | Key contents |
 |---|---|
-| `users`, `sessions` | Members and their login sessions (see [Web App and Auth](#web-app-and-auth)). |
+| `users`, `sessions` | Members and their login sessions (see [Web App and Auth](#web-app-and-auth)). `users.changelog_seen_at` (migration 0132): when the newest change they were shown in "Có gì mới" was merged (["Có gì mới"](#có-gì-mới-whats-new)). |
 | `videos` | Topic, whether the script exists, how it is built (`mode`, migration 0054: `slides`, each scene over its own photo or clip, or `single`, "Video xuyên suốt", the title scene's photo or clip under every scene; switching keeps every photo, clip and layer), narration on/off, its own settings (`options`: voice, reading speed as a tempo factor, voice level, ducking, the pause after narration, transition, motion, zoom, text style, captions; empty for older videos, which render the original template, see [video_options.py](../api/src/reels_api/video_options.py)), an upload's file and facts (`source_mp4`, `media_info`, `upload_note`, `upload_key`, migration 0130, mode `upload`, see "MP4 tải lên"), title options, caption, hashtags, affiliate suggestions, pinned comment (`pinned_survey`, migration 0110: its "Dòng khảo sát", under the title and the scenes filled in when it is shown; the older template `pinned_comment` is no longer read, see [content.md](content.md)), self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, the review gate (`review_status` `pending_review`, `approved` or `rejected`, `approved_by_id`, `approved_at`, `approved_via` `web`, `muse_chat`, `auto` or `legacy`, and `approved_signature`, the fingerprint of the MP4 approved; migration 0129, [review.py](../api/src/reels_api/review.py), [decision](decisions/2026-11-26-review-gate.md)), its content strategy and script by beat (`strategy`, `beats`: JSONB, null for a video made without them; migration 0131, [strategy.py](../api/src/reels_api/strategy.py), [decision](decisions/2026-11-26-strategy-beats.md)), whether a member wrote the script by hand (`hand_written`), whether a member's own assistant wrote it through MCP (`written_via`, migration 0056: `assistant`, see [chatgpt.md](chatgpt.md)) and which one (`assistant_app`, migration 0059: ChatGPT, Claude, Claude Code, Gemini, Antigravity or Muse, "" when unknown), its "Loại nội dung" (`content_type`, migration 0058: free text up to 40 characters, "" for none), thumbnail, the clone snapshot for a cloned draft, the sample video it learned from and the way chosen (`reference_id`, `reference_mode`: quick, twostep, review, reuse), creator. |
 | `video_events` | One step of a video's review ([review.py](../api/src/reels_api/review.py), migration 0129): `type` (`approved`, `rejected`, `restored`, `review_requested` when a render sends it back to review, `publish_skipped` when a posting job found it not approved), `from_status`, `to_status`, who (`actor_user_id`, none for the system), `channel` (`web`, `muse_chat`, `auto`, `system`) and a small `payload`. Deleted with the video. |
 | `video_references` | A sample video members learn from ("Từ video mẫu", [reference.py](../api/src/reels_api/reference.py)): the pasted link (null for an upload), a display name (the link or file name), the stored file `references/<id>/source-….<ext>` (null until the job downloads a link), its length, its words with their seconds (ElevenLabs Speech-to-Text; empty when silent; as timed lines in `transcript` and, since migration 0055, word by word in `words` `[{text, start, end}]`), its stills `[{second, key, note}]` (up to 16, the note written by the analysis), the analysis (empty until written; members may edit it), who added it and when. Kept until a member deletes it, so more videos can learn from it and cut clips from it; deleting it removes its files, and the videos made from it keep their scripts and clips (`videos.reference_id` becomes null). |
@@ -1285,6 +1285,35 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
 - **Errors:** refusals return `{code, message}` with a Vietnamese message. A database outage returns
   503 `database_unavailable`. Login failures use one generic message, and "account disabled" is
   shown only after a correct password.
+
+### "Có gì mới" (what's new)
+
+Nobody writes a changelog ([decision](decisions/2026-11-26-whats-new.md)). The `deploy-web` job runs
+[web/scripts/changelog.ts](../web/scripts/changelog.ts) before building: it reads the pull requests merged into
+`main` from GitHub (the job's own token, `pull-requests: read`) and writes `web/public/changelog.json` (not in git),
+deployed with the app. [web/src/lib/changelog.ts](../web/src/lib/changelog.ts) decides what goes in: a PR titled
+`feat`, `fix` or `perf` (Conventional Commits) is a change for members, its title after the colon the headline and the
+first paragraph of "Làm gì và vì sao" the detail (plain text, about 280 characters at most, none when it only leads into a
+list); `chore`, `docs`, `test`, `ci`, `refactor` and untyped titles are left out. The newest 60 are kept. A failure to read
+GitHub writes no file and the deploy goes on; with no file (development, E2E) the app shows nothing.
+
+The web ([WhatsNew](../web/src/components/WhatsNew.tsx), beside the account in the menu's foot or the phone header)
+reads `/changelog.json` (never cached, `_headers`) on load and every 5 minutes while the tab is visible. Changes merged
+after the member's `changelog_seen_at` (or in the last 3 days when they have none) are new: the bell has a dot and the
+"Có gì mới" window opens by itself once per page load. Closing it (`PUT /api/me/changelog-seen` with the newest change's
+merge time; the mark never moves back) is kept on the account, so the member's other devices do not show it again. A
+newer newest change than the one the tab loaded means a deploy went live after the page opened: a bar asks to reload.
+The page `/whats-new` ("Có gì mới" in the menu, under Tài nguyên) lists every change kept; opening it marks the new ones
+seen, and the window does not open by itself there ("Xem tất cả" in the window leads to it). Its "Hướng dẫn" is
+`guides/whats-new.md`. Each change also lists the in-app guides its PR added or changed (`guides` in the file, from
+`GET /pulls/{n}/files`): "Xem hướng dẫn" opens `/guides?guide=<slug>`, so a feature shipped with a guide links to it by itself.
+Likewise "Thử ngay" links the screens whose folder in `web/src/app/(app)/` the PR changed (none when more than two).
+Changes are grouped by the deploy that brought them ("Cập nhật <time>"): the end of the first successful CI/CD run on
+`main` started at or after the merge (`actions: read`), or the file's own time for the deploy running now. After the
+web is live, [web/scripts/telegram-changelog.ts](../web/scripts/telegram-changelog.ts) posts this deploy's changes to the
+team's Telegram group when the secrets are set. Assistants read the same list through the MCP tool `get_whats_new`
+([changelog.py](../api/src/reels_api/changelog.py)), which fetches the web's `changelog.json` (`CHANGELOG_URL`, else next
+to `MCP_PUBLIC_URL`); the api keeps no copy.
 
 ### Review gate
 

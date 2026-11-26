@@ -16,6 +16,8 @@ export type Me = {
   name: string;
   initial: string;
   must_change_password: boolean;
+  /** "Có gì mới": when the newest change they were shown was merged (components/WhatsNew). */
+  changelog_seen_at: string | null;
 };
 
 export type UserRow = {
