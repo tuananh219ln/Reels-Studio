@@ -2,6 +2,7 @@
 import StatusText from "@/components/StatusText";
 import VideoActions from "@/components/actions/VideoActions";
 import ApproveVideoButton from "@/components/actions/ApproveVideoButton";
+import ImportMp4Modal from "@/components/video/ImportMp4Modal";
 
 import { COLORS } from "@/app/theme";
 import EditHistory from "@/components/EditHistory";
@@ -38,6 +39,7 @@ import {
   RobotOutlined,
   SettingOutlined,
   UpOutlined,
+  UploadOutlined,
   VideoCameraAddOutlined,
 } from "@ant-design/icons";
 import {
@@ -1518,22 +1520,45 @@ function IdeaAction({ item, onChanged }: { item: PlanItem; onChanged?: () => Pro
       <VideoActions video={{ id: item.video_id, title: item.topic, topic: item.topic }} onChanged={onChanged} />
     </Flex>
   ) : (
-    <Button
-      size="small"
-      type="primary"
-      ghost
-      icon={<VideoCameraAddOutlined />}
-      href={`/videos?plan_item=${item.id}`}
-      onClick={(event) => {
-        // A real link (new tab, right-click); a plain click stays in the app.
-        if (!event.metaKey && !event.ctrlKey && !event.shiftKey) {
-          event.preventDefault();
-          router.push(`/videos?plan_item=${item.id}`);
-        }
-      }}
-    >
-      Tạo video
-    </Button>
+    <Flex align="center" gap={4}>
+      <Button
+        size="small"
+        type="primary"
+        ghost
+        icon={<VideoCameraAddOutlined />}
+        href={`/videos?plan_item=${item.id}`}
+        onClick={(event) => {
+          // A real link (new tab, right-click); a plain click stays in the app.
+          if (!event.metaKey && !event.ctrlKey && !event.shiftKey) {
+            event.preventDefault();
+            router.push(`/videos?plan_item=${item.id}`);
+          }
+        }}
+      >
+        Tạo video
+      </Button>
+      <ImportMp4Button item={item} />
+    </Flex>
+  );
+}
+
+/** "Import MP4" on an idea without a video: a finished MP4 becomes its video, linked to this idea. */
+function ImportMp4Button({ item }: { item: PlanItem }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button size="small" icon={<UploadOutlined />} onClick={() => setOpen(true)} data-testid="plan-import-mp4">
+        Import MP4
+      </Button>
+      <ImportMp4Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        topicId={item.knowledge_topic_id}
+        planItem={item}
+        onDone={(video) => router.push(`/videos/${video.id}`)}
+      />
+    </>
   );
 }
 

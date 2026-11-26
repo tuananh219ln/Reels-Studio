@@ -128,12 +128,17 @@ export default function PublishTab({
             </EditorContext.Provider>
           ),
         },
-        {
-          key: "setup",
-          label: "Thiết lập",
-          forceRender: true,
-          children: <SetupTab video={video} />,
-        },
+        // A finished MP4 has no voice, music, text or template to set: its tab is not there.
+        ...(video.mode === "upload"
+          ? []
+          : [
+              {
+                key: "setup",
+                label: "Thiết lập",
+                forceRender: true,
+                children: <SetupTab video={video} />,
+              },
+            ]),
       ]}
     />
   );

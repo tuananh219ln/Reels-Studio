@@ -1544,6 +1544,16 @@ relied on (samples in the PR that added them).
   yellow. Phrases break after punctuation. The timing is an estimate spread over the narration by
   letters, not ElevenLabs' timestamps, so it can run slightly ahead or behind.
 
+### "MP4 tải lên" (a finished MP4)
+
+A third kind, outside the two below and never a group's "Kiểu video": a finished MP4 sent in whole
+([decision](decisions/2026-11-26-upload-mp4.md)). "Import MP4" sits beside "Tạo video" on the Video page (a group picker,
+an optional idea of the group that has no video yet, title, caption, hashtags, a drop zone and a progress bar) and on every
+plan idea without a video (the group and idea fixed). The list tags it "MP4 tải lên" and filters by "Kiểu video". Its page
+shows the MP4's player, "1080×1920 · 27,4s · có tiếng", "Tải lên bởi … · dd/mm hh:mm", the sender's note and "Thay MP4"
+(until it is posted) in place of the scenes; it has no render, "Kiểu video", voice, music, text or template, no "Thiết lập"
+tab, and "Đăng bài" is the same as for any video, behind the same "Duyệt".
+
 ### Video Modes ("Kiểu video")
 
 A video is one of two kinds, chosen in "Tạo video" (except "Từ video mẫu", whose scenes are cut from the sample)

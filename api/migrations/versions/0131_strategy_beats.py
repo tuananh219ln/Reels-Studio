@@ -2,8 +2,8 @@
 
 Written by Muse through MCP (`set_video_strategy`) and edited on the video page; empty for every video made before.
 
-Revision ID: 0130
-Revises: 0129
+Revision ID: 0131
+Revises: 0130
 Create Date: 2026-11-26
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "0130"
-down_revision = "0129"
+revision = "0131"
+down_revision = "0130"
 branch_labels = None
 depends_on = None
 

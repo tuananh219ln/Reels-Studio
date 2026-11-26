@@ -49,6 +49,13 @@ export function VideoKindTags({
       <Tooltip title={made.hint}>
         <Tag style={tag}>{made.label}</Tag>
       </Tooltip>
+      {video.mode === "upload" && (
+        <Tooltip title="File MP4 đã dựng sẵn, đăng nguyên file, Studio không dựng lại">
+          <Tag color="purple" style={tag} data-testid="video-upload">
+            MP4 tải lên
+          </Tag>
+        </Tooltip>
+      )}
       {video.mode === "single" && (
         <Tooltip title="Một ảnh hoặc clip chạy suốt video">
           <Tag style={tag}>Xuyên suốt</Tag>

@@ -4,7 +4,7 @@ Asked by the owner (namtc), spec "Luồng duyệt video Muse" §3.3 and §4.1, s
 [2026-11-26-review-gate](2026-11-26-review-gate.md). Built here: the data and the left column. Versions, "Muse làm bản
 khác", the reminder, email and web push are the next rounds.
 
-- **Two columns on the video** (`videos.strategy`, `videos.beats`, migration 0130), as the spec's JSON: the strategy is
+- **Two columns on the video** (`videos.strategy`, `videos.beats`, migration 0131), as the spec's JSON: the strategy is
   `{content_type, audience, pain_point, promise}` with the five content types of the spec; a beat is
   `{id, type, start, end, text, scene_ids, alt_hooks?, items?, affiliate_product_id?}` with the spec's fourteen types.
   Validated by [strategy.py](../../api/src/reels_api/strategy.py): known types, 20 beats at most, seconds from 0 to 180,

@@ -81,6 +81,15 @@ def qc_report(db: DbSession, video: Video, checks: Checks | None = None) -> dict
     if not video.mp4_key:
         add("RENDER_NOT_DONE", "blocker", "Video chưa có MP4, hãy render trước")
         return {"passed": False, "items": items}
+    if video.mode == "upload":
+        # A finished MP4 has no script to check: its soft findings and banned words in what a post says warn.
+        from .upload_mp4 import warnings as upload_warnings
+
+        if not video.name:
+            add("TITLE_EMPTY", "blocker", "Video chưa có tiêu đề")
+        for text in upload_warnings(db, video):
+            add("MP4_QC", "warn", text)
+        return {"passed": not items, "items": items}
     title, scenes = split_scenes(db, video)
     if not title_of(video, title):
         add("TITLE_EMPTY", "blocker", "Video chưa có tiêu đề")

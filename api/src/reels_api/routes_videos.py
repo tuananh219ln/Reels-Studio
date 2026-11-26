@@ -309,6 +309,8 @@ def _enqueue(
 
 
 def _ensure_renderable(db: DbSession, video: Video) -> None:
+    if video.mode == "upload":
+        raise ApiError(409, "upload_video", "Video “MP4 tải lên” đã có MP4 hoàn chỉnh, không render lại")
     if not video.has_script:
         raise ApiError(409, "no_script", "Video chưa có kịch bản")
     title, scenes = split_scenes(db, video)
@@ -564,6 +566,8 @@ def patch_video(
     if "voice_enabled" in fields and body.voice_enabled is not None:
         video.voice_enabled = body.voice_enabled
     if "mode" in fields and body.mode is not None:
+        if video.mode == "upload":
+            raise ApiError(409, "upload_video", "Video “MP4 tải lên” không đổi sang kiểu video khác được")
         if body.mode not in MODES:
             raise invalid("Kiểu video không có trong danh sách")
         video.mode = body.mode
@@ -1159,6 +1163,8 @@ def duplicable(db: DbSession, video_id: int) -> Video:
     source = db.get(Video, video_id)
     if source is None:
         raise video_not_found()
+    if source.mode == "upload":
+        raise ApiError(409, "upload_video", "Video “MP4 tải lên” không nhân bản được, hãy tải MP4 lên lại")
     if not source.has_script:
         raise ApiError(409, "no_script", "Video gốc chưa có kịch bản để nhân bản")
     return source

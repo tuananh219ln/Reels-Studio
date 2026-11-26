@@ -142,7 +142,7 @@ export type VideoRow = {
   made_via: VideoMadeVia;
   /** The assistant that wrote it through MCP (ChatGPT, Claude, Claude Code, Muse); "" when unknown or not via MCP. */
   assistant_app: string;
-  mode: VideoMode;
+  mode: VideoRowMode;
   /** The products attached to it; 0 on a video's own page, where they are listed instead. */
   product_count?: number;
   /** "Loại nội dung" a member gave it (Hướng dẫn, Mẹo nhanh...); "" for none. */
@@ -459,10 +459,37 @@ export type ImageFrame = {
   text_at: [number, number] | null;
 };
 
+/** What ffprobe read from a finished MP4 ("MP4 tải lên", api upload_mp4.inspect). */
+export type MediaInfo = {
+  width: number;
+  height: number;
+  duration_s: number;
+  fps: number;
+  video_codec: string;
+  audio_codec: string | null;
+  has_audio: boolean;
+};
+
+/** Who sent a finished MP4 and when ("MP4 tải lên"); null on every other video. */
+export type VideoUpload = {
+  size_bytes: number;
+  sha256: string;
+  uploaded_at: string;
+  uploaded_by: string | null;
+  /** "assistant" when Muse (or another assistant) sent it through MCP. */
+  via: string;
+  app: string;
+  note: string | null;
+};
+
 export type VideoDetail = VideoRow & {
   /** Null for a video made without them (everything before Muse wrote them). */
   strategy: VideoStrategy | null;
   beats: VideoBeat[] | null;
+  media_info: MediaInfo | null;
+  upload: VideoUpload | null;
+  /** Soft findings of a just-sent MP4 and banned words in its texts; only on the answer of an upload. */
+  warnings?: string[];
   /** Null while the video has no MP4. */
   review: VideoReview | null;
   /** The video's channel ("Kênh") and whether its logo is laid on the MP4 (api brands.payload_of). */
@@ -519,7 +546,7 @@ export type VideoDetail = VideoRow & {
   ai_effects: boolean;
   voice_enabled: boolean;
   /** "Kiểu video": each scene over its own photo or clip, or the title scene's under every scene. */
-  mode: VideoMode;
+  mode: VideoRowMode;
   /** The video's own settings from its "Thiết lập" tab. */
   options: VideoOptions;
   /** The Pages in use, connected on /fanpages; `owner` is the member whose Page it is. */
@@ -1056,8 +1083,11 @@ export type PageContent = {
 /** How a video is built (api videos.MODES): "single" is "Video xuyên suốt", one backdrop under every scene. */
 export type VideoMode = "slides" | "single";
 
+/** A video's own mode: a built one, or "upload", a finished MP4 sent in whole (api upload_mp4): no scenes, never rendered. */
+export type VideoRowMode = VideoMode | "upload";
+
 /** A topic group's "Kiểu video" (api videos.GROUP_VIDEO_MODES): a mode, or "alternate" (odd Vietnam days "single",
- * even days "slides"). */
+ * even days "slides"). A finished MP4 ("upload") is chosen per video, never by a group. */
 export type GroupVideoMode = VideoMode | "alternate";
 
 /** A video's settings, each a named preset or a level (api video_options.DEFAULTS). */
@@ -2235,6 +2265,39 @@ export async function postForm<T>(path: string, fields: Record<string, string>, 
     form.append("file", file);
   }
   return send<T>(path, { method: "POST", body: form });
+}
+
+/** One multipart request with the upload's progress (0-100), for a big file. Failures are ApiErrors like `api`'s. */
+export function uploadWithProgress<T>(
+  path: string,
+  method: "POST" | "PUT",
+  form: FormData,
+  onProgress: (percent: number) => void,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open(method, `/api${path}`);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onerror = () => reject(new ApiError(0, "connection", CONNECTION_MESSAGE));
+    request.onload = () => {
+      let data: { code?: string; message?: string } | null = null;
+      try {
+        data = JSON.parse(request.responseText);
+      } catch {
+        data = null;
+      }
+      if (request.status >= 200 && request.status < 300) {
+        resolve(data as T);
+      } else if (data && typeof data.code === "string" && typeof data.message === "string") {
+        reject(new ApiError(request.status, data.code, data.message));
+      } else {
+        reject(new ApiError(request.status, "connection", CONNECTION_MESSAGE));
+      }
+    };
+    request.send(form);
+  });
 }
 
 async function send<T>(path: string, init: RequestInit): Promise<T> {
