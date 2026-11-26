@@ -39,6 +39,7 @@ from .textbox import (
     place_box,
     render_box,
     render_caption,
+    with_shade,
 )
 from .timeline import FPS, VOICE_LEAD, build_timeline, fit_seconds
 
@@ -143,8 +144,9 @@ def render_video(
             if layout is None:
                 empty_box().save(box)
                 box_x, box_y = 0, 0
+                overlay_x, overlay_y = 0, 0
             else:
-                render_box(layout, first_palette if index == 0 else palette).save(box)
+                box_image = render_box(layout, first_palette if index == 0 else palette)
                 box_x, box_y = place_box(
                     layout.width,
                     layout.height,
@@ -152,6 +154,13 @@ def render_video(
                     is_title=index == 0,
                     min_top=min_top,
                 )
+                # The shade is part of the picture laid over the scene, so it fades with the text; the captions
+                # below still go by the box's own corner.
+                if options.text_shade and index > 0:
+                    box_image, (overlay_x, overlay_y) = with_shade(box_image, box_x, box_y)
+                else:
+                    overlay_x, overlay_y = box_x, box_y
+                box_image.save(box)
             # Captions sit just above a content scene's text box; the title scene keeps its hook box alone. The
             # narration's are timed by estimate; a clip's own sound has each word's real seconds.
             cues = []
@@ -215,8 +224,8 @@ def render_video(
                 SceneInput(
                     image=image,
                     text_box=box,
-                    box_x=box_x,
-                    box_y=box_y,
+                    box_x=overlay_x,
+                    box_y=overlay_y,
                     voice=voice,
                     video_start=video_start,
                     video_speed=scene.video_speed,

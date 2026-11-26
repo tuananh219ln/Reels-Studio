@@ -63,6 +63,7 @@ def test_bad_defaults_are_refused(an):
         ({"music_volume": 150}, "Âm lượng phải từ 0 đến 100%"),
         ({"colour": "pink"}, "Không có tuỳ chọn"),
         ({"ducking": "yes"}, "“Nhỏ nhạc khi có giọng” chỉ nhận bật hoặc tắt"),
+        ({"text_shade": "yes"}, "“Nền tối mờ sau chữ” chỉ nhận bật hoặc tắt"),
         ({"voice_speed": 1.6}, "Tốc độ đọc phải từ 0.7 đến 1.5"),
         ({"voice_speed": 1.55}, "Tốc độ đọc phải từ 0.7 đến 1.5"),
         ({"voice_speed": 0.6}, "Tốc độ đọc phải từ 0.7 đến 1.5"),

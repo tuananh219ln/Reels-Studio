@@ -11,9 +11,20 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import hashtags, knowledge, tiktok_connections
+from . import hashtags, knowledge, tiktok_connections, youtube_meta
 from .analytics import VIETNAM
-from .models import Job, PostMetrics, PostMetricSnapshot, Publication, Scene, TikTokConnection, User, Video
+from .models import (
+    Channel,
+    Fanpage,
+    Job,
+    PostMetrics,
+    PostMetricSnapshot,
+    Publication,
+    Scene,
+    TikTokConnection,
+    User,
+    Video,
+)
 from .post_links import normalize, video_ref
 from .script_rules import plain_title
 from .sessions import now
@@ -557,6 +568,22 @@ def sparklines(db: DbSession, post_ids: list[int]) -> dict[int, list[int]]:
     return lines
 
 
+def _youtube_channel_name(db: DbSession, posts: list[Publication]) -> str | None:
+    """The channel the video's YouTube description names: the one of its latest YouTube post, else the channel of the
+    Page of its latest Facebook post; None when neither has one (the Subscribe line is then left out)."""
+    for post in posts:
+        channel_id = None
+        if post.platform == "youtube":
+            channel_id = post.channel_id
+        elif post.platform == "facebook" and post.fanpage_id:
+            page = db.get(Fanpage, post.fanpage_id)
+            channel_id = page.youtube_channel_id if page else None
+        channel = db.get(Channel, channel_id) if channel_id else None
+        if channel is not None:
+            return channel.name
+    return None
+
+
 def video_posts(db: DbSession, video: Video, fb_payload) -> dict:
     """`fb_payload(post)`: the "Bài đăng" payload of a Facebook post, whose actions (check, cancel, take down,
     comment) stay those of routes_posts."""
@@ -613,7 +640,12 @@ def video_posts(db: DbSession, video: Video, fb_payload) -> dict:
         "captions": {
             "facebook": post_text,
             "tiktok": hashtags.tiktok_caption(video.caption, topic.name if topic else None),
-            "youtube": post_text,
+            "youtube": youtube_meta.description(
+                video.caption or "",
+                video.hashtags or [],
+                topic.youtube_meta if topic else None,
+                _youtube_channel_name(db, posts),
+            ),
         },
         "mp4_download_url": f"/api/videos/{video.id}/video.mp4?download=1" if video.mp4_key else None,
     }

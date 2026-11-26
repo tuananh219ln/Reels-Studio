@@ -51,6 +51,7 @@ from . import (
     text_looks,
     tts,
     video_options,
+    youtube_meta,
 )
 from .claude import GeneratedScript
 from .db import get_db
@@ -2528,6 +2529,7 @@ class TopicPatchBody(BaseModel):
     text_ai: bool | None = None  # "AI chọn kiểu chữ cho từng video"
     no_people: bool | None = None  # "Không dùng cảnh có người"
     outro_cta: bool | None = None  # "Cảnh kết Theo dõi & Chia sẻ" (outro.py)
+    youtube_meta: dict | None = None  # "Mô tả YouTube" (youtube_meta.py); null or {} (when sent): none
     media_folder: str | None = None  # "Tư liệu": its folder in the "Kho tư liệu"; null or "" (when sent) unlinks
 
 
@@ -2599,6 +2601,9 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "text_ai": topic.text_ai,
                 "no_people": topic.no_people,
                 "outro_cta": topic.outro_cta,
+                # "Mô tả YouTube": every field present; `youtube_meta_set` false while the group uploads the caption.
+                "youtube_meta": youtube_meta.of(topic.youtube_meta),
+                "youtube_meta_set": youtube_meta.is_set(topic.youtube_meta),
                 "text_suggestions": topic.text_suggestions,
                 "text_job": text_looks.job_payload(text_looks.job_of(db, topic.id)),
                 "created_by_id": topic.created_by_id,
@@ -2746,6 +2751,7 @@ def duplicate_topic(topic_id: int, me: Session = Depends(current_member), db: Db
         plan_post_times=list(source.plan_post_times),
         stock_order=list(source.stock_order) if source.stock_order else None,
         text_look=dict(source.text_look) if source.text_look else None,
+        youtube_meta=youtube_meta.clean(source.youtube_meta),
         **{field: getattr(source, field) for field in COPIED_TOPIC_FIELDS},
     )
     topic.edit_templates = list(source.edit_templates)
@@ -2824,6 +2830,11 @@ def patch_topic(
         topic.no_people = body.no_people
     if body.outro_cta is not None:
         topic.outro_cta = body.outro_cta
+    if "youtube_meta" in body.model_fields_set:
+        try:
+            topic.youtube_meta = youtube_meta.clean(body.youtube_meta)
+        except youtube_meta.MetaError as err:
+            raise invalid(str(err)) from None
     if "media_folder" in body.model_fields_set:
         from .routes_media import link_folder
 

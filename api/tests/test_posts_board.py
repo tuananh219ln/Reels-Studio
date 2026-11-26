@@ -9,7 +9,7 @@ from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN
 from sqlalchemy import select
 
 from reels_api import fanpages, metrics
-from reels_api.models import AffiliateAccount, Channel, PostMetrics, PostMetricSnapshot, Publication
+from reels_api.models import AffiliateAccount, Channel, KnowledgeTopic, PostMetrics, PostMetricSnapshot, Publication
 
 TIKTOK_LINK = "https://www.tiktok.com/@anngon/video/7301234567890123456"
 SHORTS_LINK = "https://www.youtube.com/shorts/dQw4w9WgXcQ"
@@ -329,6 +329,20 @@ def test_an_opened_row_lists_every_post_with_captions(an, db, me, storage):
     assert result["missing"] == ["facebook", "youtube"]
     assert set(result["captions"]) == {"facebook", "tiktok", "youtube"}
     assert result["mp4_download_url"].startswith(f"/api/videos/{video.id}/video.mp4")
+
+
+def test_the_youtube_caption_to_copy_is_the_groups_youtube_description(an, db, me, storage):
+    video = rendered(db, storage, me)
+    channel = youtube_channel(db, me)
+    video.caption, video.hashtags = "Ba món tốt cho tim. #suckhoe", ["#suckhoe"]
+    video_topic = db.get(KnowledgeTopic, video.knowledge_topic_id)
+    video_topic.youtube_meta = {"hashtags": ["#Shorts"], "cta": "Đăng ký {channel}", "disclaimer": ""}
+    db.commit()
+    item = {"url": SHORTS_LINK, "video_id": video.id, "channel_id": channel.id}
+    an.post("/api/posts/links", json={"items": [item]})
+    captions = an.get(f"/api/posts/videos/{video.id}").json()["captions"]
+    assert captions["facebook"] == "Ba món tốt cho tim. #suckhoe"
+    assert captions["youtube"] == f"Ba món tốt cho tim.\n\nĐăng ký {channel.name}\n\n#Shorts"
 
 
 # --- Channels ---

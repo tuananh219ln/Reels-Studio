@@ -258,6 +258,7 @@ def test_every_setting_of_the_tab_can_be_set_and_cleared(mcp_client, db, storage
         "voice_volume": 80,
         "voice_pause": 0.7,
         "ducking": True,
+        "text_shade": True,
         "transition": "cut",
         "motion": "pan",
         "zoom": "light",

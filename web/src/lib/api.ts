@@ -635,6 +635,9 @@ export type TikTokConnection = {
   connected_at: string | null;
 };
 
+/** A group's "Mô tả YouTube" (api youtube_meta.py). `{channel}` in `cta` is the receiving channel's name. */
+export type YouTubeMeta = { hashtags: string[]; keywords: string[]; cta: string; disclaimer: string };
+
 export type KnowledgeTopic = {
   id: number;
   name: string;
@@ -672,6 +675,10 @@ export type KnowledgeTopic = {
   no_people: boolean;
   /** "Cảnh kết Theo dõi & Chia sẻ": the group's new videos end on the shared follow-and-share scene. */
   outro_cta: boolean;
+  /** "Mô tả YouTube": what its YouTube uploads carry instead of the Facebook caption; every field present. */
+  youtube_meta: YouTubeMeta;
+  /** False while nothing is set: uploads carry the caption and the video's own hashtags. */
+  youtube_meta_set: boolean;
   /** The AI's last suggested looks ("AI gợi ý"), kept for a member to pick one; null before the first. */
   text_suggestions: TextSuggestions | null;
   /** The "AI gợi ý" job while queued or running, or the last one if it failed; null otherwise. */
@@ -981,6 +988,8 @@ export type VideoOptions = {
   voice_speed: number;
   voice_volume: number;
   ducking: boolean;
+  /** "Nền tối mờ sau chữ": a black band, 45% at its darkest, behind the content scenes' text (api video_options). */
+  text_shade: boolean;
   /** The video's transition between scenes, a key of the scene transitions (preview/effects.ts). */
   transition: "fade" | "cut" | "slide" | "zoom" | "flash" | "black" | "blur" | "smooth_slide";
   motion: "zoom_in" | "zoom_out" | "pan" | "static" | "kenburns_diagonal" | "pan_vertical" | "handheld" | "punch_in";

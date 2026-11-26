@@ -39,6 +39,8 @@ DEFAULTS: dict = {
     "voice_speed": 1.0,  # tempo factor, MIN_SPEED to MAX_SPEED
     "voice_volume": 100,  # percent
     "ducking": False,
+    # "Nền tối mờ sau chữ": a black band (45% at its darkest) behind the content scenes' text (reels_render.textbox).
+    "text_shade": False,
     "transition": "fade",
     "motion": "zoom_in",
     "zoom": "medium",
@@ -147,6 +149,7 @@ LABELS = {
     "text_case": "Dạng chữ",
     "title_text_case": "Dạng chữ tiêu đề",
     "ducking": "Nhỏ nhạc khi có giọng",
+    "text_shade": "Nền tối mờ sau chữ",
     "voice_pause": "Nghỉ sau lời đọc",
     "title_sfx": "Âm thanh tiêu đề động",
     "voice_enabled": "Giọng đọc",
@@ -208,7 +211,7 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
         elif name in ("voice_volume", "music_volume"):
             if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 100:
                 raise OptionError("Âm lượng phải từ 0 đến 100%")
-        elif name in ("ducking", "voice_enabled"):
+        elif name in ("ducking", "voice_enabled", "text_shade"):
             if not isinstance(value, bool):
                 raise OptionError(f"“{LABELS[name]}” chỉ nhận bật hoặc tắt")
         elif name in ("text_position", "title_text_position"):
@@ -242,6 +245,7 @@ def choices() -> dict:
             "voice_volume": {"min": 0, "max": 100},
             "voice_pause": list(VOICE_PAUSES),
             "ducking": [True, False],
+            "text_shade": [True, False],
             "text_position": {"width": FRAME_WIDTH, "height": FRAME_HEIGHT},
             "title_text_position": {"width": FRAME_WIDTH, "height": FRAME_HEIGHT},
         }
@@ -288,7 +292,16 @@ def text_look(video: Video) -> tuple[str, ...]:
 
 
 # What a content scene's box is drawn with; the title's depends on every look field.
-SCENE_LOOK_FIELDS = ("text_style", "text_color", "box_color", "accent_color", "box_opacity", "text_size", "text_case")
+SCENE_LOOK_FIELDS = (
+    "text_style",
+    "text_color",
+    "box_color",
+    "accent_color",
+    "box_opacity",
+    "text_size",
+    "text_case",
+    "text_shade",
+)
 # The scenes' letter case is not the title's, which has its own.
 TITLE_LOOK_FIELDS = tuple(name for name in LOOK_FIELDS if name != "text_case")
 
@@ -325,6 +338,7 @@ def render_options(video: Video) -> RenderOptions:
         captions=values["captions"],
         voice_volume=values["voice_volume"] / 100,
         ducking=values["ducking"],
+        text_shade=values["text_shade"],
         backdrop=video.mode == "single",
         **{name: values[name] for name in LOOK_FIELDS},
     )
@@ -340,7 +354,7 @@ def look_signature(video: Video) -> dict | None:
     changed = {name: values[name] for name in DEFAULTS if name not in skipped}
     if changed == {name: DEFAULTS[name] for name in changed}:
         return None
-    for name in (*LATER_LOOK_FIELDS, "text_position", "title_text_position"):
+    for name in (*LATER_LOOK_FIELDS, "text_position", "title_text_position", "text_shade"):
         if changed[name] == DEFAULTS[name]:
             del changed[name]
     return changed

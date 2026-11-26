@@ -186,7 +186,8 @@ def upload(
         channel_id=channel.id,
         scheduled_at=planned,
         remote_mp4_key=video.mp4_key,
-        # The title and description as sent, so "Thử lại" sends the same.
+        # The title as sent, so "Thử lại" sends the same. The description is built when the upload starts
+        # (youtube_publish), from the caption as it is then; this is a placeholder until then.
         caption=title or title_of(video, title_scene),
         post_text=hashtags.post_text(video.caption, video.hashtags),
     )

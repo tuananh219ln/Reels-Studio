@@ -53,6 +53,7 @@ from . import (
     title_motion,
     topic_docs,
     video_options,
+    youtube_meta,
 )
 from . import routes_affiliate as affiliate_routes
 from . import routes_article_plans as article_plans_routes
@@ -838,6 +839,66 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             return topic_docs.payload(db, topic_docs.find(db, knowledge_topic_id, doc_id, file_name), with_body=True)
 
         return await run_in_threadpool(invoke, operation)
+
+    def youtube_meta_of(topic: KnowledgeTopic) -> dict:
+        return {
+            "knowledge_topic_id": topic.id,
+            "name": topic.name,
+            "youtube_meta": youtube_meta.of(topic.youtube_meta),
+            "is_set": youtube_meta.is_set(topic.youtube_meta),
+        }
+
+    @tool("Đọc Mô tả YouTube của nhóm", read=True)
+    async def get_youtube_meta(
+        knowledge_topic_id: Annotated[int, Field(description="ID nhóm chủ đề (lấy ở “Đọc nhóm chủ đề”)")],
+    ) -> dict:
+        """Mô tả YouTube của nhóm: hashtag YouTube, từ khóa (gửi làm thẻ tags, không ghi vào mô tả), câu kêu gọi đăng
+        ký ({channel} là tên kênh) và lưu ý (disclaimer). Mỗi lần tải lên YouTube, mô tả = caption hiện tại (bỏ hashtag
+        cuối) + câu đăng ký + lưu ý + hashtag YouTube; nhóm chưa đặt (is_set false) thì dùng caption + hashtag
+        Facebook như cũ. Caption và hashtag Facebook không đổi."""
+
+        def operation(db, me):
+            topic = db.get(KnowledgeTopic, knowledge_topic_id)
+            if topic is None:
+                raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+            return youtube_meta_of(topic)
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Sửa Mô tả YouTube của nhóm", read=False)
+    async def update_youtube_meta(
+        knowledge_topic_id: Annotated[int, Field(description="ID nhóm chủ đề")],
+        hashtags: Annotated[
+            list[str] | None,
+            Field(description="Hashtag YouTube, 10–20 cái, có hoặc không có #; [] xóa; bỏ trống giữ nguyên"),
+        ] = None,
+        keywords: Annotated[
+            list[str] | None,
+            Field(description="Từ khóa gửi làm thẻ tags (tối đa 40, cả bộ thẻ ≤ 500 ký tự); [] xóa"),
+        ] = None,
+        cta: Annotated[
+            str | None,
+            Field(description='Câu kêu gọi đăng ký, {channel} được thay bằng tên kênh; "" xóa', max_length=500),
+        ] = None,
+        disclaimer: Annotated[
+            str | None, Field(description='Lưu ý đầy đủ; "" để không có lưu ý', max_length=2000)
+        ] = None,
+    ) -> dict:
+        """Sửa các mục được truyền của Mô tả YouTube của nhóm (như thẻ Mô tả YouTube ở Kho kiến thức); chỉ người được
+        sửa nhóm mới sửa được. Áp dụng cho lần tải lên YouTube sau; video đã tải lên không đổi. Không đăng bài."""
+
+        def operation(db, me):
+            topic = db.get(KnowledgeTopic, knowledge_topic_id)
+            if topic is None:
+                raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+            meta = youtube_meta.of(topic.youtube_meta)
+            sent = {"hashtags": hashtags, "keywords": keywords, "cta": cta, "disclaimer": disclaimer}
+            meta.update({field: value for field, value in sent.items() if value is not None})
+            videos.patch_topic(knowledge_topic_id, videos.TopicPatchBody(youtube_meta=meta), me, db)
+            db.refresh(topic)
+            return youtube_meta_of(topic)
+
+        return await run_in_threadpool(invoke, operation, write=True)
 
     @tool("Sửa nội dung đăng", read=False)
     async def update_video(
@@ -1811,6 +1872,12 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         voice_volume: Annotated[int | None, Field(description="Âm lượng giọng đọc, 0–100 (%)")] = None,
         voice_pause: Annotated[float | None, one_of("voice_pause")] = None,
         ducking: Annotated[bool | None, one_of("ducking")] = None,
+        text_shade: Annotated[
+            bool | None,
+            Field(
+                description="Nền tối mờ sau chữ các cảnh (dải đen, đậm nhất 45% ngay chỗ chữ, mờ dần lên xuống); tiêu đề không có"
+            ),
+        ] = None,
         transition: Annotated[str | None, one_of("transition")] = None,
         motion: Annotated[str | None, one_of("motion")] = None,
         zoom: Annotated[str | None, one_of("zoom")] = None,
@@ -1867,6 +1934,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             voice_volume=voice_volume,
             voice_pause=voice_pause,
             ducking=ducking,
+            text_shade=text_shade,
             transition=transition,
             motion=motion,
             zoom=zoom,

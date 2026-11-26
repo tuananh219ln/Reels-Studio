@@ -1394,6 +1394,10 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
     (and on Cài đặt › Mặc định video) keeps the text as typed instead, for the content scenes and
     their text layers, and on its own for the title ("Dạng chữ tiêu đề"); the red marked words keep
     their colour either way, and the editor's previews are drawn the same way;
+  - "Nền tối mờ sau chữ" (Thiết lập › Chữ & phụ đề › Các cảnh, and Cài đặt › Mặc định video; off by default):
+    a black band across the frame's width behind the content scenes' text, 45% at its darkest over the text
+    and easing to nothing 260 px above and below it, so the text reads on a busy photo and the rest of the
+    photo stays as it is. The title scene has none; the editor's previews draw it too;
   - keywords marked `*...*` are drawn in red (`#E10600`);
   - long text wraps and shrinks, and is rejected only if it still does not fit: the title starts
     at 96 px and shrinks to 64 px (at most 5 lines); body text starts at 84 px and shrinks to

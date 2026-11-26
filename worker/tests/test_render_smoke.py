@@ -26,6 +26,7 @@ from reels_render.errors import (
     ToolNotFoundError,
 )
 from reels_render.ffmpeg import probe
+from reels_render.options import RenderOptions
 from reels_render.render import render_video
 from reels_render.script import load_script
 from reels_render.textbox import SCENE_BOX_BOTTOM
@@ -556,3 +557,19 @@ def test_framed_scenes_share_one_photo_line_and_a_full_frame_photo_keeps_the_tem
     assert max(middles) - min(middles) <= 12, middles
     assert max(middles) < 600
     assert abs(max(boxed(third)) - SCENE_BOX_BOTTOM) <= 8
+
+
+@needs_ffmpeg
+def test_text_shade_darkens_round_a_content_scenes_text_and_leaves_the_rest_and_the_title(video, tmp_path):
+    plain, _ = video
+    shaded = render_video(
+        short_script(tmp_path, seconds=(1, 1.5, 1.5)), tmp_path / "shaded.mp4", options=RenderOptions(text_shade=True)
+    )
+
+    def pixel(path, seconds, y):
+        return extract_frame(path, seconds, tmp_path / f"f-{path.stem}-{seconds}-{y}.png").getpixel((10, y))
+
+    near = SCENE_BOX_BOTTOM + 60  # under the box, inside the 260 px fade
+    assert sum(pixel(shaded, 1.75, near)) < 0.8 * sum(pixel(plain, 1.75, near))
+    assert pixel(shaded, 1.75, 40) == pixel(plain, 1.75, 40)  # far from the text: untouched
+    assert pixel(shaded, 0, near) == pixel(plain, 0, near)  # the title scene has no shade
