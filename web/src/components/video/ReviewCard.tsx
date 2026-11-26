@@ -9,6 +9,7 @@ import { useEditor } from "./AutoSaveField";
 const VIA: Record<string, string> = {
   web: "trên web",
   muse_chat: "trong chat với Muse",
+  telegram: "trên Telegram",
   auto: "tự động (Tự duyệt)",
   legacy: "trước khi có bước duyệt",
 };
