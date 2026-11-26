@@ -100,3 +100,84 @@ def test_instagram_lists_only_pages_with_an_account(an, db, me):
     body = an.get("/api/stats", params={"platform": "instagram"}).json()
     assert [row["page"]["name"] for row in body["rows"]] == ["Có IG"]
     assert body["rows"][0]["account"]["username"] == "coig"
+
+
+def add_measured(db, storage, me, page, seconds, views, *, status="published", mp4=True):
+    """A post of a video `seconds` long, read at 48 hours with `views`."""
+    video = make_video(db, storage, me, scene_count=1)
+    video.mp4_seconds = seconds if mp4 else None
+    at = NOW - timedelta(days=3)
+    row = Publication(
+        video_id=video.id,
+        platform="facebook",
+        fanpage_id=page.id,
+        status=status,
+        created_by_id=me.id,
+        remote_id=f"r{video.id}",
+        scheduled_at=at,
+        published_at=at,
+    )
+    db.add(row)
+    db.flush()
+    db.add(PostMetrics(publication_id=row.id, window="latest", measured_at=NOW, views=views))
+    db.add(PostMetrics(publication_id=row.id, window="48h", measured_at=NOW, views=views))
+    db.commit()
+    return row
+
+
+def buckets_of(an, page):
+    row = an.get("/api/stats", params={"days": 7, "page_ids": str(page.id)}).json()["rows"][0]
+    return {one["bucket"]: one for one in row["duration_buckets"]}
+
+
+def test_duration_buckets_have_a_median_only_from_five_posts_and_the_best_one_is_marked(an, db, storage, me):
+    page = add_page(db, me, "1111111", "Một")
+    for views in (100, 200, 300, 400, 500):
+        add_measured(db, storage, me, page, 50.0, views)
+    for views in (10, 20, 30, 40, 50):
+        add_measured(db, storage, me, page, 75.0, views)
+    for views in (900, 900):
+        add_measured(db, storage, me, page, 30.0, views)
+    found = buckets_of(an, page)
+    assert list(found) == ["<45s", "45–60s", ">60s"]
+    assert found["45–60s"] == {"bucket": "45–60s", "videos": 5, "median_views_48h": 300, "best": True}
+    assert found[">60s"]["median_views_48h"] == 30 and found[">60s"]["best"] is False
+    assert found["<45s"] == {"bucket": "<45s", "videos": 2, "median_views_48h": None, "best": False}
+
+
+def test_a_bucket_edge_belongs_to_the_longer_bucket(an, db, storage, me):
+    page = add_page(db, me, "1111111", "Một")
+    add_measured(db, storage, me, page, 45.0, 1)
+    add_measured(db, storage, me, page, 60.0, 1)
+    found = buckets_of(an, page)
+    assert (found["<45s"]["videos"], found["45–60s"]["videos"], found[">60s"]["videos"]) == (0, 1, 1)
+
+
+def test_no_best_with_one_bucket_and_a_tie_marks_every_tied_bucket(an, db, storage, me):
+    page = add_page(db, me, "1111111", "Một")
+    for _ in range(5):
+        add_measured(db, storage, me, page, 50.0, 100)
+    assert not any(one["best"] for one in buckets_of(an, page).values())
+    for _ in range(5):
+        add_measured(db, storage, me, page, 70.0, 100)
+    found = buckets_of(an, page)
+    assert found["45–60s"]["best"] and found[">60s"]["best"]
+
+
+def test_deleted_posts_and_videos_without_a_length_are_left_out(an, db, storage, me):
+    page = add_page(db, me, "1111111", "Một")
+    for _ in range(4):
+        add_measured(db, storage, me, page, 50.0, 100)
+    add_measured(db, storage, me, page, 50.0, 100, status="deleted")
+    add_measured(db, storage, me, page, 50.0, 100, mp4=False)
+    found = buckets_of(an, page)
+    assert found["45–60s"]["videos"] == 4 and found["45–60s"]["median_views_48h"] is None
+
+
+def test_instagram_rows_have_no_duration_buckets_and_old_facebook_fields_stay(an, db, me):
+    page = add_page(db, me, "1111111", "Một")
+    page.instagram_user_id, page.instagram_username = "178", "coig"
+    db.commit()
+    assert "duration_buckets" not in an.get("/api/stats", params={"platform": "instagram"}).json()["rows"][0]
+    row = an.get("/api/stats", params={"page_ids": str(page.id)}).json()["rows"][0]
+    assert {"totals", "gate", "winners", "measuring", "best_times", "share_per_view"} <= set(row)
