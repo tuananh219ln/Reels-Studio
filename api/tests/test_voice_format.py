@@ -164,8 +164,13 @@ def test_migration_0128_moves_groups_6_7_and_10_to_huyen_my(engine):
 
     def formats() -> dict:
         with Session(engine) as session:
-            rows = session.scalars(select(KnowledgeTopic).where(KnowledgeTopic.name.in_([gia, an_lanh, test_group])))
-            return {row.name: row.voice_format for row in rows}
+            # Two columns, not whole rows: the database is at revision 0127 here, before later columns existed.
+            rows = session.execute(
+                select(KnowledgeTopic.name, KnowledgeTopic.voice_format).where(
+                    KnowledgeTopic.name.in_([gia, an_lanh, test_group])
+                )
+            )
+            return {name: voice_format for name, voice_format in rows}
 
     command.downgrade(config, "0127")
     try:

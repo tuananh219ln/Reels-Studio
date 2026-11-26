@@ -204,9 +204,8 @@ class KnowledgeTopic(Base):
         JSONB, default=lambda: list(DEFAULT_POST_TIMES), server_default=text(DEFAULT_POST_TIMES_SQL)
     )
     # The IANA zone `plan_post_times` are written in (schedule_tz.py, migration 0134): VN or a US zone.
-    schedule_timezone: Mapped[str] = mapped_column(
-        String(40), default="Asia/Ho_Chi_Minh", server_default="Asia/Ho_Chi_Minh"
-    )
+    # Server default only, so a row made while the database is at an older revision (the migration tests) leaves it out.
+    schedule_timezone: Mapped[str] = mapped_column(String(40), server_default="Asia/Ho_Chi_Minh")
     # How many videos the group's trial counts towards ("Tiến độ verdict" on its plan); None: no banner. Only a count:
     # the verdict itself is decided by the team in a meeting.
     video_target: Mapped[int | None] = mapped_column(Integer)
