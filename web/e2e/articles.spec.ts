@@ -123,10 +123,13 @@ test("Bài viết: post a text article to a Page, read its numbers, take it down
   await caption.blur();
   await expect(page.getByText("Chưa có caption", { exact: true })).toBeHidden();
 
-  await page.getByRole("button", { name: /^send Đăng$/ }).click();
+  const openPublish = page.getByRole("button", { name: /^send Đăng$/ });
+  await openPublish.click();
   const publish = page.getByRole("dialog", { name: "Đăng bài viết" });
+  const publishNow = publish.getByRole("button", { name: "Đăng", exact: true });
   // The one Page in use is already picked.
-  await publish.getByRole("button", { name: "Đăng", exact: true }).click();
+  await publishNow.click();
+  await expect(publish).toBeHidden();
   await expect(page.getByTestId("article-status")).toHaveText("Đã đăng", { timeout: 60_000 });
   const post = page.getByTestId("article-post");
   await expect(post.getByText("Trang Dưỡng Sinh")).toBeVisible();
@@ -138,36 +141,19 @@ test("Bài viết: post a text article to a Page, read its numbers, take it down
     timeout: 30_000,
   });
 
-  // The same caption cannot go on the same Page twice. The worker's jobs for the post (its comment, its numbers) can
-  // still turn "Đăng" off for a moment while the page polls, and a click landing then is lost: click until it opens.
-  // On a slow runner the drawer could also be shut again before its own "Đăng" was pressed (CI, 2026-11-10), so the
-  // whole step is retried: open it if it is not open, press its "Đăng", see the refusal. Pressing again is harmless,
-  // the api refuses every time.
-  const refused = page.getByText("Nội dung này đã đăng hoặc đã hẹn trên Page này, không đăng lại được");
-  // The test is whether the drawer's own "Đăng" can be pressed, not whether the drawer's box is visible: while the
-  // drawer slides shut its box still counts as visible but has no buttons to press, and CI (2026-11-16) spent the whole
-  // minute clicking at a drawer that was not there.
-  const publishNow = publish.getByRole("button", { name: "Đăng", exact: true });
-  await expect(async () => {
-    if (!(await publishNow.isVisible())) {
-      // A drawer left on screen without its own "Đăng" covers the page's button (CI, 2026-11-17: its header took
-      // every click for the whole minute): close it, so the next round opens a fresh one.
-      const opened = await page
-        .getByRole("button", { name: /^send Đăng$/ })
-        .click({ timeout: 5_000 })
-        .then(
-          () => true,
-          () => false,
-        );
-      if (!opened) {
-        await page.keyboard.press("Escape");
-        throw new Error("Ngăn kéo Đăng bài viết che nút Đăng: đã đóng để thử lại");
-      }
-    }
-    await publishNow.click({ timeout: 5_000 });
-    await expect(refused.first()).toBeVisible({ timeout: 5_000 });
-  }).toPass({ timeout: 60_000 });
+  // The same caption cannot go on the same Page twice.
+  await openPublish.click();
+  const [refusal] = await Promise.all([
+    page.waitForResponse(
+      (response) => response.request().method() === "POST" && /\/api\/articles\/\d+\/publish$/.test(response.url()),
+    ),
+    publishNow.click(),
+  ]);
+  expect(refusal.status()).toBe(409);
+  expect((await refusal.json()).code).toBe("already_on_page");
+  await expect(page.getByText("Nội dung này đã đăng hoặc đã hẹn trên Page này, không đăng lại được")).toBeVisible();
   await publish.getByRole("button", { name: "Huỷ" }).click();
+  await expect(publish).toBeHidden();
 
   await post.getByRole("button", { name: "Gỡ bài" }).click();
   await page.getByRole("tooltip").getByRole("button", { name: "Gỡ bài" }).click();

@@ -54,7 +54,7 @@ Workers (see [deployment.md](deployment.md#production)).
 | `postgres` | Relational data and the job queue. |
 | storage | One folder of uploaded photos, MP3s (music, narration, and library tracks under `music/`), thumbnails, and MP4s, shared by the api and the worker (`STORAGE_DIR`). |
 
-For a newly published Facebook reel, the publish job's confirmation that the reel is live counts as its first check.
+For a newly published Facebook post, the publish job's confirmation that the reel or article is live counts as its first check.
 
 The api and the worker are one Python package so models, migrations, and database configuration
 exist once; `reels_render` stays a library that needs only Pillow. Both images also install
