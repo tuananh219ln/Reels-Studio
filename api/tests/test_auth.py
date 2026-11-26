@@ -27,6 +27,7 @@ def test_login_sets_http_only_lax_cookie_for_30_days(client, db):
         "name": "Nguyễn Văn An",
         "initial": "A",
         "must_change_password": False,
+        "changelog_seen_at": None,
     }
 
 

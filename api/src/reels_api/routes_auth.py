@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -36,6 +38,10 @@ class NameBody(BaseModel):
     name: str
 
 
+class ChangelogSeenBody(BaseModel):
+    seen_at: datetime
+
+
 def me_payload(user: User) -> dict:
     return {
         "id": user.id,
@@ -43,6 +49,7 @@ def me_payload(user: User) -> dict:
         "name": user.name,
         "initial": avatar_initial(user.name),
         "must_change_password": user.must_change_password,
+        "changelog_seen_at": user.changelog_seen_at.isoformat() if user.changelog_seen_at else None,
     }
 
 
@@ -95,6 +102,20 @@ def rename(body: NameBody, session: Session = Depends(current_member), db: DbSes
     user = session.user
     user.name = name
     db.commit()
+    return me_payload(user)
+
+
+@router.put("/me/changelog-seen")
+def changelog_seen(
+    body: ChangelogSeenBody, session: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """Closing "Có gì mới": the newest change shown, by when it was merged. Never moves back, so an older tab that
+    closes the window after a newer one does not bring the changes back."""
+    seen = body.seen_at if body.seen_at.tzinfo else body.seen_at.replace(tzinfo=UTC)
+    user = session.user
+    if user.changelog_seen_at is None or seen > user.changelog_seen_at:
+        user.changelog_seen_at = seen
+        db.commit()
     return me_payload(user)
 
 

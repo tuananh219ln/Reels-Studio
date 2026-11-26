@@ -62,6 +62,8 @@ class User(Base):
     # When their "Đối thủ" page last said the competitor extension is there (migration 0098): MCP tells the
     # assistant whether a queued scan will be picked up (competitors.scanner_online).
     competitor_scanner_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # "Có gì mới" (migration 0132): when the newest change they were shown was merged; changes merged later are new.
+    changelog_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
 
