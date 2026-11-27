@@ -28,13 +28,20 @@ Thẻ gấp dưới dòng "Chủ đề…, tạo bởi…". Mở ra có hai tab:
 ## Bảng bên phải: ba tab
 1. **Đăng bài:** thẻ trạng thái, xem và tải MP4, **Render lại**, chọn nền tảng (Facebook, Instagram, TikTok, YouTube Shorts) rồi **Đăng ngay** hoặc **Hẹn giờ**. Bên dưới là **Nội dung đăng** (caption có nút "Copy caption + hashtag") và **Hashtag**. Chỉ đăng lên Page của chính bạn.
 2. **Bình luận & Sản phẩm:** **Bình luận** ghim (có "Copy ghim", dòng khảo sát), **Bình luận thêm** (tối đa 5), **Bình luận aff tự động** và **Sản phẩm Shopee** (gợi ý của AI, tìm từ Shopee, sản phẩm đã duyệt, hoặc dán link). Link sản phẩm nằm sau bình luận ghim. Facebook không cho app tự ghim bình luận, nên bạn ghim tay.
-3. **Thiết lập:** các cài đặt riêng của video này (như giọng đọc, nhạc, chữ và phụ đề), bắt đầu theo cài đặt của nhóm.
+3. **Thiết lập:** các cài đặt riêng của video này (như giọng đọc, nhạc, chữ và phụ đề), bắt đầu theo cài đặt của nhóm. Đầu tab có công tắc **Giữ media** (xem "Dọn media" bên dưới).
 
 ## Render và đăng
 1. Đủ ảnh cho mọi cảnh → **Render** (có thể **Xem trước** trước). App dựng MP4 9:16.
 2. Xem lại MP4 → chọn nền tảng → **Đăng**. Nếu QC đỏ, app hỏi lại trước khi cho đăng.
 3. Video Facebook xong thì Page tự viết bình luận ghim và link sản phẩm; bạn ghim tay.
 4. Sau 48 giờ, app đọc view, share và so với trung vị của Page.
+
+## Dọn media sau khi đăng
+Ổ lưu file của app có hạn, nên khi bật tính năng này, vài ngày (mặc định 30) sau lần đăng cuối, app tự **xoá ảnh, clip, lời đọc và nhạc riêng** của video đã đăng. **MP4, ảnh thu nhỏ và mọi số liệu vẫn giữ**, nên danh sách, thống kê và việc đăng thêm nền tảng không đổi.
+- **Không dọn** video chưa đăng, video còn bài hẹn giờ hoặc trong hàng chờ, video đang có người sửa, video thắng (từ 3 lần trung vị của Page) và video vừa được nhân bản hoặc xáo cảnh.
+- **Báo trước 3 ngày:** video sắp dọn có dòng "Media sẽ được dọn từ ngày …" ở tab Thiết lập, và bạn nhận nhắc việc 8:00 qua Telegram riêng.
+- **Muốn giữ:** mở tab **Thiết lập**, bật **Giữ media**. Làm trước ngày dọn, vì file đã xoá không lấy lại được.
+- **Video đã dọn** hiện "Đã dọn media" và không render, nhân bản y hệt, xáo cảnh hay làm bản TikTok được nữa (nhân bản bằng AI vẫn dùng được).
 
 ## Khi gặp trục trặc
 - **Job lỗi:** nút **Thử lại** ở thẻ lỗi hoặc ở Nhật ký job.

@@ -127,6 +127,10 @@ export type VideoRow = {
   post_stage: "ready" | "scheduled" | "posted" | null;
   mp4_outdated: boolean;
   rerender_failed: boolean;
+  /** "Giữ media": the worker never deletes this video's media files (api media_cleanup.py). */
+  keep_media: boolean;
+  /** When the worker deleted its photos, clips and narration (the MP4s and thumbnail stay); null if it has not. */
+  media_cleaned_at: string | null;
   /** The review gate (api review.py): nothing is scheduled or posted until a member approves the MP4. */
   review_status: ReviewStatus;
   /** "Chờ duyệt", "Đã duyệt", "Đã bỏ"; "" while the video has no MP4 to review. */
@@ -485,6 +489,8 @@ export type VideoUpload = {
 };
 
 export type VideoDetail = VideoRow & {
+  /** The day its media is deleted, only in the 3 days before (and only while the cleanup is on); else null. */
+  media_due_at: string | null;
   /** Null for a video made without them (everything before Muse wrote them). */
   strategy: VideoStrategy | null;
   beats: VideoBeat[] | null;
