@@ -92,7 +92,15 @@ from .storage import DirectoryStorage
 from .tts import TtsError, all_keys_failed, is_google, service_name, synthesize, voice_signature
 from .tts import key_name as tts_key_name
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
-from .video_options import effective, render_options, scene_voice, text_hold, voice_pause, voice_speed
+from .video_options import (
+    effective,
+    is_pc_shopee,
+    render_options,
+    scene_voice,
+    text_hold,
+    voice_pause,
+    voice_speed,
+)
 from .videos import (
     LIVE_POST_STATUSES,
     OPEN_POST_STATUSES,
@@ -326,6 +334,8 @@ def run_script_job(
                 topic.photo_hint,
                 content_types=team_content_types(db),
             )
+            if is_pc_shopee(topic):
+                prompt = f"{prompt}\n\n{TITLE_TIERS_FORMAT}"
             if topic.outro_cta:
                 prompt = f"{prompt}\n\n{outro.SCRIPT_FORMAT}"
         else:
@@ -347,6 +357,18 @@ def run_script_job(
         outro.add(db, storage, video)
         affiliate_rounds.ask_after_script(db, video, job.created_by_id)
         db.commit()
+
+
+# PC Shopee's compact title (reels_render.tiers): the AI cuts the title into the tiers in the same call that writes the
+# script, so it costs nothing more; the job and the member's own Claude (MCP) share this text through `script_prompt`.
+TITLE_TIERS_FORMAT = """TIÊU ĐỀ 3 DÒNG (nhóm PC Shopee): thêm trường "title_tiers" vào object JSON, tách tiêu đề đầu tiên thành các tầng chữ lớn:
+- "small": dòng nhỏ phía trên (bối cảnh, dịp), có thể để "";
+- "main": dòng chính, ý quan trọng nhất, bắt buộc;
+- "sub": dòng phụ bên dưới, có thể để "";
+- "label": nhãn cam ngắn (vd "-50%"), có thể để "";
+- "extra": phần câu còn thừa không vừa các dòng trên (vd "xem trước khi mua"), có thể để "". Phần này không hiện trên
+  tiêu đề mà được đặt ở đầu caption.
+Mỗi dòng small, main, sub tối đa 14 ký tự (kể cả dấu cách), viết ngắn như khẩu hiệu, giữ nguyên ý của tiêu đề."""
 
 
 def script_prompt(
@@ -371,6 +393,8 @@ def script_prompt(
         prompt = f"{prompt}\n\n{autoedit.EFFECTS_FORMAT}"
     if group.text_ai:
         prompt = f"{prompt}\n\n{text_looks.SCRIPT_FORMAT}"
+    if is_pc_shopee(group):
+        prompt = f"{prompt}\n\n{TITLE_TIERS_FORMAT}"
     if group.outro_cta:
         prompt = f"{prompt}\n\n{outro.SCRIPT_FORMAT}"
     if backdrop:
@@ -583,10 +607,27 @@ def run_article_caption_job(db: DbSession, job: Job, call: Callable[[str, str], 
     db.commit()
 
 
+def title_text(video: Video, group: KnowledgeTopic | None, script: GeneratedScript) -> str:
+    """The title scene's text: the AI's tiers as lines (small, main, sub, then the label as `[[...]]`) for a PC Shopee video
+    with the three-tier title; else the first title as written."""
+    tiers = script.title_tiers
+    if tiers and is_pc_shopee(group) and effective(video)["title_layout"] == "three_tier":
+        lines = [tiers[key] for key in ("small", "main", "sub") if tiers[key]]
+        if tiers["label"]:
+            lines.append(f"[[{tiers['label']}]]")
+        return "\n".join(lines)
+    return script.titles[0]
+
+
 def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
+    group = knowledge.topic_of(db, video)
+    text = title_text(video, group, script)
     video.has_script = True
     video.title_options = script.titles
     video.caption = script.caption
+    # The words the tiers could not hold lead the caption, so nothing of the title is lost.
+    if text != script.titles[0] and script.title_tiers and script.title_tiers["extra"]:
+        video.caption = f"{script.title_tiers['extra']}\n\n{script.caption}".strip()
     video.hashtags = script.hashtags
     video.affiliates = script.affiliates
     # The AI writes only the survey line; the title and the scenes come from the video itself (pinned.py).
@@ -601,7 +642,7 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
             video_id=video.id,
             is_title=True,
             position=0,
-            text=script.titles[0],
+            text=text,
             seconds=TITLE_SECONDS,
             seconds_auto=True,
             keywords=script.title_keywords,
@@ -633,7 +674,6 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
     autoedit.apply_default(db, video)
     autoedit.apply_ai_effects(db, video, [scene.effects for scene in script.scenes])
     # "AI chọn kiểu chữ cho từng video": the AI's look for this video, over its group's and its maker's.
-    group = knowledge.topic_of(db, video)
     if group is not None and group.text_ai:
         look = text_looks.loose_look(script.text_look)
         if look:

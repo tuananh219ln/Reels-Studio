@@ -182,6 +182,9 @@ class GeneratedScript:
     text_look: object = None
     # "Loại nội dung", one of the team's when one fits (videos.content_type); "" when the answer has none.
     content_type: str = ""
+    # PC Shopee's title cut into tiers by the AI (jobs.TITLE_TIERS_FORMAT): small / main / sub / label, and `extra`, the
+    # words that did not fit, which go to the head of the caption. None when the answer has none.
+    title_tiers: dict[str, str] | None = None
 
 
 def build_script_prompt(
@@ -388,7 +391,23 @@ def parse_output(raw: str) -> GeneratedScript:
         title_image_prompt=_text(data.get("title_image_prompt")),
         content_type=_content_type(data.get("content_type")),
         text_look=data.get("text_look"),
+        title_tiers=_title_tiers(data.get("title_tiers")),
     )
+
+
+TIER_KEYS = ("small", "main", "sub", "label", "extra")
+MAX_TIER_LENGTH = 80
+
+
+def _title_tiers(value: object) -> dict[str, str] | None:
+    """The AI's title tiers: each part one line of plain text; None without a main line (the title is then left as it is)."""
+    if not isinstance(value, dict):
+        return None
+    tiers = {
+        key: " ".join(_text(value.get(key)).replace("[[", "").replace("]]", "").split())[:MAX_TIER_LENGTH]
+        for key in TIER_KEYS
+    }
+    return tiers if tiers["main"] else None
 
 
 def _content_type(value: object) -> str:
