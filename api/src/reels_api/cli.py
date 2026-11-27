@@ -22,7 +22,8 @@ class _VietnameseParser(argparse.ArgumentParser):
     def error(self, message: str):
         # argparse's own usage errors are English; keep every CLI error Vietnamese.
         print(
-            "Lỗi: lệnh không hợp lệ. Dùng: python -m reels_api create-user | worker | seed-media-tags", file=sys.stderr
+            "Lỗi: lệnh không hợp lệ. Dùng: python -m reels_api create-user | worker | seed-media-tags | storage-report",
+            file=sys.stderr,
         )
         sys.exit(2)
 
@@ -56,6 +57,7 @@ def main(argv: list[str] | None = None, ask: Ask = input, ask_secret: Ask = getp
         help='dọn tên video bị chồng "(copy) (copy) (xáo N)"; mặc định chỉ in thay đổi, thêm --apply để ghi',
     )
     clean.add_argument("--apply", action="store_true", help="ghi thay đổi vào cơ sở dữ liệu")
+    commands.add_parser("storage-report", help="báo cáo dung lượng file video theo loại và theo ngày đăng (chỉ đọc)")
     args = parser.parse_args(argv)
 
     if args.command == "node":
@@ -72,6 +74,8 @@ def main(argv: list[str] | None = None, ask: Ask = input, ask_secret: Ask = getp
         return run_job_command(args.job_id)
     if args.command == "seed-media-tags":
         return seed_media_tags(args.dry_run)
+    if args.command == "storage-report":
+        return storage_report()
     if args.command == "clean-video-names":
         return clean_video_names(not args.apply)
 
@@ -158,6 +162,26 @@ def clean_video_names(dry_run: bool) -> int:
     try:
         with sessionmaker(get_engine(), expire_on_commit=False)() as db:
             for line in apply(db, dry_run=dry_run):
+                print(line)
+    except ConfigError as err:
+        print(f"Lỗi: {err}", file=sys.stderr)
+        return 1
+    except SQLAlchemyError:
+        print("Lỗi: không kết nối được cơ sở dữ liệu", file=sys.stderr)
+        return 1
+    return 0
+
+
+def storage_report() -> int:
+    """Read only: the storage volume's video files by kind and by last post (storage_report.py)."""
+    from datetime import UTC, datetime
+
+    from . import config
+    from .storage_report import report
+
+    try:
+        with sessionmaker(get_engine(), expire_on_commit=False)() as db:
+            for line in report(db, config.storage_dir(), datetime.now(UTC)):
                 print(line)
     except ConfigError as err:
         print(f"Lỗi: {err}", file=sys.stderr)
