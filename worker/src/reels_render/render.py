@@ -48,7 +48,16 @@ from .textbox import (
     render_caption,
     with_shade,
 )
-from .tiers import SCENE_CENTRE, SCENE_CENTRE_TOP, TITLE_CENTRE, parse_scene, parse_title, render_scene, render_title
+from .tiers import (
+    SCENE_CENTRE,
+    SCENE_CENTRE_TOP,
+    TEXT_SCALE,
+    TITLE_CENTRE,
+    parse_scene,
+    parse_title,
+    render_scene,
+    render_title,
+)
 from .timeline import FPS, VOICE_LEAD, build_timeline, fit_seconds
 
 DEFAULT_MUSIC_VOLUME = 0.25
@@ -95,7 +104,7 @@ def render_video(
             continue
         try:
             size = options.title_text_size if index == 0 else options.text_size
-            layouts.append(layout_sized(lines, size, is_title=index == 0) if lines else None)
+            layouts.append(layout_sized(lines, size, is_title=index == 0, font=options.text_font) if lines else None)
         except TextFitError as err:
             raise InputError(f"{scene.label}: {err}") from None
     timeline = build_timeline([fit_seconds(scene.seconds, voice) for scene, voice in zip(script.all_scenes, spoken)])
@@ -343,9 +352,11 @@ def tier_picture(lines: list[list[Run]], index: int, last: int, options: RenderO
     """The title in three tiers, or a content scene's text in two (never the last scene's call to action), when the
     video asks for them; None for a scene drawn as a text box."""
     if index == 0 and options.title_layout == "three_tier":
-        return render_title(parse_title(lines), options.pc_title_style, options.title_effects)
+        return render_title(
+            parse_title(lines), options.pc_title_style, options.title_effects, TEXT_SCALE[options.title_text_size]
+        )
     if index > 0 and options.scene_text_layout == "two_tier":
-        return render_scene(parse_scene(lines), options.pc_style)
+        return render_scene(parse_scene(lines), options.pc_style, TEXT_SCALE[options.text_size])
     return None
 
 
