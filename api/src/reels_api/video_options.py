@@ -307,11 +307,17 @@ def is_pc_shopee(group: KnowledgeTopic | None) -> bool:
 
 
 def text_hold(video: Video, scene: Scene) -> float | None:
-    """Seconds a scene's text stays before it fades out: its own, else the video's; None for the whole scene and
-    always for the title scene. (The renderer also keeps the last scene's text: reels_render.graph.hold_seconds.)"""
+    """Seconds a scene's text stays before it fades out: its own, else the video's, else (compact text with phrase or word
+    captions) PC_SHOPEE_TEXT_HOLD; None for the whole scene and always for the title scene. (The renderer also keeps the last scene's text: reels_render.graph.hold_seconds.)"""
     if scene.is_title:
         return None
-    return scene.text_hold_sec if scene.text_hold_sec is not None else effective(video)["text_hold_sec"]
+    values = effective(video)
+    hold = scene.text_hold_sec if scene.text_hold_sec is not None else values["text_hold_sec"]
+    if hold is None and values["scene_text_layout"] == "two_tier" and values["captions"] in ("phrase", "word"):
+        # The compact text and the captions are never on screen together (the spec's one layer of text): with no hold
+        # chosen, the text goes after PC_SHOPEE_TEXT_HOLD and the captions start then (reels_render.captions.after_hold).
+        return PC_SHOPEE_TEXT_HOLD
+    return hold
 
 
 def clean_position(value: object) -> list[int] | None:
@@ -348,9 +354,10 @@ def voice_pause(video: Video) -> float:
 
 
 def text_look(video: Video) -> tuple[str, ...]:
-    """The values the text boxes are drawn with (LOOK_FIELDS): previews and the thumbnail change with them."""
+    """The values the text boxes are drawn with (LOOK_FIELDS, and PC Shopee's title layout and look): previews and the
+    thumbnail change with them."""
     values = effective(video)
-    return tuple(values[name] for name in LOOK_FIELDS)
+    return tuple(values[name] for name in (*LOOK_FIELDS, "title_layout", "pc_title_style"))
 
 
 # What a content scene's box is drawn with; the title's depends on every look field.

@@ -32,3 +32,13 @@ Part of the spec "Ẩn chữ & Phụ đề Cộng dồn" (Looper, 2026-11-27); l
   **not** on Cài đặt › Thiết lập mặc định, which is a member's defaults for every group.
 - **The assistant** sets them with `set_video_options` (text_hold_sec, pc_style, pc_title_style, title_layout, scene_text_layout) and
   `set_scene_effects` (text_hold_sec, text_zone).
+- **Changed after the first videos (2026-11-27):** a scene's text roles follow the team's own texts, where the name is on the first
+  line and the `*marked*` words highlight the benefit. With two lines or more the **first line is the big one** (the product) and the rest
+  the sub line, however the words are marked; the spec's "the marked words are the main line" applies only to a single line
+  (`*LOGITECH G304* không dây`). And the compact text and **phrase or word captions are never on screen together**: with no hold
+  chosen, the text goes after 2.5 s and the captions start then (`text_hold`, `captions.after_hold`); a hold the member chose wins.
+- **A title on one line is cut into the tiers** at ":", "|", "," and ";" ("BLACK FRIDAY: 5 MÓN PC ĐÁNG SĂN, XEM TRƯỚC KHI MUA" is small /
+  main / sub), so a title written as one sentence is not squeezed into one small line; the page's four boxes read it the same way.
+  Moving the extra words to the caption and the AI's own split are still not built.
+- **The thumbnail follows the title layout and look** (they are part of `video_options.text_look`, which decides when it is drawn
+  again), and every render of a video with the compact title draws it again, so a video set before this is brought up to date.

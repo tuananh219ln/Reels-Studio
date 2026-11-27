@@ -7,10 +7,11 @@ from pathlib import Path
 from PIL import Image
 
 from . import ffmpeg
-from .captions import Word, plan_captions, plan_word_captions
+from .captions import Word, after_hold, plan_captions, plan_word_captions
 from .cumulative import Step, known_words, narration_steps, plan_cumulative, render_cumulative
 from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplacedError
 from .graph import (
+    HOLD_FADE_SECONDS,
     MAX_CLIP_PIXELS,
     CaptionInput,
     FramedInput,
@@ -22,6 +23,7 @@ from .graph import (
     all_cuts,
     build_ffmpeg_args,
     clip_lead,
+    hold_seconds,
 )
 from .images import Fitted, fit_image, photo_is_framed
 from .layers import card_corner, layer_corner, render_layer
@@ -198,6 +200,11 @@ def render_video(
                 scene_end = (scene_start + timeline.scene_frames[index]) / FPS
                 placed = placed_words(scene, scene_start / FPS, scene_end, clip_lead(index, cut))
                 cues = plan_word_captions(placed, options.captions)
+            # A scene whose text fades out after a hold shows the captions only once it has gone: one layer of text at a time.
+            if cues and (
+                hold := hold_seconds(scene.text_hold, index, len(script.all_scenes), timeline.scene_frames[index])
+            ):
+                cues = after_hold(cues, scene_start / FPS + hold + HOLD_FADE_SECONDS)
             if cues:
                 bottom = box_y - CAPTION_GAP if layout is not None else SCENE_BOX_BOTTOM
                 box_bottom = box_y + layout.height if layout is not None else SCENE_BOX_BOTTOM

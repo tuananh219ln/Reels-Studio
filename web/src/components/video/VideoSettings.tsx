@@ -774,7 +774,12 @@ export function TextSettings({ values, onChange, disabled, bare, textHold }: Pro
             {textHold && (
               <Field
                 label="Thời gian hiện chữ"
-                hint="Chữ cảnh hiện đầu cảnh rồi mờ dần; cảnh tiêu đề và cảnh cuối giữ chữ."
+                hint={
+                  values.scene_text_layout === "two_tier" &&
+                  (values.captions === "phrase" || values.captions === "word")
+                    ? "Có phụ đề từng cụm/từng từ nên chữ cảnh gọn tự ẩn sau 2,5 giây (nếu không chọn khác) để phụ đề không đè lên."
+                    : "Chữ cảnh hiện đầu cảnh rồi mờ dần; cảnh tiêu đề và cảnh cuối giữ chữ."
+                }
               >
                 <Segmented
                   aria-label="Thời gian hiện chữ"

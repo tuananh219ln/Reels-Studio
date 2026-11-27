@@ -143,7 +143,20 @@ export function titleTiers(text: string) {
   const rest = lines.filter((line) => !/^\[\[.+\]\]$/.test(line));
   if (rest.length >= 3) return { small: rest[0], main: rest[1], sub: rest.slice(2).join(" "), label };
   if (rest.length === 2) return { small: "", main: rest[0], sub: rest[1], label };
-  return { small: "", main: rest[0] ?? "", sub: "", label };
+  return { ...splitOneLine(rest[0] ?? ""), label };
+}
+
+/** A title on one line, cut at ":", "|", "," and ";" like the render does (worker tiers._split_one_line). */
+function splitOneLine(text: string) {
+  const parts = text.split(/\s*[:|,;]\s*/).filter((part) => part.trim());
+  if (parts.length >= 3) return { small: parts[0], main: parts[1], sub: parts.slice(2).join(", ") };
+  if (parts.length === 2) {
+    const [first, second] = parts;
+    return first.length <= 14 && second.length > first.length
+      ? { small: first, main: second, sub: "" }
+      : { small: "", main: first, sub: second };
+  }
+  return { small: "", main: parts[0] ?? "", sub: "" };
 }
 
 /** The tiers back as the title's text: a small line needs a sub line too (two lines are read as main and sub). */

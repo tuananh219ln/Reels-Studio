@@ -141,3 +141,21 @@ def test_the_groups_own_look_wins_over_pc_shopee_starting_values(db, me, storage
     video_options.apply_defaults(db, video, me.id)
     assert video.options["captions"] == "word" and video.options["text_hold_sec"] == 3.5  # the group's choices
     assert video.options["title_layout"] == "three_tier"  # what it did not choose keeps PC Shopee's start
+
+
+def test_compact_text_with_phrase_or_word_captions_goes_after_2_5_seconds_unless_a_hold_is_chosen():
+    from reels_api.models import Scene, Video
+
+    scene = Scene(is_title=False)
+    for captions, layout, own, expected in (
+        ("word", "two_tier", None, 2.5),  # the text and the captions are never on screen together
+        ("phrase", "two_tier", None, 2.5),
+        ("word", "two_tier", 3.5, 3.5),  # a hold chosen wins
+        ("cumulative", "two_tier", None, None),  # "Cộng dồn" has no scene text at all
+        ("word", "box", None, None),  # the text boxes of every other group: as before
+        ("off", "two_tier", None, None),
+    ):
+        video = Video(options=video_options.DEFAULTS | {"captions": captions, "scene_text_layout": layout})
+        scene.text_hold_sec = own
+        assert video_options.text_hold(video, scene) == expected, (captions, layout, own)
+    assert video_options.text_hold(video, Scene(is_title=True)) is None

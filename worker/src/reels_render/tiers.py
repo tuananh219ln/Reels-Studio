@@ -52,9 +52,27 @@ def _plain(line: list[Run]) -> str:
     return normalize_text("".join(run.text for run in line).strip())
 
 
+_SPLIT = re.compile(r"\s*[:|,;]\s*")
+
+
+def _split_one_line(text: str) -> tuple[str, str, str]:
+    """A title written on one line, cut at ":", "|", "," and ";" into small / main / sub ("BLACK FRIDAY: 5 MÓN PC ĐÁNG SĂN,
+    XEM TRƯỚC KHI MUA"). Three parts or more: the first is small, the second main and the rest the sub; two parts: a short
+    first part (up to TITLE_MAX_CHARS) before a longer one is small and main, else main and sub; one: all main."""
+    parts = [part for part in _SPLIT.split(text) if part.strip()]
+    if len(parts) >= 3:
+        return parts[0], parts[1], ", ".join(parts[2:])
+    if len(parts) == 2:
+        first, second = parts
+        if len(first) <= TITLE_MAX_CHARS and len(second) > len(first):
+            return first, second, ""
+        return "", first, second
+    return "", parts[0] if parts else "", ""
+
+
 def parse_title(lines: list[list[Run]]) -> TitleTiers:
-    """The title's lines as tiers: one line is the main one; two, main and sub; three or more, small, main and sub (the
-    rest joins the sub). A line written `[[-50%]]` is the orange label."""
+    """The title's lines as tiers: one line is cut at its punctuation (_split_one_line); two lines are main and sub; three or
+    more small, main and sub (the rest joins the sub). A line written `[[-50%]]` is the orange label."""
     texts = [_plain(line) for line in lines if _plain(line)]
     label = ""
     rest: list[str] = []
@@ -69,27 +87,33 @@ def parse_title(lines: list[list[Run]]) -> TitleTiers:
     elif len(rest) == 2:
         small, main, sub = "", rest[0], rest[1]
     else:
-        small, main, sub = "", rest[0] if rest else "", ""
+        small, main, sub = _split_one_line(rest[0] if rest else "")
     return TitleTiers(small, main, sub, label)
 
 
 def parse_scene(lines: list[list[Run]]) -> SceneTiers:
-    """A scene's text as the main line (the `*marked*` words; else the first line) and the sub line (the rest), with the
-    number the first line may start with ("3.")."""
+    """A scene's text as the main line and the sub line, with the number the first line may start with ("3."). With two
+    lines or more the first is the main one (the product's name) and the rest the sub (what it does), however the words
+    are marked: a scene's `*marked*` words highlight the benefit, not the name. A single line with marked words has them
+    as the main line and the rest as the sub (`*LOGITECH G304* không dây`); without any, the line is the main one."""
     number = ""
-    marked: list[str] = []
-    plain: list[str] = []
+    rows: list[list[Run]] = []
     for index, line in enumerate(lines):
         if index == 0 and line and (found := _NUMBER.match(line[0].text)):
             number = found.group(1)
             line = [Run(line[0].text[found.end() :], line[0].red), *line[1:]]
-        for run in line:
-            text = normalize_text(run.text.strip())
-            if text:
-                (marked if run.red else plain).append(text)
-    if not marked and plain:
-        marked, plain = [plain[0]], plain[1:]
-    return SceneTiers(number, " ".join(marked), " ".join(plain))
+        if any(run.text.strip() for run in line):
+            rows.append(line)
+    if not rows:
+        return SceneTiers(number, "", "")
+    text = lambda runs: normalize_text(" ".join(run.text.strip() for run in runs if run.text.strip()))  # noqa: E731
+    if len(rows) >= 2:
+        return SceneTiers(number, text(rows[0]), " ".join(text(row) for row in rows[1:]))
+    marked = [run for run in rows[0] if run.red]
+    plain = [run for run in rows[0] if not run.red]
+    if marked and any(run.text.strip() for run in plain):
+        return SceneTiers(number, text(marked), text(plain))
+    return SceneTiers(number, text(rows[0]), "")
 
 
 def _label(text: str) -> Image.Image:

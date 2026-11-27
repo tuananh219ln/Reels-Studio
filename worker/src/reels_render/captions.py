@@ -99,3 +99,9 @@ def plan_word_captions(words: list[Word], mode: str) -> list[Cue]:
                 cues.append(Cue(word.start, max(end, word.start + 0.05), lines, n))
         first = last
     return cues
+
+
+def after_hold(cues: list[Cue], limit: float) -> list[Cue]:
+    """The cues that come after `limit` seconds of the video: one that ends before it is dropped, one that straddles it
+    starts there. A scene whose text is held (hidden after a few seconds) shows its captions only once the text has gone."""
+    return [Cue(max(cue.start, limit), cue.end, cue.lines, cue.lit) for cue in cues if cue.end > limit]
