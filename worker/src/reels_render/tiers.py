@@ -11,16 +11,16 @@ from .markup import Run, normalize_text
 from .pc_text import PAD, PRESETS, fitted_size, hex_rgb, line_style, render_line, stack
 from .textbox import FONT_PATH, FRAME_HEIGHT, FRAME_WIDTH
 
-TITLE_SIZES = (56, 110, 72)  # small, main, sub
+TITLE_SIZES = (52, 104, 64)  # small, main, sub
 TITLE_GAP = 0.08  # of the size
 # Each title preset's sizes (small, main, sub) and the gap between its lines, of the size; a negative gap overlaps the lines
 # (docs/decisions/2026-11-27-title-presets.md). Estimates from the spec's table, to compare with the five reels.
 PRESET_TITLE = {
-    "neon_tech_teal": ((56, 100, 56), 0.08),
-    "neon_outline_price": ((64, 150, 60), -0.12),
-    "gold_metal": ((60, 130, 84), 0.04),
-    "grunge_rainbow": ((88, 96, 64), 0.04),
-    "esports_blue": ((60, 120, 70), -0.08),
+    "neon_tech_teal": ((52, 100, 56), 0.08),
+    "neon_outline_price": ((56, 128, 56), -0.12),
+    "gold_metal": ((56, 116, 68), 0.04),
+    "grunge_rainbow": ((64, 104, 60), 0.04),
+    "esports_blue": ((56, 112, 64), -0.08),
 }
 ACCENT_EXTRA = 0.12  # of the size: more room under a negative gap when the lower line carries Vietnamese marks
 PREFIX_SCALE = 0.42  # "^PHP 14,999": the first word at this share of the size, raised
@@ -28,7 +28,7 @@ TITLE_MAX_WIDTH = round(FRAME_WIDTH * 0.88)
 TITLE_CENTRE = (FRAME_WIDTH // 2, round(FRAME_HEIGHT * 0.22))
 TITLE_MAX_CHARS = 14  # a longer line still renders, shrunk to TITLE_MAX_WIDTH; the page warns (api checks)
 
-SCENE_SIZES = (88, 60)  # main, sub
+SCENE_SIZES = (80, 54)  # main, sub
 SCENE_MAX_CHARS, SCENE_MAX_SUB_WORDS = 16, 4
 SCENE_CENTRE = (
     FRAME_WIDTH // 2,
