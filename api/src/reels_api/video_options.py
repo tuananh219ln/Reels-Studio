@@ -201,7 +201,7 @@ SPEED_ERROR = f"Tốc độ đọc phải từ {MIN_SPEED} đến {MAX_SPEED}"
 
 
 # A look that was taken out: a video that still has it reads as the default one (no migration needed).
-REMOVED_STYLES = {"halftone_purple": "neon_game"}
+REMOVED_STYLES = {"halftone_purple": "neon_game", "neon_tech_teal": "neon_game"}
 
 
 def effective(video: Video) -> dict:
