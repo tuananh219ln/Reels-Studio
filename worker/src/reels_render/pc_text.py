@@ -4,6 +4,7 @@ word or a plain one), so the captions, the scenes' text and the title look alike
 """
 
 import math
+import random
 from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
@@ -17,6 +18,7 @@ FONTS = Path(__file__).parent / "fonts"
 PRESETS = ("neon_tech_teal", "neon_outline_price", "gold_metal", "grunge_rainbow", "esports_blue")
 # Whole-frame effects of a title preset (the spec's frameEffects), as one FFmpeg chain on the title scene: Mẫu 4's
 # glitch (red and blue shifted apart) and vignette. The member can switch them off (option `title_effects`).
+SPARKLE_STYLES = ("gold_metal",)  # presets with the optional sparkles, drawn into the title's picture
 FRAME_EFFECTS = {"grunge_rainbow": "format=gbrp,rgbashift=rh=-6:bh=6,vignette=angle=PI/5"}
 PC_STYLES = (
     "neon_game",
@@ -52,6 +54,7 @@ class LineStyle:
     variation: tuple[int, int | None] | None = None  # a variable font's weight and (if it has the axis) width
     across: tuple[RGB, ...] | None = None  # the fill as stops from the left edge to the right one
     echo: tuple[float, float, int] | None = None  # a faint copy above the line: offset (of the size), opacity, blur
+    speckle: tuple[RGB, int, int] | None = None  # specks over the letters, the texture's stand-in: colour, count, seed
     tilt: float = 0.0  # degrees, anticlockwise
     vi: "LineStyle | None" = None  # the look used when the line has a Vietnamese mark and the font has none
 
@@ -136,6 +139,7 @@ def _preset(style: str, key: bool, index: int) -> LineStyle:
             (6, brown),
             shadow=(0, 7, hex_rgb("#1A0F05")),
             gradient=(hex_rgb("#FFEFA0"), hex_rgb("#B7791F")),
+            speckle=(hex_rgb("#FFF6C8"), 700, 7),
             variation=(900, None),
             spacing=0.02,
         )
@@ -158,6 +162,7 @@ def _preset(style: str, key: bool, index: int) -> LineStyle:
             hex_rgb("#F2F2F2"),
             (4, dark),
             echo=(0.35, 0.35, 6),
+            speckle=(hex_rgb("#7A7A7A"), 600, 3),
             variation=(900, None),
             spacing=0.02,
         )
@@ -245,6 +250,41 @@ def _across(stops: tuple[RGB, ...], size: tuple[int, int]) -> Image.Image:
     return row.resize(size)
 
 
+def _speckle(size: tuple[int, int], colour: RGB, count: int, seed: int) -> Image.Image:
+    """Random specks (a glitter or a grunge texture made in code, so no image is bundled), the same every time."""
+    layer = Image.new("RGBA", size, (*colour, 0))
+    draw = ImageDraw.Draw(layer)
+    rng = random.Random(seed)
+    for _ in range(count):
+        x, y, r = rng.randrange(size[0]), rng.randrange(size[1]), rng.choice((1, 1, 2, 3))
+        draw.ellipse((x - r, y - r, x + r, y + r), fill=(*colour, rng.randrange(90, 230)))
+    return layer
+
+
+def sparkles(size: tuple[int, int], colour: RGB, count: int, seed: int) -> Image.Image:
+    """Four-pointed stars scattered over a picture of `size`, the spec's optional `sparkles` frame effect."""
+    layer = Image.new("RGBA", size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    rng = random.Random(seed)
+    for _ in range(count):
+        x, y, r = rng.randrange(size[0]), rng.randrange(size[1]), rng.randrange(10, 26)
+        pinch = r * 0.22
+        draw.polygon(
+            [
+                (x, y - r),
+                (x + pinch, y - pinch),
+                (x + r, y),
+                (x + pinch, y + pinch),
+                (x, y + r),
+                (x - pinch, y + pinch),
+                (x - r, y),
+                (x - pinch, y - pinch),
+            ],
+            fill=(*colour, 235),
+        )
+    return layer
+
+
 def _dots(size: tuple[int, int], colour: RGB, coverage: float) -> Image.Image:
     """A halftone: dots on a grid of 128 px cells' worth of pattern, covering `coverage` of the area."""
     cell = 14
@@ -310,6 +350,10 @@ def render_line(text: str, size: int, style: LineStyle, max_width: int = 990) ->
         else:
             fill = _gradient(*style.gradient, canvas) if style.gradient else style.fill
         paint(letters, fill)
+    if style.speckle is not None and style.fill is not None:
+        specks = _speckle(canvas, *style.speckle)
+        specks.putalpha(ImageChops.multiply(specks.getchannel("A"), letters))
+        picture.alpha_composite(specks)
     if style.dots is not None:
         dots = _dots(canvas, *style.dots)
         clipped = ImageChops.multiply(dots.getchannel("A"), letters)

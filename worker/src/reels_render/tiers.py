@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from PIL import Image, ImageDraw, ImageFont
 
 from .markup import Run, normalize_text
-from .pc_text import PAD, PRESETS, fitted_size, hex_rgb, line_style, render_line, stack
+from .pc_text import PAD, PRESETS, SPARKLE_STYLES, fitted_size, hex_rgb, line_style, render_line, sparkles, stack
 from .textbox import FONT_PATH, FRAME_HEIGHT, FRAME_WIDTH
 
 TITLE_SIZES = (52, 104, 64)  # small, main, sub
@@ -154,28 +154,53 @@ def _line(text: str, size: int, style: str, key: bool, index: int, max_width: in
     return row
 
 
-def render_title(tiers: TitleTiers, style: str = "brand_navy") -> Image.Image:
+MIN_FIT = 0.7  # a preset's line may shrink to this share of its size; a longer one is wrapped (the spec's rule 3)
+SPARKLE_COUNT, SPARKLE_COLOUR = 14, "#FFF3B0"
+
+
+def _wrapped(text: str) -> list[str]:
+    """The text cut in two at the space nearest its middle (itself when it has no space)."""
+    spaces = [at for at, char in enumerate(text) if char == " "]
+    if not spaces:
+        return [text]
+    cut = min(spaces, key=lambda at: abs(at - len(text) / 2))
+    return [text[:cut], text[cut + 1 :]]
+
+
+def render_title(tiers: TitleTiers, style: str = "brand_navy", effects: bool = True) -> Image.Image:
     """The three tiers stacked and centred, the label at the block's top right. Each line shrinks to fit 88% of the width;
-    in a title preset the whole block shrinks by one factor instead, so the lines keep their sizes' proportions."""
+    in a title preset a line that would shrink under 70% is wrapped in two, and the whole block shrinks by one factor
+    instead, so the lines keep their sizes' proportions. `effects` draws the preset's sparkles, where it has them."""
     base, gap = PRESET_TITLE.get(style, (TITLE_SIZES, TITLE_GAP))
-    pairs = [(text, size) for size, text in zip(base, (tiers.small, tiers.main, tiers.sub)) if text]
-    texts = [text for text, _ in pairs]
-    sizes = [size for _, size in pairs]
-    if style in PRESETS:
-        factor = min(
-            fitted_size(text.lstrip("^"), size, line_style(style, text == tiers.main, index), TITLE_MAX_WIDTH) / size
-            for index, (text, size) in enumerate(pairs)
-        )
-        sizes = [max(24, round(size * factor)) for size in sizes]
-    pictures = [
-        _line(text, size, style, text == tiers.main, index, TITLE_MAX_WIDTH)
-        for index, (text, size) in enumerate(zip(texts, sizes))
+    # (text, size, is the main line, the place for the look): a wrapped line's halves share the last two
+    items = [
+        (text, size, text == tiers.main, index)
+        for index, (text, size) in enumerate((t, z) for z, t in zip(base, (tiers.small, tiers.main, tiers.sub)) if t)
     ]
+    if style in PRESETS:
+        wrapped = []
+        for text, size, key, index in items:
+            look = line_style(style, key, index)
+            if fitted_size(text.lstrip("^"), size, look, TITLE_MAX_WIDTH) < size * MIN_FIT and " " in text:
+                wrapped += [(half, size, key, index) for half in _wrapped(text)]
+            else:
+                wrapped.append((text, size, key, index))
+        items = wrapped
+        factor = min(
+            fitted_size(text.lstrip("^"), size, line_style(style, key, index), TITLE_MAX_WIDTH) / size
+            for text, size, key, index in items
+        )
+        items = [(text, max(24, round(size * factor)), key, index) for text, size, key, index in items]
+    pictures = [_line(text, size, style, key, index, TITLE_MAX_WIDTH) for text, size, key, index in items]
     gaps = [
-        round((gap + (ACCENT_EXTRA if gap < 0 and not texts[index + 1].isascii() else 0)) * sizes[index])
-        for index in range(len(sizes) - 1)
+        round((gap + (ACCENT_EXTRA if gap < 0 and not items[at + 1][0].isascii() else 0)) * items[at][1])
+        for at in range(len(items) - 1)
     ]
     block = stack(pictures, gaps)
+    if effects and style in SPARKLE_STYLES:
+        stars = sparkles(block.size, hex_rgb(SPARKLE_COLOUR), SPARKLE_COUNT, 11)  # inside the picture's own padding
+        stars.alpha_composite(block)  # the letters over the stars
+        block = stars
     if tiers.label:
         label = _label(tiers.label)
         canvas = Image.new("RGBA", (max(block.width, label.width + 40), block.height + label.height // 2), (0, 0, 0, 0))

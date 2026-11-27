@@ -21,7 +21,7 @@ from reels_render.options import (
     ZOOMS,
     RenderOptions,
 )
-from reels_render.pc_text import FRAME_EFFECTS, PC_STYLES
+from reels_render.pc_text import FRAME_EFFECTS, PC_STYLES, SPARKLE_STYLES
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH, is_hex
 from reels_render.timeline import VOICE_TAIL
 
@@ -357,11 +357,17 @@ def voice_pause(video: Video) -> float:
     return effective(video)["voice_pause"]
 
 
+# The title presets that have effects to switch off: FFmpeg's on the title scene, or sparkles in its picture.
+EFFECT_STYLES = (*FRAME_EFFECTS, *SPARKLE_STYLES)
+
+
 def text_look(video: Video) -> tuple[str, ...]:
     """The values the text boxes are drawn with (LOOK_FIELDS, and PC Shopee's title layout and look): previews and the
     thumbnail change with them."""
     values = effective(video)
-    return tuple(values[name] for name in (*LOOK_FIELDS, "title_layout", "pc_title_style"))
+    look = tuple(values[name] for name in (*LOOK_FIELDS, "title_layout", "pc_title_style"))
+    # The sparkles are drawn into the title's picture, so its previews change with the switch (only then, so no other address moves).
+    return (*look, values["title_effects"]) if values["pc_title_style"] in SPARKLE_STYLES else look
 
 
 # What a content scene's box is drawn with; the title's depends on every look field.
@@ -414,7 +420,7 @@ def render_options(video: Video) -> RenderOptions:
         text_shade=values["text_shade"],
         pc_style=values["pc_style"],
         pc_title_style=values["pc_title_style"],
-        title_effects=values["title_effects"] and values["pc_title_style"] in FRAME_EFFECTS,
+        title_effects=values["title_effects"] and values["pc_title_style"] in EFFECT_STYLES,
         title_layout=values["title_layout"],
         scene_text_layout=values["scene_text_layout"],
         backdrop=video.mode == "single",
