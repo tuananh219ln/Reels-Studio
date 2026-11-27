@@ -13,6 +13,7 @@ from .framing import BACKDROP_ZOOM_SHARE, PHOTO_ZOOM_SHARE
 from .layers import ANIMATION_SECONDS, SLIDE_UP_PX
 from .logo import Placement
 from .options import DEFAULT_OPTIONS, RenderOptions
+from .pc_text import FRAME_EFFECTS
 from .sounds import MUSIC_LEVELS, SOUNDS
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
 from .timeline import FPS, HALF_XFADE, VOICE_LEAD, XFADE_FRAMES, Timeline
@@ -401,7 +402,9 @@ def build_filter_graph(
         if fades:
             chains.append(f"[{box}:v]format=rgba,{','.join(fades)}[t{index}]")
             text = f"t{index}"
-        chains.append(f"[{under}][{text}]overlay=x={box_x}:y={box_y},format=yuv420p,setsar=1[v{index}]")
+        title_effects = FRAME_EFFECTS.get(options.pc_title_style) if index == 0 and options.title_effects else None
+        effects = f"{title_effects}," if title_effects else ""
+        chains.append(f"[{under}][{text}]overlay=x={box_x}:y={box_y},{effects}format=yuv420p,setsar=1[v{index}]")
 
     if cut:
         joined = "".join(f"[v{index}]" for index in range(count))

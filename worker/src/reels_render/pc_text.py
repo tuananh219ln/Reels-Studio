@@ -15,6 +15,9 @@ from .textbox import FONT_PATH as BE_VIETNAM_PATH
 BUNGEE_PATH = Path(__file__).parent / "fonts" / "Bungee-Regular.ttf"
 FONTS = Path(__file__).parent / "fonts"
 PRESETS = ("neon_tech_teal", "neon_outline_price", "gold_metal", "grunge_rainbow", "esports_blue")
+# Whole-frame effects of a title preset (the spec's frameEffects), as one FFmpeg chain on the title scene: Mẫu 4's
+# glitch (red and blue shifted apart) and vignette. The member can switch them off (option `title_effects`).
+FRAME_EFFECTS = {"grunge_rainbow": "format=gbrp,rgbashift=rh=-6:bh=6,vignette=angle=PI/5"}
 PC_STYLES = (
     "neon_game",
     "halftone_purple",

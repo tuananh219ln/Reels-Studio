@@ -1206,6 +1206,8 @@ export type VideoOptions = {
   /** PC Shopee's compact text: the title in three tiers, a content scene's text in two ("box": the text boxes). */
   title_layout: "box" | "three_tier";
   scene_text_layout: "box" | "two_tier";
+  /** The title preset's whole-frame effects (glitch, vignette) on the title scene, where the preset has some. */
+  title_effects: boolean;
   pc_title_style:
     | "neon_game"
     | "halftone_purple"

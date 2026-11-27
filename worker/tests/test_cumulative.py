@@ -421,3 +421,36 @@ def test_the_esports_price_draws_its_prefix_small_and_raised():
     raised = render_title(TitleTiers("GAMING", "PC", "^PHP 14,999", ""), "esports_blue")
     assert raised.getbbox() is not None and raised.width <= 1080
     assert raised.size != plain.size  # a different picture, not the prefix as plain text
+
+
+def test_the_title_effects_filter_only_the_title_scene_and_only_when_on():
+    from reels_render.graph import build_filter_graph
+    from reels_render.timeline import build_timeline
+
+    timeline = build_timeline([2, 3])
+    on = build_filter_graph(
+        [(0, 0)] * 2, timeline, None, options=RenderOptions(pc_title_style="grunge_rainbow", title_effects=True)
+    )
+    assert "rgbashift" in on and "vignette" in on and on.count("rgbashift") == 1
+    assert on.index("rgbashift") < on.index("[v0]")
+    off = build_filter_graph([(0, 0)] * 2, timeline, None, options=RenderOptions(pc_title_style="grunge_rainbow"))
+    other = build_filter_graph(
+        [(0, 0)] * 2, timeline, None, options=RenderOptions(pc_title_style="gold_metal", title_effects=True)
+    )
+    assert "rgbashift" not in off and "rgbashift" not in other
+
+
+@needs_ffmpeg
+def test_the_title_effects_chain_is_a_valid_ffmpeg_filter(tmp_path):
+    import subprocess
+
+    from reels_render.ffmpeg import find_tools
+    from reels_render.pc_text import FRAME_EFFECTS
+
+    out = tmp_path / "frame.png"
+    subprocess.run(
+        [find_tools().ffmpeg, "-y", "-f", "lavfi", "-i", "color=c=gray:s=1080x1920:d=1", "-vf",
+         f"{FRAME_EFFECTS['grunge_rainbow']},format=yuv420p", "-frames:v", "1", str(out)],
+        check=True, capture_output=True,
+    )  # fmt: skip
+    assert Image.open(out).size == (1080, 1920)

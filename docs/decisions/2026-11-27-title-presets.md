@@ -11,7 +11,10 @@
 - **Vietnamese:** Audiowide and Permanent Marker have no Vietnamese marks (checked). A line with a mark outside ASCII is drawn with the
   preset's fallback (`LineStyle.vi`): Saira wdth 125 for Audiowide. **Open question from the spec:** Permanent Marker falls back to
   Be Vietnam Pro Black for now; a handwritten brush font with Vietnamese is still to be chosen.
-- **Not built yet:** `frameEffects` (RGB split, vignette, sparkles), texture images (gold uses a gradient, the spec's `fallback`),
+- **Frame effects (Mẫu 4):** the glitch (red and blue shifted 6 px apart) and a vignette are one FFmpeg chain on the title scene
+  (`pc_text.FRAME_EFFECTS`, applied after the text so the title is glitched too). The option `title_effects` (default on, shown
+  under the title's look only for Grunge cầu vồng) switches them off; the text is the same either way. Sparkles are not built.
+- **Not built yet:** sparkles, texture images (gold uses a gradient, the spec's `fallback`),
   the superscript "PHP", negative line gaps, per-preset font sizes (the title keeps 56/110/72), and the "Kiểu tiêu đề" thumbnails.
   Colours and sizes are estimates from the spec's table (`title-presets.json` was not in the repo) and need a person to compare them
   with the five reels.

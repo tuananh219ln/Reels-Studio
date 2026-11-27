@@ -135,7 +135,7 @@ def options_dict(options) -> dict:
     values = asdict(options)
     # Each sent only when on, for the same reason: `clip_blur` (blurred boxes on a clip) and `clip_loop` (a
     # scene's "Lặp clip") and `text_shade` (the dark band behind the text) too.
-    for name in ("backdrop", "clip_blur", "logo", "clip_loop", "text_shade", "text_hold"):
+    for name in ("backdrop", "clip_blur", "logo", "clip_loop", "text_shade", "text_hold", "title_effects"):
         if not values[name]:
             del values[name]
     # Likewise the PC Shopee look, unless it is the first one.
