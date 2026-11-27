@@ -1,11 +1,11 @@
-"""The sample picture of each PC Shopee title preset, for the picker on a video's Thiết lập (docs/decisions/2026-11-27-title-presets.md)."""
+"""The sample picture of each PC Shopee look (Neon game, Thương hiệu and the title presets), for the picker on a video's Thiết lập (docs/decisions/2026-11-27-title-presets.md)."""
 
 import io
 from functools import lru_cache
 
 from fastapi import APIRouter, Depends, Response
 
-from reels_render.pc_text import PRESETS
+from reels_render.pc_text import PC_STYLES
 from reels_render.tiers import TitleTiers, render_title
 
 from .errors import ApiError
@@ -18,7 +18,7 @@ SAMPLE = TitleTiers("BLACK FRIDAY", "GIÁ RẺ BẤT NGỜ", "MÁY TÍNH ĐỒ H
 WIDTH = 360  # px: the picker's tile; the title is drawn at 1080 and scaled down
 
 
-@lru_cache(maxsize=len(PRESETS))
+@lru_cache(maxsize=len(PC_STYLES))
 def sample_png(style: str) -> bytes:
     from PIL import Image
 
@@ -31,6 +31,6 @@ def sample_png(style: str) -> bytes:
 
 @router.get("/{style}.png")
 def sample(style: str, me: Session = Depends(current_member)) -> Response:
-    if style not in PRESETS:
+    if style not in PC_STYLES:
         raise ApiError(404, "not_found", "Không có kiểu chữ này")
     return Response(sample_png(style), media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
