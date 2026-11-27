@@ -46,3 +46,6 @@ Part of the spec "Ẩn chữ & Phụ đề Cộng dồn" (Looper, 2026-11-27); l
   text is the same main and sub lines in the same look and zone as the other scenes, so the video's text is all of one look. It still
   stays the whole scene (never hidden by a hold, never replaced by "Cộng dồn") and is not warned about for its length (the line shrinks
   to fit). The earlier "the last scene keeps the text box" lines above no longer apply to a video with the compact scene text.
+- **Changed (2026-11-27): the compact text follows the video's "Cỡ chữ"** (`text_size` for a scene, `title_text_size` for the title):
+  "Lớn" is the sizes above as they were, "Vừa" 80% and "Nhỏ" 65% of them (`tiers.TEXT_SCALE`), the numbered circle and the line
+  gaps with them. The block stays centred on the same place, so a smaller text shrinks towards its centre. Videos at "Lớn" are unchanged.

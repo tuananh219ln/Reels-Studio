@@ -3,6 +3,9 @@
 
 Trang một video (`/videos/<số>`) tự cập nhật khi có job chạy và khi đồng đội sửa cùng lúc.
 
+## Cỡ chữ gọn của PC Shopee
+Chữ gọn (tiêu đề 3 tầng, cảnh 2 tầng) theo mục **Cỡ chữ** ở tab Thiết lập: **Lớn** như cũ, **Vừa** nhỏ khoảng 80%, **Nhỏ** khoảng 65%. Chữ thu nhỏ quanh đúng chỗ cũ, vẫn căn giữa.
+
 ## Kiểu chữ tiêu đề PC Shopee
 Với video nhóm PC Shopee (chữ gọn), tab **Thiết lập** có ô **Kiểu chữ PC Shopee** và **Kiểu chữ tiêu đề**. Ngoài Neon game và Thương hiệu, có thêm 5 kiểu cụm 2–3 dòng: **Neon xanh ngọc**, **Giá neon viền**, **Vàng kim loại**, **Grunge cầu vồng** và **Esports xanh**.
 - Chọn kiểu rồi chỉ nhập chữ cho từng dòng (Dòng nhỏ, Dòng chính, Dòng phụ). Dòng dài tự co để không tràn khung.
