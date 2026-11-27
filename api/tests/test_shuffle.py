@@ -267,3 +267,78 @@ def test_reshuffle_keeps_pinned_scenes(an, db, me, storage):
     an.post(f"/api/shuffle/videos/{copy_id}/reshuffle", json={"pinned_scene_ids": [before[0]]})
     after = [scene.id for scene in content(db, copy_id)]
     assert after[0] == before[0] and after != before
+
+
+# --- detailed comments (one per dish) follow the scenes ---
+
+
+def dish_comment(number: int, dish: str) -> str:
+    return f"{number}. {dish}\nCông dụng, cách làm từng bước và ai nên hỏi bác sĩ trước khi ăn món này mỗi ngày."
+
+
+def test_dish_comments_follow_the_new_order_and_are_renumbered(an, db, me, storage):
+    video, ids = numbered_video(db, storage, me)
+    # One comment per dish, the closing scene (the last) left out, as "Lưu bình luận chi tiết từng món" asks.
+    video.extra_comments = [dish_comment(number, DISHES[number - 1]) for number in range(1, 5)]
+    db.commit()
+    orders = an.post(f"/api/shuffle/videos/{video.id}/preview", json={"count": 3, "lock_last": True}).json()["orders"]
+
+    made = an.post(f"/api/shuffle/videos/{video.id}/copies", json={"orders": orders, "lock_last": True}).json()
+
+    for copy, order in zip(made["videos"], orders, strict=True):
+        expected = [dish_comment(place, DISHES[ids.index(scene_id)]) for place, scene_id in enumerate(order[:4], 1)]
+        assert db.get(Video, copy["id"]).extra_comments == expected
+    assert db.get(Video, video.id).extra_comments == [dish_comment(n, DISHES[n - 1]) for n in range(1, 5)]
+
+
+def test_dish_comments_keep_their_numbers_when_the_text_is_not_renumbered(an, db, me, storage):
+    video, ids = numbered_video(db, storage, me, count=3)
+    video.extra_comments = [dish_comment(number, DISHES[number - 1]) for number in range(1, 4)]
+    db.commit()
+    order = [ids[2], ids[0], ids[1]]
+
+    made = an.post(f"/api/shuffle/videos/{video.id}/copies", json={"orders": [order], "renumber": False}).json()
+
+    assert db.get(Video, made["videos"][0]["id"]).extra_comments == [
+        dish_comment(3, DISHES[2]),
+        dish_comment(1, DISHES[0]),
+        dish_comment(2, DISHES[1]),
+    ]
+
+
+def test_comments_that_do_not_match_the_scenes_keep_their_order(an, db, me, storage):
+    video, ids = numbered_video(db, storage, me, count=4)
+    video.extra_comments = ["Bình luận chung thứ nhất", "Bình luận chung thứ hai"]
+    db.commit()
+
+    made = an.post(f"/api/shuffle/videos/{video.id}/copies", json={"orders": [[ids[1], ids[0], ids[2], ids[3]]]})
+
+    assert made.status_code == 201
+    assert db.get(Video, made.json()["videos"][0]["id"]).extra_comments == video.extra_comments
+    assert any("Bình luận thêm" in warning for warning in made.json()["warnings"])
+
+
+def test_reshuffle_and_undo_move_the_dish_comments_too(an, db, me, storage):
+    video, ids = numbered_video(db, storage, me, count=4)
+    video.extra_comments = [dish_comment(number, DISHES[number - 1]) for number in range(1, 5)]
+    db.commit()
+    copy_id = an.post(f"/api/shuffle/videos/{video.id}/copies", json={"orders": [[ids[1], ids[0], ids[2], ids[3]]]})
+    copy_id = copy_id.json()["videos"][0]["id"]
+    before = list(db.get(Video, copy_id).extra_comments)
+
+    shuffled = an.post(f"/api/shuffle/videos/{copy_id}/reshuffle", json={}).json()
+
+    db.expire_all()
+    dishes = [DISHES[ids.index(scene.source_scene_id)] for scene in content(db, copy_id)]
+    assert db.get(Video, copy_id).extra_comments == [dish_comment(n, dish) for n, dish in enumerate(dishes, 1)]
+    an.post(f"/api/shuffle/videos/{copy_id}/reshuffle", json={"order": shuffled["previous_order"]})
+    db.expire_all()
+    assert db.get(Video, copy_id).extra_comments == before
+
+
+def test_an_exact_copy_keeps_the_comments_as_they_are(an, db, me, storage):
+    video, _ = numbered_video(db, storage, me, count=3)
+    video.extra_comments = [dish_comment(number, DISHES[number - 1]) for number in range(1, 4)]
+    db.commit()
+    exact = an.post(f"/api/videos/{video.id}/duplicate").json()
+    assert db.get(Video, exact["id"]).extra_comments == video.extra_comments

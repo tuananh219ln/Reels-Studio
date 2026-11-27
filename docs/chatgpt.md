@@ -406,7 +406,9 @@ well and post the copy on another Page, through the web's own rules:
 `shuffle_duplicate_video` (write) is "Nhân bản xáo cảnh" ([the decision](decisions/2026-11-17-shuffle-copies.md)):
 `count` copies (1–20) of a video, each with its content scenes in another order (`lock_last`, `pinned_scene_ids` keep
 scenes in place; `renumber` writes the list numbers again), through `shuffle.preview` and `shuffle.make_copies` as the
-web's drawer. No AI call of the team's and no MP4. The answer lists each copy with its `title_scene_id`, title and
+web's drawer. No AI call of the team's and no MP4. Each copy's detailed comments per dish (`set_food_comments`)
+follow their scenes into the new order, renumbered with them; comments that are not one per dish keep their order
+and the tool's `warnings` say so. The answer lists each copy with its `title_scene_id`, title and
 scene lines, the source's `title_options` and the `used_titles` of the source and its copies; the tool's description
 asks the assistant to write each copy a new title with the same idea and numbers and save it with `update_scene`, so
 the hook is rewritten on the member's own plan rather than the team's AI service. A changed title ends the copy's

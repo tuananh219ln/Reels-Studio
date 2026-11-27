@@ -227,6 +227,28 @@ def _apply(scenes_in_order: list[Scene], renumbering: bool) -> None:
             scene.voice_text = renumber(scene.voice_text, position)
 
 
+def _comments_in_order(
+    comments: list[str], ids: list[int], order: list[int], renumbering: bool
+) -> tuple[list[str], list[str]]:
+    """The video's "Bình luận thêm" for its scenes in `order`, and a warning when they are left as they were. They are
+    one per dish in the scenes' order (`ids`), the closing scene often left out ("Lưu bình luận chi tiết từng món"), so
+    each goes with its scene, and its list number with the scene's new place when the text is renumbered. Comments
+    that are not one per scene in that way cannot be matched to a scene and keep their order."""
+    if not comments:
+        return comments, []
+    if len(comments) not in (len(ids), len(ids) - 1):
+        return comments, [
+            f"Bình luận thêm có {len(comments)} bình luận, không khớp {len(ids)} cảnh nên giữ nguyên thứ tự; "
+            "hãy xem lại nếu đó là bình luận từng món"
+        ]
+    by_scene = dict(zip(ids, comments, strict=False))
+    return [
+        renumber(by_scene[scene_id], place) if renumbering else by_scene[scene_id]
+        for place, scene_id in enumerate(order, start=1)
+        if scene_id in by_scene
+    ], []
+
+
 def make_copies(
     db: DbSession,
     storage: DirectoryStorage,
@@ -248,6 +270,8 @@ def make_copies(
     made = db.scalar(select(func.count()).select_from(Video).where(Video.shuffled_from_id == root)) or 0
     base = video_name(source, title)
     keys = {scene.id: _key(scene) for scene in scenes}
+    ids = [scene.id for scene in scenes]
+    comment_warnings: list[str] = []
     copies: list[Video] = []
     try:
         for index, order in enumerate(orders, start=made + 1):
@@ -261,12 +285,15 @@ def make_copies(
             draft.shuffled_from_id = root
             draft.scene_order = _signature(keys[scene_id] for scene_id in order)
             draft.review_title = title_of(source, title) or None
+            draft.extra_comments, comment_warnings = _comments_in_order(
+                list(source.extra_comments), ids, order, renumbering
+            )
         db.flush()
     except BaseException:
         for draft in copies:
             storage.delete_prefix(f"videos/{draft.id}")
         raise
-    return copies, renumbering, warnings
+    return copies, renumbering, warnings + comment_warnings
 
 
 def reshuffle(
@@ -288,5 +315,6 @@ def reshuffle(
     by_id = {scene.id: scene for scene in scenes}
     renumbering = renumber_text and numbered(scenes)[0]
     _apply([by_id[scene_id] for scene_id in order], renumbering)
+    video.extra_comments, _ = _comments_in_order(list(video.extra_comments), previous, order, renumbering)
     video.scene_order = _signature(_key(by_id[scene_id]) for scene_id in order)
     return previous

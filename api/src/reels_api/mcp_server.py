@@ -2937,7 +2937,8 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     ) -> dict:
         """Như "Nhân bản xáo cảnh" trên web: tạo `count` bản copy, mỗi bản đổi thứ tự các cảnh nội dung (khác video
         gốc và khác các bản đã tạo trước), cảnh tiêu đề luôn đứng đầu; không gọi AI, không copy MP4: render trước khi
-        đăng. Sau khi tạo, viết cho MỖI bản một tiêu đề mới rồi ghi bằng "Sửa cảnh" vào title_scene_id (text, và
+        đăng. Bình luận chi tiết từng món đi theo cảnh của nó sang thứ tự mới (số đầu dòng đánh lại khi renumber);
+        bình luận không khớp số cảnh giữ nguyên và có cảnh báo trong warnings. Sau khi tạo, viết cho MỖI bản một tiêu đề mới rồi ghi bằng "Sửa cảnh" vào title_scene_id (text, và
         voice_text nếu cảnh tiêu đề có lời đọc): cùng ý và chủ đề với tiêu đề gốc, không thêm lợi ích, con số hay
         khẳng định mới; giữ nguyên các con số (nhất là số cảnh); dài gần bằng bản gốc (±20% số từ); giữ cách viết né
         kiểm duyệt nếu có (vd. "th.uốc"); mỗi bản một cách diễn đạt khác hẳn, khác used_titles; tiếng Việt có dấu,
