@@ -133,6 +133,7 @@ when set to an empty string. Containers use real environment variables only.
 | `INSTAGRAM_VIDEO_BASE_URL` | api, optional: public https address Instagram fetches a Reel's MP4 from (`video_url`); empty uses the first https origin of `ALLOWED_ORIGINS` (the web domain). With neither, the MP4 is sent by resumable upload |
 | `MCP_PUBLIC_URL` | api, optional: public web URL ending in `/api/mcp`; enables private ChatGPT and Claude MCP/OAuth. Empty disables it. HTTPS required except localhost; the origin must be in `ALLOWED_ORIGINS`. See [chatgpt.md](chatgpt.md) |
 | `TELEGRAM_BOT_TOKEN` | api + worker, optional: the team's Telegram bot (the same token as the repo secret of "Có gì mới"), for private messages to each member ([Telegram](#telegram)). Empty turns them off |
+| `TELEGRAM_CHAT_ID` | api + worker, optional: the team's shared group (the same id as the repo secret), for the bot's daily summary at 21:00 Vietnam time. Empty: no summary |
 | `TELEGRAM_API_URL` | api + worker, tests only: the Bot API's address; tests point it at the fake services |
 | `CHANGELOG_URL` | api, optional: where the MCP tool `get_whats_new` reads the web's `changelog.json`; empty: the origin of `MCP_PUBLIC_URL` + `/changelog.json`. Tests point it at the fake services |
 | `REELS_SERVER`, `REELS_NODE_TOKEN` | render machine only (`python -m reels_api node` on a member's computer), never the api or the worker: the web address and the machine's token from Cài đặt › Máy render. `api/scripts/render-node.ps1` sets both for its run. See [Render machine](#render-machine) |
@@ -182,10 +183,13 @@ news. Set up once by the owner:
    set; if the list is empty, remove and re-add the bot, send again).
 4. In the repo's Settings › Secrets and variables › Actions: secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`;
    optionally the variable `WEB_URL` (the web app's address) for the "Xem trong app" link.
-5. On Coolify, the same `TELEGRAM_BOT_TOKEN` as an environment variable of the api and the worker, then redeploy them.
+5. On Coolify, the same `TELEGRAM_BOT_TOKEN` as an environment variable of the api and the worker (and
+   `TELEGRAM_CHAT_ID` too, for the group's daily summary), then redeploy them.
    `ALLOWED_ORIGINS` must hold the web's https address: Telegram's webhook goes there (`/api/telegram/webhook`, proxied to
    the api like every `/api` path).
-6. Each member opens Cài đặt › Thông báo Telegram, presses **Kết nối Telegram**, then **Start** in Telegram.
+6. Optionally, in @BotFather › the bot › Edit Info, a picture and a description. The "/" command menu is set by the
+   api itself (`setMyCommands`) when the webhook is set.
+7. Each member opens Cài đặt › Thông báo Telegram, presses **Kết nối Telegram**, then **Start** in Telegram.
 
 Without the secrets the CI step sends nothing and passes; without the api's token the private messages are off and the
 settings page says so. A deploy with no `feat`/`fix`/`perf` change sends nothing to the group.
@@ -226,6 +230,9 @@ wrapper, so that check is the main guard there.
   harmless ([decision](decisions/2026-11-11-media-tags.md)).
 - **Storage growth:** each video is about 10–30 MB, which is about 1–3 GB/month at 3 videos/day.
   Deleting a video removes its folder for good; there is no other cleanup.
+  `python -m reels_api storage-report` (read only; run it in the `api` container's terminal by the owner) prints the
+  video files' size by kind, by how long ago the video was last posted, the folders whose video is gone, and how
+  much a 30/60-day cleanup could free ([brief](specs/video-media-retention/brief.md), step 1).
 - **Worker:** its log (Coolify Logs of the worker app) shows `Worker lock acquired` once it takes
   jobs, one line per Claude call with token counts, and every job failure with its detail. A worker
   that starts while the database is unreachable waits and logs `Database unavailable`; once it holds

@@ -85,13 +85,29 @@ def check_format(info: dict) -> tuple[list[dict], float]:
         checks.append(_check("format", "Định dạng", "pass", f"1080×1920 H.264, {fps:.0f} khung/giây"))
     if audio is None:
         checks.append(_check("audio_track", "Âm thanh", "fail", "MP4 không có đường tiếng"))
-    if length < TOO_SHORT:
-        checks.append(_check("duration", "Độ dài", "fail", f"{length:.1f} giây, quá ngắn"))
-    elif length < SHORT or length > LONG:
-        checks.append(_check("duration", "Độ dài", "warn", f"{length:.1f} giây, kênh nhắm 20–40 giây"))
-    else:
-        checks.append(_check("duration", "Độ dài", "pass", f"{length:.1f} giây"))
+    checks.append(check_length(length, SHORT, LONG))
     return checks, length
+
+
+def check_length(length: float, short: float, long: float) -> dict:
+    """The "Độ dài" check of an MP4 against the channel's range (qc_config.channel_seconds of the video's group)."""
+    if length < TOO_SHORT:
+        return _check("duration", "Độ dài", "fail", f"{length:.1f} giây, quá ngắn")
+    if length < short or length > long:
+        return _check("duration", "Độ dài", "warn", f"{length:.1f} giây, kênh nhắm {short:g}–{long:g} giây")
+    return _check("duration", "Độ dài", "pass", f"{length:.1f} giây")
+
+
+def rejudge_length(measured: dict | None, length: float | None, short: float, long: float) -> dict | None:
+    """The render's QC with its "Độ dài" judged again against `short`–`long`: the range is the video's group's now,
+    not the one when it was rendered. Nothing measured, or no length, is left as it is."""
+    if not measured or length is None or not any(c.get("id") == "duration" for c in measured.get("checks", [])):
+        return measured
+    checks = [
+        check_length(length, short, long) if check.get("id") == "duration" else check for check in measured["checks"]
+    ]
+    status = max((check["status"] for check in checks), key=lambda value: RANK.get(value, 0), default="pass")
+    return {**measured, "status": status, "checks": checks}
 
 
 def check_audio(path: Path, length: float, expect_sound: bool) -> list[dict]:

@@ -149,19 +149,33 @@ def readable(at: datetime, youtube_on: bool | None = None):
     return or_(facebook_post, youtube_post)
 
 
-def due_posts(db: DbSession, limit: int = BATCH, platform: str = "facebook") -> list[Publication]:
-    """The posts of `platform` to read now: asked for first, then the most overdue. A post never read is due as soon as
-    it is live (within MAX_AGE); after that its `next_snapshot_at` says when (next_reading)."""
-    at = now()
+def _first_due(at: datetime):
+    """A post never read and live: the worker reads it in its next round, without anyone asking."""
     live = _live_at()
-    asked = _asked()
-    first = and_(
+    return and_(
         Publication.next_snapshot_at.is_(None),
         Publication.metrics_tried_at.is_(None),
         Publication.status != "deleted",
         live <= at,
         live > at - MAX_AGE,
     )
+
+
+def awaiting_first_reading(db: DbSession, ids: list[int]) -> set[int]:
+    """Of `ids`, the posts the worker will read in its next round for the first time. "Bài đăng" shows them as
+    refreshing like a reading asked for, so the board is read again until their numbers come."""
+    if not ids:
+        return set()
+    at = now()
+    return set(db.scalars(select(Publication.id).where(Publication.id.in_(ids), readable(at), _first_due(at))))
+
+
+def due_posts(db: DbSession, limit: int = BATCH, platform: str = "facebook") -> list[Publication]:
+    """The posts of `platform` to read now: asked for first, then the most overdue. A post never read is due as soon as
+    it is live (within MAX_AGE); after that its `next_snapshot_at` says when (next_reading)."""
+    at = now()
+    asked = _asked()
+    first = _first_due(at)
     scheduled = and_(Publication.next_snapshot_at.is_not(None), Publication.next_snapshot_at <= at)
     query = (
         select(Publication)

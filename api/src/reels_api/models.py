@@ -231,6 +231,9 @@ class KnowledgeTopic(Base):
     # "Mô tả YouTube" (migration 0126, youtube_meta.py): the YouTube hashtags, keywords, Subscribe line and disclaimer
     # its videos' uploads carry instead of the Facebook caption; None: the caption and the video's hashtags.
     youtube_meta: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
+    # "QC & duyệt" (migration 0136, qc_config.py): the group's yellow ranges and whether approving asks for a title;
+    # None: the app's defaults, as every group before.
+    qc_config: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # The group's "Mẫu dựng" (part 2 of docs/specs/per-user-settings-ownership), picked from the saved ones, and the
     # one its new videos take ("app" or one of them; None for none), over their maker's own (autoedit).
     edit_templates: Mapped[list["EditTemplate"]] = relationship(
@@ -437,6 +440,10 @@ class Video(Base):
     shuffled_from_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"), index=True)
     scene_order: Mapped[str | None] = mapped_column(Text)
     review_title: Mapped[str | None] = mapped_column(Text)
+    # "Không dùng tiêu đề" (migration 0136): the member chose no title text, so approving does not ask for one even in a
+    # group that does (review.qc_report); `kept_title` is the text the title scene had then, given back when unticked.
+    no_title: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    kept_title: Mapped[str | None] = mapped_column(Text)
     # Shopee product suggestions (affiliate_suggest.py): asked for, with whose account, done, and what went wrong.
     suggest_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     suggest_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
@@ -931,13 +938,15 @@ class UserVideoDefaults(Base):
 
 
 class VideoEvent(Base):
-    """One step of a video's review (review.py): who did what, from which channel, and when."""
+    """One step of a video's review (review.py), or a YouTube claim noted by hand (youtube_claims.py): who did what,
+    from which channel, and when."""
 
     __tablename__ = "video_events"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
-    type: Mapped[str] = mapped_column(String(24))  # approved | rejected | restored | review_requested | publish_skipped
+    # approved | rejected | restored | review_requested | publish_skipped | youtube_claim | youtube_claim_cleared
+    type: Mapped[str] = mapped_column(String(24))
     from_status: Mapped[str | None] = mapped_column(String(16))
     to_status: Mapped[str | None] = mapped_column(String(16))
     actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
@@ -1539,6 +1548,11 @@ class MusicTrack(Base):
     )  # names of Kho kiến thức groups, or "chung" (music_topics.py)
     mood: Mapped[str] = mapped_column(String(40))  # a value from music.MOODS
     license_note: Mapped[str] = mapped_column(Text, default="")
+    # "Đã bị claim trên YouTube" (migration 0136, docs/decisions/2026-11-26-youtube-claimed-music.md): YouTube's Content
+    # ID claimed a video that used it, so no video takes it any more (music_claims.py); copies already in videos stay.
+    claimed_on_youtube: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    claimed_note: Mapped[str] = mapped_column(Text, default="", server_default="")  # which video, who claimed, when
     storage_key: Mapped[str] = mapped_column(String(200))
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

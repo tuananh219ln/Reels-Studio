@@ -159,13 +159,15 @@ def test_stop_and_the_settings_page_unlink(an, app, db, me, bot):
     assert "Đã ngắt kết nối" in texts(bot)[-1]
 
 
-def test_in_a_group_the_bot_only_tells_the_chat_id(app, bot):
+def test_in_a_group_the_bot_answers_its_commands_only(app, bot):
     group = {"chat": {"id": -100123, "type": "supergroup"}, "from": {"id": CHAT}}
-    update(app, {"message": {**group, "text": "/start abc"}})
     update(app, {"message": {**group, "text": "chào bot"}})
     assert bot.telegram_calls == []
     update(app, {"message": {**group, "text": "/chatid@reels_test_bot"}})
     assert texts(bot) == ["Chat id: <code>-100123</code>"]
+    # /start in a group links nobody (a link code only works in a private chat): the commands are listed instead.
+    update(app, {"message": {**group, "text": "/start abc"}})
+    assert texts(bot)[-1].startswith("<b>Lệnh của bot Reels Studio</b>")
 
 
 def test_a_test_message_and_the_muted_kinds(an, db, me, bot):
@@ -293,20 +295,22 @@ def test_the_morning_reminder(db, me, bot, storage):
     page = fanpages.save(db, "pg1", "Trang Dưỡng Sinh", "token-cua-page", me.id)
     page.post_times = ["08:00", "20:00"]
     db.commit()
+    today = datetime.now(VIETNAM).date()
+    early = datetime(today.year, today.month, today.day, 7, 0, tzinfo=VIETNAM)
+    morning = early + timedelta(hours=2)
+    # Scheduled after the reminder's own time, not after the clock's: from midnight to 6 AM Vietnam time "now + 3 h"
+    # fell before 9 AM and the post no longer counted.
     db.add(
         Publication(
             video_id=make_video(db, storage, me).id,
             platform="facebook",
             fanpage_id=page.id,
             status="scheduled",
-            scheduled_at=datetime.now(UTC) + timedelta(hours=3),
+            scheduled_at=morning + timedelta(hours=3),
             created_by_id=me.id,
         )
     )
     db.commit()
-    today = datetime.now(VIETNAM).date()
-    early = datetime(today.year, today.month, today.day, 7, 0, tzinfo=VIETNAM)
-    morning = early + timedelta(hours=2)
     assert telegram.collect(db, early) == 0
     assert telegram.collect(db, morning) == 1
     assert telegram.collect(db, morning + timedelta(hours=3)) == 0

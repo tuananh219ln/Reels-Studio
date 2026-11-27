@@ -5,6 +5,7 @@ planned; the app keeps that time as a reminder and sees the Short once it is pub
 
 import html
 import logging
+import unicodedata
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
@@ -15,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import crypto, hashtags, review, youtube_connections, youtube_upload
+from . import crypto, hashtags, review, youtube_claims, youtube_connections, youtube_upload
 from .db import get_db
 from .errors import ApiError
 from .models import Channel, Job, Publication, Session, YouTubeConnection
@@ -208,5 +209,47 @@ def upload(
     except IntegrityError:
         db.rollback()
         raise ApiError(409, "youtube_post_pending", "Video đang có việc chạy, hãy đợi xong") from None
+    db.commit()
+    return video_payload(db, video)
+
+
+class ClaimBody(BaseModel):
+    note: str = ""
+
+
+def _claim_note(value: str, required: bool) -> str:
+    note = unicodedata.normalize("NFC", value).strip()
+    if required and not note:
+        raise invalid("Hãy ghi bài/nhạc bị claim, ai claim và ngày")
+    if len(note) > youtube_claims.MAX_NOTE_LENGTH:
+        raise invalid(f"Ghi chú claim dài quá {youtube_claims.MAX_NOTE_LENGTH} ký tự")
+    return note
+
+
+@router.post("/videos/{video_id}/claim")
+def note_claim(
+    video_id: int, body: ClaimBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Ghi claim YouTube": a Content ID claim found in YouTube Studio, noted on the video (youtube_claims.py). Only a
+    note: nothing is sent to YouTube, and the video can still be edited and posted elsewhere."""
+    video = lock_video(db, video_id)
+    youtube_claims.record(
+        db, video, cleared=False, note=_claim_note(body.note, True), user_id=me.user_id, channel="web"
+    )
+    db.commit()
+    return video_payload(db, video)
+
+
+@router.post("/videos/{video_id}/claim/clear")
+def clear_claim(
+    video_id: int, body: ClaimBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Đã xử lý claim": the claim was resolved in YouTube Studio (song erased, dispute won, video replaced)."""
+    video = lock_video(db, video_id)
+    if youtube_claims.payload(db, video.id)["active"] is None:
+        raise invalid("Video không có claim YouTube nào đang ghi")
+    youtube_claims.record(
+        db, video, cleared=True, note=_claim_note(body.note, False), user_id=me.user_id, channel="web"
+    )
     db.commit()
     return video_payload(db, video)

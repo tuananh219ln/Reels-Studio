@@ -27,6 +27,8 @@ import UploadedMp4 from "@/components/video/UploadedMp4";
 import VideoProgress from "@/components/video/VideoProgress";
 import { ContentTypeField, PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import VideoStatusTags from "@/components/VideoStatusTags";
+import TitleChooser, { plainTitle } from "@/components/video/TitleChooser";
+import VideoStoryCard from "@/components/video/VideoStoryCard";
 import {
   ApiError,
   api,
@@ -64,7 +66,6 @@ import {
   Dropdown,
   Flex,
   Grid,
-  Radio,
   Result,
   Segmented,
   Spin,
@@ -812,6 +813,7 @@ export default function VideoPage() {
         <VideoKindTags video={{ ...video, content_type: "" }} />
         <PostedPlatforms postedOn={video.posted_on ?? []} links={video.posted_links} states={video.posted_states} />
       </Flex>
+      <VideoStoryCard videoId={video.id} locked={video.locked || viewing} act={act} />
       {video.clone_of && (
         <Typography.Paragraph type="secondary" style={{ margin: "0 0 12px", fontSize: 13 }} data-testid="clone-of">
           Nhân bản từ “{video.clone_of.title}” — yêu cầu đổi: {video.clone_of.request}
@@ -1125,21 +1127,20 @@ export default function VideoPage() {
                         trigger={["click"]}
                         // Drawn while closed too, so the script's author can be read without opening it.
                         forceRender
-                        disabled={video.title_options.length === 0}
                         popupRender={() => (
                           <Card size="small" style={{ maxWidth: 440 }} data-testid="title-options">
-                            <Typography.Text type="secondary">
-                              Chọn 1 tiêu đề để chép vào chữ cảnh tiêu đề:
-                            </Typography.Text>
-                            <Radio.Group
-                              style={{ display: "flex", flexDirection: "column", gap: 6, margin: "8px 0 0" }}
-                              value={video.title_options.indexOf(video.title_scene!.text)}
+                            <TitleChooser
+                              key={`${video.title_scene?.text}|${video.no_title}`}
+                              text={video.title_scene?.text ?? ""}
+                              options={video.title_options}
+                              noTitle={video.no_title}
                               disabled={video.locked || viewing}
-                              onChange={(event) => {
-                                const text = video.title_options[event.target.value as number];
-                                void act(() => api<VideoDetail>(`/scenes/${video.title_scene!.id}`, "PATCH", { text }));
-                              }}
-                              options={video.title_options.map((option, index) => ({ value: index, label: option }))}
+                              saveText={(text) =>
+                                void act(() => api<VideoDetail>(`/scenes/${video.title_scene?.id}`, "PATCH", { text }))
+                              }
+                              setNoTitle={(value) =>
+                                void act(() => api<VideoDetail>(`/videos/${video.id}`, "PATCH", { no_title: value }))
+                              }
                             />
                             {/* A script typed through MCP was written by the member's Claude: script_by names it. */}
                             {(video.script_by || video.hand_written) && (
@@ -1161,8 +1162,8 @@ export default function VideoPage() {
                           aria-label="Chọn tiêu đề"
                         >
                           <Typography.Text ellipsis style={{ minWidth: 0 }}>
-                            {video.title_scene.text.replaceAll("*", "").replace(/\s+/g, " ").trim() ||
-                              "(chưa có tiêu đề)"}
+                            {plainTitle(video.title_scene.text) ||
+                              (video.no_title ? "(không dùng tiêu đề)" : "(chưa có tiêu đề)")}
                           </Typography.Text>
                           <Typography.Text type="secondary" style={{ flex: "none", fontSize: 12 }}>
                             {video.title_options.length} gợi ý <DownOutlined style={{ fontSize: 10 }} />

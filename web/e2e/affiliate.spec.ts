@@ -572,10 +572,10 @@ test("Tất cả hướng dẫn lists every screen's guides and reads one", asyn
   await page.getByRole("menuitem", { name: "Tất cả hướng dẫn" }).click();
   await expect(page).toHaveURL(/\/guides/);
   const menu = page.getByTestId("guides-menu");
-  for (const screen of ["Affiliate", "Video", "Kho kiến thức", "Có gì mới", "Thông báo Telegram"]) {
+  for (const screen of ["Affiliate", "Video", "Kho kiến thức", "Thư viện nhạc", "Có gì mới", "Thông báo Telegram"]) {
     await expect(menu.locator(".ant-menu-item-group-title", { hasText: screen })).toBeVisible();
   }
-  await expect(menu.getByRole("menuitem")).toHaveCount(7);
+  await expect(menu.getByRole("menuitem")).toHaveCount(8);
   await menu.getByText("gắn link affiliate hàng loạt").click();
   await expect(page.getByRole("heading", { name: /Custom Link của Shopee/ })).toBeVisible();
   await expect(page).toHaveURL(/[?&]guide=custom-link/);
