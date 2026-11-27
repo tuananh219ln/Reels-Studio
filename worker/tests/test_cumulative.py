@@ -528,3 +528,9 @@ def test_a_text_box_is_drawn_in_the_chosen_font_and_bungee_is_wider():
     assert RenderOptions().text_font == "be_vietnam"
     with pytest.raises(InputError):
         RenderOptions(text_font="comic")
+
+
+def test_the_brand_look_is_drawn_in_bungee():
+    from reels_render.pc_text import BUNGEE_PATH, line_style
+
+    assert line_style("brand_navy", True).font == BUNGEE_PATH and line_style("brand_navy", False).font == BUNGEE_PATH
