@@ -304,10 +304,11 @@ def test_a_scene_with_a_held_text_shows_no_caption_while_its_text_is_up(tmp_path
         difference = ImageChops.difference(frame.crop(box), plain.crop(box))
         return max(high for _, high in difference.getextrema()) > 60
 
-    # Scene 1 runs 1–5 s: its text is up until 1 + 1.5 + 0.25 = 2.75 s, the captions (above it) start then.
+    # Scene 1 runs 1–5 s: its text is up until 1 + 1.5 + 0.25 = 2.75 s, the captions (bottom on y = 1440) start then.
     assert region(1.9, (0, 1130, 1080, 1480)) and not region(1.9, (0, 1000, 1080, 1130))
     assert not region(1.9, (0, 1000, 1080, 1100))  # no caption yet
-    assert region(3.5, (0, 1000, 1080, 1180))  # the caption, once the text has gone
+    assert region(3.5, (0, 1330, 1080, 1440))  # the caption, once the text has gone
+    assert not region(3.5, (0, 1000, 1080, 1300)) and not region(3.5, (0, 1445, 1080, 1700))
 
 
 def test_a_title_written_on_one_line_is_cut_at_its_punctuation_into_three_tiers():
@@ -324,3 +325,17 @@ def test_a_title_written_on_one_line_is_cut_at_its_punctuation_into_three_tiers(
     # No punctuation: all the main line. A label line still comes out of the text.
     plain = parse_title(parse_scene_text("5 món PC đáng săn\n[[-50%]]"))
     assert (plain.small, plain.main, plain.sub, plain.label) == ("", "5 MÓN PC ĐÁNG SĂN", "", "-50%")
+
+
+def test_a_caption_of_a_compact_text_scene_sits_on_the_safe_zone_floor_unless_the_text_stays_under_it():
+    from reels_render.render import tier_caption_y
+    from reels_render.textbox import CAPTION_GAP, SCENE_BOX_BOTTOM
+
+    # The text goes before the captions start (a hold): the caption's bottom is y = 1440, wherever the text was dragged.
+    assert tier_caption_y(1190, 1400, 100, text_stays=False) == SCENE_BOX_BOTTOM - 100
+    assert tier_caption_y(1300, 1440, 100, text_stays=False) == SCENE_BOX_BOTTOM - 100
+    # The text stays the whole scene: a caption that would land on it goes over it, as before.
+    assert tier_caption_y(1190, 1400, 100, text_stays=True) == 1190 - CAPTION_GAP - 100
+    assert tier_caption_y(1300, 1440, 100, text_stays=True) == 1300 - CAPTION_GAP - 100
+    # Text dragged high does not meet the caption: it stays on the floor.
+    assert tier_caption_y(300, 500, 100, text_stays=True) == SCENE_BOX_BOTTOM - 100
