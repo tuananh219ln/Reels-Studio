@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from .errors import InputError
 from .markup import TEXT_CASES
+from .pc_text import PC_STYLES
 from .textbox import Palette, is_hex, palette_for, title_palette
 
 # The video's transition between scenes, each a key of effects.SCENE_TRANSITIONS (a scene's own one wins). The first
@@ -25,7 +26,8 @@ BOX_OPACITIES = ("auto", "solid", "soft", "clear", "faint", "none")
 TEXT_COLORS = ("auto", "white", "black", "yellow", "red")  # "auto": the style's own text colour; or "#RRGGBB"
 TITLE_STYLES = ("same", "yellow")  # "same": the title scene is drawn like the other scenes
 TITLE_TEXT_STYLES = ("same", *TEXT_STYLES)  # "same": no look of its own (title_style decides)
-CAPTIONS = ("off", "phrase", "word")
+# "cumulative" ("Cộng dồn", PC Shopee): the words pile up and a phrase clears; the content scenes' own text is not drawn.
+CAPTIONS = ("off", "phrase", "word", "cumulative")
 TEXT_SIZE_NAMES = ("large", "medium", "small")  # textbox.TEXT_SIZES
 
 
@@ -69,6 +71,17 @@ class RenderOptions:
     # Some scene loops its clip ("video_loop"). Same reason: a machine on older code would hold the clip's last
     # frame instead, so it refuses the option.
     clip_loop: bool = False
+    # Some scene hides its text after a few seconds ("text_hold_sec"). Same reason: a machine on older code would keep
+    # the text all scene, so it refuses the option.
+    text_hold: bool = False
+    # The look of PC Shopee's drawn text (pc_text.PC_STYLES): the "Cộng dồn" captions, and later the scenes' and the
+    # title's text. "neon_game" is the first and the default.
+    pc_style: str = "neon_game"
+    # PC Shopee's compact text: the title in three tiers and a content scene's text in two (tiers.py), drawn in
+    # `pc_title_style` and `pc_style`; "box": the text boxes every other group has.
+    title_layout: str = "box"
+    scene_text_layout: str = "box"
+    pc_title_style: str = "brand_navy"
 
     def __post_init__(self) -> None:
         for name, value, allowed in (
@@ -81,6 +94,10 @@ class RenderOptions:
             ("title_text_style", self.title_text_style, TITLE_TEXT_STYLES),
             ("title_box_opacity", self.title_box_opacity, BOX_OPACITIES),
             ("captions", self.captions, CAPTIONS),
+            ("pc_style", self.pc_style, PC_STYLES),
+            ("pc_title_style", self.pc_title_style, PC_STYLES),
+            ("title_layout", self.title_layout, ("box", "three_tier")),
+            ("scene_text_layout", self.scene_text_layout, ("box", "two_tier")),
             ("text_size", self.text_size, TEXT_SIZE_NAMES),
             ("title_text_size", self.title_text_size, TEXT_SIZE_NAMES),
             ("text_case", self.text_case, TEXT_CASES),

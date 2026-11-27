@@ -133,7 +133,53 @@ const patchScene = (scene: SceneData, body: ScenePatch) => api<VideoDetail>(`/sc
  */
 
 /** "Chữ trên màn hình". */
-export function SceneTextField({ scene }: { scene: SceneData }) {
+/** A PC Shopee title as its tiers: a small line, the main line, a sub line and an orange label (api/worker tiers.py). */
+export function titleTiers(text: string) {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const label = lines.find((line) => /^\[\[.+\]\]$/.test(line))?.slice(2, -2) ?? "";
+  const rest = lines.filter((line) => !/^\[\[.+\]\]$/.test(line));
+  if (rest.length >= 3) return { small: rest[0], main: rest[1], sub: rest.slice(2).join(" "), label };
+  if (rest.length === 2) return { small: "", main: rest[0], sub: rest[1], label };
+  return { small: "", main: rest[0] ?? "", sub: "", label };
+}
+
+/** The tiers back as the title's text: a small line needs a sub line too (two lines are read as main and sub). */
+export function titleText(tiers: { small: string; main: string; sub: string; label: string }) {
+  const lines = [tiers.small, tiers.main, tiers.sub].map((line) => line.trim()).filter(Boolean);
+  if (tiers.label.trim()) lines.push(`[[${tiers.label.trim()}]]`);
+  return lines.join("\n");
+}
+
+/** "Chữ trên màn hình": the one text, or (a PC Shopee title in three tiers) Dòng nhỏ / Dòng chính / Dòng phụ / Nhãn. */
+export function SceneTextField({ scene, tiers = false }: { scene: SceneData; tiers?: boolean }) {
+  if (tiers && scene.is_title) {
+    const parts = titleTiers(scene.text);
+    const fields: { key: keyof typeof parts; label: string; placeholder: string }[] = [
+      { key: "small", label: "Dòng nhỏ", placeholder: "BLACK FRIDAY (bỏ trống được; cần có dòng phụ)" },
+      { key: "main", label: "Dòng chính", placeholder: "5 MÓN PC ĐÁNG SĂN" },
+      { key: "sub", label: "Dòng phụ", placeholder: "GIẢM THẬT 100% (bỏ trống được)" },
+      { key: "label", label: "Nhãn", placeholder: "-50% (bỏ trống được)" },
+    ];
+    return (
+      <Flex vertical gap={4} data-testid="title-tiers">
+        {fields.map(({ key, label, placeholder }) => (
+          <AutoSaveField
+            key={`${key}-${parts[key]}`}
+            label={label}
+            value={parts[key]}
+            placeholder={placeholder}
+            save={(text) => patchScene(scene, { text: titleText({ ...parts, [key]: text }) })}
+          />
+        ))}
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Mỗi dòng tối đa 14 ký tự; dài hơn thì chữ tự thu nhỏ.
+        </Typography.Text>
+      </Flex>
+    );
+  }
   return (
     <AutoSaveField
       label="Chữ trên màn hình"

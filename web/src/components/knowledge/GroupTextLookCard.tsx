@@ -53,7 +53,11 @@ function describe(look: Look): string[] {
   if (look.text_size) words.push({ large: "Chữ lớn", medium: "Chữ vừa", small: "Chữ nhỏ" }[look.text_size]);
   if (look.text_case) words.push(look.text_case === "upper" ? "VIẾT HOA" : "Giữ chữ như kịch bản");
   if (look.captions) {
-    words.push({ off: "Không phụ đề", phrase: "Phụ đề từng cụm", word: "Phụ đề từng từ" }[look.captions]);
+    words.push(
+      { off: "Không phụ đề", phrase: "Phụ đề từng cụm", word: "Phụ đề từng từ", cumulative: "Phụ đề cộng dồn" }[
+        look.captions
+      ],
+    );
   }
   if (look.title_text_style && look.title_text_style !== "same") words.push("Tiêu đề kiểu riêng");
   return words;

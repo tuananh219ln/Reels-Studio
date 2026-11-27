@@ -27,6 +27,8 @@ export default function SceneInspector({
   generating,
   editing = false,
   timing,
+  hold = null,
+  titleTiers = false,
   effects,
   layers,
   sounds,
@@ -45,6 +47,10 @@ export default function SceneInspector({
   /** An image_edit job ("Sửa ảnh") is changing this scene's photo. */
   editing?: boolean;
   timing: React.ReactNode;
+  /** "Hiện chữ": the scene's own "Ẩn chữ sau X giây", only on a PC Shopee video (HoldField). */
+  hold?: React.ReactNode;
+  /** The title is drawn in three tiers (PC Shopee): its text is edited as Dòng nhỏ / chính / phụ / Nhãn. */
+  titleTiers?: boolean;
   /** "Hiệu ứng": the scene's transition, colour and clip speed (SceneEffects). */
   effects: React.ReactNode;
   /** "Chữ & sticker": the scene's layers (LayerList). */
@@ -68,7 +74,7 @@ export default function SceneInspector({
             label: "Nội dung",
             children: (
               <Flex vertical gap={4}>
-                <SceneTextField scene={scene} />
+                <SceneTextField scene={scene} tiers={titleTiers} />
                 <SceneVoiceField scene={scene} voiceEnabled={voiceEnabled} />
               </Flex>
             ),
@@ -80,7 +86,18 @@ export default function SceneInspector({
                 { key: "card", label: "Thẻ", children: <CardPanel scene={saved} /> },
               ]),
           { key: "sounds", label: `Âm thanh (${scene.sounds.length})`, children: sounds },
-          { key: "timing", label: "Thời lượng và vị trí chữ", children: timing },
+          {
+            key: "timing",
+            label: "Thời lượng và vị trí chữ",
+            children: hold ? (
+              <Flex vertical gap={10}>
+                {timing}
+                {hold}
+              </Flex>
+            ) : (
+              timing
+            ),
+          },
           { key: "effects", label: "Hiệu ứng", children: effects },
           backdrop && !saved.is_title
             ? {

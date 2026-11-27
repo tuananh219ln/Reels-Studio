@@ -1,5 +1,6 @@
 "use client";
 
+import { isPcShopee } from "@/lib/pcShopee";
 import { Alert, App, Collapse, Flex, Switch, Typography } from "antd";
 import Link from "next/link";
 import { useState } from "react";
@@ -128,7 +129,13 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
             "text",
             "Chữ & phụ đề",
             textSummary(values, styleName),
-            <TextSettings values={values} onChange={change} disabled={disabled} bare />,
+            <TextSettings
+              values={values}
+              onChange={change}
+              disabled={disabled}
+              bare
+              textHold={isPcShopee(video.knowledge_topic)}
+            />,
           ),
         ]}
       />

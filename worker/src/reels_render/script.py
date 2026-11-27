@@ -67,6 +67,12 @@ class Scene:
     image_fit: str = COVER
     # Where the square is cut along the photo's longer side, 0 to 1; None: the middle.
     image_crop_offset: float | None = None
+    # "Ẩn chữ sau X giây": seconds the text box stays from the scene's start before it fades out; None: all scene.
+    text_hold: float | None = None
+    # Each narrated word's seconds in the narration (from ElevenLabs), for "Cộng dồn"; empty: estimated.
+    voice_words: tuple[Word, ...] = ()
+    # PC Shopee's tiers and "Cộng dồn" captions: "top" puts them in the 14–30% zone instead of 62–78%; None: the lower one.
+    text_zone: str | None = None
 
 
 @dataclass(frozen=True)
@@ -233,6 +239,9 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         video_blur=video_blur,
         image_fit=image_fit,
         image_crop_offset=crop_offset,
+        text_hold=_parse_hold(item, label),
+        voice_words=_parse_words(item.get("voice_words"), label),
+        text_zone=_parse_zone(item, label),
     )
 
 
@@ -425,3 +434,28 @@ def write_scene_image(path: Path, number: int, image: str) -> None:
     except BaseException:
         Path(temp_name).unlink(missing_ok=True)
         raise
+
+
+MIN_TEXT_HOLD = 1.0
+MAX_TEXT_HOLD = 6.0
+
+
+def _parse_hold(item: dict, label: str) -> float | None:
+    hold = item.get("text_hold_sec")
+    if hold is None:
+        return None
+    if isinstance(hold, bool) or not isinstance(hold, (int, float)) or not MIN_TEXT_HOLD <= hold <= MAX_TEXT_HOLD:
+        raise InputError(f'{label}: "text_hold_sec" phải là số từ {MIN_TEXT_HOLD:g} đến {MAX_TEXT_HOLD:g}')
+    return float(hold)
+
+
+TEXT_ZONES = ("top", "bottom")
+
+
+def _parse_zone(item: dict, label: str) -> str | None:
+    zone = item.get("text_zone")
+    if zone is None:
+        return None
+    if zone not in TEXT_ZONES:
+        raise InputError(f'{label}: "text_zone" phải là "top" hoặc "bottom"')
+    return zone

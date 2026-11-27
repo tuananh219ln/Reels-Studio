@@ -1,4 +1,4 @@
-import type { SceneData } from "@/lib/api";
+import type { SceneData, VideoOptions } from "@/lib/api";
 import { layerName } from "./layers";
 import { soundLabel, soundSeconds } from "./sounds";
 
@@ -29,7 +29,7 @@ const VOICE_TAIL = 0.4;
 const plain = (text: string) => text.replaceAll("*", "").replace(/\s+/g, " ").trim();
 
 /** The tracks shown for a video: captions only when the render draws them, music only when it has some. */
-export function lanesFor(captions: "off" | "phrase" | "word", music: boolean): Lane[] {
+export function lanesFor(captions: VideoOptions["captions"], music: boolean): Lane[] {
   return [
     { key: "text", name: "Chữ" },
     { key: "layers", name: "Lớp" },

@@ -135,8 +135,17 @@ def options_dict(options) -> dict:
     values = asdict(options)
     # Each sent only when on, for the same reason: `clip_blur` (blurred boxes on a clip) and `clip_loop` (a
     # scene's "Lặp clip") and `text_shade` (the dark band behind the text) too.
-    for name in ("backdrop", "clip_blur", "logo", "clip_loop", "text_shade"):
+    for name in ("backdrop", "clip_blur", "logo", "clip_loop", "text_shade", "text_hold"):
         if not values[name]:
+            del values[name]
+    # Likewise the PC Shopee look, unless it is the first one.
+    for name, default in (
+        ("pc_style", "neon_game"),
+        ("pc_title_style", "brand_navy"),
+        ("title_layout", "box"),
+        ("scene_text_layout", "box"),
+    ):
+        if values[name] == default:
             del values[name]
     # Likewise "Dạng chữ" only when the text is drawn as typed: an older machine would draw it in capitals.
     for name in ("text_case", "title_text_case"):

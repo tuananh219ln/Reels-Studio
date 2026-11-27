@@ -1,5 +1,7 @@
 "use client";
 
+import { isPcShopee } from "@/lib/pcShopee";
+import HoldField from "./preview/HoldField";
 import { formatTrimmed } from "@/lib/format";
 import { stopSpeech, unlockSpeech } from "@/lib/speech";
 import {
@@ -709,6 +711,8 @@ export default function VideoPreview({
       else if (key === "color") back.color = target.color;
       else if (key === "video_speed") back.video_speed = target.video?.speed ?? 1;
       else if (key === "music_level") back.music_level = target.music_level;
+      else if (key === "text_hold_sec") back.text_hold_sec = target.text_hold_sec;
+      else if (key === "text_zone") back.text_zone = target.text_zone;
     }
     return back;
   }
@@ -1639,6 +1643,19 @@ export default function VideoPreview({
                     void save(() => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", { text_position: null }))
                   }
                 />
+              }
+              titleTiers={video.options.title_layout === "three_tier"}
+              hold={
+                isPcShopee(video.knowledge_topic) && !scene.is_title && phase.index < scenes.length - 1 ? (
+                  <HoldField
+                    zone={scene.text_zone}
+                    onZone={(text_zone) => void changeScene("đổi vị trí chữ", scene, { text_zone })}
+                    value={scene.text_hold_sec}
+                    videoValue={video.options.text_hold_sec}
+                    editable={scenesEditable}
+                    onChange={(text_hold_sec) => void changeScene("đổi thời gian hiện chữ", scene, { text_hold_sec })}
+                  />
+                ) : null
               }
             />
           )}

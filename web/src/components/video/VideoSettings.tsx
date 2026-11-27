@@ -1,5 +1,6 @@
 "use client";
 
+import { TEXT_HOLD_CHOICES } from "@/lib/pcShopee";
 import { InfoCircleOutlined, PauseCircleOutlined, PlayCircleOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, Flex, Segmented, Select, Slider, Switch, Tooltip, Typography } from "antd";
 import type { SelectProps, SliderSingleProps } from "antd";
@@ -30,6 +31,8 @@ type Props = {
   disabled?: boolean;
   /** Without its card: the video's "Thiết lập" tab puts each group in a panel of its own that names it. */
   bare?: boolean;
+  /** The video's topic group is PC Shopee: shows "Thời gian hiện chữ", which no other group has. */
+  textHold?: boolean;
 };
 
 /** A group of settings: a card of its own, or (`bare`) just its fields inside a panel that already names it. */
@@ -92,6 +95,13 @@ const CAPTIONS = [
   { value: "phrase", label: "Từng cụm" },
   { value: "word", label: "Từng từ" },
 ];
+/** PC Shopee's fourth choice: the words pile up, and the scenes' own text is not drawn (api video_options). */
+const PC_STYLES = [
+  { value: "neon_game", label: "Neon game" },
+  { value: "halftone_purple", label: "Halftone tím" },
+  { value: "brand_navy", label: "Thương hiệu" },
+];
+const CUMULATIVE = { value: "cumulative", label: "Cộng dồn" };
 let voiceCache: Promise<VoiceList> | null = null;
 
 /** Lists the voices again on the next picker shown, after a narration key was saved or removed. */
@@ -695,7 +705,7 @@ function CaseField({
   );
 }
 
-export function TextSettings({ values, onChange, disabled, bare }: Props) {
+export function TextSettings({ values, onChange, disabled, bare, textHold }: Props) {
   const [target, setTarget] = useState<"scenes" | "title">("scenes");
   const title = titleLook(values);
   const followsScenes =
@@ -736,6 +746,45 @@ export function TextSettings({ values, onChange, disabled, bare }: Props) {
             >
               Nền tối mờ sau chữ (đậm nhất 45%)
             </Checkbox>
+            {textHold && (
+              <Field label="Chữ cảnh gọn" hint="Số thứ tự, dòng chính và dòng phụ, không hộp nền; cảnh cuối giữ hộp.">
+                <Segmented
+                  aria-label="Chữ cảnh gọn"
+                  options={[
+                    { value: "box", label: "Hộp chữ" },
+                    { value: "two_tier", label: "2 tầng" },
+                  ]}
+                  value={values.scene_text_layout}
+                  disabled={disabled}
+                  onChange={(layout) => onChange({ scene_text_layout: layout as VideoOptions["scene_text_layout"] })}
+                />
+              </Field>
+            )}
+            {textHold && (
+              <Field label="Kiểu chữ PC Shopee" hint="Kiểu của phụ đề cộng dồn và chữ cảnh.">
+                <Segmented
+                  aria-label="Kiểu chữ PC Shopee"
+                  options={PC_STYLES}
+                  value={values.pc_style}
+                  disabled={disabled}
+                  onChange={(pc_style) => onChange({ pc_style: pc_style as VideoOptions["pc_style"] })}
+                />
+              </Field>
+            )}
+            {textHold && (
+              <Field
+                label="Thời gian hiện chữ"
+                hint="Chữ cảnh hiện đầu cảnh rồi mờ dần; cảnh tiêu đề và cảnh cuối giữ chữ."
+              >
+                <Segmented
+                  aria-label="Thời gian hiện chữ"
+                  options={TEXT_HOLD_CHOICES.map(({ value, label }) => ({ value: value ?? "all", label }))}
+                  value={values.text_hold_sec ?? "all"}
+                  disabled={disabled || values.captions === "cumulative"}
+                  onChange={(value) => onChange({ text_hold_sec: value === "all" ? null : Number(value) })}
+                />
+              </Field>
+            )}
             <Field
               label="Phụ đề theo giọng đọc"
               hint={
@@ -746,15 +795,58 @@ export function TextSettings({ values, onChange, disabled, bare }: Props) {
             >
               <Segmented
                 aria-label="Phụ đề theo giọng đọc"
-                options={CAPTIONS}
+                options={textHold ? [...CAPTIONS, CUMULATIVE] : CAPTIONS}
                 value={values.captions}
                 disabled={disabled || !values.voice_enabled}
-                onChange={(captions) => onChange({ captions: captions as VideoOptions["captions"] })}
+                onChange={(captions) => {
+                  const next = captions as VideoOptions["captions"];
+                  // Turning "Cộng dồn" off gives the scenes' text back, hidden after 2.5 s unless a time was chosen.
+                  onChange(
+                    values.captions === "cumulative" &&
+                      next !== "cumulative" &&
+                      textHold &&
+                      values.text_hold_sec === null
+                      ? { captions: next, text_hold_sec: 2.5 }
+                      : { captions: next },
+                  );
+                }}
               />
+              {textHold && values.captions === "cumulative" && (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  Chữ cảnh được thay bằng phụ đề cộng dồn.
+                </Typography.Text>
+              )}
             </Field>
           </>
         ) : (
           <>
+            {textHold && (
+              <>
+                <Field label="Bố cục tiêu đề" hint="3 tầng: dòng nhỏ, dòng chính, dòng phụ; không hộp nền.">
+                  <Segmented
+                    aria-label="Bố cục tiêu đề"
+                    options={[
+                      { value: "box", label: "Hộp chữ" },
+                      { value: "three_tier", label: "3 tầng" },
+                    ]}
+                    value={values.title_layout}
+                    disabled={disabled}
+                    onChange={(layout) => onChange({ title_layout: layout as VideoOptions["title_layout"] })}
+                  />
+                </Field>
+                {values.title_layout === "three_tier" && (
+                  <Field label="Kiểu chữ tiêu đề">
+                    <Segmented
+                      aria-label="Kiểu chữ tiêu đề PC Shopee"
+                      options={PC_STYLES}
+                      value={values.pc_title_style}
+                      disabled={disabled}
+                      onChange={(style) => onChange({ pc_title_style: style as VideoOptions["pc_title_style"] })}
+                    />
+                  </Field>
+                )}
+              </>
+            )}
             <Checkbox
               checked={followsScenes}
               disabled={disabled}
