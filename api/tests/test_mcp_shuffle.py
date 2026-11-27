@@ -54,3 +54,24 @@ def test_copies_are_made_and_their_titles_changed_through_update_scene(mcp_clien
     assert payload(detail)["title_review"] is False
     again = payload(call(mcp_client, token, "shuffle_duplicate_video", video_id=video.id, count=1))
     assert "XƯƠNG CHẮC NHỜ 5 MÓN NÀY" in again["used_titles"]
+
+
+def test_copies_get_the_dish_comments_in_their_new_order(mcp_client, db, storage):  # noqa: F811
+    me, _, tokens, _ = grant(mcp_client, db)
+    video = make_video(db, storage, me, scene_count=4)
+    scenes = db.scalars(
+        select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False)).order_by(Scene.position)
+    ).all()
+    for number, scene in enumerate(scenes, start=1):
+        scene.text = f"{number}. Món {number}"
+    video.extra_comments = [f"{number}. Món {number}: cách làm và ai nên hỏi bác sĩ" for number in range(1, 5)]
+    db.commit()
+
+    result = payload(call(mcp_client, tokens["access_token"], "shuffle_duplicate_video", video_id=video.id, count=2))
+
+    db.expire_all()
+    for copy in result["copies"]:
+        dishes = [text.split(". ", 1)[1] for text in copy["scenes"]]
+        assert db.get(Video, copy["id"]).extra_comments == [
+            f"{place}. {dish}: cách làm và ai nên hỏi bác sĩ" for place, dish in enumerate(dishes, start=1)
+        ]
