@@ -85,6 +85,8 @@ export type StrategyCatalog = {
 };
 
 export type VideoReview = {
+  /** False while the review gate is switched off: the page shows no review card. */
+  enabled: boolean;
   status: ReviewStatus;
   approved_at: string | null;
   /** web | muse_chat | auto | telegram | legacy */

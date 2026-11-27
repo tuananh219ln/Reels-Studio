@@ -142,6 +142,7 @@ TITLE_TEXT = "5 MÓN GIÚP\n*XƯƠNG CHẮC KHỎE*"
 def isolated_files(tmp_path, monkeypatch):
     """Every test gets its own storage folder and Pixabay search cache."""
     monkeypatch.setenv("STORAGE_DIR", str(tmp_path / "storage"))
+    monkeypatch.setenv("REVIEW_GATE", "on")  # production runs with it off; the gate's tests need it on
     monkeypatch.setattr(_stock, "default_cache_dir", lambda: tmp_path / "search-cache")
     for name in (
         "MCP_PUBLIC_URL",

@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session as DbSession
 
+from .config import read_env
 from .errors import ApiError
 from .models import Job, PageQueueItem, Publication, User, Video, VideoEvent
 from .script_rules import Checks, Issue
@@ -27,6 +28,12 @@ CHANNELS = ("web", "muse_chat", "auto", "telegram")
 # Posts that exist only here, never reached a platform: withdrawing one is a status change.
 UNSENT_STATUSES = ("pending", "scheduled")
 NOT_APPROVED = "Cần duyệt video trước khi đăng"
+
+
+def gate_enabled() -> bool:
+    """The gate is off unless `REVIEW_GATE=on` (docs/decisions/2026-11-27-review-gate-off.md): with it off a rendered
+    video can be scheduled or posted at once, and the review card, the waiting list and the badge are hidden."""
+    return read_env("REVIEW_GATE").lower() in ("on", "1", "true")
 
 
 def record(
@@ -118,6 +125,7 @@ def payload(db: DbSession, video: Video, checks: Checks | None = None) -> dict:
     approver = db.get(User, video.approved_by_id) if video.approved_by_id else None
     report = qc_report(db, video, checks)
     return {
+        "enabled": gate_enabled(),
         "status": video.review_status,
         "approved_at": video.approved_at.isoformat() if video.approved_at else None,
         "approved_via": video.approved_via,
@@ -199,6 +207,8 @@ def posting_started(db: DbSession, video: Video) -> bool:
 
 def publish_blocker(video: Video) -> str | None:
     """Why this video may not be scheduled or posted now, or None. The approval holds only for the MP4 it was given for."""
+    if not gate_enabled():
+        return None
     if (
         video.review_status != APPROVED
         or not video.approved_signature
@@ -233,6 +243,8 @@ def ensure_approved(video: Video) -> None:
 def after_render(db: DbSession, video_id: int) -> None:
     """A render ended: the video goes back to review and what was planned for the old MP4 is withdrawn (R2). Never
     raises: a render that worked must not look failed because of this."""
+    if not gate_enabled():
+        return
     try:
         _after_render(db, video_id)
         db.commit()
@@ -284,6 +296,8 @@ def _after_render(db: DbSession, video_id: int) -> None:
 
 def pending_count(db: DbSession) -> int:
     """Videos with an MP4 waiting for a member's decision (the menu's badge)."""
+    if not gate_enabled():
+        return 0
     return db.scalar(
         select(func.count()).select_from(Video).where(Video.review_status == PENDING, Video.mp4_key.is_not(None))
     )
