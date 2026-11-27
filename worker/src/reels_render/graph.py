@@ -26,6 +26,10 @@ MAX_CLIP_PIXELS = 4096 * 2304
 MUSIC_FADE_SECONDS = 1.5
 # "Video xuyên suốt": each text box fades in and out over this, as the backdrop never changes.
 TEXT_FADE_SECONDS = 0.3
+# "Ẩn chữ sau X giây": the text fades out over this after its hold, and a hold this close to the scene's end (or
+# longer) is no hold at all.
+HOLD_FADE_SECONDS = 0.25
+HOLD_MIN_REST = 0.3
 # Ducking: the music drops to about a quarter while narration plays and comes back in 0.4 s.
 DUCKING = "sidechaincompress=threshold=0.02:ratio=8:attack=20:release=400"
 
@@ -51,6 +55,9 @@ class SceneInput:
     insets: tuple["InsetInput", ...] = ()
     # A framed photo ("Khung ảnh", framing.py): `image` is then its blurred copy, and this the photo laid on it.
     framed: "FramedInput | None" = None
+    # "Ẩn chữ sau X giây": the text box shows for this many seconds from the scene's start, then fades out; None: the
+    # whole scene. Not applied to the title scene or the last one (hold_seconds).
+    text_hold: float | None = None
 
 
 @dataclass(frozen=True)
@@ -338,6 +345,7 @@ def build_filter_graph(
     insets: list[tuple[InsetInput, ...]] | None = None,
     logo: LogoInput | None = None,
     framed: list[FramedInput | None] | None = None,
+    holds: list[float | None] | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
     narration of each scene that has one (`voices` says which do), then the caption images, the layers' and last
@@ -366,6 +374,7 @@ def build_filter_graph(
     blurs = blurs or [()] * count
     insets = insets or [()] * count
     framed = framed or [None] * count
+    holds = holds or [None] * count
     first_caption = 2 * len(box_positions) + (music_volume is not None) + sum(voices or [])
     next_inset = first_caption + len(captions) + len(layers or [])
     chains: list[str] = []
@@ -387,6 +396,8 @@ def build_filter_graph(
             next_inset += 1
         text = f"{box}:v"
         fades = _text_fades(index, count, frames) if options.backdrop else []
+        if (hold := hold_seconds(holds[index], index, count, frames)) is not None:
+            fades.append(f"fade=t=out:st={hold:.3f}:d={HOLD_FADE_SECONDS:.3f}:alpha=1")
         if fades:
             chains.append(f"[{box}:v]format=rgba,{','.join(fades)}[t{index}]")
             text = f"t{index}"
@@ -460,6 +471,15 @@ def build_filter_graph(
         chains.append(f"[{bed}][{voice}]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[{out}]")
     chains += _sound_chains(sounds or [], timeline.total_frames * AUDIO_RATE // FPS)
     return ";".join(chains)
+
+
+def hold_seconds(hold: float | None, index: int, count: int, frames: int) -> float | None:
+    """How long a scene's text box stays before it fades out, or None when it stays the whole scene: no hold set, the
+    title scene (index 0) and the last one (the call to action) keep their text, and a hold within HOLD_MIN_REST of the
+    scene's end is the whole scene."""
+    if hold is None or index == 0 or index == count - 1:
+        return None
+    return hold if hold < frames / FPS - HOLD_MIN_REST else None
 
 
 def _text_fades(index: int, count: int, frames: int) -> list[str]:
@@ -575,14 +595,14 @@ def build_ffmpeg_args(
     logo: LogoInput | None = None,
 ) -> list[str]:
     argv = [ffmpeg, "-hide_banner", "-nostdin", "-v", "error", "-y"]
-    for scene, frames in zip(scenes, timeline.scene_frames):
+    for index, (scene, frames) in enumerate(zip(scenes, timeline.scene_frames)):
         if scene.video_start is not None:
             if scene.loop:
                 argv += ["-stream_loop", "-1"]
             # Input seeking: the clip's first decoded frame is the one at the start time, as in the preview.
             argv += ["-ss", f"{scene.video_start:.3f}", "-max_pixels", str(MAX_CLIP_PIXELS)]
         argv += ["-i", str(scene.image)]
-        if options.backdrop:
+        if options.backdrop or hold_seconds(scene.text_hold, index, len(scenes), frames) is not None:
             # Looped for the scene's seconds, so the text box has frames to fade on.
             argv += ["-loop", "1", "-framerate", str(FPS), "-t", _seconds(frames)]
         argv += ["-i", str(scene.text_box)]
@@ -625,6 +645,7 @@ def build_ffmpeg_args(
         [scene.insets for scene in scenes],
         logo,
         [scene.framed for scene in scenes],
+        [scene.text_hold for scene in scenes],
     )
     argv += [
         "-filter_complex",

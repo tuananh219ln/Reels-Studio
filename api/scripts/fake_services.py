@@ -1002,6 +1002,25 @@ class FakeServices:
             return 500, {"detail": "server error"}
         return 200, self._tone(str(body.get("text", "")))
 
+    @staticmethod
+    def _tts_timed(text: str, audio: bytes) -> dict:
+        """The answer of `with-timestamps`: the tone and each character's seconds, 0.3 s per word as in _tone (the
+        characters of a word share its 0.3 s evenly; a space ends where the next word begins)."""
+        starts, ends, at = [0.0] * len(text), [0.0] * len(text), 0.0
+        for match in re.finditer(r"\S+", text):
+            step = 0.3 / len(match.group())
+            for offset, index in enumerate(range(match.start(), match.end())):
+                starts[index], ends[index] = round(at + offset * step, 3), round(at + (offset + 1) * step, 3)
+            at += 0.3
+        return {
+            "audio_base64": base64.b64encode(audio).decode(),
+            "alignment": {
+                "characters": list(text),
+                "character_start_times_seconds": starts,
+                "character_end_times_seconds": ends,
+            },
+        }
+
     VIENEU_VOICES = [
         {"id": "Ngọc Lan", "name": "Ngọc Lan", "description": "Nữ · Bắc · Truyền cảm", "engine": "v4"},
         {"id": "Đăng Quân", "name": "Đăng Quân", "description": "Nam · Nam · Review", "engine": "v4"},
@@ -2395,9 +2414,14 @@ class FakeServices:
                 elif path.startswith("/cloudflare/client/v4/accounts/") and "/ai/run/" in path:
                     self._send(*fake._cf_image_gen(self.headers.get("Authorization"), body))
                 elif path.startswith("/v1/text-to-speech/"):
+                    timed = path.endswith("/with-timestamps")
                     status, reply = fake._tts(
-                        path.removeprefix("/v1/text-to-speech/"), self.headers.get("xi-api-key"), body
+                        path.removeprefix("/v1/text-to-speech/").removesuffix("/with-timestamps"),
+                        self.headers.get("xi-api-key"),
+                        body,
                     )
+                    if timed and isinstance(reply, bytes):
+                        reply = fake._tts_timed(str(body.get("text", "")), reply)
                     self._send(status, reply, "audio/mpeg" if isinstance(reply, bytes) else "application/json")
                 elif path == "/gemini/v1beta/interactions":
                     self._send(*fake._gemini_speech(self.headers.get("x-goog-api-key"), body))

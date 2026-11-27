@@ -101,6 +101,8 @@ FIELD_LABELS = {
     "music_level": "Mức nhạc",
     "image_fit": "Khung ảnh",
     "image_crop_offset": "Vị trí khung vuông",
+    "text_hold_sec": "Thời gian hiện chữ",
+    "text_zone": "Vị trí chữ Trên/Dưới",
 }
 
 

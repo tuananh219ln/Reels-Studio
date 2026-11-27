@@ -122,6 +122,8 @@ SCENE_FIELDS = (
     "music_level",
     "image_fit",
     "image_crop_offset",
+    "text_hold_sec",
+    "text_zone",
 )
 # What "Hoàn tác" puts back: the fields that the same edit routes take back as they were saved. A video's options and a
 # text box's place are followed but not put back (they are saved through other shapes).

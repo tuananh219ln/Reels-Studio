@@ -18,7 +18,17 @@ from reels_render.ffmpeg import audio_seconds, find_tools
 from reels_render.framing import COVER
 from reels_render.layers import HALF, HALF_HEIGHT_DEFAULT, HALF_X, half_height, half_y, is_card, is_half
 from reels_render.logo import TEXT_TOP_MIN
+from reels_render.markup import MarkupError, parse_scene_text
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
+from reels_render.tiers import (
+    SCENE_MAX_CHARS,
+    SCENE_MAX_SUB_WORDS,
+    TITLE_MAX_CHARS,
+    parse_scene,
+    parse_title,
+    scene_problems,
+    title_problems,
+)
 from reels_render.timeline import VOICE_LEAD, VOICE_TAIL, fit_seconds
 
 from . import (
@@ -74,6 +84,7 @@ from .video_options import (
     render_options,
     scene_voice,
     text_case,
+    text_hold,
     text_size,
     voice_id,
     voice_pause,
@@ -405,6 +416,7 @@ def set_custom_voice(
         raise ApiError(415, "invalid_voice", "Không đọc được độ dài file giọng đọc: hãy xuất lại file MP3")
     old = scene.voice_key
     scene.voice_key, scene.voice_seconds, scene.voice_name = key, seconds, name
+    scene.voice_words = None
     scene.voice_signature = CUSTOM_VOICE + hashlib.sha256(data).hexdigest()[: 64 - len(CUSTOM_VOICE)]
     if scene.seconds_auto:
         scene.seconds = auto_seconds(seconds, voice_pause(video))
@@ -417,7 +429,7 @@ def remove_custom_voice(scene: Scene) -> str | None:
     if not is_custom_voice(scene):
         return None
     old = scene.voice_key
-    scene.voice_key = scene.voice_signature = scene.voice_seconds = scene.voice_name = None
+    scene.voice_key = scene.voice_signature = scene.voice_seconds = scene.voice_name = scene.voice_words = None
     return old
 
 
@@ -679,6 +691,10 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             ),
             *([["sounds", [sound_fields(sound) for sound in scene.sounds]]] if scene.sounds else []),
             *([["music_level", scene.music_level]] if scene.music_level else []),
+            # PC Shopee's "Trên" joins only when chosen, so MP4s rendered before it existed stay current.
+            *([["text_zone", scene.text_zone]] if scene.text_zone else []),
+            # "Ẩn chữ sau X giây" joins only when set, so MP4s rendered before it existed stay current.
+            *([["text_hold", hold]] if (hold := text_hold(video, scene)) is not None else []),
             # Blurred boxes on the clip join only when there are some, so earlier MP4s stay current.
             *([["video_blur", blurred]] if (blurred := blur_of(scene)) else []),
             # A card shown part by part joins only then, so earlier MP4s stay current.
@@ -831,7 +847,37 @@ def run_checks(db: DbSession, video: Video, title: Scene | None, scenes: list[Sc
                 else PHOTO_LAYER_MISSING
             )
             checks.blocking.append(Issue(missing, scene.id, "image"))
+    checks.warnings.extend(tier_warnings(video, title, scenes))
     return checks
+
+
+def tier_warnings(video: Video, title: Scene | None, scenes: list[Scene]) -> list[Issue]:
+    """Yellow warnings for PC Shopee's compact text: a title line over 14 characters, a scene's main line over 16 or its
+    sub line over 4 words. The text still renders, shrunk to fit; the warning says which line to shorten."""
+    values = effective(video)
+    warnings: list[Issue] = []
+    try:
+        if values["title_layout"] == "three_tier" and title is not None and title.text.strip():
+            for line in title_problems(parse_title(parse_scene_text(title.text))):
+                warnings.append(
+                    Issue(f"Dòng tiêu đề “{line}” dài hơn {TITLE_MAX_CHARS} ký tự: chữ sẽ tự thu nhỏ", title.id, "text")
+                )
+        if values["scene_text_layout"] == "two_tier":
+            for scene in scenes[:-1]:  # the last scene is the call to action, kept as a text box
+                if not scene.text.strip():
+                    continue
+                for line in scene_problems(parse_scene(parse_scene_text(scene.text))):
+                    warnings.append(
+                        Issue(
+                            f"Chữ cảnh “{line}” quá dài (dòng chính tối đa {SCENE_MAX_CHARS} ký tự, dòng phụ {SCENE_MAX_SUB_WORDS} từ): "
+                            "hãy rút gọn, ví dụ *LOGITECH G304* không dây",
+                            scene.id,
+                            "text",
+                        )
+                    )
+    except MarkupError:
+        pass  # a text with a broken mark is reported by the text's own check
+    return warnings
 
 
 def _last_failed(db: DbSession, video_id: int) -> Job | None:
@@ -1270,6 +1316,8 @@ def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | Non
         "layers": [layer_payload(layer, text_case(video, False), video) for layer in scene.layers],
         "sounds": [sound_payload(sound) for sound in scene.sounds],
         "music_level": scene.music_level,
+        "text_zone": scene.text_zone,
+        "text_hold_sec": scene.text_hold_sec,  # its own "Ẩn chữ sau X giây"; None: the video's
         "voice_id": scene.voice_id,  # its own voice; None: the video's
         # A "Cảnh động" (motion.py): its markup and seconds while the scene shows its clip or it is being made.
         "motion": motion_payload(scene),

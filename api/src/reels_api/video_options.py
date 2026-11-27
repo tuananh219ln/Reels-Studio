@@ -21,6 +21,7 @@ from reels_render.options import (
     ZOOMS,
     RenderOptions,
 )
+from reels_render.pc_text import PC_STYLES
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH, is_hex
 from reels_render.timeline import VOICE_TAIL
 
@@ -74,7 +75,23 @@ DEFAULTS: dict = {
     # The title motion's sounds: "reveal_ting" a soft ding as each slot pops in (title_motion.sync_title_sfx), "manual"
     # the member's own sounds are left alone, "off" the title scene has none.
     "title_sfx": "reveal_ting",
+    # "Thời gian hiện chữ" (PC Shopee only, see is_pc_shopee): the content scenes' text fades out after this many
+    # seconds; None: it stays the whole scene, as it always did. A scene's own `text_hold_sec` wins.
+    "text_hold_sec": None,
+    # The look of PC Shopee's drawn text, a key of reels_render.pc_text.PC_STYLES ("Cộng dồn" captions for now).
+    "pc_style": "neon_game",
+    # PC Shopee's compact text (reels_render.tiers): "three_tier" draws the title as a small line, a main line, a sub line
+    # and an optional label, "two_tier" a content scene's text as a numbered main line and a sub line; "box" is the text
+    # box every other group has. `pc_title_style` is the title's look (a key of PC_STYLES).
+    "title_layout": "box",
+    "scene_text_layout": "box",
+    "pc_title_style": "brand_navy",
 }
+# The topic group the "Ẩn chữ sau X giây" setting is for. Its new videos start with PC_SHOPEE_TEXT_HOLD; every other
+# group keeps None, so nothing changes for them (docs/decisions/2026-11-27-text-hold.md).
+PC_SHOPEE_GROUP = "PC Shopee"
+PC_SHOPEE_TEXT_HOLD = 2.5
+TEXT_HOLD_MIN, TEXT_HOLD_MAX, TEXT_HOLD_STEP = 1.0, 6.0, 0.5
 # The pauses offered, in seconds; the shortest is the one every video had before the choice existed.
 VOICE_PAUSES = (VOICE_TAIL, 0.7, 1.0)
 # What the text boxes are drawn with (previews, thumbnail, MP4); text_look keeps this order.
@@ -124,6 +141,10 @@ CHOICES = {
     "text_case": TEXT_CASES,
     "title_text_case": TEXT_CASES,
     "title_sfx": TITLE_SFX,
+    "pc_style": PC_STYLES,
+    "title_layout": ("box", "three_tier"),
+    "scene_text_layout": ("box", "two_tier"),
+    "pc_title_style": PC_STYLES,
 }
 
 
@@ -148,6 +169,11 @@ LABELS = {
     "title_text_size": "Cỡ chữ tiêu đề",
     "text_case": "Dạng chữ",
     "title_text_case": "Dạng chữ tiêu đề",
+    "text_hold_sec": "Thời gian hiện chữ",
+    "pc_style": "Kiểu chữ PC Shopee",
+    "title_layout": "Bố cục tiêu đề",
+    "scene_text_layout": "Bố cục chữ cảnh",
+    "pc_title_style": "Kiểu chữ tiêu đề PC Shopee",
     "ducking": "Nhỏ nhạc khi có giọng",
     "text_shade": "Nền tối mờ sau chữ",
     "voice_pause": "Nghỉ sau lời đọc",
@@ -216,6 +242,8 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
                 raise OptionError(f"“{LABELS[name]}” chỉ nhận bật hoặc tắt")
         elif name in ("text_position", "title_text_position"):
             value = clean_position(value)
+        elif name == "text_hold_sec":
+            value = clean_text_hold(value)
         elif name == "voice_speed":
             value = clean_speed(value)
         elif name == "voice_pause":
@@ -246,10 +274,44 @@ def choices() -> dict:
             "voice_pause": list(VOICE_PAUSES),
             "ducking": [True, False],
             "text_shade": [True, False],
+            "text_hold_sec": {
+                "min": TEXT_HOLD_MIN,
+                "max": TEXT_HOLD_MAX,
+                "step": TEXT_HOLD_STEP,
+                "null": "whole scene",
+            },
             "text_position": {"width": FRAME_WIDTH, "height": FRAME_HEIGHT},
             "title_text_position": {"width": FRAME_WIDTH, "height": FRAME_HEIGHT},
         }
     )
+
+
+def clean_text_hold(value: object) -> float | None:
+    """Seconds the text stays (1 to 6 in steps of 0.5), or None for the whole scene; the message is shown to members."""
+    if value is None:
+        return None
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not TEXT_HOLD_MIN <= value <= TEXT_HOLD_MAX
+        or (value - TEXT_HOLD_MIN) % TEXT_HOLD_STEP
+    ):
+        raise OptionError(
+            f"“Thời gian hiện chữ” phải từ {TEXT_HOLD_MIN:g} đến {TEXT_HOLD_MAX:g} giây, mỗi bước 0,5 giây"
+        )
+    return float(value)
+
+
+def is_pc_shopee(group: KnowledgeTopic | None) -> bool:
+    return group is not None and group.name.strip().casefold() == PC_SHOPEE_GROUP.casefold()
+
+
+def text_hold(video: Video, scene: Scene) -> float | None:
+    """Seconds a scene's text stays before it fades out: its own, else the video's; None for the whole scene and
+    always for the title scene. (The renderer also keeps the last scene's text: reels_render.graph.hold_seconds.)"""
+    if scene.is_title:
+        return None
+    return scene.text_hold_sec if scene.text_hold_sec is not None else effective(video)["text_hold_sec"]
 
 
 def clean_position(value: object) -> list[int] | None:
@@ -339,6 +401,10 @@ def render_options(video: Video) -> RenderOptions:
         voice_volume=values["voice_volume"] / 100,
         ducking=values["ducking"],
         text_shade=values["text_shade"],
+        pc_style=values["pc_style"],
+        pc_title_style=values["pc_title_style"],
+        title_layout=values["title_layout"],
+        scene_text_layout=values["scene_text_layout"],
         backdrop=video.mode == "single",
         **{name: values[name] for name in LOOK_FIELDS},
     )
@@ -350,11 +416,21 @@ def look_signature(video: Video) -> dict | None:
     values = effective(video)
     # The pause after narration changes the seconds, which the fingerprint holds already.
     # The title's sounds are in the scenes' sounds, which the fingerprint holds already.
-    skipped = ("voice_id", "voice_speed", "voice_pause", "title_sfx")
+    # The text's hold joins each scene's part in videos.render_signature, where a scene's own value counts too.
+    skipped = ("voice_id", "voice_speed", "voice_pause", "title_sfx", "text_hold_sec")
     changed = {name: values[name] for name in DEFAULTS if name not in skipped}
     if changed == {name: DEFAULTS[name] for name in changed}:
         return None
-    for name in (*LATER_LOOK_FIELDS, "text_position", "title_text_position", "text_shade"):
+    for name in (
+        *LATER_LOOK_FIELDS,
+        "text_position",
+        "title_text_position",
+        "text_shade",
+        "pc_style",
+        "title_layout",
+        "scene_text_layout",
+        "pc_title_style",
+    ):
         if changed[name] == DEFAULTS[name]:
             del changed[name]
     return changed
@@ -420,6 +496,12 @@ def apply_defaults(db: DbSession, video: Video, user_id: int) -> None:
     if group is not None and group.voice_id:
         video.options["voice_id"] = group.voice_id
     video.options.update(group_look(group))
+    if is_pc_shopee(group):
+        # PC Shopee's own start (docs/decisions/2026-11-27-text-hold.md, 2026-11-27-cumulative-captions.md): "Cộng dồn"
+        # captions in place of the scenes' text; the hold waits for when "Cộng dồn" is turned off.
+        video.options["text_hold_sec"] = PC_SHOPEE_TEXT_HOLD
+        video.options["captions"] = "cumulative"
+        video.options["title_layout"], video.options["scene_text_layout"] = "three_tier", "two_tier"
     brand = brands.default_for(db, user_id, video.knowledge_topic_id)
     if brand is not None:
         video.options["brand_id"] = brand.id

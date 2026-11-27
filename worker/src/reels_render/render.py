@@ -4,8 +4,11 @@ from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
+from PIL import Image
+
 from . import ffmpeg
 from .captions import Word, plan_captions, plan_word_captions
+from .cumulative import Step, estimate_words, known_words, plan_cumulative, render_cumulative, voiced_words
 from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplacedError
 from .graph import (
     MAX_CLIP_PIXELS,
@@ -30,9 +33,11 @@ from .sounds import SOUND_VOLUMES
 from .stock import find_stock_images
 from .textbox import (
     CAPTION_GAP,
+    FRAME_HEIGHT,
     FRAME_WIDTH,
     SCENE_BOX_BOTTOM,
     TextFitError,
+    TextLayout,
     caption_y,
     empty_box,
     layout_sized,
@@ -41,6 +46,7 @@ from .textbox import (
     render_caption,
     with_shade,
 )
+from .tiers import SCENE_CENTRE, SCENE_CENTRE_TOP, TITLE_CENTRE, parse_scene, parse_title, render_scene, render_title
 from .timeline import FPS, VOICE_LEAD, build_timeline, fit_seconds
 
 DEFAULT_MUSIC_VOLUME = 0.25
@@ -73,20 +79,27 @@ def render_video(
         if not music.is_file():
             raise InputError(f"Không tìm thấy file nhạc: {music}")
 
+    # A scene with narration is lengthened to fit it; its seconds are the minimum.
+    spoken = [voice_seconds(tools.ffprobe, scene) for scene in script.all_scenes]
+    heard = [clip_sound_heard(tools.ffprobe, scene, on_warning) for scene in script.all_scenes]
     layouts = []
-    for index, (scene, lines) in enumerate(zip(script.all_scenes, scene_lines(script, options))):
+    tiers: dict[int, Image.Image] = {}
+    last_scene = len(script.all_scenes) - 1
+    for index, (scene, lines) in enumerate(zip(script.all_scenes, scene_lines(script, options, heard, spoken))):
+        if lines and (picture := tier_picture(lines, index, last_scene, options)) is not None:
+            # PC Shopee's compact text: a picture of its own, not a text box (tiers.py).
+            tiers[index] = picture
+            layouts.append(TextLayout(0, [], [], 0, 0, picture.width, picture.height))
+            continue
         try:
             size = options.title_text_size if index == 0 else options.text_size
             layouts.append(layout_sized(lines, size, is_title=index == 0) if lines else None)
         except TextFitError as err:
             raise InputError(f"{scene.label}: {err}") from None
-    # A scene with narration is lengthened to fit it; its seconds are the minimum.
-    spoken = [voice_seconds(tools.ffprobe, scene) for scene in script.all_scenes]
     timeline = build_timeline([fit_seconds(scene.seconds, voice) for scene, voice in zip(script.all_scenes, spoken)])
     if options.backdrop:
         script = with_backdrop(script)
     palette, first_palette = options.scene_palette(), options.title_palette()
-    heard = [clip_sound_heard(tools.ffprobe, scene, on_warning) for scene in script.all_scenes]
     cut = all_cuts(options, [scene.transition for scene in script.all_scenes])
 
     with tempfile.TemporaryDirectory(prefix="reels_render_") as work:
@@ -146,14 +159,18 @@ def render_video(
                 box_x, box_y = 0, 0
                 overlay_x, overlay_y = 0, 0
             else:
-                box_image = render_box(layout, first_palette if index == 0 else palette)
-                box_x, box_y = place_box(
-                    layout.width,
-                    layout.height,
-                    scene.text_position or fitted.text_centre,
-                    is_title=index == 0,
-                    min_top=min_top,
-                )
+                if index in tiers:
+                    box_image = tiers[index]
+                    box_x, box_y = tier_corner(box_image, index, scene.text_position, scene.text_zone)
+                else:
+                    box_image = render_box(layout, first_palette if index == 0 else palette)
+                    box_x, box_y = place_box(
+                        layout.width,
+                        layout.height,
+                        scene.text_position or fitted.text_centre,
+                        is_title=index == 0,
+                        min_top=min_top,
+                    )
                 # The shade is part of the picture laid over the scene, so it fades with the text; the captions
                 # below still go by the box's own corner.
                 if options.text_shade and index > 0:
@@ -164,7 +181,17 @@ def render_video(
             # Captions sit just above a content scene's text box; the title scene keeps its hook box alone. The
             # narration's are timed by estimate; a clip's own sound has each word's real seconds.
             cues = []
-            if index > 0 and spoken[index] is not None and scene.voice_text.strip():
+            scene_end = (scene_start + timeline.scene_frames[index]) / FPS
+            if options.captions == "cumulative":
+                if 0 < index < len(script.all_scenes) - 1:
+                    for number, step in enumerate(
+                        cumulative_steps(scene, index, scene_start, spoken, heard, cut, scene_end)
+                    ):
+                        picture, (left, top) = render_cumulative(step.lines, options.pc_style, scene.text_zone)
+                        path = work_dir / f"cumulative-{index:02d}-{number:03d}.png"
+                        picture.save(path)
+                        captions.append(CaptionInput(path, left, top, step.start, step.end))
+            elif index > 0 and spoken[index] is not None and scene.voice_text.strip():
                 start = scene_start / FPS + VOICE_LEAD
                 cues = plan_captions(scene.voice_text, start, spoken[index], options.captions)
             elif index > 0 and heard[index] and scene.words:
@@ -236,6 +263,7 @@ def render_video(
                     loop=video_start is not None and (options.backdrop or scene.video_loop),
                     blur=scene.video_blur if video_start is not None else (),
                     insets=tuple(insets),
+                    text_hold=scene.text_hold,
                     framed=FramedInput(fitted.picture, *fitted.box) if fitted.picture is not None else None,
                     motion_span=(
                         (scene_start - timeline.scene_frames[index], timeline.total_frames)
@@ -281,12 +309,84 @@ def logo_input(badge: Path | None, timeline) -> LogoInput | None:
     return LogoInput(badge, corner_placement(), timeline.scene_frames[0] / FPS)
 
 
-def scene_lines(script: Script, options: RenderOptions) -> list[list[list[Run]]]:
+def scene_lines(
+    script: Script,
+    options: RenderOptions,
+    heard: list[bool] | None = None,
+    spoken: list[float | None] | None = None,
+) -> list[list[list[Run]]]:
     """Each scene's text lines (empty without text) in the letter case chosen for it: the title's, or the scenes'."""
+    last = len(script.all_scenes) - 1
+    heard = heard or [False] * (last + 1)
+    spoken = spoken or [None] * (last + 1)
     return [
-        cased(scene.lines, options.title_text_case if index == 0 else options.text_case)
+        # "Cộng dồn" replaces the content scenes' text (not the title's, nor the last scene's call to action), but only
+        # where it has words to show: a scene with no narration (or clip words) keeps its own text.
+        []
+        if options.captions == "cumulative" and 0 < index < last and has_words(scene, index, heard, spoken)
+        else cased(scene.lines, options.title_text_case if index == 0 else options.text_case)
         for index, scene in enumerate(script.all_scenes)
     ]
+
+
+def tier_picture(lines: list[list[Run]], index: int, last: int, options: RenderOptions) -> Image.Image | None:
+    """The title in three tiers, or a content scene's text in two (never the last scene's call to action), when the
+    video asks for them; None for a scene drawn as a text box."""
+    if index == 0 and options.title_layout == "three_tier":
+        return render_title(parse_title(lines), options.pc_title_style)
+    if 0 < index < last and options.scene_text_layout == "two_tier":
+        return render_scene(parse_scene(lines), options.pc_style)
+    return None
+
+
+def tier_corner(
+    picture: Image.Image, index: int, position: tuple[int, int] | None, zone: str | None = None
+) -> tuple[int, int]:
+    """Where a tiers picture goes: centred at its own place (the title 22% down, the scenes' 62–78% zone), or at the
+    place a member moved it to, never off the frame."""
+    centre_x, centre_y = position or (
+        TITLE_CENTRE if index == 0 else SCENE_CENTRE_TOP if zone == "top" else SCENE_CENTRE
+    )
+    if index == 0:
+        centre_x = FRAME_WIDTH // 2  # the title stays centred across, as every title does
+    left = min(max(0, centre_x - picture.width // 2), FRAME_WIDTH - picture.width)
+    top = min(max(0, centre_y - picture.height // 2), FRAME_HEIGHT - picture.height)
+    return left, top
+
+
+def has_words(scene: Scene, index: int, heard: list[bool], spoken: list[float | None]) -> bool:
+    """A scene has words for "Cộng dồn": a narration to read, or a clip's own sound with its words."""
+    return (spoken[index] is not None and bool(scene.voice_text.strip())) or (heard[index] and bool(scene.words))
+
+
+def cumulative_steps(
+    scene: Scene,
+    index: int,
+    scene_start: int,
+    spoken: list[float | None],
+    heard: list[bool],
+    cut: bool,
+    scene_end: float,
+) -> list[Step]:
+    """The "Cộng dồn" steps of a content scene: its narration's words (seconds estimated across the narration), or a
+    clip's own words at their real seconds."""
+    if spoken[index] is not None and scene.voice_text.strip():
+        marked = frozenset(
+            word.strip(",.!?:;…").casefold()
+            for line in scene.lines
+            for run in line
+            if run.red
+            for word in run.text.split()
+        )
+        begin = scene_start / FPS + VOICE_LEAD
+        words = voiced_words(scene.voice_text, list(scene.voice_words), begin, marked) or estimate_words(
+            scene.voice_text, begin, spoken[index], marked
+        )
+    elif heard[index] and scene.words:
+        words = known_words(placed_words(scene, scene_start / FPS, scene_end, clip_lead(index, cut)))
+    else:
+        return []
+    return plan_cumulative(words, scene_end)
 
 
 def clip_sound_heard(ffprobe: str, scene: Scene, on_warning: Callable[[str], None] | None) -> bool:

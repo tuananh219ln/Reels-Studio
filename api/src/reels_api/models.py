@@ -501,6 +501,12 @@ class Scene(Base):
     image_fit: Mapped[str | None] = mapped_column(String(8))
     # Where the square is cut along the photo's longer side, 0 to 1; None: the middle. A new photo drops it.
     image_crop_offset: Mapped[float | None] = mapped_column(Float)
+    # "Ẩn chữ sau X giây" of this scene (1 to 6, steps of 0.5): its text fades out after this many seconds. None: the
+    # video's own (video_options "text_hold_sec"). Never applied to the title scene or the last scene.
+    text_hold_sec: Mapped[float | None] = mapped_column(Float)
+    # Where PC Shopee's tiers and "Cộng dồn" captions sit in this scene: "top" (14–30% of the frame) or None, the lower
+    # zone (62–78%), clear of the platforms' caption bars.
+    text_zone: Mapped[str | None] = mapped_column(String(6))
     # "Làm mờ vùng" on a clip: {"key": the clip, "boxes": [[x, y, w, h], ...]} as fractions of the 1080x1920 frame,
     # blurred for the whole scene (reels_render/blur.py) while the scene still shows that clip.
     video_blur: Mapped[dict | None] = mapped_column(JSONB)
@@ -521,6 +527,10 @@ class Scene(Base):
     voice_signature: Mapped[str | None] = mapped_column(String(64))
     voice_seconds: Mapped[float | None] = mapped_column(Float)
     voice_name: Mapped[str | None] = mapped_column(String(200))
+    # Each spoken word's seconds in the narration MP3, [{"text", "start", "end"}], from ElevenLabs' `with-timestamps` while
+    # "Cộng dồn" is on; None: unknown (another service, an uploaded file, or narration made before), and the render
+    # estimates them. Cleared whenever the narration changes.
+    voice_words: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     # A clip shown instead of the photo: a scene has one or the other, never both.
     video_key: Mapped[str | None] = mapped_column(String(200))
     video_seconds: Mapped[float | None] = mapped_column(Float)  # the clip's probed length

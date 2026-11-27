@@ -1,0 +1,256 @@
+"""Phụ đề "Cộng dồn": phrases, steps, the Neon look, and what a render shows."""
+
+from pathlib import Path
+
+import pytest
+from conftest import extract_frame, make_image, make_tone, needs_ffmpeg, script_data, write_script
+from PIL import Image, ImageChops
+
+from reels_render.captions import Word
+from reels_render.cumulative import (
+    KEY_SIZE,
+    LEAD_SIZE,
+    MAX_LINES,
+    MAX_WORDS,
+    TAIL_SIZE,
+    chunks,
+    estimate_words,
+    known_words,
+    plan_cumulative,
+    render_cumulative,
+)
+from reels_render.options import RenderOptions
+from reels_render.render import render_video
+from reels_render.script import load_script
+
+TEXT = "Chuột *Logitech G304* không dây, bàn gọn hẳn. Giá chỉ *299 nghìn* thôi."
+
+
+def test_words_share_the_narration_and_keep_the_marks():
+    words = estimate_words(TEXT, 1.0, 6.0)
+    assert words[0].start == pytest.approx(1.0) and words[-1].end == pytest.approx(7.0)
+    assert all(a.end == pytest.approx(b.start) for a, b in zip(words, words[1:]))
+    assert [word.text for word in words if word.key] == ["LOGITECH", "G304", "299", "NGHÌN"]
+    assert words[0].text == "CHUỘT"  # always capitals
+
+
+def test_marked_words_of_the_scene_text_stand_in_when_the_narration_has_no_marks():
+    words = estimate_words("Chuột logitech g304 không dây", 0, 3, frozenset({"logitech", "g304"}))
+    assert [word.key for word in words] == [False, True, True, False, False]
+
+
+def test_phrases_end_at_punctuation_and_never_split_a_marked_run():
+    phrases = chunks(estimate_words(TEXT, 0, 8))
+    assert [" ".join(word.text for word in phrase) for phrase in phrases] == [
+        "CHUỘT LOGITECH G304 KHÔNG DÂY,",
+        "BÀN GỌN HẲN.",
+        "GIÁ CHỈ 299 NGHÌN THÔI.",
+    ]
+
+
+def test_a_long_run_of_plain_words_is_cut_to_nine_words_and_three_lines():
+    words = estimate_words(" ".join(["từ"] * 25), 0, 10)
+    for phrase in chunks(words):
+        assert len(phrase) <= MAX_WORDS
+    long_words = estimate_words("một hai ba bốn năm sáu bảy tám chín mười", 0, 5)
+    assert all(len(plan.lines) <= MAX_LINES for plan in plan_cumulative(long_words, 5))
+
+
+def test_a_pause_in_the_voice_ends_the_phrase_and_a_long_one_clears_the_screen():
+    words = known_words([Word("một", 0, 0.4), Word("hai", 0.45, 0.8), Word("ba", 1.5, 1.9), Word("bốn", 1.95, 2.3)])
+    assert [len(phrase) for phrase in chunks(words)] == [2, 2]  # a 0.7 s pause
+    steps = plan_cumulative(words, 3.0)
+    assert steps[1].end == pytest.approx(0.8)  # cleared at the last word: the voice rests more than 0.6 s
+    assert steps[-1].end == pytest.approx(3.0)  # the last phrase stays to the scene's end
+
+
+def test_words_pile_up_in_the_order_said_and_the_last_phrase_ends_with_the_scene():
+    steps = plan_cumulative(estimate_words(TEXT, 1.0, 6.0), 8.0)
+    first = [[line.text for line in step.lines] for step in steps[:3]]
+    assert first == [["CHUỘT"], ["CHUỘT", "LOGITECH G304"], ["CHUỘT", "LOGITECH G304", "KHÔNG"]]
+    assert steps[-1].end == 8.0 and all(step.end <= 8.0 for step in steps)
+    assert all(a.end <= b.start + 1e-9 for a, b in zip(steps, steps[1:]))  # one picture at a time
+
+
+def test_lines_are_sized_lead_key_and_tail_or_all_medium_without_a_marked_word():
+    lines = plan_cumulative(estimate_words("Chuột *Logitech G304* không dây", 0, 4), 4)[-1].lines
+    assert [line.size for line in lines] == [LEAD_SIZE, KEY_SIZE, TAIL_SIZE]
+    plain = plan_cumulative(estimate_words("Chuột không dây rất nhẹ", 0, 4), 4)[-1].lines
+    assert {line.size for line in plain} == {TAIL_SIZE}
+
+
+def test_the_neon_look_has_aqua_keywords_a_dark_outline_and_all_the_vietnamese_marks():
+    steps = plan_cumulative(estimate_words("Ổ cứng *ĐÁNG SĂN* màn hình Ị Ự Ơ Ư", 0, 5), 5)
+    picture, corner = render_cumulative(next(step for step in steps if any(line.key for line in step.lines)).lines)
+    assert picture.mode == "RGBA" and 0 <= corner[0] and corner[1] > 1920 * 0.58
+    colours = {pixel[:3] for pixel in picture.get_flattened_data() if pixel[3] == 255}
+    assert (0x5E, 0xF2, 0xD0) in colours and (255, 255, 255) in colours and (0x0B, 0x1E, 0x2B) in colours
+
+
+@needs_ffmpeg
+def test_a_render_shows_the_words_so_far_and_no_scene_text_in_a_content_scene(tmp_path):
+    make_image(tmp_path / "a.jpg", (1080, 1920), (30, 90, 160))
+    make_tone(tmp_path / "voice.wav", 2.0)
+    data = script_data(scene_count=2, image="a.jpg")
+    for item in data["scenes"]:
+        item["seconds"] = 3
+    data["scenes"][0].update(text="CHỮ CẢNH *bị tắt*", voice="voice.wav", voice_text="Chuột *Logitech* không dây")
+    plain = Image.new("RGB", (1080, 1920), (30, 90, 160))
+    script = load_script(write_script(tmp_path, data))
+    output = render_video(script, tmp_path / "out.mp4", options=RenderOptions(captions="cumulative"))
+
+    def changed(second: float, box: tuple[int, int, int, int]) -> bool:
+        frame = extract_frame(output, second, tmp_path / f"f{second}.png")
+        difference = ImageChops.difference(frame.crop(box), plain.crop(box))
+        return max(high for _, high in difference.getextrema()) > 60
+
+    # Scene 1 runs from 1 s to 3.4 s. Its narration is on the lower zone (62–78%); nothing in the old text place.
+    assert changed(3.0, (0, 1190, 1080, 1500))
+    assert not changed(3.0, (0, 780, 1080, 1140))
+    # The last scene is the call to action: its own text stays and no caption is drawn there.
+    assert changed(5.6, (0, 700, 1080, 1250))
+
+
+@needs_ffmpeg
+def test_a_scene_with_no_narration_keeps_its_own_text_under_cumulative(tmp_path):
+    make_image(tmp_path / "a.jpg", (1080, 1920), (30, 90, 160))
+    data = script_data(scene_count=2, image="a.jpg")
+    for item in data["scenes"]:
+        item["seconds"] = 3
+    plain = Image.new("RGB", (1080, 1920), (30, 90, 160))
+    script = load_script(write_script(tmp_path, data))
+    output = render_video(script, tmp_path / "out.mp4", options=RenderOptions(captions="cumulative"))
+    frame = extract_frame(output, 2.0, tmp_path / "f.png")  # scene 1: nothing to say, so nothing replaces its text
+    box = (0, 700, 1080, 1250)
+    difference = ImageChops.difference(frame.crop(box), plain.crop(box))
+    assert max(high for _, high in difference.getextrema()) > 60
+
+
+def test_real_word_seconds_replace_the_estimate_when_the_words_match():
+    from reels_render.cumulative import voiced_words
+
+    spoken = [Word("Chuột", 0.0, 0.4), Word("Logitech", 0.5, 1.2), Word("nhẹ", 1.3, 1.6)]
+    words = voiced_words("Chuột *Logitech* nhẹ", spoken, 10.0)
+    assert [(w.text, w.start, w.end, w.key) for w in words] == [
+        ("CHUỘT", 10.0, 10.4, False),
+        ("LOGITECH", 10.5, 11.2, True),
+        ("NHẸ", 10.0 + 1.3, 10.0 + 1.6, False),
+    ]
+    # Another number of words (the text was edited after the narration): no real seconds, the caller estimates.
+    assert voiced_words("Chuột Logitech nhẹ thôi", spoken, 10.0) == []
+
+
+@pytest.mark.parametrize(
+    ("style", "key", "plain", "outline"),
+    [
+        ("neon_game", (0x5E, 0xF2, 0xD0), (255, 255, 255), (0x0B, 0x1E, 0x2B)),
+        ("brand_navy", (0xFF, 0xC8, 0x16), (0xFE, 0xFF, 0xFA), (0x10, 0x19, 0x5E)),
+        ("halftone_purple", (0x11, 0x11, 0x14), (0xED, 0xED, 0xF2), (0x1A, 0x15, 0x30)),
+    ],
+)
+def test_each_look_draws_its_own_colours_with_every_vietnamese_mark(style, key, plain, outline):
+    from reels_render.cumulative import Line
+
+    lines = (Line("ĐÁNG SĂN Ổ CỨNG", 100, True), Line("MÀN HÌNH Ị Ự Ơ Ư", 72, False))
+    picture, corner = render_cumulative(lines, style)
+    solid = {pixel[:3] for pixel in picture.get_flattened_data() if pixel[3] == 255}
+    near = lambda colour: any(max(abs(a - b) for a, b in zip(colour, pixel)) <= 12 for pixel in solid)  # noqa: E731
+    assert near(outline) and near(plain)
+    if style != "brand_navy":
+        assert near(key)
+    else:
+        assert any(pixel[0] > 240 and 170 < pixel[1] < 225 and pixel[2] < 60 for pixel in solid)  # the key's gold
+    assert picture.width <= 1080 and corner[1] > 1100
+
+
+# --- Tiers: the title in three tiers, a content scene's text in two ---
+
+
+def test_the_title_splits_into_small_main_sub_and_a_label():
+    from reels_render.markup import parse_scene_text
+    from reels_render.tiers import parse_title
+
+    lines = parse_scene_text("black friday\n5 món PC đáng săn\nGiảm thật 100%\n[[-50%]]")
+    tiers = parse_title(lines)
+    assert (tiers.small, tiers.main, tiers.sub, tiers.label) == (
+        "BLACK FRIDAY",
+        "5 MÓN PC ĐÁNG SĂN",
+        "GIẢM THẬT 100%",
+        "-50%",
+    )
+    two = parse_title(parse_scene_text("5 món\nGiảm thật"))
+    assert (two.small, two.main, two.sub) == ("", "5 MÓN", "GIẢM THẬT")
+    assert parse_title(parse_scene_text("Một dòng")).main == "MỘT DÒNG"
+
+
+def test_a_scene_text_splits_into_a_number_the_main_marked_words_and_a_sub():
+    from reels_render.markup import parse_scene_text
+    from reels_render.tiers import parse_scene
+
+    tiers = parse_scene(parse_scene_text("3. *Logitech G304*\nkhông dây"))
+    assert (tiers.number, tiers.main, tiers.sub) == ("3", "LOGITECH G304", "KHÔNG DÂY")
+    assert parse_scene(parse_scene_text("Chuột nhẹ\nbàn gọn")).main == "CHUỘT NHẸ"  # nothing marked: the first line
+
+
+def test_the_tiers_stay_inside_their_share_of_the_frame_even_when_a_line_is_too_long():
+    from reels_render.markup import parse_scene_text
+    from reels_render.pc_text import PAD
+    from reels_render.tiers import parse_scene, parse_title, render_scene, render_title, title_problems
+
+    title = parse_title(
+        parse_scene_text("BLACK FRIDAY SIÊU HỘI\n5 MÓN PC ĐÁNG SĂN NHẤT NĂM NAY\nGIẢM THẬT 100% CHO MỌI NGƯỜI")
+    )
+    assert title_problems(title)  # over 14 characters: the page warns
+    picture = render_title(title)
+    assert picture.width <= 1080 and (picture.height - 2 * PAD) / 1920 <= 0.22
+    scene = render_scene(parse_scene(parse_scene_text("3. *Logitech G304 không dây bàn gọn*\nrất nhẹ")))
+    assert scene.width <= 1080 and (scene.height - 2 * PAD) / 1920 <= 0.15
+
+
+@needs_ffmpeg
+def test_a_render_draws_the_title_in_tiers_and_a_scene_text_in_two_with_no_box(tmp_path):
+    make_image(tmp_path / "a.jpg", (1080, 1920), (30, 90, 160))
+    data = script_data(scene_count=2, image="a.jpg", text="BLACK FRIDAY\n5 MÓN PC\nGIẢM THẬT")
+    data["title"]["seconds"] = 2
+    data["scenes"][0].update(text="3. *Logitech G304*\nkhông dây", seconds=2)
+    plain = Image.new("RGB", (1080, 1920), (30, 90, 160))
+    script = load_script(write_script(tmp_path, data))
+    options = RenderOptions(title_layout="three_tier", scene_text_layout="two_tier")
+    output = render_video(script, tmp_path / "out.mp4", options=options)
+
+    def region(second: float, box: tuple[int, int, int, int]) -> Image.Image:
+        frame = extract_frame(output, second, tmp_path / f"f{second}.png")
+        return ImageChops.difference(frame.crop(box), plain.crop(box))
+
+    # The title sits about 22% down (a block of at most 22% of the frame), with no yellow box behind it.
+    title = region(1.0, (0, 200, 1080, 660))
+    assert max(high for _, high in title.getextrema()) > 60
+    assert max(high for _, high in region(1.0, (0, 900, 1080, 1700)).getextrema()) < 40
+    # The content scene's text sits in the lower zone, the title's place is clear.
+    assert max(high for _, high in region(3.0, (0, 1130, 1080, 1480)).getextrema()) > 60
+    assert max(high for _, high in region(3.0, (0, 200, 1080, 660)).getextrema()) < 40
+
+
+def test_a_scene_set_to_top_puts_the_captions_and_tiers_in_the_upper_zone():
+    from reels_render.cumulative import Line
+    from reels_render.markup import parse_scene_text
+    from reels_render.render import tier_corner
+    from reels_render.script import parse_script
+    from reels_render.tiers import parse_scene, render_scene
+
+    lines = (Line("CHUỘT", 72, False),)
+    _, lower = render_cumulative(lines)
+    _, upper = render_cumulative(lines, zone="top")
+    assert lower[1] > 1920 * 0.55 and upper[1] < 1920 * 0.2  # 62–78% and 14–30%
+    picture = render_scene(parse_scene(parse_scene_text("3. *Logitech*\nkhông dây")))
+    assert tier_corner(picture, 1, None, "top")[1] < 1920 * 0.2 < 1920 * 0.55 < tier_corner(picture, 1, None)[1]
+    assert tier_corner(picture, 1, (100, 100), "top")[0] == 0  # a place a member moved it to wins, kept on the frame
+    assert (
+        parse_script(
+            {"title": {"text": "A", "seconds": 1}, "scenes": [{"text": "B", "seconds": 1, "text_zone": "top"}]},
+            Path("."),
+        )
+        .scenes[0]
+        .text_zone
+        == "top"
+    )

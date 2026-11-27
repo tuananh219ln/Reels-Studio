@@ -159,10 +159,50 @@ NO_GEMINI_KEY = "Chưa có key Gemini nên {}: nhập key ở Cài đặt › AI
 NO_GOOGLE_KEY = "Chưa có key Google Cloud Text-to-Speech nên {}: nhập key ở Cài đặt › AI và nguồn tư liệu"
 
 
-def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: float = 1.0) -> bytes:
+def words_from_alignment(alignment: object, speed: float = 1.0) -> list[dict]:
+    """ElevenLabs' per-character seconds as words ({"text", "start", "end"}, split at spaces), each second divided by the
+    tempo factor the MP3 is then sped up by. [] when the answer has no usable alignment."""
+    if not isinstance(alignment, dict):
+        return []
+    chars = alignment.get("characters")
+    starts = alignment.get("character_start_times_seconds")
+    ends = alignment.get("character_end_times_seconds")
+    if not (isinstance(chars, list) and isinstance(starts, list) and isinstance(ends, list)):
+        return []
+    if not len(chars) == len(starts) == len(ends):
+        return []
+    words: list[dict] = []
+    current: list[int] = []
+    for index, char in enumerate([*chars, " "]):
+        if isinstance(char, str) and not char.isspace() and index < len(chars):
+            current.append(index)
+        elif current:
+            try:
+                words.append(
+                    {
+                        "text": "".join(chars[i] for i in current),
+                        "start": round(float(starts[current[0]]) / speed, 3),
+                        "end": round(float(ends[current[-1]]) / speed, 3),
+                    }
+                )
+            except (TypeError, ValueError):
+                return []
+            current = []
+    return words
+
+
+def synthesize(
+    voice_text: str,
+    key: str,
+    voice_id: str | None = None,
+    speed: float = 1.0,
+    words: list[dict] | None = None,
+) -> bytes:
     """The narration as MP3 bytes, in the given voice (the server's default when None) and speed (a tempo
     factor applied here with FFmpeg). `key` is the key of the voice's service (key_name) as source_keys gives it:
-    pasted on the settings pages, else the .env one."""
+    pasted on the settings pages, else the .env one. An ElevenLabs voice asked with `words` (a list to fill) is read
+    through the `with-timestamps` endpoint, same price, and each word's seconds in the final MP3 are appended to it;
+    the other services have no timings, so the list stays empty."""
     voice = voice_id or config.voice_id()
     if is_vieneu(voice):
         return change_speed(_vieneu_speech(voice_text, key, voice.removeprefix(VIENEU_PREFIX)), speed)
@@ -172,7 +212,11 @@ def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: fl
         return change_speed(_google_speech(voice_text, key, voice.removeprefix(GOOGLE_PREFIX)), speed)
     if not key:
         raise TtsError(NO_KEY.format("không tạo được lời đọc"))
-    url = f"{config.elevenlabs_api_url()}/v1/text-to-speech/{voice}?output_format=mp3_44100_128"
+    timed = words is not None
+    url = (
+        f"{config.elevenlabs_api_url()}/v1/text-to-speech/{voice}{'/with-timestamps' if timed else ''}"
+        "?output_format=mp3_44100_128"
+    )
     payload = {"text": spoken_text(voice_text), "model_id": config.voice_model(), "language_code": "vi"}
     body = json.dumps(payload).encode()
     request = urllib.request.Request(
@@ -182,17 +226,24 @@ def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: fl
         headers={
             "xi-api-key": key,
             "Content-Type": "application/json",
-            "Accept": "audio/mpeg",
+            "Accept": "application/json" if timed else "audio/mpeg",
         },
     )
     try:
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
-            data = response.read(MAX_AUDIO_BYTES + 1)
+            data = response.read(MAX_AUDIO_BYTES * 2 + 1 if timed else MAX_AUDIO_BYTES + 1)
     except urllib.error.HTTPError as err:
         raise _http_error(err.code, err.read(4000).decode("utf-8", "replace")) from None
     # URLError, timeouts, connection resets and SSL errors are all OSError subclasses.
     except OSError as err:
         raise TtsError("Không kết nối được ElevenLabs, kiểm tra mạng rồi thử lại", str(err)) from None
+    if timed:
+        try:
+            answer = json.loads(data)
+            data = base64.b64decode(answer["audio_base64"], validate=True)
+        except (ValueError, KeyError, TypeError, binascii.Error):
+            raise TtsError("ElevenLabs trả lời đọc có mốc thời gian không dùng được, thử lại sau") from None
+        words.extend(words_from_alignment(answer.get("alignment") or answer.get("normalized_alignment"), speed))
     if not data or len(data) > MAX_AUDIO_BYTES:
         raise TtsError("ElevenLabs trả file lời đọc không dùng được, thử lại sau", f"{len(data)} bytes")
     return change_speed(data, speed)

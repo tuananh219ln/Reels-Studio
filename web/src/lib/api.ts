@@ -422,6 +422,10 @@ export type SceneData = {
   sounds: SceneSound[];
   /** The music's level during the scene ("off", "low", "high"); null: the video's. */
   music_level: string | null;
+  /** The scene's own "Ẩn chữ sau X giây" (1 to 6 in half seconds); null: the video's. */
+  text_hold_sec: number | null;
+  /** PC Shopee: "top" puts the scene's tiers and captions in the 14–30% zone; null: the lower one (62–78%). */
+  text_zone: "top" | null;
   /** The scene's own narration voice (api video_options.scene_voice); null: the video's. */
   voice_id: string | null;
   /** A "Cảnh động" an assistant wrote (HTML + GSAP, rendered by HyperFrames into this scene's clip); null: none. */
@@ -1166,7 +1170,7 @@ export type VideoOptions = {
   title_box_color: string;
   title_accent_color: string;
   title_box_opacity: VideoOptions["box_opacity"];
-  captions: "off" | "phrase" | "word";
+  captions: "off" | "phrase" | "word" | "cumulative"; // "cumulative" ("Cộng dồn"): PC Shopee only
   /** The text box's size ("Cỡ chữ"): the content scenes' and the title's; "large" is the original template. */
   text_size: "large" | "medium" | "small";
   title_text_size: "large" | "medium" | "small";
@@ -1181,6 +1185,14 @@ export type VideoOptions = {
   title_text_position: [number, number] | null;
   /** "Nghỉ sau lời đọc": the pause after each scene's narration when its seconds follow it. */
   voice_pause: 0.4 | 0.7 | 1;
+  /** "Thời gian hiện chữ" (PC Shopee only): seconds the scenes' text stays before it fades out; null: all scene. */
+  text_hold_sec: number | null;
+  /** The look of PC Shopee's drawn text (api reels_render.pc_text.PC_STYLES). */
+  pc_style: "neon_game" | "halftone_purple" | "brand_navy";
+  /** PC Shopee's compact text: the title in three tiers, a content scene's text in two ("box": the text boxes). */
+  title_layout: "box" | "three_tier";
+  scene_text_layout: "box" | "two_tier";
+  pc_title_style: "neon_game" | "halftone_purple" | "brand_navy";
 };
 
 /** One of the team's text box styles (Cài đặt, shared); a video copies its colours. */

@@ -229,6 +229,8 @@ class ScenePatchBody(BaseModel):
     image_checked: bool | None = None  # true: a member looked at the app's pick and keeps it ("Giữ ảnh này")
     transition: object = None  # the transition into this scene (reels_render.effects); null: the video's
     color: object = None  # its colour preset; null: as shot
+    text_zone: object = None  # "top" or null (the lower zone): where PC Shopee's tiers and captions sit in the scene
+    text_hold_sec: object = None  # "Ẩn chữ sau X giây" of the scene, 1–6 in 0.5 steps; null: the video's
     music_level: object = None  # the music's level during the scene (reels_render.sounds); null: the video's
     # "Khung ảnh" (reels_render.framing): "cover", "whole", "square"; null: "Tự động", by the photo's shape.
     image_fit: object = None
@@ -1305,6 +1307,8 @@ def split_scene(
         transition="cut",
         color=scene.color,
         music_level=scene.music_level,
+        text_hold_sec=scene.text_hold_sec,
+        text_zone=scene.text_zone,
         voice_id=scene.voice_id,
     )
     db.add(rest)
@@ -1449,6 +1453,17 @@ def patch_scene(
         if value is not None and (not isinstance(value, str) or value not in presets):
             raise invalid(f"{name} không hợp lệ: {value!r}")
         setattr(scene, field, value)
+    if "text_zone" in fields:
+        if body.text_zone is not None and body.text_zone != "top":
+            raise invalid("Vị trí chữ chỉ có “top” (Trên) hoặc để trống (Dưới)")
+        scene.text_zone = body.text_zone
+    if "text_hold_sec" in fields:
+        if body.text_hold_sec is not None and scene.is_title:
+            raise invalid("Cảnh tiêu đề luôn giữ chữ suốt cảnh")
+        try:
+            scene.text_hold_sec = video_options.clean_text_hold(body.text_hold_sec)
+        except video_options.OptionError as err:
+            raise invalid(str(err)) from None
     if "music_level" in fields:
         level = body.music_level
         if level is not None and (not isinstance(level, str) or level not in MUSIC_LEVELS):

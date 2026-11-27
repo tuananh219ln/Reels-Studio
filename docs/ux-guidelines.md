@@ -1431,6 +1431,22 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
     a black band across the frame's width behind the content scenes' text, 45% at its darkest over the text
     and easing to nothing 260 px above and below it, so the text reads on a busy photo and the rest of the
     photo stays as it is. The title scene has none; the editor's previews draw it too;
+  - "Ẩn chữ sau X giây" (only a video of the topic group "PC Shopee": Thiết lập › Chữ & phụ đề › Các cảnh "Thời gian hiện
+    chữ", Suốt cảnh / 2 / 2,5 / 3,5 giây, 2,5 for a new PC Shopee video; and "Hiện chữ" on each content scene, 1 to 6 s in
+    half seconds, over the video's): a content scene's text box shows from the scene's start for X seconds, then fades
+    out over 0.25 s and is not drawn after, with the dark band behind it. The title scene and the last scene (the call to
+    action) keep their text, and so does a scene whose X is within 0.3 s of its end. The logo is not touched. Not built
+    yet from the spec: the text also shrinking to 96% as it fades. Every other group has none of this and renders as before;
+  - "Phụ đề theo giọng đọc" has a fourth choice "Cộng dồn" for PC Shopee ([decision](decisions/2026-11-27-cumulative-captions.md)):
+    the narration's words pile up in the lower zone (from 62% down) in the Neon game look (Bungee capitals, white, marked
+    words aqua on their own larger line, dark outline, cyan glow, no box) and a phrase clears for the next; it replaces the
+    content scenes' text (not the title's or the last scene's);
+  - PC Shopee's compact text ([decision](decisions/2026-11-27-pc-text-tiers.md)), chosen on Thiết lập › Chữ & phụ đề and set for
+    a new PC Shopee video: the title in three tiers (a 56 px small line, a 110 px main line in the look's marked colour, a
+    72 px sub line, an optional orange "-50%" label tilted at the top right), at most 22% of the frame's height, centred 22%
+    down, no box; a content scene's text in two (an orange numbered circle with a 88 px main line, then a 60 px sub line),
+    at most 15% of the height, in the 62–78% zone or the 14–30% one when the scene is "Trên"; looks Neon game, Halftone tím
+    and Thương hiệu ([decision](decisions/2026-11-27-pc-text-styles.md)). The last scene keeps its text box;
   - keywords marked `*...*` are drawn in red (`#E10600`);
   - long text wraps and shrinks, and is rejected only if it still does not fit: the title starts
     at 96 px and shrinks to 64 px (at most 5 lines); body text starts at 84 px and shrinks to

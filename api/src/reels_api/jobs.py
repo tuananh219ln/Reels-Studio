@@ -92,7 +92,7 @@ from .storage import DirectoryStorage
 from .tts import TtsError, all_keys_failed, is_google, service_name, synthesize, voice_signature
 from .tts import key_name as tts_key_name
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
-from .video_options import render_options, scene_voice, voice_pause, voice_speed
+from .video_options import effective, render_options, scene_voice, text_hold, voice_pause, voice_speed
 from .videos import (
     LIVE_POST_STATUSES,
     OPEN_POST_STATUSES,
@@ -706,7 +706,8 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
             if is_google(voice):
                 # Google bills past its free tier with no way to stop there, so the app stops first.
                 google_tts_quota.check(db, voice, text)
-            data = narrate(db, video, text, voice, failed)
+            words: list[dict] | None = [] if effective(video)["captions"] == "cumulative" else None
+            data = narrate(db, video, text, voice, failed, words)
         except TtsError as err:
             raise JobFailure(f"{label}: {err.message}", err.detail) from None
         if is_google(voice):
@@ -730,6 +731,7 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
             seconds,
             None,
         )
+        scene.voice_words = words or None
         # "Tự khớp lời đọc": the scene now lasts as long as its narration, shorter or longer than before.
         if scene.seconds_auto:
             scene.seconds = auto_seconds(seconds, voice_pause(video))
@@ -739,11 +741,13 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
         log.info("Narration for video %s %s: %.1fs", video.id, label, seconds)
 
 
-def narrate(db: DbSession, video: Video, text: str, voice: str | None, failed: set[str]) -> bytes:
+def narrate(
+    db: DbSession, video: Video, text: str, voice: str | None, failed: set[str], words: list[dict] | None = None
+) -> bytes:
     """One scene's narration in its voice; when every key of that voice's service is wrong or spent, in the video's
     group's backup voice (`voice_backup_id`) if it has one, which may be of another service."""
     try:
-        return _narrate_with_keys(db, video, text, voice, failed)
+        return _narrate_with_keys(db, video, text, voice, failed, words)
     except TtsError as err:
         group = db.get(KnowledgeTopic, video.knowledge_topic_id) if video.knowledge_topic_id else None
         backup = group.voice_backup_id if group is not None else ""
@@ -751,7 +755,7 @@ def narrate(db: DbSession, video: Video, text: str, voice: str | None, failed: s
             raise
         log.warning("Narration for video %s: %s cannot read (%s), using the backup voice", video.id, voice, err.message)
         try:
-            return _narrate_with_keys(db, video, text, backup, failed)
+            return _narrate_with_keys(db, video, text, backup, failed, words)
         except TtsError as backup_err:
             raise TtsError(
                 f"{err.message}. Giọng phụ của nhóm cũng không đọc được: {backup_err.message}",
@@ -759,7 +763,9 @@ def narrate(db: DbSession, video: Video, text: str, voice: str | None, failed: s
             ) from None
 
 
-def _narrate_with_keys(db: DbSession, video: Video, text: str, voice: str | None, failed: set[str]) -> bytes:
+def _narrate_with_keys(
+    db: DbSession, video: Video, text: str, voice: str | None, failed: set[str], words: list[dict] | None = None
+) -> bytes:
     """One scene's narration, trying the service's keys in order (source_keys.chain: the team's main key, then its
     backups): a key that is wrong, not allowed or out of quota passes the scene to the next, and its row on Cài đặt
     says why at once (source_keys.mark); a busy or broken service fails at once, as with one key. A key that failed
@@ -767,7 +773,7 @@ def _narrate_with_keys(db: DbSession, video: Video, text: str, voice: str | None
     service = tts_key_name(voice)
     keys = source_keys.chain(db, service)
     if not keys:
-        return synthesize(text, "", voice, voice_speed(video))  # fails with "Chưa có key …"
+        return synthesize(text, "", voice, voice_speed(video), words)  # fails with "Chưa có key …"
     last: TtsError | None = None
     for ref in keys:
         if ref.key in failed:
@@ -777,7 +783,7 @@ def _narrate_with_keys(db: DbSession, video: Video, text: str, voice: str | None
             service_usage.record(db, "gemini", "voice")
             db.commit()
         try:
-            data = synthesize(text, ref.key, voice, voice_speed(video))
+            data = synthesize(text, ref.key, voice, voice_speed(video), words)
         except TtsError as err:
             if not err.key_fault:
                 raise
@@ -875,9 +881,15 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 data["sounds"] = [sound_fields(sound) for sound in scene.sounds]
             if scene.music_level:
                 data["music_level"] = scene.music_level
+            if scene.text_zone:
+                data["text_zone"] = scene.text_zone
+            if (hold := text_hold(video, scene)) is not None:
+                data["text_hold_sec"] = hold
             if spoken(video, scene):
                 data["voice"] = storage.copy_to(scene.voice_key, folder / f"voice-{index:02d}.mp3").name
                 data["voice_text"] = spoken(video, scene)
+                if scene.voice_words and effective(video)["captions"] == "cumulative":
+                    data["voice_words"] = scene.voice_words
             return data
 
         def layer_data(layer, scene: Scene, index: int) -> list[dict]:
@@ -907,6 +919,8 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
             options = replace(options, clip_blur=True)
         if any(item.get("video_loop") for item in [data["title"], *data["scenes"]]):
             options = replace(options, clip_loop=True)
+        if any("text_hold_sec" in item for item in [data["title"], *data["scenes"]]):
+            options = replace(options, text_hold=True)
         music = _checked_music(video, storage, folder)
         if render_nodes.enabled(db):
             # The heavy part runs on a member's render machine; the api finishes the job with save_render.
