@@ -68,12 +68,14 @@ def _copy_sources(db: DbSession, since: datetime) -> set[int]:
     return {video_id for pair in rows for video_id in pair if video_id is not None}
 
 
-def choose(db: DbSession, at: datetime, days: int | None = None, limit: int | None = None) -> list[Due]:
-    """The videos whose media is due at `at`, oldest post first."""
+def choose(
+    db: DbSession, at: datetime, days: int | None = None, limit: int | None = None, video_id: int | None = None
+) -> list[Due]:
+    """The videos whose media is due at `at`, oldest post first (`video_id`: that one only)."""
     days = days or config.media_cleanup_days()
     cutoff = at - timedelta(days=days)
     last = func.max(Publication.published_at)
-    rows = db.execute(
+    query = (
         select(Video.id, last)
         .join(Publication, Publication.video_id == Video.id)
         .where(
@@ -85,7 +87,8 @@ def choose(db: DbSession, at: datetime, days: int | None = None, limit: int | No
         .group_by(Video.id)
         .having(last <= cutoff)
         .order_by(last)
-    ).all()
+    )
+    rows = db.execute(query.where(Video.id == video_id) if video_id is not None else query).all()
     if not rows:
         return []
     ids = [row[0] for row in rows]
@@ -106,10 +109,15 @@ def choose(db: DbSession, at: datetime, days: int | None = None, limit: int | No
     return due[:limit] if limit else due
 
 
-def soon(db: DbSession, at: datetime, within: timedelta = timedelta(days=3)) -> list[Due]:
-    """Videos that will be due within `within` (for the warning), with the time each falls due."""
-    days = config.media_cleanup_days()
-    return choose(db, at + within, days)
+WARN = timedelta(days=3)
+
+
+def soon(db: DbSession, at: datetime, video_id: int | None = None) -> list[Due]:
+    """Videos that will be due within `WARN` (for the warning), with the time each falls due; none while the cleanup
+    is off, since nothing then deletes anything."""
+    if not config.media_cleanup_enabled():
+        return []
+    return choose(db, at + WARN, video_id=video_id)
 
 
 def kept_keys(db: DbSession, video: Video) -> set[str]:

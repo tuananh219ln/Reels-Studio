@@ -28,7 +28,7 @@ from sqlalchemy import delete, exists, func, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import aliased, sessionmaker
 
-from . import config, page_queue, plans, review
+from . import config, media_cleanup, page_queue, plans, review
 from .analytics import VIETNAM
 from .errors import ApiError
 from .models import (
@@ -563,6 +563,17 @@ def reminder_lines(db: DbSession, user: User, at: datetime) -> list[str]:
     )
     if waiting:
         lines.append(f"{waiting} video của bạn đang chờ duyệt")
+    due_ids = {due.video_id for due in media_cleanup.soon(db, at)}
+    cleaning = (
+        db.scalars(select(Video.id).where(Video.created_by_id == user.id, Video.id.in_(due_ids))).all()
+        if due_ids
+        else []
+    )
+    if cleaning:
+        lines.append(
+            f"{len(cleaning)} video của bạn sắp bị dọn media trong 3 ngày tới (ảnh, clip, lời đọc; MP4 vẫn giữ). "
+            "Muốn giữ thì mở video, tab Thiết lập, bật “Giữ media”"
+        )
     pages = db.scalars(
         select(Fanpage)
         .where(Fanpage.owner_id == user.id, Fanpage.active.is_(True), Fanpage.check_error.is_(None))

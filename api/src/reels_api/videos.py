@@ -31,6 +31,7 @@ from . import (
     hashtags,
     knowledge,
     llm,
+    media_cleanup,
     metrics,
     pinned,
     plans,
@@ -1468,6 +1469,11 @@ def notes_payload(db: DbSession, video: Video, title: Scene | None, scenes: list
     return payload
 
 
+def _media_due_at(db: DbSession, video: Video) -> str | None:
+    due = media_cleanup.soon(db, now(), video_id=video.id)
+    return due[0].due_at.isoformat() if due else None
+
+
 def video_payload(db: DbSession, video: Video) -> dict:
     from . import review  # review.py reads this module's checks, so it cannot be imported at the top
 
@@ -1532,6 +1538,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "created_at": video.created_at.isoformat(),
         **_with_post_stage(_status(db, video, job, failed), extras),
         **_labels(video, title, scenes, job, failed),
+        # The day its media files will be deleted, shown only in the last days before.
+        "media_due_at": _media_due_at(db, video),
         "locked": job is not None,
         # "Không dùng tiêu đề" and whether the group asks for a title at all (qc_config.title_required).
         "no_title": video.no_title,
