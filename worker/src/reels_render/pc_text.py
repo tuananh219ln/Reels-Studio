@@ -4,7 +4,7 @@ word or a plain one), so the captions, the scenes' text and the title look alike
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 
@@ -13,7 +13,19 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 from .textbox import FONT_PATH as BE_VIETNAM_PATH
 
 BUNGEE_PATH = Path(__file__).parent / "fonts" / "Bungee-Regular.ttf"
-PC_STYLES = ("neon_game", "halftone_purple", "brand_navy")
+FONTS = Path(__file__).parent / "fonts"
+PRESETS = ("neon_tech_teal", "neon_outline_price", "gold_metal", "grunge_rainbow", "esports_blue")
+PC_STYLES = (
+    "neon_game",
+    "halftone_purple",
+    "brand_navy",
+    # The five title presets (docs/decisions/2026-11-27-title-presets.md)
+    "neon_tech_teal",
+    "neon_outline_price",
+    "gold_metal",
+    "grunge_rainbow",
+    "esports_blue",
+)
 PAD = 40  # room for the glow and the shadow around a line
 
 RGB = tuple[int, int, int]
@@ -26,7 +38,7 @@ def hex_rgb(code: str) -> RGB:
 @dataclass(frozen=True)
 class LineStyle:
     font: Path
-    fill: RGB
+    fill: RGB | None  # None: only the outline is drawn, the letters stay hollow
     outline: tuple[int, RGB | tuple[RGB, RGB]]  # width, a colour or a (top, bottom) gradient
     outer: tuple[int, RGB] | None = None  # a second, outside outline: width, colour
     shadow: tuple[int, int, RGB] | None = None  # dx, dy, colour: a hard offset shadow, no blur
@@ -34,10 +46,17 @@ class LineStyle:
     dots: tuple[RGB, float] | None = None  # halftone dots over the fill: colour, coverage
     gradient: tuple[RGB, RGB] | None = None  # the fill from the top colour to the bottom one
     spacing: float = 0.0  # extra space between letters, of the size
+    variation: tuple[int, int | None] | None = None  # a variable font's weight and (if it has the axis) width
+    across: tuple[RGB, ...] | None = None  # the fill as stops from the left edge to the right one
+    echo: tuple[float, float, int] | None = None  # a faint copy above the line: offset (of the size), opacity, blur
+    tilt: float = 0.0  # degrees, anticlockwise
+    vi: "LineStyle | None" = None  # the look used when the line has a Vietnamese mark and the font has none
 
 
 def line_style(style: str, key: bool, index: int = 0) -> LineStyle:
     """The look of one line. `index` is its place in the lines stacked (Halftone alternates black and white)."""
+    if style in PRESETS:
+        return _preset(style, key, index)
     if style == "halftone_purple":
         if key or index % 2 == 0:
             return LineStyle(
@@ -74,9 +93,110 @@ def line_style(style: str, key: bool, index: int = 0) -> LineStyle:
     )
 
 
-@lru_cache(maxsize=32)
-def _font(path: Path, size: int) -> ImageFont.FreeTypeFont:
-    return ImageFont.truetype(str(path), size)
+def _preset(style: str, key: bool, index: int) -> LineStyle:
+    """One line of a title preset. A line the caller marks as the main one (`key`) takes the preset's emphasis line, the
+    first of the others its upper line and any later one its lower line (the spec's lead / main / sub)."""
+    slot = 1 if key else 0 if index == 0 else 2
+    white, navy = (255, 255, 255), hex_rgb("#0B1E2B")
+    saira_wide = LineStyle(FONTS / "Saira-VF.ttf", white, (4, navy), variation=(900, 125), spacing=0.02)
+    if style == "neon_tech_teal":
+        teal = hex_rgb("#3DF5D6")
+        look = LineStyle(
+            FONTS / "Audiowide-Regular.ttf",
+            teal if key else white,
+            (5, hex_rgb("#06242A")),
+            glow=(teal, 0.6, 16),
+            spacing=0.02,
+        )
+        return replace(look, vi=replace(saira_wide, fill=look.fill, outline=look.outline, glow=look.glow))
+    if style == "neon_outline_price":
+        blue = hex_rgb("#4DA6FF")
+        if slot == 0:
+            return LineStyle(
+                FONTS / "Oswald-VF.ttf", white, (5, hex_rgb("#0A1A4A")), variation=(700, None), spacing=0.02
+            )
+        look = LineStyle(
+            FONTS / ("Anton-Regular.ttf" if slot == 1 else "Audiowide-Regular.ttf"),
+            None,
+            (4, blue),
+            glow=(blue, 0.7, 14),
+            spacing=0.03,
+        )
+        return replace(
+            look, vi=replace(saira_wide, fill=None, outline=look.outline, glow=look.glow, variation=(800, 125))
+        )
+    if style == "gold_metal":
+        brown = hex_rgb("#3B2410")
+        return LineStyle(
+            FONTS / "Montserrat-VF.ttf",
+            hex_rgb("#E8B923"),
+            (6, brown),
+            shadow=(0, 7, hex_rgb("#1A0F05")),
+            gradient=(hex_rgb("#FFEFA0"), hex_rgb("#B7791F")),
+            variation=(900, None),
+            spacing=0.02,
+        )
+    if style == "grunge_rainbow":
+        dark = hex_rgb("#101014")
+        if slot == 1:
+            return LineStyle(
+                FONTS / "Montserrat-VF.ttf",
+                white,
+                (5, dark),
+                across=tuple(hex_rgb(c) for c in ("#FF4D4D", "#FFB020", "#FFF04D", "#4DE08A", "#4DA3FF", "#B06BFF")),
+                variation=(900, None),
+                spacing=0.02,
+            )
+        if slot == 2:
+            marker = LineStyle(FONTS / "PermanentMarker-Regular.ttf", dark, (5, white), tilt=4.0)
+            return replace(marker, vi=LineStyle(BE_VIETNAM_PATH, dark, (5, white), tilt=4.0))
+        return LineStyle(
+            FONTS / "Montserrat-VF.ttf",
+            hex_rgb("#F2F2F2"),
+            (4, dark),
+            echo=(0.35, 0.35, 6),
+            variation=(900, None),
+            spacing=0.02,
+        )
+    # esports_blue: charcoal lines with a white halo around a white line with a double blue outline
+    if slot == 1:
+        return LineStyle(
+            FONTS / "SairaCondensed-Black.ttf",
+            white,
+            (6, hex_rgb("#1E6BFF")),
+            outer=(4, hex_rgb("#0A2A66")),
+            glow=(hex_rgb("#1E6BFF"), 0.5, 10),
+            spacing=0.02,
+        )
+    return LineStyle(
+        FONTS / "Montserrat-VF.ttf",
+        hex_rgb("#3A3F47"),
+        (5, white),
+        glow=(white, 0.55, 12),
+        variation=(900, None),
+        spacing=0.02,
+    )
+
+
+@lru_cache(maxsize=64)
+def _font(path: Path, size: int, variation: tuple[int, int | None] | None = None) -> ImageFont.FreeTypeFont:
+    font = ImageFont.truetype(str(path), size)
+    if variation is not None:
+        weight, width = variation
+        values = []
+        for axis in font.get_variation_axes():
+            name = axis["name"].decode() if isinstance(axis["name"], bytes) else str(axis["name"])
+            wanted = width if "width" in name.lower() else weight
+            values.append(min(max(wanted if wanted is not None else axis["default"], axis["minimum"]), axis["maximum"]))
+        font.set_variation_by_axes(values)
+    return font
+
+
+def _for_text(text: str, style: LineStyle) -> LineStyle:
+    """The style, or its Vietnamese fallback when the line has a mark outside ASCII and the font has none (Audiowide)."""
+    if style.vi is not None and not text.isascii():
+        return style.vi
+    return style
 
 
 def _width(text: str, font: ImageFont.FreeTypeFont, spacing: float, size: int) -> float:
@@ -85,7 +205,8 @@ def _width(text: str, font: ImageFont.FreeTypeFont, spacing: float, size: int) -
 
 def fitted_size(text: str, size: int, style: LineStyle, max_width: int) -> int:
     """`size`, or smaller when the line (with its outline) would be wider than `max_width`."""
-    wide = _width(text, _font(style.font, size), style.spacing, size) + 2 * style.outline[0]
+    style = _for_text(text, style)
+    wide = _width(text, _font(style.font, size, style.variation), style.spacing, size) + 2 * style.outline[0]
     return size if wide <= max_width else max(24, math.floor(size * max_width / wide))
 
 
@@ -93,7 +214,7 @@ def _mask(text: str, size: int, style: LineStyle, grow: int, canvas: tuple[int, 
     """The line's letters as a mask on `canvas`, grown by `grow` px all round, centred across and starting PAD down."""
     mask = Image.new("L", canvas, 0)
     draw = ImageDraw.Draw(mask)
-    font = _font(style.font, size)
+    font = _font(style.font, size, style.variation)
     total = _width(text, font, style.spacing, size)
     x = (canvas[0] - total) / 2
     for char in text:
@@ -108,6 +229,17 @@ def _gradient(top: RGB, bottom: RGB, size: tuple[int, int]) -> Image.Image:
         share = y / max(1, size[1] - 1)
         column.putpixel((0, y), tuple(round(a + (b - a) * share) for a, b in zip(top, bottom)))
     return column.resize(size)
+
+
+def _across(stops: tuple[RGB, ...], size: tuple[int, int]) -> Image.Image:
+    """The stops as one band from the left edge to the right one."""
+    row = Image.new("RGB", (size[0], 1))
+    for x in range(size[0]):
+        place = x / max(1, size[0] - 1) * (len(stops) - 1)
+        low = min(int(place), len(stops) - 2)
+        share = place - low
+        row.putpixel((x, 0), tuple(round(a + (b - a) * share) for a, b in zip(stops[low], stops[low + 1])))
+    return row.resize(size)
 
 
 def _dots(size: tuple[int, int], colour: RGB, coverage: float) -> Image.Image:
@@ -131,8 +263,9 @@ def _dots(size: tuple[int, int], colour: RGB, coverage: float) -> Image.Image:
 
 def render_line(text: str, size: int, style: LineStyle, max_width: int = 990) -> Image.Image:
     """One line as an RGBA picture, text centred, with room all round for the glow and the shadow."""
+    style = _for_text(text, style)
     size = fitted_size(text, size, style, max_width)
-    font = _font(style.font, size)
+    font = _font(style.font, size, style.variation)
     ascent, descent = font.getmetrics()
     outer = style.outer[0] if style.outer else 0
     reach = style.outline[0] + outer
@@ -149,6 +282,11 @@ def render_line(text: str, size: int, style: LineStyle, max_width: int = 990) ->
 
     shifted = lambda mask, dx, dy: ImageChops.offset(mask, dx, dy)  # noqa: E731  (a one-line helper)
     widest = _mask(text, size, style, reach, canvas)
+    letters = _mask(text, size, style, 0, canvas)
+    if style.echo is not None:
+        offset, opacity, blur = style.echo
+        faint = shifted(letters, 0, -round(offset * size)).filter(ImageFilter.GaussianBlur(blur))
+        paint(faint, style.fill or style.outline[1], opacity)
     if style.glow is not None:
         colour, opacity, blur = style.glow
         grown = _mask(text, size, style, reach + 4, canvas)
@@ -159,15 +297,23 @@ def render_line(text: str, size: int, style: LineStyle, max_width: int = 990) ->
     if style.outer is not None:
         paint(widest, style.outer[1])
     inner = _mask(text, size, style, style.outline[0], canvas)
+    if style.fill is None:  # hollow letters: the outline is a ring, the middle stays clear
+        inner = ImageChops.subtract(inner, letters)
     colour = style.outline[1]
     paint(inner, _gradient(*colour, canvas) if isinstance(colour[0], tuple) else colour)
-    letters = _mask(text, size, style, 0, canvas)
-    paint(letters, _gradient(*style.gradient, canvas) if style.gradient else style.fill)
+    if style.fill is not None:
+        if style.across:
+            fill: Image.Image | RGB = _across(style.across, canvas)
+        else:
+            fill = _gradient(*style.gradient, canvas) if style.gradient else style.fill
+        paint(letters, fill)
     if style.dots is not None:
         dots = _dots(canvas, *style.dots)
         clipped = ImageChops.multiply(dots.getchannel("A"), letters)
         dots.putalpha(clipped)
         picture.alpha_composite(dots)
+    if style.tilt:
+        picture = picture.rotate(style.tilt, expand=True, resample=Image.Resampling.BICUBIC)
     return picture
 
 

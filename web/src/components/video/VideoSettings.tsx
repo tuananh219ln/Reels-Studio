@@ -100,6 +100,11 @@ const PC_STYLES = [
   { value: "neon_game", label: "Neon game" },
   { value: "halftone_purple", label: "Halftone tím" },
   { value: "brand_navy", label: "Thương hiệu" },
+  { value: "neon_tech_teal", label: "Neon xanh ngọc" },
+  { value: "neon_outline_price", label: "Giá neon viền" },
+  { value: "gold_metal", label: "Vàng kim loại" },
+  { value: "grunge_rainbow", label: "Grunge cầu vồng" },
+  { value: "esports_blue", label: "Esports xanh" },
 ];
 const CUMULATIVE = { value: "cumulative", label: "Cộng dồn" };
 let voiceCache: Promise<VoiceList> | null = null;
@@ -762,9 +767,10 @@ export function TextSettings({ values, onChange, disabled, bare, textHold }: Pro
             )}
             {textHold && (
               <Field label="Kiểu chữ PC Shopee" hint="Kiểu của phụ đề cộng dồn và chữ cảnh.">
-                <Segmented
+                <Select
                   aria-label="Kiểu chữ PC Shopee"
                   options={PC_STYLES}
+                  style={{ width: "100%" }}
                   value={values.pc_style}
                   disabled={disabled}
                   onChange={(pc_style) => onChange({ pc_style: pc_style as VideoOptions["pc_style"] })}
@@ -841,9 +847,10 @@ export function TextSettings({ values, onChange, disabled, bare, textHold }: Pro
                 </Field>
                 {values.title_layout === "three_tier" && (
                   <Field label="Kiểu chữ tiêu đề">
-                    <Segmented
+                    <Select
                       aria-label="Kiểu chữ tiêu đề PC Shopee"
                       options={PC_STYLES}
+                      style={{ width: "100%" }}
                       value={values.pc_title_style}
                       disabled={disabled}
                       onChange={(style) => onChange({ pc_title_style: style as VideoOptions["pc_title_style"] })}

@@ -1194,11 +1194,27 @@ export type VideoOptions = {
   /** "Thời gian hiện chữ" (PC Shopee only): seconds the scenes' text stays before it fades out; null: all scene. */
   text_hold_sec: number | null;
   /** The look of PC Shopee's drawn text (api reels_render.pc_text.PC_STYLES). */
-  pc_style: "neon_game" | "halftone_purple" | "brand_navy";
+  pc_style:
+    | "neon_game"
+    | "halftone_purple"
+    | "brand_navy"
+    | "neon_tech_teal"
+    | "neon_outline_price"
+    | "gold_metal"
+    | "grunge_rainbow"
+    | "esports_blue";
   /** PC Shopee's compact text: the title in three tiers, a content scene's text in two ("box": the text boxes). */
   title_layout: "box" | "three_tier";
   scene_text_layout: "box" | "two_tier";
-  pc_title_style: "neon_game" | "halftone_purple" | "brand_navy";
+  pc_title_style:
+    | "neon_game"
+    | "halftone_purple"
+    | "brand_navy"
+    | "neon_tech_teal"
+    | "neon_outline_price"
+    | "gold_metal"
+    | "grunge_rainbow"
+    | "esports_blue";
 };
 
 /** One of the team's text box styles (Cài đặt, shared); a video copies its colours. */

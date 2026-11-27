@@ -20,6 +20,7 @@ from reels_render.cumulative import (
     render_cumulative,
 )
 from reels_render.options import RenderOptions
+from reels_render.pc_text import PRESETS
 from reels_render.render import render_video
 from reels_render.script import load_script
 
@@ -381,3 +382,25 @@ def test_the_last_scene_text_is_in_tiers_with_no_box_like_the_others(tmp_path):
     zone = (0, 1190, 1080, 1500)
     difference = ImageChops.difference(frame.crop(zone), plain.crop(zone))
     assert max(high for _, high in difference.getextrema()) > 60
+
+
+@pytest.mark.parametrize("style", PRESETS)
+def test_each_title_preset_draws_vietnamese_marks_within_the_frame(style):
+    from reels_render.tiers import TitleTiers, render_title
+
+    picture = render_title(TitleTiers("BLACK FRIDAY", "GIÁ RẺ BẤT NGỜ", "MÁY TÍNH ĐỒ HOẠ", ""), style)
+    assert picture.getbbox() is not None
+    assert picture.width <= 1080
+
+
+def test_the_hollow_price_preset_leaves_its_letters_clear_and_audiowide_falls_back_for_vietnamese():
+    from reels_render.pc_text import FONTS, line_style, render_line
+
+    hollow = line_style("neon_outline_price", True, 1)
+    assert hollow.fill is None
+    picture = render_line("III", 120, hollow)
+    centre = picture.getpixel((picture.width // 2, picture.height // 2))
+    assert centre[3] < 255  # the middle of a stem is not painted
+    teal = line_style("neon_tech_teal", True, 1)
+    assert teal.font == FONTS / "Audiowide-Regular.ttf" and teal.vi is not None
+    assert render_line("GIÁ RẺ", 100, teal).getbbox() is not None  # drawn with Saira, not missing boxes
