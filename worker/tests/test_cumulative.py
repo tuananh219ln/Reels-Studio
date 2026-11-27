@@ -404,3 +404,20 @@ def test_the_hollow_price_preset_leaves_its_letters_clear_and_audiowide_falls_ba
     teal = line_style("neon_tech_teal", True, 1)
     assert teal.font == FONTS / "Audiowide-Regular.ttf" and teal.vi is not None
     assert render_line("GIÁ RẺ", 100, teal).getbbox() is not None  # drawn with Saira, not missing boxes
+
+
+def test_a_preset_title_keeps_its_line_proportions_when_one_line_is_too_wide():
+    from reels_render.tiers import TitleTiers, render_title
+
+    short = render_title(TitleTiers("PC", "GIÁ RẺ", "MUA NGAY", ""), "gold_metal")
+    wide = render_title(TitleTiers("PC", "GIÁ RẺ BẤT NGỜ CHƯA TỪNG CÓ HÔM NAY", "MUA NGAY", ""), "gold_metal")
+    assert wide.width <= 1080 and wide.height < short.height  # the whole block got smaller, not only the wide line
+
+
+def test_the_esports_price_draws_its_prefix_small_and_raised():
+    from reels_render.tiers import TitleTiers, render_title
+
+    plain = render_title(TitleTiers("GAMING", "PC", "PHP 14,999", ""), "esports_blue")
+    raised = render_title(TitleTiers("GAMING", "PC", "^PHP 14,999", ""), "esports_blue")
+    assert raised.getbbox() is not None and raised.width <= 1080
+    assert raised.size != plain.size  # a different picture, not the prefix as plain text

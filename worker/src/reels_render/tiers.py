@@ -8,11 +8,22 @@ from dataclasses import dataclass
 from PIL import Image, ImageDraw, ImageFont
 
 from .markup import Run, normalize_text
-from .pc_text import PAD, hex_rgb, line_style, render_line, stack
+from .pc_text import PAD, PRESETS, fitted_size, hex_rgb, line_style, render_line, stack
 from .textbox import FONT_PATH, FRAME_HEIGHT, FRAME_WIDTH
 
 TITLE_SIZES = (56, 110, 72)  # small, main, sub
 TITLE_GAP = 0.08  # of the size
+# Each title preset's sizes (small, main, sub) and the gap between its lines, of the size; a negative gap overlaps the lines
+# (docs/decisions/2026-11-27-title-presets.md). Estimates from the spec's table, to compare with the five reels.
+PRESET_TITLE = {
+    "neon_tech_teal": ((56, 100, 56), 0.08),
+    "neon_outline_price": ((64, 150, 60), -0.12),
+    "gold_metal": ((60, 130, 84), 0.04),
+    "grunge_rainbow": ((88, 96, 64), 0.04),
+    "esports_blue": ((60, 120, 70), -0.08),
+}
+ACCENT_EXTRA = 0.12  # of the size: more room under a negative gap when the lower line carries Vietnamese marks
+PREFIX_SCALE = 0.42  # "^PHP 14,999": the first word at this share of the size, raised
 TITLE_MAX_WIDTH = round(FRAME_WIDTH * 0.88)
 TITLE_CENTRE = (FRAME_WIDTH // 2, round(FRAME_HEIGHT * 0.22))
 TITLE_MAX_CHARS = 14  # a longer line still renders, shrunk to TITLE_MAX_WIDTH; the page warns (api checks)
@@ -127,15 +138,44 @@ def _label(text: str) -> Image.Image:
     return box.rotate(LABEL_TILT, expand=True, resample=Image.Resampling.BICUBIC)
 
 
+def _line(text: str, size: int, style: str, key: bool, index: int, max_width: int) -> Image.Image:
+    """One title line. A line written `^PHP 14,999` draws its first word small and raised (the spec's superscript prefix)."""
+    look = line_style(style, key, index)
+    if not (style in PRESETS and text.startswith("^") and " " in text):
+        return render_line(text.lstrip("^"), size, look, max_width)
+    prefix, rest = text[1:].split(" ", 1)
+    small_size = round(size * PREFIX_SCALE)
+    small = render_line(prefix, small_size, look, max_width // 3)
+    big = render_line(rest, size, look, max_width - small.width + 2 * PAD)
+    overlap = 2 * PAD - 12  # the pictures' own padding overlaps, so the letters sit a normal space apart
+    row = Image.new("RGBA", (small.width + big.width - overlap, big.height), (0, 0, 0, 0))
+    row.alpha_composite(big, (small.width - overlap, 0))
+    row.alpha_composite(small, (0, PAD // 4))  # top-aligned: the baseline shift of a superscript
+    return row
+
+
 def render_title(tiers: TitleTiers, style: str = "brand_navy") -> Image.Image:
-    """The three tiers stacked and centred, the label at the block's top right. Each line shrinks to fit 88% of the width."""
-    sizes = [size for size, text in zip(TITLE_SIZES, (tiers.small, tiers.main, tiers.sub)) if text]
-    texts = [text for text in (tiers.small, tiers.main, tiers.sub) if text]
+    """The three tiers stacked and centred, the label at the block's top right. Each line shrinks to fit 88% of the width;
+    in a title preset the whole block shrinks by one factor instead, so the lines keep their sizes' proportions."""
+    base, gap = PRESET_TITLE.get(style, (TITLE_SIZES, TITLE_GAP))
+    pairs = [(text, size) for size, text in zip(base, (tiers.small, tiers.main, tiers.sub)) if text]
+    texts = [text for text, _ in pairs]
+    sizes = [size for _, size in pairs]
+    if style in PRESETS:
+        factor = min(
+            fitted_size(text.lstrip("^"), size, line_style(style, text == tiers.main, index), TITLE_MAX_WIDTH) / size
+            for index, (text, size) in enumerate(pairs)
+        )
+        sizes = [max(24, round(size * factor)) for size in sizes]
     pictures = [
-        render_line(text, size, line_style(style, key=text == tiers.main, index=index), TITLE_MAX_WIDTH)
+        _line(text, size, style, text == tiers.main, index, TITLE_MAX_WIDTH)
         for index, (text, size) in enumerate(zip(texts, sizes))
     ]
-    block = stack(pictures, [round(TITLE_GAP * size) for size in sizes[:-1]])
+    gaps = [
+        round((gap + (ACCENT_EXTRA if gap < 0 and not texts[index + 1].isascii() else 0)) * sizes[index])
+        for index in range(len(sizes) - 1)
+    ]
+    block = stack(pictures, gaps)
     if tiers.label:
         label = _label(tiers.label)
         canvas = Image.new("RGBA", (max(block.width, label.width + 40), block.height + label.height // 2), (0, 0, 0, 0))
