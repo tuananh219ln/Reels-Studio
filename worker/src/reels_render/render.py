@@ -6,9 +6,10 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import ffmpeg
+from . import ffmpeg, motion
 from .captions import Word, after_hold, plan_captions, plan_word_captions
 from .cumulative import (
+    NUMBER_POP_SECONDS,
     NUMBER_SECONDS,
     Step,
     known_words,
@@ -209,15 +210,26 @@ def render_video(
                     if steps and (digits := parse_scene(scene.lines).number):
                         circle = number_circle(digits)
                         left, top = number_corner(circle, scene.text_zone)
-                        path = work_dir / f"number-{index:02d}.png"
-                        circle.save(path)
                         first = scene_start / FPS
-                        captions.append(CaptionInput(path, left, top, first, min(first + NUMBER_SECONDS, scene_end)))
+                        # The circle pops in 150 ms ahead of the words and fades out with its 2.5 s.
+                        pieces = motion.entrance(
+                            circle, left, top, first, min(first + NUMBER_SECONDS, scene_end), NUMBER_POP_SECONDS
+                        )
+                        *before, last = pieces
+                        pieces = [*before, *motion.departure(last.image, last.left, last.top, last.start, last.end)]
+                        for part, piece in enumerate(pieces):
+                            path = work_dir / f"number-{index:02d}-{part}.png"
+                            piece.image.save(path)
+                            captions.append(CaptionInput(path, piece.left, piece.top, piece.start, piece.end))
                     for number, step in enumerate(steps):
                         picture, (left, top) = render_cumulative(step.lines, options.pc_style, scene.text_zone)
-                        path = work_dir / f"cumulative-{index:02d}-{number:03d}.png"
-                        picture.save(path)
-                        captions.append(CaptionInput(path, left, top, step.start, step.end))
+                        # A phrase's first word pops in, a later one bumps, the phrase's last fades out (motion.py).
+                        for part, piece in enumerate(
+                            motion.animate(picture, left, top, step.start, step.end, step.opens, step.clears)
+                        ):
+                            path = work_dir / f"cumulative-{index:02d}-{number:03d}-{part}.png"
+                            piece.image.save(path)
+                            captions.append(CaptionInput(path, piece.left, piece.top, piece.start, piece.end))
             elif index > 0 and spoken[index] is not None and scene.voice_text.strip():
                 start = scene_start / FPS + VOICE_LEAD
                 cues = plan_captions(scene.voice_text, start, spoken[index], options.captions)

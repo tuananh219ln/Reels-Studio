@@ -51,6 +51,8 @@ class Step:
     start: float
     end: float
     lines: tuple[Line, ...]
+    opens: bool = False  # the first step of a phrase: its picture pops in
+    clears: bool = False  # the last step of a phrase: its picture fades out at its end
 
 
 def estimate_words(text: str, start: float, seconds: float, keywords: frozenset[str] = frozenset()) -> list[TimedWord]:
@@ -193,10 +195,19 @@ def plan_cumulative(words: list[TimedWord], scene_end: float) -> list[Step]:
             shown = [word for earlier in units[: index + 1] for word in earlier]
             until = units[index + 1][0].start if index + 1 < len(units) else end
             if until - unit[0].start > 0.02:
-                steps.append(Step(unit[0].start, min(until, end), layout(shown, has_key)))
+                steps.append(
+                    Step(
+                        unit[0].start,
+                        min(until, end),
+                        layout(shown, has_key),
+                        opens=index == 0,
+                        clears=index + 1 == len(units),
+                    )
+                )
     return steps
 
 
+NUMBER_POP_SECONDS = 0.15  # the circle pops in this fast
 NUMBER_SECONDS = 2.5  # the numbered circle stays this long at the start of a "Cộng dồn" scene
 NUMBER_GAP = 16  # between the circle and the first line
 

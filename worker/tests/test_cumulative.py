@@ -376,3 +376,27 @@ def test_the_scene_number_stays_for_two_and_a_half_seconds_under_cumulative(tmp_
     late = extract_frame(output, 4.5, tmp_path / "late.png")  # 3.5 s in
     assert _orange(early, box) > 1000
     assert _orange(late, box) == 0
+
+
+@needs_ffmpeg
+def test_a_phrase_is_visible_from_its_first_frame_and_settles(tmp_path):
+    make_image(tmp_path / "a.jpg", (1080, 1920), (30, 90, 160))
+    make_tone(tmp_path / "voice.wav", 2.0)
+    data = script_data(scene_count=2, image="a.jpg")
+    for item in data["scenes"]:
+        item["seconds"] = 6
+    data["scenes"][0].update(voice="voice.wav", voice_text="Chuột *Logitech* không dây")
+    script = load_script(write_script(tmp_path, data))
+    output = render_video(script, tmp_path / "out.mp4", options=RenderOptions(captions="cumulative"))
+    plain = Image.new("RGB", (1080, 1920), (30, 90, 160))
+    box = (0, 1150, 1080, 1500)
+
+    def strength(second: float) -> int:
+        frame = extract_frame(output, second, tmp_path / f"s{second}.png")
+        difference = ImageChops.difference(frame.crop(box), plain.crop(box))
+        return sum(difference.convert("L").point(lambda value: 255 if value > 40 else 0).tobytes()) // 255
+
+    # The scene starts at 1 s and its narration 0.1 s later; the first word is already drawn (faint, large) a frame in.
+    assert strength(1.17) > 0, "never an empty frame when the phrase starts"
+    # Settled (popped in, 100%): the steady picture is the phrase as drawn, not the faint large first still.
+    assert strength(3.0) > strength(1.17), "the pop starts fainter than the settled phrase"

@@ -53,3 +53,9 @@ Thẻ gấp dưới dòng "Chủ đề…, tạo bởi…". Mở ra có hai tab:
 - **Trước khi công khai**, xem mục Hạn chế / Bản quyền của video trong YouTube Studio. Nhạc nền có thể bị claim Content ID dù có giấy phép miễn phí.
 - Gặp claim: ở thẻ Đăng bài bấm **Ghi claim YouTube**, ghi nhạc nào bị claim, ai claim, ngày. Hàng YouTube chuyển đỏ **"Bị chặn (claim)"** và bạn đăng lại YouTube được (ví dụ bản render với nhạc khác). Xử lý xong trong Studio (xoá bài hát, kháng nghị thắng, thay video) thì bấm **Đã xử lý claim**.
 - Claim do nhạc nền: vào **Thư viện nhạc**, **Sửa** bài đó, bật **Đã bị claim trên YouTube**. Từ đó không video nào chọn được bài này, kể cả làm nhạc mặc định. Video đã có bài này giữ nguyên: đổi nhạc rồi render lại nếu cần.
+
+## Chữ PC Shopee: Cộng dồn, số thứ tự và tiêu đề 3 dòng
+- Video nhóm **PC Shopee** bật phụ đề **Cộng dồn**: lời đọc hiện dần từng từ ở nửa dưới màn hình, cụm đầu nảy vào và cụm cuối mờ đi. Chữ cảnh bị thay bằng phụ đề này.
+- Cảnh có số thứ tự ở đầu chữ (ví dụ `3. *LOGITECH G304*`) giữ **vòng tròn cam** có số đó trong 2,5 giây đầu cảnh, ngay trên phụ đề.
+- Khi viết kịch bản, AI tự tách **tiêu đề thành 3 dòng** (dòng nhỏ, dòng chính, dòng phụ, nhãn). Phần câu thừa (ví dụ "xem trước khi mua") được chuyển xuống **đầu caption**. Bạn vẫn sửa 4 ô chữ tiêu đề như trước.
+- Xem trước trên web chỉ hiện hình đã dừng, chưa có chuyển động: hãy xem MP4 đã render để thấy hiệu ứng.

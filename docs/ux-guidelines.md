@@ -1440,7 +1440,9 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
   - "Phụ đề theo giọng đọc" has a fourth choice "Cộng dồn" for PC Shopee ([decision](decisions/2026-11-27-cumulative-captions.md)):
     the narration's words pile up in the lower zone (from 62% down) in the Neon game look (Bungee capitals, white, marked
     words aqua on their own larger line, dark outline, cyan glow, no box) and a phrase clears for the next; it replaces the
-    content scenes' text (not the title's or the last scene's);
+    content scenes' text (not the title's or the last scene's); a phrase's first word pops in (180 ms) and its last step fades
+    out (150 ms), the scene's number ("3.") stays as the orange circle for 2.5 s above it
+    ([decision](decisions/2026-11-27-pc-text-motion.md));
   - PC Shopee's compact text ([decision](decisions/2026-11-27-pc-text-tiers.md)), chosen on Thiết lập › Chữ & phụ đề and set for
     a new PC Shopee video: the title in three tiers (a 56 px small line, a 110 px main line in the look's marked colour, a
     72 px sub line, an optional orange "-50%" label tilted at the top right), at most 22% of the frame's height, centred 22%
