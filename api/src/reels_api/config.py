@@ -67,6 +67,16 @@ def storage_dir() -> Path:
     return Path(raw) if raw else DOTENV_PATH.parent / "data" / "storage"
 
 
+def media_cleanup_enabled() -> bool:
+    """Deleting a posted video's media files after `media_cleanup_days()` (docs/decisions/2026-11-27-media-cleanup.md)."""
+    return read_env("MEDIA_CLEANUP_ENABLED").lower() in {"1", "true", "yes"}
+
+
+def media_cleanup_days() -> int:
+    raw = read_env("MEDIA_CLEANUP_DAYS")
+    return int(raw) if raw.isdigit() and int(raw) >= 7 else 30
+
+
 def pixabay_key() -> str:
     return read_env("PIXABAY_API_KEY")
 

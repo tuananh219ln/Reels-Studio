@@ -22,7 +22,7 @@ class _VietnameseParser(argparse.ArgumentParser):
     def error(self, message: str):
         # argparse's own usage errors are English; keep every CLI error Vietnamese.
         print(
-            "Lỗi: lệnh không hợp lệ. Dùng: python -m reels_api create-user | worker | seed-media-tags | storage-report",
+            "Lỗi: lệnh không hợp lệ. Dùng: python -m reels_api create-user | worker | seed-media-tags | storage-report | media-cleanup",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -58,6 +58,11 @@ def main(argv: list[str] | None = None, ask: Ask = input, ask_secret: Ask = getp
     )
     clean.add_argument("--apply", action="store_true", help="ghi thay đổi vào cơ sở dữ liệu")
     commands.add_parser("storage-report", help="báo cáo dung lượng file video theo loại và theo ngày đăng (chỉ đọc)")
+    cleanup = commands.add_parser(
+        "media-cleanup",
+        help="dọn media của video đã đăng quá hạn; mặc định chỉ in việc sẽ làm, thêm --apply để xoá file",
+    )
+    cleanup.add_argument("--apply", action="store_true", help="xoá file thật")
     args = parser.parse_args(argv)
 
     if args.command == "node":
@@ -74,6 +79,8 @@ def main(argv: list[str] | None = None, ask: Ask = input, ask_secret: Ask = getp
         return run_job_command(args.job_id)
     if args.command == "seed-media-tags":
         return seed_media_tags(args.dry_run)
+    if args.command == "media-cleanup":
+        return media_cleanup_command(not args.apply)
     if args.command == "storage-report":
         return storage_report()
     if args.command == "clean-video-names":
@@ -169,6 +176,22 @@ def clean_video_names(dry_run: bool) -> int:
     except SQLAlchemyError:
         print("Lỗi: không kết nối được cơ sở dữ liệu", file=sys.stderr)
         return 1
+    return 0
+
+
+def media_cleanup_command(dry_run: bool) -> int:
+    """The worker's nightly round by hand (media_cleanup.py): up to its batch of due videos, a line for each."""
+    from . import media_cleanup
+
+    try:
+        lines = media_cleanup.run_round(sessionmaker(get_engine(), expire_on_commit=False), dry_run)
+    except ConfigError as err:
+        print(f"Lỗi: {err}", file=sys.stderr)
+        return 1
+    except SQLAlchemyError:
+        print("Lỗi: không kết nối được cơ sở dữ liệu", file=sys.stderr)
+        return 1
+    print("\n".join(lines) if lines else "Không có video nào đến hạn dọn media")
     return 0
 
 

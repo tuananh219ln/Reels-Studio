@@ -68,6 +68,11 @@ def _marks(db: DbSession, since: datetime | None = None) -> list[Mark]:
     return [Mark(*row) for row in db.execute(query)]
 
 
+def marks(db: DbSession, since: datetime | None = None) -> list[Mark]:
+    """Every Facebook post's 48-hour reading (media_cleanup.py reads them to find winners)."""
+    return _marks(db, since)
+
+
 def medians(db: DbSession) -> dict[int | None, Median]:
     """Each Page's median views at 48 hours over its posts of the last `MEDIAN_DAYS` days, by fanpage_id."""
     views: dict[int | None, list[int]] = {}

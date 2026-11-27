@@ -364,6 +364,11 @@ class Video(Base):
     # Page's sets, in order; a Page none of them belongs to plans its own) instead of the app's choice.
     aff_comments_off: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     aff_set_ids: Mapped[list | None] = mapped_column(JSONB)
+    # "Giữ media": the worker never cleans this video's files (media_cleanup.py); `media_cleaned_at` is when it did, and
+    # `media_freed_bytes` how much that freed. The MP4s and the thumbnail stay.
+    keep_media: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    media_cleaned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    media_freed_bytes: Mapped[int | None] = mapped_column(BigInteger)
     mp4_key: Mapped[str | None] = mapped_column(String(200))
     mp4_seconds: Mapped[float | None] = mapped_column(Float)
     # "MP4 tải lên" (mode "upload", upload_mp4.py): the finished MP4 a member or Muse sent, as stored
