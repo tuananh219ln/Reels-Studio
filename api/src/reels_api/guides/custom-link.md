@@ -18,6 +18,13 @@ affiliate được. Cách làm hiện tại: app chuẩn bị file, bạn tải 
 5. Đọc bảng xem trước: **Sẽ gắn link** (sẽ ghi), **Của đồng đội** (giữ nguyên), **Lỗi** (kèm lý do, gồm cả lý do Shopee ghi ở cột
    "Lí do thất bại"). Nếu ổn, bấm **Gắn link cho N sản phẩm**.
 
+## Chuyển bằng tiện ích Chrome (không cần tải file)
+Cần tiện ích Reels Studio từ phiên bản 1.8.0 (xem `extension/README.md`) và **đã đăng nhập affiliate.shopee.vn** trên cùng Chrome.
+1. Bước 1 và 2 như trên, nhưng trong hộp "Xuất file Custom Link" bấm **Chuyển bằng tiện ích Chrome**.
+2. Tiện ích tự gửi link sang Shopee Custom Link bằng tab Shopee của bạn (không dùng tài khoản của ai khác), kèm `Sub_id1` là Page.
+3. Bảng xem trước hiện ra như khi nhập file. Đọc rồi bấm **Gắn link cho N sản phẩm**.
+Nếu báo chưa đăng nhập hoặc Shopee không trả lời như mong đợi, dùng cách file Excel ở trên.
+
 ## Các bước với trợ lý (MCP)
 Kết nối trợ lý với app (xem `docs/chatgpt.md`), rồi nói ví dụ:
 - "Liệt kê link cần chuyển đổi của nhóm Già Mà Khỏe." → trợ lý cho danh sách link gốc và mã `Sub_id1` (`p<id>`).

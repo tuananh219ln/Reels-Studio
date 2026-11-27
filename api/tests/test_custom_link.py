@@ -295,3 +295,28 @@ def test_shopees_own_csv_result_is_read_with_its_failure_reason(an, db, me):
     assert "Liên kết không hợp lệ" in body["rows"][1]["message"]
     db.refresh(first)
     assert first.url == "https://s.shopee.vn/8pnbffRIIN"
+
+
+LINKS = "/api/affiliate-products/custom-link/links"
+
+
+def test_links_json_matches_the_file(an, db, me):
+    topic = first_topic(db)
+    row = page(db, topic)
+    product(db, me, topic, 1)
+    product(db, me, topic, 2, url="https://s.shopee.vn/done")
+    answer = an.get(LINKS, params={"topic_id": topic.id})
+    assert answer.status_code == 200
+    assert answer.json() == {
+        "fanpage_id": row.id,
+        "sub_id1": f"p{row.id}",
+        "links": ["https://shopee.vn/product/1/1"],
+    }
+    both = an.get(LINKS, params={"topic_id": topic.id, "include_linked": True}).json()
+    assert both["links"] == ["https://shopee.vn/product/1/1", "https://shopee.vn/product/1/2"]
+
+
+def test_links_json_needs_a_page(an, db, me):
+    topic = first_topic(db)
+    product(db, me, topic, 1)
+    assert an.get(LINKS, params={"topic_id": topic.id}).status_code == 422

@@ -1,4 +1,4 @@
-# 2026-11-28 — Turning Shopee links into affiliate links without the Open API (plan, not built yet)
+# 2026-11-28 — Turning Shopee links into affiliate links without the Open API
 
 Asked by the owner (Nam dev). The team cannot get a Shopee Open API App ID (the owner believes it needs a business tax
 code; not confirmed on Shopee's pages), so `generateShortLink` is out of reach. The Custom Link CSV flow
@@ -21,6 +21,20 @@ extension would call Shopee's Custom Link from the member's own logged-in Chrome
    Shopee Affiliate's report.
 3. **Telegram bot**: several Shopee links in one private message are added to the sender's products (same rules as the
    web's "dán link", at most 50), then follow 1 or 2.
+
+## Built so far (step 1, not yet tried on Shopee)
+
+- Shopee's own request, seen by the owner on the Custom Link page: `POST affiliate.shopee.vn/api/v3/gql?q=batchCustomLink`,
+  body `linkParams: [{ originalLink, advancedLinkParams: { subId1: "p9" } }]`; the answer has `shortLink`, `longLink`, `failCode`.
+  Its signature headers (`af-ac-enc-*`, `x-sap-*`, `CSRF-token`) come from Shopee's page scripts, so the extension sends from
+  inside the tab (`world: "MAIN"`) and, if the page does not add them by itself, only the `csrftoken` cookie is added.
+- `GET /api/affiliate-products/custom-link/links` (the file's rows as JSON), extension 1.8.0, and a button in "Xuất file
+  Custom Link" that previews the result through the existing import.
+- **Not verified:** whether Shopee accepts the request without its signature headers. If it answers 403, the extension
+  shows the answer and the member uses the Excel file; the fallback would be driving the page's own form.
+- `an_redir` tests (28/11): with `sub_id1`, `subid1`, `sub1` the final address had no sub id; with `sub_id` it had
+  `p9https://s.shopee.vn/an_redir?`, and `utm_campaign` came back `-`. So `an_redir` is **not built**; it waits for Shopee's
+  click report.
 
 ## Not done on purpose
 

@@ -21,6 +21,14 @@ Google (see `docs/decisions.md`, 2026-11-08).
   date only, so how often the competitor posts can be worked out. A checkpoint is left open for the member; it is never answered. The cookies stay in this Chrome and
   are never sent to Reels Studio's server. See `docs/decisions/2026-11-17-competitor-analyzer.md`.
 
+- On "Affiliate › Sản phẩm" › "Nhập / Xuất", "Chuyển bằng tiện ích Chrome" (from 1.8.0, `shopee-convert`) turns the group's
+  product pages into the member's own affiliate links with Shopee Affiliate's Custom Link: it finds or opens a
+  `affiliate.shopee.vn` tab (the member must be signed in) and sends the requests from inside that tab, 20 links a request,
+  1.5 s apart, with `Sub_id1` = the Page; Shopee signs the requests with its own page scripts. The links go back to the
+  page, which previews them like a file. Reels Studio's server never calls Shopee. See
+  `docs/decisions/2026-11-28-shopee-auto-link.md`. `manifest.json` gained `https://affiliate.shopee.vn/*`: Chrome asks
+  the member to accept it when the extension is reloaded.
+
 ## Second Facebook account (for "Phân tích đối thủ")
 
 1. `chrome://extensions` › this extension › "Chi tiết" › turn on "Cho phép ở chế độ ẩn danh".

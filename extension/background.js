@@ -370,3 +370,110 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   }
   return false;
 });
+
+/*
+ * "Chuyển link Shopee" (docs/decisions/2026-11-28-shopee-auto-link.md): turns product pages into the member's own
+ * affiliate links with Shopee Affiliate's Custom Link, from the member's logged-in affiliate.shopee.vn tab. Shopee
+ * signs every request with scripts of its own page, so the request is sent from inside that tab (world MAIN), never
+ * from here and never from Reels Studio's server. 20 links per request, 1.5 s apart; nothing is retried.
+ */
+const SHOPEE_TAB_URL = "https://affiliate.shopee.vn/offer/custom_link";
+
+// Runs inside the Shopee tab. Returns { rows } or { error, detail }.
+async function convertInShopeeTab(links, subId1) {
+  const QUERY =
+    "\n    query batchGetCustomLink($linkParams: [CustomLinkParam!], $sourceCaller: SourceCaller){\n" +
+    "      batchCustomLink(linkParams: $linkParams, sourceCaller: $sourceCaller){\n        shortLink\n        longLink\n        failCode\n      }\n    }\n    ";
+  const csrf = (document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/) || [])[1];
+  const send = (batch) =>
+    new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/v3/gql?q=batchCustomLink");
+      xhr.withCredentials = true;
+      xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
+      xhr.setRequestHeader("Accept", "application/json, text/plain, */*");
+      xhr.setRequestHeader("Affiliate-Program-Type", "1");
+      if (csrf) {
+        xhr.setRequestHeader("CSRF-token", decodeURIComponent(csrf));
+      }
+      xhr.onload = () => resolve({ status: xhr.status, text: xhr.responseText });
+      xhr.onerror = () => resolve({ status: 0, text: "" });
+      xhr.send(
+        JSON.stringify({
+          operationName: "batchGetCustomLink",
+          query: QUERY,
+          variables: {
+            linkParams: batch.map((originalLink) => ({
+              originalLink,
+              advancedLinkParams: subId1 ? { subId1 } : {},
+            })),
+            sourceCaller: "CUSTOM_LINK_CALLER",
+          },
+        }),
+      );
+    });
+  const rows = [];
+  for (let i = 0; i < links.length; i += 20) {
+    const batch = links.slice(i, i + 20);
+    const answer = await send(batch);
+    let found = null;
+    try {
+      found = JSON.parse(answer.text)?.data?.batchCustomLink;
+    } catch (err) {
+      found = null;
+    }
+    if (!Array.isArray(found) || found.length !== batch.length) {
+      return { rows, error: "refused", detail: { status: answer.status, csrf: Boolean(csrf), body: answer.text.slice(0, 300) } };
+    }
+    batch.forEach((original, index) => rows.push({ original, short: found[index].shortLink || "", failCode: found[index].failCode }));
+    await new Promise((done) => setTimeout(done, 1500));
+  }
+  return { rows };
+}
+
+async function shopeeTab() {
+  const [existing] = await chrome.tabs.query({ url: "https://affiliate.shopee.vn/*" });
+  if (existing) {
+    return existing;
+  }
+  const tab = await chrome.tabs.create({ url: SHOPEE_TAB_URL, active: false });
+  await new Promise((done) => {
+    const listen = (id, info) => {
+      if (id === tab.id && info.status === "complete") {
+        chrome.tabs.onUpdated.removeListener(listen);
+        done();
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listen);
+    setTimeout(done, 20000);
+  });
+  return chrome.tabs.get(tab.id);
+}
+
+async function shopeeConvert(links, subId1) {
+  const tab = await shopeeTab();
+  if (!tab.url || !tab.url.startsWith("https://affiliate.shopee.vn/")) {
+    return { error: "login" };
+  }
+  if (/\/(login|buyer\/login|verify)/.test(tab.url)) {
+    chrome.tabs.update(tab.id, { active: true });
+    return { error: "login" };
+  }
+  const [result] = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    world: "MAIN",
+    func: convertInShopeeTab,
+    args: [links, subId1],
+  });
+  return result?.result || { error: "refused", detail: { body: "no result" } };
+}
+
+chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if (message?.type === "shopee-convert" && sender.tab && Array.isArray(message.links)) {
+    const links = message.links.filter((link) => typeof link === "string").slice(0, 500);
+    const subId1 = typeof message.subId1 === "string" && /^[A-Za-z0-9]{1,40}$/.test(message.subId1) ? message.subId1 : "";
+    shopeeConvert(links, subId1).then(reply, (err) => reply({ error: "refused", detail: { body: String(err) } }));
+    return true;
+  }
+  return false;
+});
