@@ -226,6 +226,9 @@ wrapper, so that check is the main guard there.
   harmless ([decision](decisions/2026-11-11-media-tags.md)).
 - **Storage growth:** each video is about 10–30 MB, which is about 1–3 GB/month at 3 videos/day.
   Deleting a video removes its folder for good; there is no other cleanup.
+  `python -m reels_api storage-report` (read only; run it in the `api` container's terminal by the owner) prints the
+  video files' size by kind, by how long ago the video was last posted, the folders whose video is gone, and how
+  much a 30/60-day cleanup could free ([brief](specs/video-media-retention/brief.md), step 1).
 - **Worker:** its log (Coolify Logs of the worker app) shows `Worker lock acquired` once it takes
   jobs, one line per Claude call with token counts, and every job failure with its detail. A worker
   that starts while the database is unreachable waits and logs `Database unavailable`; once it holds

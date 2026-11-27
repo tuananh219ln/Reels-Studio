@@ -1,6 +1,6 @@
 # Brief: Dọn media của video đã đăng sau 30 ngày (giữ mọi số liệu)
 
-- Ngày: 26/11/2026. Người đề xuất: Nam dev. Trạng thái: **chờ chủ dự án chọn các điểm ở mục 7**, chưa làm code.
+- Ngày: 26/11/2026. Người đề xuất: Nam dev. Trạng thái: bước 1 (báo cáo dung lượng, `python -m reels_api storage-report`, chỉ đọc) đã làm; các bước 2–6 **chờ chủ dự án chọn các điểm ở mục 7**.
 - Đối chiếu với `main` @ `7b8f45a`. Mọi chỗ trỏ vào code dưới đây đã đọc trên commit đó.
 
 ## 1. Vấn đề
