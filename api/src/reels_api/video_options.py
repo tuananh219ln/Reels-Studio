@@ -354,9 +354,10 @@ def voice_pause(video: Video) -> float:
 
 
 def text_look(video: Video) -> tuple[str, ...]:
-    """The values the text boxes are drawn with (LOOK_FIELDS): previews and the thumbnail change with them."""
+    """The values the text boxes are drawn with (LOOK_FIELDS, and PC Shopee's title layout and look): previews and the
+    thumbnail change with them."""
     values = effective(video)
-    return tuple(values[name] for name in LOOK_FIELDS)
+    return tuple(values[name] for name in (*LOOK_FIELDS, "title_layout", "pc_title_style"))
 
 
 # What a content scene's box is drawn with; the title's depends on every look field.

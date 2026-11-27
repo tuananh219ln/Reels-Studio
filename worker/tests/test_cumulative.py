@@ -308,3 +308,19 @@ def test_a_scene_with_a_held_text_shows_no_caption_while_its_text_is_up(tmp_path
     assert region(1.9, (0, 1130, 1080, 1480)) and not region(1.9, (0, 1000, 1080, 1130))
     assert not region(1.9, (0, 1000, 1080, 1100))  # no caption yet
     assert region(3.5, (0, 1000, 1080, 1180))  # the caption, once the text has gone
+
+
+def test_a_title_written_on_one_line_is_cut_at_its_punctuation_into_three_tiers():
+    from reels_render.markup import parse_scene_text
+    from reels_render.tiers import parse_title
+
+    tiers = parse_title(parse_scene_text("BLACK FRIDAY: 5 MÓN PC ĐÁNG SĂN, XEM TRƯỚC KHI MUA"))
+    assert (tiers.small, tiers.main, tiers.sub) == ("BLACK FRIDAY", "5 MÓN PC ĐÁNG SĂN", "XEM TRƯỚC KHI MUA")
+    # Two parts: a short one before a longer one is the small line, else main and sub.
+    short = parse_title(parse_scene_text("Black Friday: 5 món PC đáng săn"))
+    assert (short.small, short.main, short.sub) == ("BLACK FRIDAY", "5 MÓN PC ĐÁNG SĂN", "")
+    long = parse_title(parse_scene_text("5 món PC đáng săn nhất năm nay, xem trước khi mua"))
+    assert (long.small, long.main, long.sub) == ("", "5 MÓN PC ĐÁNG SĂN NHẤT NĂM NAY", "XEM TRƯỚC KHI MUA")
+    # No punctuation: all the main line. A label line still comes out of the text.
+    plain = parse_title(parse_scene_text("5 món PC đáng săn\n[[-50%]]"))
+    assert (plain.small, plain.main, plain.sub, plain.label) == ("", "5 MÓN PC ĐÁNG SĂN", "", "-50%")

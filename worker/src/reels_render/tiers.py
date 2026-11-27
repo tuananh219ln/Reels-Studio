@@ -52,9 +52,27 @@ def _plain(line: list[Run]) -> str:
     return normalize_text("".join(run.text for run in line).strip())
 
 
+_SPLIT = re.compile(r"\s*[:|,;]\s*")
+
+
+def _split_one_line(text: str) -> tuple[str, str, str]:
+    """A title written on one line, cut at ":", "|", "," and ";" into small / main / sub ("BLACK FRIDAY: 5 MÓN PC ĐÁNG SĂN,
+    XEM TRƯỚC KHI MUA"). Three parts or more: the first is small, the second main and the rest the sub; two parts: a short
+    first part (up to TITLE_MAX_CHARS) before a longer one is small and main, else main and sub; one: all main."""
+    parts = [part for part in _SPLIT.split(text) if part.strip()]
+    if len(parts) >= 3:
+        return parts[0], parts[1], ", ".join(parts[2:])
+    if len(parts) == 2:
+        first, second = parts
+        if len(first) <= TITLE_MAX_CHARS and len(second) > len(first):
+            return first, second, ""
+        return "", first, second
+    return "", parts[0] if parts else "", ""
+
+
 def parse_title(lines: list[list[Run]]) -> TitleTiers:
-    """The title's lines as tiers: one line is the main one; two, main and sub; three or more, small, main and sub (the
-    rest joins the sub). A line written `[[-50%]]` is the orange label."""
+    """The title's lines as tiers: one line is cut at its punctuation (_split_one_line); two lines are main and sub; three or
+    more small, main and sub (the rest joins the sub). A line written `[[-50%]]` is the orange label."""
     texts = [_plain(line) for line in lines if _plain(line)]
     label = ""
     rest: list[str] = []
@@ -69,7 +87,7 @@ def parse_title(lines: list[list[Run]]) -> TitleTiers:
     elif len(rest) == 2:
         small, main, sub = "", rest[0], rest[1]
     else:
-        small, main, sub = "", rest[0] if rest else "", ""
+        small, main, sub = _split_one_line(rest[0] if rest else "")
     return TitleTiers(small, main, sub, label)
 
 

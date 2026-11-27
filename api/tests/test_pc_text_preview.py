@@ -120,3 +120,12 @@ def test_the_preview_route_keeps_its_arguments_in_order_for_the_assistants_conne
 
     # mcp_server calls scene_preview(scene_id, me, db, storage) by position: `live` must stay after them.
     assert list(inspect.signature(routes_videos.scene_preview).parameters)[:4] == ["scene_id", "me", "db", "storage"]
+
+
+def test_the_title_layout_and_look_are_part_of_what_the_thumbnail_is_drawn_with():
+    from reels_api import video_options
+    from reels_api.models import Video
+
+    before = video_options.text_look(Video(options=video_options.DEFAULTS))
+    for change in ({"title_layout": "three_tier"}, {"pc_title_style": "neon_game"}):
+        assert video_options.text_look(Video(options=video_options.DEFAULTS | change)) != before, change
