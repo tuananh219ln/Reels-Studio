@@ -11,8 +11,6 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
-from .textbox import FONT_PATH as BE_VIETNAM_PATH
-
 BUNGEE_PATH = Path(__file__).parent / "fonts" / "Bungee-Regular.ttf"
 FONTS = Path(__file__).parent / "fonts"
 PRESETS = ("neon_outline_price", "gold_metal", "grunge_rainbow", "esports_blue")
@@ -63,7 +61,7 @@ def line_style(style: str, key: bool, index: int = 0) -> LineStyle:
     if style == "brand_navy":
         navy = hex_rgb("#10195E")
         return LineStyle(
-            BE_VIETNAM_PATH,
+            BUNGEE_PATH,
             hex_rgb("#FFC816") if key else hex_rgb("#FEFFFA"),
             (6, navy),
             glow=(
@@ -72,7 +70,6 @@ def line_style(style: str, key: bool, index: int = 0) -> LineStyle:
                 14,
             ),  # neon game's glow in the brand's own colours
             gradient=(hex_rgb("#FFD84A"), hex_rgb("#FFB113")) if key else None,
-            spacing=0.02,
         )
     return LineStyle(
         BUNGEE_PATH,
