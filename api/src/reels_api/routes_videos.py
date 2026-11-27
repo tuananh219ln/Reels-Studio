@@ -39,6 +39,7 @@ from . import (
     image_providers,
     knowledge,
     llm,
+    media_cleanup,
     music_claims,
     music_topics,
     outro,
@@ -208,6 +209,7 @@ class VideoPatchBody(BaseModel):
     # "Không dùng tiêu đề": true empties the title scene's text (kept in `kept_title`) and lets the video be approved
     # without one; false gives the kept text back.
     no_title: bool | None = None
+    keep_media: bool | None = None  # "Giữ media": the worker never deletes this video's media files (media_cleanup.py)
 
 
 class ScenePatchBody(BaseModel):
@@ -322,6 +324,7 @@ def _ensure_renderable(db: DbSession, video: Video) -> None:
         raise ApiError(409, "upload_video", "Video “MP4 tải lên” đã có MP4 hoàn chỉnh, không render lại")
     if not video.has_script:
         raise ApiError(409, "no_script", "Video chưa có kịch bản")
+    media_cleanup.ensure_media(video, "render")
     title, scenes = split_scenes(db, video)
     checks = run_checks(db, video, title, scenes)
     if checks.blocking:
@@ -588,6 +591,8 @@ def patch_video(
         if len(kind) > MAX_CONTENT_TYPE_LENGTH:
             raise invalid(f"Loại nội dung tối đa {MAX_CONTENT_TYPE_LENGTH} ký tự")
         video.content_type = kind
+    if "keep_media" in fields and body.keep_media is not None:
+        video.keep_media = body.keep_media
     if "no_title" in fields and body.no_title is not None and body.no_title != video.no_title:
         _set_no_title(db, storage, video, body.no_title)
     look = video_options.text_look(video), video_options.effective(video)["title_text_position"]
@@ -1215,6 +1220,7 @@ def duplicable(db: DbSession, video_id: int) -> Video:
         raise ApiError(409, "upload_video", "Video “MP4 tải lên” không nhân bản được, hãy tải MP4 lên lại")
     if not source.has_script:
         raise ApiError(409, "no_script", "Video gốc chưa có kịch bản để nhân bản")
+    media_cleanup.ensure_media(source, "nhân bản")
     return source
 
 
@@ -1590,6 +1596,7 @@ def group_media(
         .where(
             Video.knowledge_topic_id == video.knowledge_topic_id,
             Video.id != video.id,
+            Video.media_cleaned_at.is_(None),
             or_(Scene.image_key.is_not(None), Scene.video_key.is_not(None)),
         )
         .order_by(Scene.id.desc())

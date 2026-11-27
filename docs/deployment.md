@@ -126,6 +126,7 @@ when set to an empty string. Containers use real environment variables only.
 | `UNSPLASH_ACCESS_KEY` | optional, api: Unsplash's Access Key (free "demo" plan, 50 searches an hour for the team); a key pasted on Cài đặt › AI và nguồn tư liệu wins. Without either, the picker shows Unsplash greyed out ("chưa cấu hình key") and searching it says so. Wikimedia Commons needs no key |
 | `WIKIMEDIA_API_URL`, `UNSPLASH_API_URL` | tests and E2E only: point the two sources at `api/scripts/fake_services.py`; unset in production |
 | `OPENVERSE_CLIENT_ID`, `OPENVERSE_CLIENT_SECRET` | optional, api: a registered Openverse application for its higher rate limits; without them Openverse is called anonymously, and a failed token exchange falls back to anonymous |
+| `MEDIA_CLEANUP_ENABLED`, `MEDIA_CLEANUP_DAYS` | worker, optional: `true` turns on the nightly cleanup of posted videos' media files after `MEDIA_CLEANUP_DAYS` (30 by default, at least 7); off when empty ([decision](decisions/2026-11-27-media-cleanup.md)) |
 | `STORAGE_DIR` | api and worker: the shared files folder; `/data/storage` in production, `data/storage` at the repo root when empty |
 | `DATABASE_URL` | api and worker: dev database; in production the Coolify Postgres internal URL |
 | `TEST_DATABASE_URL` | api: pytest database `reels_test` |
@@ -229,7 +230,10 @@ wrapper, so that check is the main guard there.
   then runs it without `--dry-run`. It adds each photo's tags by file name and never twice, so running it again is
   harmless ([decision](decisions/2026-11-11-media-tags.md)).
 - **Storage growth:** each video is about 10–30 MB, which is about 1–3 GB/month at 3 videos/day.
-  Deleting a video removes its folder for good; there is no other cleanup.
+  Deleting a video removes its folder for good. The other cleanup is the worker's, off until `MEDIA_CLEANUP_ENABLED`
+  is set: between 02:00 and 06:00 Vietnam time, 25 videos a round, it deletes the media files of a video posted more than
+  `MEDIA_CLEANUP_DAYS` days ago and keeps its MP4s and thumbnail ([decision](decisions/2026-11-27-media-cleanup.md));
+  `python -m reels_api media-cleanup` shows what is due (add `--apply` to delete) and is how to try it first.
   `python -m reels_api storage-report` (read only; run it in the `api` container's terminal by the owner) prints the
   video files' size by kind, by how long ago the video was last posted, the folders whose video is gone, and how
   much a 30/60-day cleanup could free ([brief](specs/video-media-retention/brief.md), step 1).

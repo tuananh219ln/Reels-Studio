@@ -757,6 +757,14 @@ numbers then (`summary`). Deleted with the member. `users.competitor_scanner_at`
 Files are not table rows: a video's files live under one storage folder per video, with
 server-generated names (retention: [deployment.md](deployment.md#operations)).
 
+**Media cleanup** ([media_cleanup.py](../api/src/reels_api/media_cleanup.py), migration 0138,
+[decision](decisions/2026-11-27-media-cleanup.md)): `videos.keep_media` ("Giữ media"), `media_cleaned_at`,
+`media_freed_bytes`. A cleaned video keeps every row and its MP4s and thumbnail; its other files are gone, so
+`_ensure_renderable` and `duplicable` (render, "Nhân bản y hệt", shuffles, TikTok versions, their MCP tools) refuse it
+with `media_cleaned` (409) and "Đã dùng trong nhóm" skips it. Due: approved, last live post older than the days, no
+open post, queue place, job or editor, not kept, not a winner (3 times the Page's median 48 h views) nor the source of
+a copy made within the same days.
+
 Planned:
 
 | Entity | Key contents |
