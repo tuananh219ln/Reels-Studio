@@ -36,6 +36,7 @@ VALUE_NOTES = {
     "box_opacity": "auto = theo kiểu, solid = đặc, soft = hơi trong (88%), clear = trong (70%), faint = rất trong (45%), none = không nền",
     "text_size": "large = lớn, medium = vừa, small = nhỏ",
     "title_text_size": "large = lớn, medium = vừa, small = nhỏ",
+    "text_font": "be_vietnam = Be Vietnam Pro Black (chữ gốc), bungee = Bungee (chữ to, vuông, kiểu game)",
     "text_case": "upper = viết HOA hết, keep = giữ chữ như kịch bản viết",
     "title_text_case": "upper = viết HOA hết, keep = giữ chữ như kịch bản viết",
     "captions": "off = không phụ đề, phrase = phụ đề theo cụm lời đọc, word = phụ đề tô vàng từng từ đang đọc",

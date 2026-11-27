@@ -175,6 +175,7 @@ def apply(db: DbSession, scenes: list[Scene], revision: Revision) -> list[str]:
                 scene.is_title,
                 video_options.text_size(scene.video, scene.is_title),
                 video_options.text_case(scene.video, scene.is_title),
+                video_options.text_font(scene.video),
             )
             if problem or len(text) > 500:
                 skipped.append(f"chữ {name}: {problem or 'dài quá'}")

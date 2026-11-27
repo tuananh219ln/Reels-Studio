@@ -104,7 +104,7 @@ def render_video(
             continue
         try:
             size = options.title_text_size if index == 0 else options.text_size
-            layouts.append(layout_sized(lines, size, is_title=index == 0) if lines else None)
+            layouts.append(layout_sized(lines, size, is_title=index == 0, font=options.text_font) if lines else None)
         except TextFitError as err:
             raise InputError(f"{scene.label}: {err}") from None
     timeline = build_timeline([fit_seconds(scene.seconds, voice) for scene, voice in zip(script.all_scenes, spoken)])

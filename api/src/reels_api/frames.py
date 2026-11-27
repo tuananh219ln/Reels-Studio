@@ -116,7 +116,10 @@ def text_box(
         return tiers
     case = options.title_text_case if is_title else options.text_case
     layout = layout_sized(
-        parse_scene_text(text, case), options.title_text_size if is_title else options.text_size, is_title
+        parse_scene_text(text, case),
+        options.title_text_size if is_title else options.text_size,
+        is_title,
+        options.text_font,
     )
     palette = options.title_palette() if is_title else options.scene_palette()
     position = tuple(centre) if centre else None
@@ -129,9 +132,9 @@ def text_height(text: str, is_title: bool, options: RenderOptions = DEFAULT_OPTI
         return tiers[0].height
     size = options.title_text_size if is_title else options.text_size
     case = options.title_text_case if is_title else options.text_case
-    if not text.strip() or text_problem(text, is_title, size, case) is not None:
+    if not text.strip() or text_problem(text, is_title, size, case, options.text_font) is not None:
         return 0
-    return layout_sized(parse_scene_text(text, case), size, is_title).height
+    return layout_sized(parse_scene_text(text, case), size, is_title, options.text_font).height
 
 
 @lru_cache(maxsize=1024)
@@ -235,7 +238,7 @@ def compose_frame(
             frame.paste(shown[0], shown[1], shown[0])
     elif show_text and text.strip():
         drawn = tier_box(text, is_title, options, centre, last, zone)
-        if drawn is None and text_problem(text, is_title, size, case) is None:
+        if drawn is None and text_problem(text, is_title, size, case, options.text_font) is None:
             drawn = text_box(text, is_title, options, centre, min_top)
         if drawn is not None:
             box, position = drawn
