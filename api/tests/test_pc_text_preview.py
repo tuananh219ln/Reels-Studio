@@ -129,3 +129,11 @@ def test_the_title_layout_and_look_are_part_of_what_the_thumbnail_is_drawn_with(
     before = video_options.text_look(Video(options=video_options.DEFAULTS))
     for change in ({"title_layout": "three_tier"}, {"pc_title_style": "neon_game"}):
         assert video_options.text_look(Video(options=video_options.DEFAULTS | change)) != before, change
+
+
+def test_the_title_effects_are_sent_to_a_machine_only_when_on():
+    from reels_api import render_nodes
+    from reels_render import RenderOptions
+
+    assert render_nodes.options_dict(RenderOptions(title_effects=True))["title_effects"] is True
+    assert "title_effects" not in render_nodes.options_dict(RenderOptions())

@@ -82,6 +82,9 @@ class RenderOptions:
     title_layout: str = "box"
     scene_text_layout: str = "box"
     pc_title_style: str = "brand_navy"
+    # The title preset's whole-frame effects (pc_text.FRAME_EFFECTS) on the title scene; sent only when on and the
+    # preset has some, so a machine on older code refuses the option instead of rendering without them.
+    title_effects: bool = False
 
     def __post_init__(self) -> None:
         for name, value, allowed in (
@@ -115,7 +118,11 @@ class RenderOptions:
         ):
             if not isinstance(value, str) or (value not in named and not is_hex(value)):
                 raise InputError(f"Màu {name} không hợp lệ: {value!r} (chọn một trong {', '.join(named)} hoặc #RRGGBB)")
-        for name, flag in (("backdrop", self.backdrop), ("text_shade", self.text_shade)):
+        for name, flag in (
+            ("backdrop", self.backdrop),
+            ("text_shade", self.text_shade),
+            ("title_effects", self.title_effects),
+        ):
             if not isinstance(flag, bool):
                 raise InputError(f"Tuỳ chọn {name} phải là true hoặc false (đang là {flag!r})")
         volume = self.voice_volume

@@ -21,7 +21,7 @@ from reels_render.options import (
     ZOOMS,
     RenderOptions,
 )
-from reels_render.pc_text import PC_STYLES
+from reels_render.pc_text import FRAME_EFFECTS, PC_STYLES
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH, is_hex
 from reels_render.timeline import VOICE_TAIL
 
@@ -86,6 +86,8 @@ DEFAULTS: dict = {
     "title_layout": "box",
     "scene_text_layout": "box",
     "pc_title_style": "brand_navy",
+    # The title preset's whole-frame effects (reels_render.pc_text.FRAME_EFFECTS, only some presets have them).
+    "title_effects": True,
 }
 # The topic group the "Ẩn chữ sau X giây" setting is for. Its new videos start with PC_SHOPEE_TEXT_HOLD; every other
 # group keeps None, so nothing changes for them (docs/decisions/2026-11-27-text-hold.md).
@@ -174,6 +176,7 @@ LABELS = {
     "title_layout": "Bố cục tiêu đề",
     "scene_text_layout": "Bố cục chữ cảnh",
     "pc_title_style": "Kiểu chữ tiêu đề PC Shopee",
+    "title_effects": "Hiệu ứng khung của kiểu chữ tiêu đề",
     "ducking": "Nhỏ nhạc khi có giọng",
     "text_shade": "Nền tối mờ sau chữ",
     "voice_pause": "Nghỉ sau lời đọc",
@@ -237,7 +240,7 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
         elif name in ("voice_volume", "music_volume"):
             if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 100:
                 raise OptionError("Âm lượng phải từ 0 đến 100%")
-        elif name in ("ducking", "voice_enabled", "text_shade"):
+        elif name in ("ducking", "voice_enabled", "text_shade", "title_effects"):
             if not isinstance(value, bool):
                 raise OptionError(f"“{LABELS[name]}” chỉ nhận bật hoặc tắt")
         elif name in ("text_position", "title_text_position"):
@@ -274,6 +277,7 @@ def choices() -> dict:
             "voice_pause": list(VOICE_PAUSES),
             "ducking": [True, False],
             "text_shade": [True, False],
+            "title_effects": [True, False],
             "text_hold_sec": {
                 "min": TEXT_HOLD_MIN,
                 "max": TEXT_HOLD_MAX,
@@ -410,6 +414,7 @@ def render_options(video: Video) -> RenderOptions:
         text_shade=values["text_shade"],
         pc_style=values["pc_style"],
         pc_title_style=values["pc_title_style"],
+        title_effects=values["title_effects"] and values["pc_title_style"] in FRAME_EFFECTS,
         title_layout=values["title_layout"],
         scene_text_layout=values["scene_text_layout"],
         backdrop=video.mode == "single",
@@ -437,6 +442,7 @@ def look_signature(video: Video) -> dict | None:
         "title_layout",
         "scene_text_layout",
         "pc_title_style",
+        "title_effects",
     ):
         if changed[name] == DEFAULTS[name]:
             del changed[name]

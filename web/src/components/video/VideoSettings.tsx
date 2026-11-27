@@ -855,6 +855,15 @@ export function TextSettings({ values, onChange, disabled, bare, textHold }: Pro
                       disabled={disabled}
                       onChange={(style) => onChange({ pc_title_style: style as VideoOptions["pc_title_style"] })}
                     />
+                    {values.pc_title_style === "grunge_rainbow" && (
+                      <Checkbox
+                        checked={values.title_effects}
+                        disabled={disabled}
+                        onChange={(event) => onChange({ title_effects: event.target.checked })}
+                      >
+                        Hiệu ứng glitch và tối viền trên cảnh tiêu đề
+                      </Checkbox>
+                    )}
                   </Field>
                 )}
               </>
