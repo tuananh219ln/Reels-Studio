@@ -105,8 +105,8 @@ const PC_STYLES = [
   { value: "grunge_rainbow", label: "Grunge cầu vồng" },
   { value: "esports_blue", label: "Esports xanh" },
 ];
-const TITLE_PRESETS = ["neon_tech_teal", "neon_outline_price", "gold_metal", "grunge_rainbow", "esports_blue"];
-/** A picker row: the name, and for the five title presets a picture of the preset drawn with sample text (api routes_title_presets). */
+
+/** A picker row: the name and a picture of the look drawn with sample text (api routes_title_presets). */
 function styleOption(option: { value?: string | number | null; label?: ReactNode }) {
   const value = String(option.value ?? "");
   if (!TITLE_PRESETS.includes(value)) return option.label;

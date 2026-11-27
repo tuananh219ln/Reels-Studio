@@ -27,3 +27,5 @@
 - **"Tiêu đề động" needs nothing** ([title-motion](2026-11-23-title-motion.md)): it is for the "Sức khỏe" groups, and its hook text is the
   title scene's own text, drawn by the render core, not part of the motion's markup. So a preset applies to it as to any title,
   and changing the preset does not need "Dựng lại tiêu đề" (the spec's section 6 line is moot).
+- **Every look has a sample in the picker (2026-11-27):** Neon game and Thương hiệu too, not only the five presets
+  (`/api/title-presets/<style>.png` answers every `PC_STYLES` value).
