@@ -1,5 +1,6 @@
 "use client";
 
+import { isPcShopee } from "@/lib/pcShopee";
 import { BulbOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Card, Flex, Spin, Switch, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
@@ -29,7 +30,21 @@ const FIELDS = [
   "text_case",
   "title_text_case",
   "captions",
+  // PC Shopee's own (api text_looks.PC_FIELDS): only that group's card shows them.
+  "text_hold_sec",
+  "pc_style",
+  "pc_title_style",
+  "title_layout",
+  "scene_text_layout",
 ] as const;
+const PC_START: Look = {
+  captions: "cumulative",
+  text_hold_sec: 2.5,
+  pc_style: "neon_game",
+  pc_title_style: "brand_navy",
+  title_layout: "three_tier",
+  scene_text_layout: "two_tier",
+};
 // How often the card reads the group again while "AI gợi ý" is being made (one LLM call, a few seconds).
 const POLL_MS = 3000;
 
@@ -122,8 +137,10 @@ export default function GroupTextLookCard({
   reload: (data?: Knowledge) => Promise<void>;
 }) {
   const { message } = App.useApp();
+  // PC Shopee's own starting look (api video_options.apply_defaults), so its card shows what a new video would take.
+  const base: Look = isPcShopee(topic.name) ? { ...start, ...PC_START } : start;
   const [own, setOwn] = useState(topic.text_look !== null);
-  const [look, setLook] = useState<Look>({ ...start, ...(topic.text_look ?? {}) });
+  const [look, setLook] = useState<Look>({ ...base, ...(topic.text_look ?? {}) });
   const [aiEach, setAiEach] = useState(topic.text_ai);
   const [seen, setSeen] = useState(JSON.stringify([topic.text_look, topic.text_ai]));
   const [busy, setBusy] = useState(false);
@@ -133,7 +150,7 @@ export default function GroupTextLookCard({
   if (seen !== key) {
     setSeen(key);
     setOwn(topic.text_look !== null);
-    setLook({ ...start, ...(topic.text_look ?? {}) });
+    setLook({ ...base, ...(topic.text_look ?? {}) });
     setAiEach(topic.text_ai);
   }
   const making = topic.text_job?.status === "queued" || topic.text_job?.status === "running";
@@ -169,7 +186,7 @@ export default function GroupTextLookCard({
     }
   }
 
-  const values: SettingsValues = { ...(start as VideoOptions), ...look, voice_enabled: true };
+  const values: SettingsValues = { ...(base as VideoOptions), ...look, voice_enabled: true };
   return (
     <Card
       title="Chữ & phụ đề của nhóm"
@@ -258,7 +275,7 @@ export default function GroupTextLookCard({
                 <Button
                   onClick={() => {
                     setOwn(true);
-                    setLook({ ...start, ...(topic.text_look ?? {}), ...option.look });
+                    setLook({ ...base, ...(topic.text_look ?? {}), ...option.look });
                     message.info("Đã đưa vào phần chỉnh bên dưới, bấm “Lưu chữ & phụ đề” để dùng");
                   }}
                 >
@@ -270,7 +287,11 @@ export default function GroupTextLookCard({
         </Flex>
 
         {own && (
-          <TextSettings values={values} onChange={(changes) => setLook((current) => ({ ...current, ...changes }))} />
+          <TextSettings
+            values={values}
+            onChange={(changes) => setLook((current) => ({ ...current, ...changes }))}
+            textHold={isPcShopee(topic.name)}
+          />
         )}
         <Button
           type="primary"

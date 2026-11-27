@@ -18,4 +18,17 @@ Part of the spec "Ẩn chữ & Phụ đề Cộng dồn" (Looper, 2026-11-27); l
 - **No entrance animation yet** (the title's bounce, the numbered circle's pop): a picture that animates needs a looped input
   per picture on a render that already lays many; the text shows at once. "Ẩn chữ sau X giây" still applies to the scenes'
   tiers, since they are laid as the scene's text picture.
-- **The studio's previews and thumbnail** still draw the old box; only the MP4 follows the tiers. A person watches the MP4.
+- **The studio's previews, the drag box and the thumbnail follow the tiers** (`frames.compose_frame`/`text_box`, which take
+  whether the scene is the last, its zone and its narration): the title's thumbnail is the three tiers, a content scene's
+  preview the two, and under "Cộng dồn" a scene's preview shows the first phrase whole and drawn still (the MP4 plays the words
+  in), with no text box to drag. The preview addresses carry these only while they are in use, so other videos' stay valid.
+- **The studio's player plays "Cộng dồn"** (`/scenes/<id>/cumulative`, `CumulativeStage`): the steps are the render's own pictures, laid
+  over the scene at their seconds as the layers are (the words at ElevenLabs' real seconds once the narration has them, else the
+  estimate over the made narration's length). The preview picture of such a scene has no phrase drawn into it (`preview.jpg?live=true`);
+  the timeline's "Chữ" track skips a scene whose text "Cộng dồn" replaces.
+- **A group holds PC Shopee's settings in its "Chữ & phụ đề"** (`text_looks.PC_FIELDS`, with "cumulative" captions): only for the group
+  PC Shopee (the api refuses them on any other, a stored look read back drops them), shown in its card on Kho kiến thức, and over the
+  starting values a new PC Shopee video takes. The AI that suggests or picks a look is never asked for them nor accepts them. They are
+  **not** on Cài đặt › Thiết lập mặc định, which is a member's defaults for every group.
+- **The assistant** sets them with `set_video_options` (text_hold_sec, pc_style, pc_title_style, title_layout, scene_text_layout) and
+  `set_scene_effects` (text_hold_sec, text_zone).

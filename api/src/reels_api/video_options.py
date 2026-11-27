@@ -495,13 +495,13 @@ def apply_defaults(db: DbSession, video: Video, user_id: int) -> None:
     group = db.get(KnowledgeTopic, video.knowledge_topic_id) if video.knowledge_topic_id else None
     if group is not None and group.voice_id:
         video.options["voice_id"] = group.voice_id
-    video.options.update(group_look(group))
     if is_pc_shopee(group):
         # PC Shopee's own start (docs/decisions/2026-11-27-text-hold.md, 2026-11-27-cumulative-captions.md): "Cộng dồn"
         # captions in place of the scenes' text; the hold waits for when "Cộng dồn" is turned off.
         video.options["text_hold_sec"] = PC_SHOPEE_TEXT_HOLD
         video.options["captions"] = "cumulative"
         video.options["title_layout"], video.options["scene_text_layout"] = "three_tier", "two_tier"
+    video.options.update(group_look(group))  # the group's own look wins over PC Shopee's starting values
     brand = brands.default_for(db, user_id, video.knowledge_topic_id)
     if brand is not None:
         video.options["brand_id"] = brand.id

@@ -87,6 +87,20 @@ def voiced_words(
     ]
 
 
+def narration_steps(
+    text: str,
+    voice_words: list[Word],
+    begin: float,
+    seconds: float,
+    scene_end: float,
+    keywords: frozenset[str] = frozenset(),
+) -> list[Step]:
+    """The "Cộng dồn" steps of one narration that starts `begin` seconds in and lasts `seconds`: at the real seconds of
+    each word when `voice_words` has them (and they match `text`), else estimated across the narration."""
+    words = voiced_words(text, voice_words, begin, keywords) or estimate_words(text, begin, seconds, keywords)
+    return plan_cumulative(words, scene_end)
+
+
 def known_words(words: list[Word]) -> list[TimedWord]:
     """Words whose real seconds are known (a clip's own sound), in the video's time."""
     return [

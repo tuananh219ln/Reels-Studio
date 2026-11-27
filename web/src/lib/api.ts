@@ -426,6 +426,10 @@ export type SceneData = {
   text_hold_sec: number | null;
   /** PC Shopee: "top" puts the scene's tiers and captions in the 14–30% zone; null: the lower one (62–78%). */
   text_zone: "top" | null;
+  /** "Cộng dồn": the steps the player lays over the scene (api `/scenes/<id>/cumulative`) and the preview without the
+   * sample phrase drawn into it; null when the scene shows no such captions. */
+  cumulative_url: string | null;
+  live_preview_url: string | null;
   /** The scene's own narration voice (api video_options.scene_voice); null: the video's. */
   voice_id: string | null;
   /** A "Cảnh động" an assistant wrote (HTML + GSAP, rendered by HyperFrames into this scene's clip); null: none. */

@@ -62,6 +62,7 @@ import { NoteBar, NoteTools } from "./preview/NotePanel";
 import { SoundList, SoundStage, SoundTools } from "./preview/SoundPanel";
 import { musicGain } from "./preview/sounds";
 import SceneEffects from "./preview/SceneEffects";
+import CumulativeStage from "./preview/CumulativeStage";
 import SceneInspector from "./preview/SceneInspector";
 import { colorCss } from "./preview/effects";
 import { type LockableTrack, lanesFor } from "./preview/tracks";
@@ -1521,6 +1522,13 @@ export default function VideoPreview({
                       }}
                     />
                   )}
+                  {scene?.cumulative_url && (
+                    <CumulativeStage
+                      key={`${scene.id}-${scene.cumulative_url}`}
+                      url={scene.cumulative_url}
+                      elapsed={() => position() - startOf(phase.index)}
+                    />
+                  )}
                   {platform !== "none" && (
                     <PlatformFrame platform={platform} channel={channel} caption={caption} music={sound} />
                   )}
@@ -1771,7 +1779,7 @@ function SceneLayer({
   const end = ZOOMS[zoom];
   // The frame without text when there is one, so the box stays still while the picture moves; else the preview.
   // A framed photo ("Khung ảnh") moves above or below the box with it.
-  const picture = frameFor(scene, centre ?? shownAt(scene)) ?? scene.preview_url;
+  const picture = frameFor(scene, centre ?? shownAt(scene)) ?? scene.live_preview_url ?? scene.preview_url;
   const box = scene.frame_url ? scene.textbox_url : null;
   const size = box ? boxes[box] : undefined;
   const corner = size ? placeBox(size, centre ?? shownAt(scene), scene.is_title) : null;
