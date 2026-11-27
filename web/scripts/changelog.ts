@@ -33,10 +33,41 @@ async function get<T>(pathAndQuery: string): Promise<T> {
   return getFrom<T>(`repos/${repo}/${pathAndQuery}`);
 }
 
+/** A read that fails on the network, or with a 5xx or 429, is tried again after a pause: one dropped connection to
+ * GitHub left the 2026-11-26 17:00 deploy without the file, and every deploy replaces the live one, so "Có gì mới" went
+ * 404 until the next deploy. Any other answer (404, 403, ...) is a real one and fails at once. */
+const ATTEMPTS = 4;
+const PAUSE_MS = 3000;
+
+function describe(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  // undici says only "fetch failed"; the reason (a timeout, a reset, a DNS error) is in `cause`.
+  const cause = err.cause instanceof Error ? ` (${err.cause.message})` : "";
+  return `${err.message}${cause}`;
+}
+
 async function getFrom<T>(pathAndQuery: string): Promise<T> {
-  const response = await fetch(`https://api.github.com/${pathAndQuery}`, { headers });
-  if (!response.ok) throw new Error(`GitHub answered ${response.status} for ${pathAndQuery}`);
-  return (await response.json()) as T;
+  for (let attempt = 1; ; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(`https://api.github.com/${pathAndQuery}`, {
+        headers,
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (err) {
+      if (attempt >= ATTEMPTS) throw new Error(describe(err), { cause: err });
+      console.warn(`GitHub unreachable for ${pathAndQuery} (${describe(err)}), trying again`);
+      await new Promise((resolve) => setTimeout(resolve, PAUSE_MS * attempt));
+      continue;
+    }
+    if (response.ok) return (await response.json()) as T;
+    if (attempt < ATTEMPTS && (response.status >= 500 || response.status === 429)) {
+      console.warn(`GitHub answered ${response.status} for ${pathAndQuery}, trying again`);
+      await new Promise((resolve) => setTimeout(resolve, PAUSE_MS * attempt));
+      continue;
+    }
+    throw new Error(`GitHub answered ${response.status} for ${pathAndQuery}`);
+  }
 }
 
 async function mergedPulls(): Promise<MergedPull[]> {
@@ -95,5 +126,5 @@ try {
   writeFileSync(out, `${JSON.stringify(changelog, null, 2)}\n`);
   console.log(`changelog.json: ${changelog.entries.length} changes, version ${changelog.version}`);
 } catch (err) {
-  console.warn(`changelog.json not written: ${err instanceof Error ? err.message : String(err)}`);
+  console.warn(`changelog.json not written: ${describe(err)}`);
 }
