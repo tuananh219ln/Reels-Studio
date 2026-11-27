@@ -1445,7 +1445,7 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
     a new PC Shopee video: the title in three tiers (a 56 px small line, a 110 px main line in the look's marked colour, a
     72 px sub line, an optional orange "-50%" label tilted at the top right), at most 22% of the frame's height, centred 22%
     down, no box; a content scene's text in two (an orange numbered circle with a 88 px main line, then a 60 px sub line),
-    at most 15% of the height, in the 62–78% zone or the 14–30% one when the scene is "Trên"; looks Neon game, Halftone tím
+    at most 15% of the height, in the 62–78% zone or the 14–30% one when the scene is "Trên"; looks Neon game, Halftone tím, the five title presets ([decision](decisions/2026-11-27-title-presets.md)),
     and Thương hiệu ([decision](decisions/2026-11-27-pc-text-styles.md)). The last scene keeps its text box;
   - keywords marked `*...*` are drawn in red (`#E10600`);
   - long text wraps and shrinks, and is rejected only if it still does not fit: the title starts

@@ -3,6 +3,12 @@
 
 Trang một video (`/videos/<số>`) tự cập nhật khi có job chạy và khi đồng đội sửa cùng lúc.
 
+## Kiểu chữ tiêu đề PC Shopee
+Với video nhóm PC Shopee (chữ gọn), tab **Thiết lập** có ô **Kiểu chữ PC Shopee** và **Kiểu chữ tiêu đề**. Ngoài Neon game, Halftone tím và Thương hiệu, có thêm 5 kiểu cụm 2–3 dòng: **Neon xanh ngọc**, **Giá neon viền**, **Vàng kim loại**, **Grunge cầu vồng** và **Esports xanh**.
+- Chọn kiểu rồi chỉ nhập chữ cho từng dòng (Dòng nhỏ, Dòng chính, Dòng phụ). Dòng dài tự co để không tràn khung.
+- Chữ có dấu tiếng Việt vẫn đủ dấu: kiểu dùng phông không có tiếng Việt sẽ tự đổi sang phông thay thế cho cả dòng.
+- Đổi kiểu thì bấm **Dựng lại tiêu đề** để video dùng kiểu mới.
+
 ## Đầu trang cố định
 - Hàng trên: **← Danh sách video**, tiêu đề, trạng thái, ai đang chỉnh sửa; các nút **Chỉnh sửa / Xong**, **⋯**, **Xem trước**, **Render** (nút chính).
 - Hàng dưới là **thanh tiến độ**: Kịch bản → Ảnh (số cảnh đã có ảnh hoặc clip) → Render → Đăng → Affiliate → 48 giờ. Dấu xanh là xong, dấu cam là cần xem, đồng hồ xám là chưa tới. Bấm một bước để nhảy tới tab liên quan.
