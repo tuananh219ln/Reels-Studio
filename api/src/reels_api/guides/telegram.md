@@ -19,5 +19,25 @@ Link kết nối chỉ dùng được 30 phút. Hết hạn thì bấm **Kết n
 
 Tắt loại tin nào không muốn nhận bằng công tắc trên trang này. Bấm **Gửi tin thử** để kiểm tra bot nhắn được cho bạn.
 
+## Lệnh của bot
+Gõ `/` trong chat với bot (hoặc trong nhóm chung) để mở menu lệnh. Trong nhóm, chọn lệnh từ menu để Telegram tự thêm tên bot (ví dụ `/cho_duyet@rs_tool_bot`); bot chỉ nhận lệnh gọi đúng tên nó. Không lệnh nào tốn phí AI.
+
+- `/cho_duyet`: video của bạn đang chờ duyệt. Bấm một video để nhận MP4 kèm nút Duyệt / Bỏ.
+- `/hom_nay`: bài của bạn hẹn đăng hôm nay và việc cần làm (video chờ duyệt, Page sắp hết video, kế hoạch 30 ngày).
+- `/loi`: việc của bạn bị lỗi trong 24 giờ qua, kèm lý do và link mở trong app.
+- `/tong_quan`: số liệu hôm nay của cả nhóm (đã đăng, đã hẹn, đang chờ duyệt), chỉ có con số.
+- `/moi`: các thay đổi mới nhất của app.
+- `/huongdan từ khoá`: tìm trong các hướng dẫn của app, ví dụ `/huongdan hàng chờ`. Gõ `/huongdan` không kèm từ khoá để xem tất cả.
+- `/help`: danh sách lệnh.
+
+**Việc riêng luôn gửi riêng:** gõ `/cho_duyet`, `/hom_nay` hay `/loi` ngay trong nhóm thì bot chỉ trả lời "📩 Đã gửi riêng cho …" trong nhóm, còn nội dung gửi vào chat riêng của bạn. Người chưa kết nối Telegram sẽ được nhắc cách kết nối.
+
+## Sau khi bấm Duyệt hoặc Bỏ
+- **Duyệt:** nếu bạn có Page đăng nhóm chủ đề của video, bot hiện nút **➕ Hàng chờ <Page>**. Bấm là video vào hàng chờ của Page đó; giờ đăng do hàng chờ tự xếp.
+- **Bỏ video:** bot hỏi "Vì sao bỏ?". Trả lời ngay tin đó để ghi lý do vào video (không bắt buộc).
+
+## Nhóm chung
+Mỗi tối lúc 21 giờ, nhóm chung nhận **Tổng kết ngày**: số video đã đăng, đã hẹn, đang chờ duyệt, và video nhiều view nhất 48 giờ qua. Không nêu việc riêng của ai.
+
 ## Ngừng nhận tin
 Bấm **Ngắt kết nối** trên trang này, hoặc gửi `/stop` cho bot. Chặn bot trên Telegram cũng làm app tự ngắt kết nối.

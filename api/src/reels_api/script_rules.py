@@ -105,7 +105,10 @@ def check_script(
     scenes: list[SceneInput],
     post_fields: dict[str, str],
     banned_words: list[str],
+    total_range: tuple[float, float] = TOTAL_SECONDS_RANGE,
+    scene_range: tuple[float, float] = SCENE_COUNT_RANGE,
 ) -> Checks:
+    """`total_range` and `scene_range`: the yellow ranges of the video's group (qc_config.py)."""
     checks = Checks()
     block, warn = checks.blocking.append, checks.warnings.append
     if not scenes:
@@ -149,12 +152,12 @@ def check_script(
     )
     if total > MAX_TOTAL_SECONDS:
         block(Issue(f"Tổng độ dài {total:g} giây, tối đa {MAX_TOTAL_SECONDS} giây", field="total"))
-    elif not TOTAL_SECONDS_RANGE[0] <= total <= TOTAL_SECONDS_RANGE[1]:
-        low, high = TOTAL_SECONDS_RANGE
-        warn(Issue(f"Tổng độ dài {total:g} giây, nên trong khoảng {low}–{high} giây", field="total"))
-    low, high = SCENE_COUNT_RANGE
+    elif not total_range[0] <= total <= total_range[1]:
+        low, high = total_range
+        warn(Issue(f"Tổng độ dài {total:g} giây, nên trong khoảng {low:g}–{high:g} giây", field="total"))
+    low, high = scene_range
     if scenes and not low <= len(scenes) <= high:
-        warn(Issue(f"Có {len(scenes)} cảnh nội dung, công thức kênh là {low}–{high} cảnh", field="scenes"))
+        warn(Issue(f"Có {len(scenes)} cảnh nội dung, công thức kênh là {low:g}–{high:g} cảnh", field="scenes"))
 
     for name, text in post_fields.items():
         for word in banned_hits(text, banned_words):

@@ -16,11 +16,12 @@ export const AUTO_PLATFORMS: PlatformKey[] = ["facebook", "tiktok", "youtube", "
 /**
  * Where a video stands on one platform, as the "Đăng bài" tab's rows, the progress line and the toast read it:
  * `ok` out (when, and its link), `err` the last try failed (why, and the job "Thử lại" sends again), `wait` on its way
- * or scheduled.
+ * or scheduled, `private` uploaded to YouTube private and waiting for its member to make it public in YouTube Studio
+ * (not counted as out), `blocked` held by a YouTube claim noted by hand (`error` is the note).
  */
 export type PlatformResult = {
   platform: PlatformKey;
-  state: "ok" | "err" | "wait";
+  state: "ok" | "err" | "wait" | "private" | "blocked";
   /** When it went out, or is due. */
   at: string | null;
   url: string | null;
@@ -33,6 +34,8 @@ export type PlatformResult = {
   scheduled: boolean;
   /** An Instagram post set for later: "Hủy hẹn" cancels it. */
   cancelPostId: number | null;
+  /** A YouTube upload's page in YouTube Studio (made public, or its claim checked, there). */
+  studioUrl: string | null;
 };
 
 /** Every platform the video has been tried on, in the grid's order; a platform never tried is left out. */
@@ -75,13 +78,28 @@ export function platformResults(video: VideoDetail): PlatformResult[] {
     });
   }
 
-  // YouTube: recorded by hand, or uploaded private through the member's connection. A private upload counts as done:
-  // the member makes it public in YouTube Studio themselves.
+  // YouTube: recorded by hand, or uploaded private through the member's connection. A private upload is not out yet:
+  // its member makes it public in YouTube Studio, after checking it for Content ID claims. A claim noted by hand holds
+  // the row at "Bị chặn" until it is cleared (docs/decisions/2026-11-26-youtube-claimed-music.md).
   const youtube = video.manual_posts.filter((post) => post.platform === "youtube");
-  const youtubeDone = youtube.find((post) => post.status === "published" || post.status === "private");
+  const youtubeLive = youtube.find((post) => post.status === "published");
+  const youtubePrivate = youtube.find((post) => post.status === "private");
   const youtubePending = youtube.find((post) => post.status === "pending");
-  if (youtubeDone) {
-    results.push(row("youtube", "ok", youtubeDone.at, youtubeDone.url, null));
+  const claim = video.youtube_claim?.active ?? null;
+  const youtubeOut = youtubeLive ?? youtubePrivate;
+  if (claim) {
+    results.push({
+      ...row("youtube", "blocked", claim.at, youtubeOut?.url ?? null, null),
+      error: claim.note,
+      studioUrl: youtubeOut?.studio_url ?? null,
+    });
+  } else if (youtubeLive) {
+    results.push(row("youtube", "ok", youtubeLive.at, youtubeLive.url, null));
+  } else if (youtubePrivate) {
+    results.push({
+      ...row("youtube", "private", youtubePrivate.at, youtubePrivate.url, null),
+      studioUrl: youtubePrivate.studio_url,
+    });
   } else if (youtubePending && failed?.kind === "youtube_publish") {
     results.push({ ...row("youtube", "err", null, null, null), error: failed.error, retryJobId: failed.id });
   } else if (youtubePending) {
@@ -116,7 +134,18 @@ function row(
   url: string | null,
   post: Post | null,
 ): PlatformResult {
-  return { platform, state, at, url, error: null, retryJobId: null, post, scheduled: false, cancelPostId: null };
+  return {
+    platform,
+    state,
+    at,
+    url,
+    error: null,
+    retryJobId: null,
+    post,
+    scheduled: false,
+    cancelPostId: null,
+    studioUrl: null,
+  };
 }
 
 /** "Đã đăng lên X/Y nền tảng": X out, of the Y tried, and when the newest went out. */

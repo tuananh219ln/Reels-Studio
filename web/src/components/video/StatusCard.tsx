@@ -43,6 +43,7 @@ import {
 } from "@/lib/postResults";
 import { useEditor } from "./AutoSaveField";
 import PostActions from "./PostActions";
+import YouTubeClaimLine from "./YouTubeClaimLine";
 import { YOUTUBE_TITLE_MAX } from "./ManualPostCard";
 import { PostRows, PublishButton } from "./PublishCard";
 import type { PostStep } from "./postRound";
@@ -54,19 +55,21 @@ const DANGER = COLORS.danger;
 /**
  * Where the card stands: no MP4 yet; rendered and never tried ("ready"); a platform on its way ("publishing"); then,
  * from the platforms tried, all out ("published"), some out and some failed ("partial"), all failed ("failed"), or
- * only scheduled ("scheduled").
+ * only scheduled ("scheduled"), or only uploaded private to YouTube, waiting to be made public ("private").
  */
-type PanelState = "no-mp4" | "ready" | "publishing" | "published" | "partial" | "failed" | "scheduled";
+type PanelState = "no-mp4" | "ready" | "publishing" | "published" | "partial" | "failed" | "scheduled" | "private";
 
 function panelState(video: VideoDetail, results: PlatformResult[], posting: boolean): PanelState {
   if (!video.mp4) return "no-mp4";
   if (posting || results.some((result) => result.state === "wait" && !result.scheduled)) return "publishing";
   if (results.length === 0) return "ready";
   const out = results.filter((result) => result.state === "ok").length;
-  const failed = results.filter((result) => result.state === "err").length;
+  // A YouTube claim holds the video off YouTube as a failure would.
+  const failed = results.filter((result) => result.state === "err" || result.state === "blocked").length;
   if (failed === results.length) return "failed";
   if (failed > 0) return "partial";
-  return out > 0 ? "published" : "scheduled";
+  if (out > 0) return "published";
+  return results.some((result) => result.state === "private") ? "private" : "scheduled";
 }
 
 const STATUS: Record<Exclude<PanelState, "no-mp4">, { text: string; color: string }> = {
@@ -76,6 +79,7 @@ const STATUS: Record<Exclude<PanelState, "no-mp4">, { text: string; color: strin
   partial: { text: "Đã đăng một phần", color: COLORS.primary },
   failed: { text: "Đăng thất bại", color: DANGER },
   scheduled: { text: "Đã hẹn giờ", color: SUCCESS },
+  private: { text: "Chờ công khai trên YouTube", color: COLORS.primary },
 };
 
 /** A platform's square badge, 20 × 20, its glyph white on its colour. */
@@ -197,6 +201,7 @@ export default function StatusCard({
               <VideoMeta video={video} short={state !== "ready"} onRender={onRender} />
             </Flex>
             {results.length > 0 && <ResultRows video={video} results={results} />}
+            <YouTubeClaimLine video={video} />
             {state !== "ready" && open && <PinnedCommentStatus post={open} videoId={video.id} />}
             {rendering ? (
               <Typography.Text type="secondary" style={{ fontSize: 12.5 }} data-testid="publish-rendering">
@@ -355,6 +360,14 @@ function ResultRow({ video, result }: { video: VideoDetail; result: PlatformResu
       </>
     ) : result.state === "err" ? (
       <span style={{ color: DANGER }}>✕ {result.error ?? "Không đăng được"}</span>
+    ) : result.state === "blocked" ? (
+      <span style={{ color: DANGER }} data-testid="youtube-blocked">
+        ✕ Bị chặn (claim)
+      </span>
+    ) : result.state === "private" ? (
+      <span style={{ color: COLORS.primary }} data-testid="youtube-private">
+        Riêng tư, chưa công khai
+      </span>
     ) : scheduled ? (
       <span style={{ color: COLORS.textSecondary }}>Hẹn đăng lúc {formatDateTime(result.at!)}</span>
     ) : (
@@ -389,6 +402,22 @@ function ResultRow({ video, result }: { video: VideoDetail; result: PlatformResu
         >
           Xem bài <ExportOutlined style={{ fontSize: 11 }} />
         </a>
+      )}
+      {(result.state === "private" || result.state === "blocked") && result.studioUrl && (
+        <a
+          href={result.studioUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="post-row__action"
+          aria-label="Mở video trong YouTube Studio (mở tab mới)"
+        >
+          YouTube Studio <ExportOutlined style={{ fontSize: 11 }} />
+        </a>
+      )}
+      {result.state === "private" && (
+        <span className="post-row__hint" data-testid="content-id-check">
+          Trước khi công khai: kiểm tra Content ID trong YouTube Studio (mục Hạn chế / Bản quyền).
+        </span>
       )}
       {result.state === "err" && result.retryJobId !== null && (
         <Button
@@ -511,7 +540,10 @@ function Platforms({
   const editor = useEditor();
   const hintId = useId();
   const results = platformResults(video);
-  const tried = new Set(results.filter((result) => result.state !== "err").map((result) => result.platform));
+  // A failed platform, or YouTube held by a claim (a clean render may go up again), can be posted again.
+  const tried = new Set(
+    results.filter((result) => result.state !== "err" && result.state !== "blocked").map((result) => result.platform),
+  );
   const storeKey = `reels:publish-platforms:${me.id}`;
   const [chosen, setChosenState] = useState<PlatformKey[]>(
     () => storedPlatforms(storeKey) ?? (video.platform === "tiktok" ? ["tiktok"] : ["facebook"]),

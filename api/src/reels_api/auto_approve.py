@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session as DbSession
 from . import plans, review
 from .errors import ApiError
 from .models import AutoApproval, Fanpage, KnowledgeTopic, Session, TopicPlanItem, User, Video
-from .videos import pending_publication, run_checks, split_scenes
+from .videos import mp4_qc, pending_publication, run_checks, split_scenes
 
 log = logging.getLogger(__name__)
 
@@ -71,8 +71,9 @@ def _blocker(db: DbSession, video: Video, maker: User):
     warnings = run_checks(db, video, title, scenes).warnings
     if warnings:
         return f"Video còn cảnh báo: {warnings[0].message}", page, when
-    if (video.qc or {}).get("status", "pass") != "pass":
-        failed = next((c["detail"] for c in (video.qc or {}).get("checks", []) if c.get("status") != "pass"), "")
+    measured = mp4_qc(db, video) or {}
+    if measured.get("status", "pass") != "pass":
+        failed = next((c["detail"] for c in measured.get("checks", []) if c.get("status") != "pass"), "")
         return f"Kiểm tra MP4 chưa đạt{': ' + failed if failed else ''}", page, when
     return None, page, when
 

@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import hashtags, knowledge, tiktok_connections, youtube_meta
+from . import hashtags, knowledge, metrics, tiktok_connections, youtube_meta
 from .analytics import VIETNAM
 from .models import (
     Channel,
@@ -60,7 +60,7 @@ class PostView:
     measured_at: datetime | None = None
     error: str | None = None
     retry_job_id: int | None = None
-    # A reading was asked for ("Cập nhật view") and has not run yet.
+    # A reading was asked for ("Cập nhật view"), or the post is live and never read, and it has not run yet.
     refreshing: bool = False
     # A TikTok post's account: read through its connection ("oauth"), the connection lost ("reconnect"), or not
     # connected with video.list ("manual": "Nhập view"); None for other platforms.
@@ -176,6 +176,7 @@ def post_views(db: DbSession, posts: list[Publication]) -> list[PostView]:
     failed = _failed_jobs(db, sorted({post.video_id for post in posts if post.status == "pending"}))
     readers = _tiktok_readers(db, posts)
     latest, marks = _readings(db, [post.id for post in posts])
+    first = metrics.awaiting_first_reading(db, [post.id for post in posts])
     views = []
     for post in posts:
         job = failed.get((post.video_id, PUBLISH_JOBS.get(post.platform, "")))
@@ -188,8 +189,11 @@ def post_views(db: DbSession, posts: list[Publication]) -> list[PostView]:
                 views=reading.views if reading else None,
                 views_48h=post.views_48h if post.views_48h is not None else marks.get(post.id),
                 tiktok_reader=readers.get(post.affiliate_account_id, "manual") if post.platform == "tiktok" else None,
-                refreshing=post.metrics_requested_at is not None
-                and (post.metrics_tried_at is None or post.metrics_tried_at < post.metrics_requested_at),
+                refreshing=post.id in first
+                or (
+                    post.metrics_requested_at is not None
+                    and (post.metrics_tried_at is None or post.metrics_tried_at < post.metrics_requested_at)
+                ),
                 measured_at=reading.captured_at if reading else None,
                 error=job.error if job is not None and post.status == "pending" else None,
                 retry_job_id=job.id if job is not None and post.status == "pending" else None,
