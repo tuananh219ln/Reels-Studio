@@ -863,7 +863,7 @@ def tier_warnings(video: Video, title: Scene | None, scenes: list[Scene]) -> lis
                     Issue(f"Dòng tiêu đề “{line}” dài hơn {TITLE_MAX_CHARS} ký tự: chữ sẽ tự thu nhỏ", title.id, "text")
                 )
         if values["scene_text_layout"] == "two_tier":
-            for scene in scenes[:-1]:  # the last scene is the call to action, kept as a text box
+            for scene in scenes[:-1]:  # the call to action is in tiers too but, a fixed line, is never warned about
                 if not scene.text.strip():
                     continue
                 for line in scene_problems(parse_scene(parse_scene_text(scene.text))):

@@ -107,7 +107,9 @@ def test_pc_shopee_tiers_warn_in_yellow_about_a_line_too_long_and_still_render(d
     title, scenes = split_scenes(db, video)
     title.text = "BLACK FRIDAY\n5 MÓN PC ĐÁNG SĂN NHẤT NĂM\nGIẢM THẬT"
     scenes[0].text = "1. *LOGITECH G304 KHÔNG DÂY*\nbàn gọn hẳn đi nhiều lắm"
-    scenes[-1].text = "DEAL HẤP DẪN QUÁ LÀ DÀI\nMÌNH ĐỂ DƯỚI BÌNH LUẬN"  # the call to action stays a box: never warned
+    scenes[
+        -1
+    ].text = "DEAL HẤP DẪN QUÁ LÀ DÀI\nMÌNH ĐỂ DƯỚI BÌNH LUẬN"  # the call to action is in tiers but never warned about
     before = {issue.message for issue in run_checks(db, video, title, scenes).warnings}
     video.options = video_options.DEFAULTS | {"title_layout": "three_tier", "scene_text_layout": "two_tier"}
     checks = run_checks(db, video, title, scenes)

@@ -40,7 +40,7 @@ def tiered(options: RenderOptions, is_title: bool, last: bool = False) -> bool:
     last scene's call to action, which keeps its box): the same rule as reels_render.render.tier_picture."""
     if is_title:
         return options.title_layout == "three_tier"
-    return not last and options.scene_text_layout == "two_tier"
+    return options.scene_text_layout == "two_tier"
 
 
 def captioned(options: RenderOptions, is_title: bool, last: bool, narration: str) -> bool:
