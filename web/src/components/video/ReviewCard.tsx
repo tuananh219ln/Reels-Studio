@@ -25,7 +25,7 @@ export default function ReviewCard({ video }: { video: VideoDetail }) {
   const editor = useEditor();
   const [busy, setBusy] = useState(false);
   const review = video.review;
-  if (!review || !video.mp4) return null;
+  if (!review || !review.enabled || !video.mp4) return null;
 
   const blockers = review.qc.items.filter((item) => item.level === "blocker");
   const warnings = review.qc.items.filter((item) => item.level === "warn");

@@ -16,6 +16,7 @@ export const API_PYTHON = path.join(
 // Fake Claude and Pixabay (api/scripts/fake_services.py), reached only through the base-URL variables.
 const FAKES_URL = "http://127.0.0.1:8199";
 const BACKEND_ENV = {
+  REVIEW_GATE: "on", // production runs with the gate off (docs/decisions/2026-11-27-review-gate-off.md); tests cover it
   DATABASE_URL: E2E_DATABASE_URL,
   MCP_PUBLIC_URL: "http://localhost:3100/api/mcp",
   STORAGE_DIR: path.resolve(__dirname, ".e2e-data/storage"),

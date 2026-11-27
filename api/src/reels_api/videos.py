@@ -1369,10 +1369,13 @@ REVIEW_LABELS = {"pending_review": "Chờ duyệt", "approved": "Đã duyệt", 
 
 
 def _review_fields(video: Video) -> dict:
-    """The review gate on a list row: a video with no MP4 has nothing to review yet."""
+    """The review gate on a list row: a video with no MP4 has nothing to review yet, and with the gate off
+    (`REVIEW_GATE`) the row carries no label, so the web neither blocks nor lists it."""
+    from . import review  # review.py reads this module's checks, so it cannot be imported at the top
+
     return {
         "review_status": video.review_status,
-        "review_label": REVIEW_LABELS.get(video.review_status, "") if video.mp4_key else "",
+        "review_label": REVIEW_LABELS.get(video.review_status, "") if video.mp4_key and review.gate_enabled() else "",
     }
 
 

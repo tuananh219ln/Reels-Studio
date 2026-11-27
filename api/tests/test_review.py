@@ -157,6 +157,19 @@ def test_the_pending_count_is_the_videos_with_an_mp4_waiting(an, db, me, storage
     assert an.get("/api/review/pending-count").json() == {"count": 1}
 
 
+# --- The gate switched off (docs/decisions/2026-11-27-review-gate-off.md) ---
+
+
+def test_with_the_gate_off_a_video_posts_without_approval_and_shows_no_review(an, db, me, storage, monkeypatch):
+    monkeypatch.setenv("REVIEW_GATE", "")
+    video = rendered(db, storage, me)
+    detail = an.get(f"/api/videos/{video.id}").json()
+    assert detail["review"]["enabled"] is False and detail["review_label"] == ""
+    assert an.get("/api/review/pending-count").json() == {"count": 0}
+    posted = an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": fanpage_id(db, me)})
+    assert posted.status_code == 200 and posted.json()["active_job"]["kind"] == "publish"
+
+
 # --- A new render ---
 
 
