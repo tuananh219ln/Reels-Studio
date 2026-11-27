@@ -617,8 +617,9 @@ export default function VideoPage() {
                 <ArrowLeftOutlined />
               </Link>
             </Tooltip>
-            {/* At least 300 px: on a phone it takes a row of its own rather than squeezing to a few letters. */}
-            <div style={{ flex: "1 1 300px", minWidth: 0 }}>
+            {/* At least 300 px. Under the desktop width it takes the next row whole, below the back button and the
+                status, rather than squeezing beside them. */}
+            <div style={desktop ? { flex: "1 1 300px", minWidth: 0 } : { flex: "1 1 100%", minWidth: 0, order: 1 }}>
               <Typography.Text type="secondary" style={{ fontSize: 12, display: "block" }}>
                 Tên video
               </Typography.Text>

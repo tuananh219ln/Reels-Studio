@@ -182,7 +182,8 @@ def test_a_scene_nothing_is_found_for_stays_empty(committed, fakes, storage):
 
 def test_choosing_another_photo_clears_the_mark(an, db, me, storage):
     video = make_video(db, storage, me)
-    scene = db.scalar(select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False)))
+    content = select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False))
+    scene = db.scalar(content.order_by(Scene.position))  # the one the api lists first
     scene.image_auto = True
     db.commit()
     assert an.get(f"/api/videos/{video.id}").json()["scenes"][0]["image_auto"] is True
