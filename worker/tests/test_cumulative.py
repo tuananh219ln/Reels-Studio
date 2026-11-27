@@ -477,3 +477,38 @@ def test_the_brush_label_falls_back_to_a_hand_written_font_that_has_vietnamese_m
     label = line_style("grunge_rainbow", False, 2)
     assert label.font == FONTS / "PermanentMarker-Regular.ttf" and label.vi.font == FONTS / "Mali-Bold.ttf"
     assert render_line("MÁY TÍNH ĐỒ HOẠ", 64, label).getbbox() is not None
+
+
+def test_the_compact_text_follows_the_videos_text_size():
+    from reels_render.tiers import TEXT_SCALE, SceneTiers, TitleTiers, render_scene, render_title
+
+    scene = SceneTiers("3", "CHUỘT LOGITECH", "KHÔNG DÂY")
+    sizes = {name: render_scene(scene, "neon_game", scale) for name, scale in TEXT_SCALE.items()}
+    assert sizes["large"].width > sizes["medium"].width > sizes["small"].width
+    assert sizes["large"].height > sizes["medium"].height > sizes["small"].height
+    assert render_scene(scene, "neon_game").size == sizes["large"].size  # the default is how it always was
+    title = TitleTiers("PC", "GIÁ RẺ", "MUA NGAY", "")
+    assert render_title(title, "gold_metal", scale=0.65).height < render_title(title, "gold_metal").height
+
+
+def test_a_render_draws_the_compact_text_by_the_options_text_size():
+    from reels_render.markup import Run
+    from reels_render.render import tier_picture
+
+    lines = [[Run("CHUỘT LOGITECH", False)], [Run("không dây", False)]]
+    big = tier_picture(lines, 1, 3, RenderOptions(scene_text_layout="two_tier"))
+    small = tier_picture(lines, 1, 3, RenderOptions(scene_text_layout="two_tier", text_size="small"))
+    assert small.height < big.height
+
+
+def test_a_smaller_compact_text_stays_centred_on_the_same_place():
+    from reels_render.render import tier_corner
+    from reels_render.tiers import SceneTiers, render_scene
+
+    scene = SceneTiers("3", "CHUỘT LOGITECH", "KHÔNG DÂY")
+    centres = []
+    for scale in (1.0, 0.65):
+        picture = render_scene(scene, "neon_game", scale)
+        left, top = tier_corner(picture, 1, None)
+        centres.append((left + picture.width / 2, top + picture.height / 2))
+    assert abs(centres[0][0] - centres[1][0]) <= 1 and abs(centres[0][1] - centres[1][1]) <= 1
