@@ -78,7 +78,7 @@ DEFAULTS: dict = {
     # The title motion's sounds: "reveal_ting" a soft ding as each slot pops in (title_motion.sync_title_sfx), "manual"
     # the member's own sounds are left alone, "off" the title scene has none.
     "title_sfx": "reveal_ting",
-    # "Thời gian hiện chữ" (PC Shopee only, see is_pc_shopee): the content scenes' text fades out after this many
+    # "Thời gian hiện chữ" (the compact text, first PC Shopee's): the content scenes' text fades out after this many
     # seconds; None: it stays the whole scene, as it always did. A scene's own `text_hold_sec` wins.
     "text_hold_sec": None,
     # The look of PC Shopee's drawn text, a key of reels_render.pc_text.PC_STYLES ("Cộng dồn" captions for now).
