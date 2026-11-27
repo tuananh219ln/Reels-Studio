@@ -581,6 +581,8 @@ test("knowledge topics: a group's Video tab lists its videos and makes a new one
   // "Loại nội dung" is typed on the video's page; the tags beside it say how the video was made.
   const kindLine = page.getByTestId("video-kind-line");
   await expect(kindLine).toContainText("AI viết");
+  // Closed, "Video này được làm như thế nào" already says in one line what the video is made of.
+  await expect(page.getByTestId("story-summary")).toContainText("không nhạc");
   await kindLine.getByLabel("Loại nội dung").fill("Hướng dẫn trồng");
   await kindLine.getByLabel("Loại nội dung").press("Enter");
   await page.reload();
@@ -706,10 +708,32 @@ test("a scene reads an uploaded MP3, and a group writes its voice by role", asyn
   await expect(first.getByTestId("voice-player")).toBeVisible();
   // While the file reads the scene, its own voice is not picked.
   await expect(first.getByTestId("scene-voice")).toHaveCount(0);
+  // One file among scenes the service reads: the scene's line and the settings say the voices are mixed.
+  await expect(first.getByTestId("scene-mp3")).toHaveText("MP3 tải lên");
+  await openPanel(page, "Âm thanh");
+  const note = page.getByTestId("uploaded-voice-note");
+  await expect(note).toContainText("Trộn 2 nguồn giọng: 1 cảnh đọc MP3 tải lên");
   await first.getByRole("button", { name: "Bỏ file" }).click();
   await page.getByRole("button", { name: "Bỏ file", exact: true }).last().click();
   await expect(page.getByText("Đã bỏ file giọng đọc")).toBeVisible();
   await expect(first.getByTestId("scene-voice-custom")).toHaveCount(0);
+  await expect(first.getByTestId("scene-voice")).toBeVisible();
+  await expect(first.getByTestId("scene-mp3")).toHaveCount(0);
+  await expect(note).toHaveCount(0);
+
+  // The settings drop every uploaded file at once.
+  await first.getByLabel("Tải file giọng đọc cho cảnh").setInputFiles(mp3);
+  await expect(note).toBeVisible();
+  await expect(async () => {
+    const confirm = page.getByRole("button", { name: "Bỏ tất cả", exact: true });
+    if ((await note.count()) > 0) {
+      if (!(await confirm.isVisible())) {
+        await note.getByRole("button", { name: "Bỏ tất cả file, dùng giọng dịch vụ" }).click({ timeout: 2_000 });
+      }
+      await confirm.click({ timeout: 2_000 });
+    }
+    await expect(note).toHaveCount(0, { timeout: 5_000 });
+  }).toPass({ timeout: 30_000 });
   await expect(first.getByTestId("scene-voice")).toBeVisible();
 
   await page.goto("/knowledge");
@@ -728,6 +752,38 @@ test("a scene reads an uploaded MP3, and a group writes its voice by role", asyn
   await page.getByRole("button", { name: /Già Mà Khỏe/ }).click();
   await group.getByRole("tab", { name: "Cài đặt nhóm" }).click();
   await expect(card).toContainText("vieneu:Huyền My");
+});
+
+test("settings: another speed after the narration is made says what it costs, with the way back", async ({ page }) => {
+  test.setTimeout(150_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "đổi tốc độ đọc");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const preview = page.getByRole("dialog", { name: "Xem trước video" });
+  await preview.getByRole("tab", { name: "Giọng đọc" }).click();
+  const voiceBox = preview.getByTestId("preview-voice");
+  await voiceBox.getByRole("button", { name: /^Tạo giọng ElevenLabs cho \d+ cảnh$/ }).click();
+  await page.getByRole("button", { name: "Tạo giọng", exact: true }).click();
+  await expect(voiceBox).toContainText("Mọi cảnh đã có giọng ElevenLabs", { timeout: 60_000 });
+  await page.keyboard.press("Escape");
+  await expect(preview).toHaveCount(0);
+
+  await openPanel(page, "Âm thanh");
+  const speed = page.locator("[data-side-panel]").getByRole("slider", { name: "Tốc độ đọc" });
+  const before = await speed.getAttribute("aria-valuenow");
+  const remake = page.getByTestId("speech-remake-note");
+  await expect(async () => {
+    if ((await speed.getAttribute("aria-valuenow")) === before) {
+      await speed.focus();
+      await page.keyboard.press("ArrowRight");
+    }
+    await expect(remake).toContainText(/Đã đổi tốc độ: lần render sau tạo lại lời đọc cho \d+ cảnh/, {
+      timeout: 5_000,
+    });
+  }).toPass({ timeout: 30_000 });
+  await remake.getByRole("button", { name: "Hoàn tác" }).click();
+  await expect(remake).toHaveCount(0);
+  await expect(speed).toHaveAttribute("aria-valuenow", before!);
 });
 
 test("knowledge topics: a group's text look from an AI suggestion is what its new videos start with", async ({
@@ -4006,7 +4062,12 @@ test("30-day plan: an idea added for today becomes a video, linked both ways", a
   await expect(dialog.getByTestId("picked-idea")).toContainText("Theo kế hoạch, ngày 1");
   await expect(dialog.getByLabel("Chủ đề", { exact: true })).toHaveValue("5 món sáng giúp ổn định huyết áp");
   await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
-  await expect(page.getByTestId("plan-idea-card")).toContainText("Nỗi đau: Sợ tai biến khi huyết áp lên xuống");
+  const planIdea = page.getByTestId("plan-idea-card");
+  await expect(planIdea).toContainText("Nỗi đau: Sợ tai biến khi huyết áp lên xuống");
+  // The idea is one line; the topic, maker and tags open under it.
+  await expect(page.getByTestId("video-kind-line")).toBeHidden();
+  await planIdea.getByRole("button", { name: "Chi tiết" }).click();
+  await expect(page.getByTestId("video-kind-line")).toContainText("tạo bởi");
 
   await page.goto("/videos");
   await expect(page.getByTestId("plan-banner")).toHaveText(/đã làm đủ 1 video hôm nay/);

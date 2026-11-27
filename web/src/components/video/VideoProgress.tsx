@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  CheckCircleFilled,
-  ClockCircleOutlined,
-  ExclamationCircleFilled,
-  LoadingOutlined,
-  RightOutlined,
-} from "@ant-design/icons";
+import { CheckCircleFilled, ClockCircleOutlined, ExclamationCircleFilled, LoadingOutlined } from "@ant-design/icons";
 import { Flex, Tooltip, Typography, theme } from "antd";
 import { useEffect, useState } from "react";
 import { formatDateTime, formatTime, type VideoDetail } from "@/lib/api";
@@ -180,10 +174,9 @@ export default function VideoProgress({
   };
 
   return (
-    <Flex wrap align="center" gap="4px 8px" style={{ marginTop: 8, fontSize: 13 }} data-testid="video-progress">
-      {steps(video, now).map((step, index) => (
-        <Flex key={step.key} align="center" gap={8}>
-          {index > 0 && <RightOutlined style={{ fontSize: 10, color: token.colorTextQuaternary }} />}
+    <Flex wrap align="center" gap="4px 6px" style={{ fontSize: 13 }} data-testid="video-progress">
+      {steps(video, now).map((step) => (
+        <Flex key={step.key} align="center">
           <Flex
             align="center"
             gap={6}
@@ -194,7 +187,8 @@ export default function VideoProgress({
             tabIndex={step.tab ? 0 : undefined}
             onClick={step.tab ? () => onOpenTab(step.tab!) : undefined}
             onKeyDown={step.tab ? (event) => event.key === "Enter" && onOpenTab(step.tab!) : undefined}
-            style={{ cursor: step.tab ? "pointer" : undefined, padding: "2px 4px", borderRadius: 6 }}
+            className="progress-pill"
+            style={{ cursor: step.tab ? "pointer" : undefined }}
           >
             {icon[step.state]}
             <Typography.Text strong style={{ fontSize: 13 }}>

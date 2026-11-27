@@ -304,7 +304,12 @@ export function AudioSettings({
   disabled,
   showMusicVolume,
   bare,
-}: Props & { showMusicVolume?: boolean }) {
+  uploadedOnly,
+}: Props & {
+  showMusicVolume?: boolean;
+  /** Every narrated scene reads an uploaded MP3, so no voice service, voice or speed applies. */
+  uploadedOnly?: boolean;
+}) {
   const off = !values.voice_enabled;
   const voiceSwitch = (
     <Switch
@@ -320,12 +325,17 @@ export function AudioSettings({
       <RowFields.Provider value={Boolean(bare)}>
         <Flex vertical gap={bare ? 10 : 14}>
           {bare ? (
-            <Field label="Đọc lời" hint="Đọc lời từng cảnh bằng ElevenLabs, VieNeu, Gemini hoặc Google.">
+            <Field
+              label="Đọc lời"
+              hint={uploadedOnly ? undefined : "Đọc lời từng cảnh bằng ElevenLabs, VieNeu, Gemini hoặc Google."}
+            >
               <Flex gap={8} align="flex-start">
                 <div style={{ paddingTop: 6 }}>{voiceSwitch}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <VoicePicker values={values} onChange={onChange} disabled={disabled || off} />
-                </div>
+                {!uploadedOnly && (
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <VoicePicker values={values} onChange={onChange} disabled={disabled || off} />
+                  </div>
+                )}
               </Flex>
             </Field>
           ) : (
@@ -339,7 +349,13 @@ export function AudioSettings({
               </Field>
             </>
           )}
-          <AudioRest values={values} onChange={onChange} disabled={disabled} showMusicVolume={showMusicVolume} />
+          <AudioRest
+            values={values}
+            onChange={onChange}
+            disabled={disabled}
+            showMusicVolume={showMusicVolume}
+            uploadedOnly={uploadedOnly}
+          />
         </Flex>
       </RowFields.Provider>
     </Group>
@@ -347,25 +363,33 @@ export function AudioSettings({
 }
 
 /** The narration's speed, level and pause, and the music's level and ducking: the same in a card or in rows. */
-function AudioRest({ values, onChange, disabled, showMusicVolume }: Props & { showMusicVolume?: boolean }) {
+function AudioRest({
+  values,
+  onChange,
+  disabled,
+  showMusicVolume,
+  uploadedOnly,
+}: Props & { showMusicVolume?: boolean; uploadedOnly?: boolean }) {
   const off = !values.voice_enabled;
   const row = useContext(RowFields);
   return (
     <>
-      <SliderField
-        label={row ? "Tốc độ" : "Tốc độ đọc"}
-        name="Tốc độ đọc"
-        format={speedText}
-        // In rows the note sits once at the panel's foot instead.
-        hint={row ? undefined : "Đổi giọng hoặc tốc độ thì lần render sau tạo lại lời đọc (tốn ký tự)."}
-        min={SPEED_MIN}
-        max={SPEED_MAX}
-        step={SPEED_STEP}
-        marks={row ? undefined : SPEED_MARKS}
-        value={values.voice_speed}
-        disabled={disabled || off}
-        onSave={(speed) => onChange({ voice_speed: Math.round(speed * 100) / 100 })}
-      />
+      {!uploadedOnly && (
+        <SliderField
+          label={row ? "Tốc độ" : "Tốc độ đọc"}
+          name="Tốc độ đọc"
+          format={speedText}
+          // In rows the note sits once at the panel's foot instead.
+          hint={row ? undefined : "Đổi giọng hoặc tốc độ thì lần render sau tạo lại lời đọc (tốn ký tự)."}
+          min={SPEED_MIN}
+          max={SPEED_MAX}
+          step={SPEED_STEP}
+          marks={row ? undefined : SPEED_MARKS}
+          value={values.voice_speed}
+          disabled={disabled || off}
+          onSave={(speed) => onChange({ voice_speed: Math.round(speed * 100) / 100 })}
+        />
+      )}
       <SliderField
         label="Âm lượng giọng"
         format={percentText}

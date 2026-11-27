@@ -65,7 +65,13 @@ export function QcChip({ qc }: { qc: QcResult }) {
         size="small"
         type="text"
         data-testid="qc-chip"
-        style={{ background: TILE[qc.status].background, border: `1px solid ${TILE[qc.status].border}`, fontSize: 13 }}
+        style={{
+          background: TILE[qc.status].background,
+          border: `1px solid ${TILE[qc.status].border}`,
+          borderRadius: 999,
+          height: 28,
+          fontSize: 13,
+        }}
       >
         <StatusText tone={TONE[qc.status]}>{open === 0 ? "QC: đạt" : `QC: ${open} mục chưa đạt`}</StatusText>
       </Button>

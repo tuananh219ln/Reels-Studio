@@ -25,19 +25,13 @@ import VideoPreview from "@/components/video/VideoPreview";
 import ResizableColumns from "@/components/video/ResizableColumns";
 import UploadedMp4 from "@/components/video/UploadedMp4";
 import VideoProgress from "@/components/video/VideoProgress";
-import { ContentTypeField, PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import TitleChooser, { plainTitle } from "@/components/video/TitleChooser";
 import VideoStoryCard from "@/components/video/VideoStoryCard";
-import {
-  ApiError,
-  api,
-  errorMessage,
-  formatDateTime,
-  type SceneData,
-  type VideoDetail,
-  type VideoMode,
-} from "@/lib/api";
+import VideoContext from "@/components/video/VideoContext";
+import { detailHeaderStyle } from "@/components/detailHeader";
+import { narration } from "@/lib/narration";
+import { ApiError, api, errorMessage, type SceneData, type VideoDetail, type VideoMode } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 import { useStoredChoice } from "@/lib/storedChoice";
 import { usePresence } from "@/lib/presence";
@@ -105,8 +99,6 @@ const JOB_NAMES = {
 // 40% beside the scenes' 60% (docs/decisions/2026-11-14-video-editor-spec.md).
 const SIDE_WIDTH = 440;
 const WIDE_FROM = 1100;
-// The phone's own header bar (AppShell), under which the page's header sticks.
-const PHONE_HEADER = 60;
 
 /** Whether the window is at least `width` px wide, following it as it is resized. */
 function useWiderThan(width: number) {
@@ -580,6 +572,12 @@ export default function VideoPage() {
   const job = video.active_job;
   const failed = video.failed_job;
   const scenes = video.scenes;
+  const allScenes = [...(video.title_scene ? [video.title_scene] : []), ...scenes];
+  const totalSeconds = allScenes.reduce((sum, scene) => sum + scene.fitted_seconds, 0);
+  const warningCount = allScenes.reduce((sum, scene) => sum + scene.warnings.length, 0);
+  // Some scenes read an uploaded MP3 and others the voice service: the rows then say which are which.
+  const voices = narration(video);
+  const mixedVoices = voices.uploaded.length > 0 && voices.service.length > 0;
 
   function move(index: number, step: -1 | 1) {
     const ids = scenes.map((scene) => scene.id);
@@ -610,21 +608,15 @@ export default function VideoPage() {
         ref={header}
         data-testid="render-bar"
         data-compact={phone ? "true" : undefined}
-        style={{
-          position: "sticky",
-          top: desktop ? 0 : PHONE_HEADER,
-          zIndex: 9,
-          margin: desktop ? "-32px -32px 12px" : "-20px -16px 12px",
-          padding: desktop ? "12px 32px 10px" : "8px 16px",
-          background: COLORS.layout,
-          borderBottom: `1px solid ${COLORS.border}`,
-        }}
+        style={detailHeaderStyle(desktop)}
       >
         <Flex wrap gap={8} justify="space-between" align="center">
           <Flex wrap align="center" gap="4px 10px" style={{ minWidth: 0, flex: "1 1 320px" }}>
-            <Link prefetch={false} href="/videos" style={{ fontSize: 13, flex: "none" }}>
-              <ArrowLeftOutlined /> Danh sách video
-            </Link>
+            <Tooltip title="Danh sách video">
+              <Link prefetch={false} href="/videos" className="back-button" aria-label="Danh sách video">
+                <ArrowLeftOutlined />
+              </Link>
+            </Tooltip>
             {/* At least 300 px: on a phone it takes a row of its own rather than squeezing to a few letters. */}
             <div style={{ flex: "1 1 300px", minWidth: 0 }}>
               <Typography.Text type="secondary" style={{ fontSize: 12, display: "block" }}>
@@ -649,7 +641,9 @@ export default function VideoPage() {
                   onOpen={() => setHeaderFold("open")}
                 />
               )}
-              <VideoStatusTags video={video} />
+              <span className="status-pill">
+                <VideoStatusTags video={video} />
+              </span>
               {video.has_script && !viewing && (
                 <Typography.Text type="secondary" style={{ fontSize: 13 }} data-testid="editing-tag">
                   Đang chỉnh sửa
@@ -796,24 +790,12 @@ export default function VideoPage() {
           )}
         </Flex>
       </div>
-      {/* What the video is about and how it was made: read once, so it scrolls away under the header. */}
-      <Flex wrap align="center" gap="4px 12px" style={{ marginBottom: 12 }} data-testid="video-kind-line">
-        <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-          Chủ đề {video.topic}
-          {video.knowledge_topic ? `, nhóm ${video.knowledge_topic}` : ""}, tạo bởi {video.created_by} lúc{" "}
-          <span data-testid="video-created-at">{formatDateTime(video.created_at)}</span>
-        </Typography.Text>
-        <ContentTypeField
-          key={video.content_type}
-          value={video.content_type}
-          disabled={video.locked}
-          onSave={(content_type) => act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { content_type }))}
-        />
-        {/* The type is in the field already; the tags say how the video was made. */}
-        <VideoKindTags video={{ ...video, content_type: "" }} />
-        <PostedPlatforms postedOn={video.posted_on ?? []} links={video.posted_links} states={video.posted_states} />
-      </Flex>
-      <VideoStoryCard videoId={video.id} locked={video.locked || viewing} act={act} />
+      {/* What the video is about: read once, so it scrolls away under the header. */}
+      <VideoContext
+        video={video}
+        onContentType={(content_type) => act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { content_type }))}
+      />
+      <VideoStoryCard video={video} locked={video.locked || viewing} act={act} />
       {video.clone_of && (
         <Typography.Paragraph type="secondary" style={{ margin: "0 0 12px", fontSize: 13 }} data-testid="clone-of">
           Nhân bản từ “{video.clone_of.title}” — yêu cầu đổi: {video.clone_of.request}
@@ -913,26 +895,6 @@ export default function VideoPage() {
           )}
         </Typography.Paragraph>
       )}
-      {video.plan_idea && (
-        <Alert
-          type="info"
-          style={{ marginBottom: 12, padding: "6px 12px" }}
-          data-testid="plan-idea-card"
-          title={
-            <>
-              Theo kế hoạch 30 ngày, {video.plan_idea.day === null ? "Backlog" : `ngày ${video.plan_idea.day}`}
-              {video.plan_idea.pain_group ? `, ${video.plan_idea.pain_group}` : ""}
-            </>
-          }
-          description={
-            <div style={{ fontSize: 13 }}>
-              {video.plan_idea.pain && <div>Nỗi đau: {video.plan_idea.pain}</div>}
-              {video.plan_idea.hook && <div>Hook: {video.plan_idea.hook}</div>}
-            </div>
-          }
-        />
-      )}
-
       {job && (
         <Alert
           type="info"
@@ -1117,10 +1079,10 @@ export default function VideoPage() {
                     <Alert key={warning.message} type="warning" showIcon title={warning.message} />
                   ))}
                 {/* One row instead of two cards: the title picked from the script's options, and the video's kind. */}
-                <Flex wrap align="center" gap="8px 16px" style={{ minHeight: 48 }} data-testid="scenes-toolbar">
+                <Flex wrap align="flex-end" gap="8px 16px" className="panel-card" data-testid="scenes-toolbar">
                   {video.title_scene && (
-                    <Flex align="center" gap={8} style={{ flex: "1 1 280px", minWidth: 0 }}>
-                      <Typography.Text type="secondary" style={{ flex: "none", fontSize: 13 }}>
+                    <Flex vertical gap={4} style={{ flex: "1 1 280px", minWidth: 0 }}>
+                      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
                         Tiêu đề
                       </Typography.Text>
                       <Dropdown
@@ -1172,8 +1134,8 @@ export default function VideoPage() {
                       </Dropdown>
                     </Flex>
                   )}
-                  <Flex align="center" gap={8} data-testid="video-mode">
-                    <Typography.Text type="secondary" style={{ flex: "none", fontSize: 13 }}>
+                  <Flex vertical gap={4} align="flex-start" data-testid="video-mode">
+                    <Typography.Text type="secondary" style={{ fontSize: 13 }}>
                       Kiểu video
                     </Typography.Text>
                     <Tooltip title={VIDEO_MODES.find((item) => item.value === video.mode)?.hint}>
@@ -1196,95 +1158,109 @@ export default function VideoPage() {
                     </Tooltip>
                   </Flex>
                 </Flex>
-                <Flex justify="space-between" align="center" gap={4}>
-                  <Typography.Text strong data-testid="scene-count">
-                    Cảnh ({scenes.length + (video.title_scene ? 1 : 0)})
-                  </Typography.Text>
-                  <Flex gap={4}>
-                    {video.shuffle && !viewing && scenes.length >= 2 && (
-                      <Dropdown
-                        trigger={["click"]}
-                        disabled={busy || video.locked}
-                        menu={{
-                          items: [
-                            { key: "all", label: "Xáo tất cả cảnh nội dung", onClick: () => void reshuffle(false) },
-                            { key: "last", label: "Giữ cố định cảnh cuối", onClick: () => void reshuffle(true) },
-                          ],
-                        }}
+                <div className="scene-list">
+                  <Flex wrap justify="space-between" align="center" gap={8} className="scene-list__head">
+                    <Flex align="center" gap={8} wrap>
+                      <Typography.Text strong data-testid="scene-count">
+                        Cảnh ({scenes.length + (video.title_scene ? 1 : 0)})
+                      </Typography.Text>
+                      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                        {totalSeconds.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}s
+                      </Typography.Text>
+                      {warningCount > 0 && <span className="pill pill--warning">{warningCount} cảnh báo</span>}
+                    </Flex>
+                    <Flex gap={4} wrap>
+                      {video.shuffle && !viewing && scenes.length >= 2 && (
+                        <Dropdown
+                          trigger={["click"]}
+                          disabled={busy || video.locked}
+                          menu={{
+                            items: [
+                              { key: "all", label: "Xáo tất cả cảnh nội dung", onClick: () => void reshuffle(false) },
+                              { key: "last", label: "Giữ cố định cảnh cuối", onClick: () => void reshuffle(true) },
+                            ],
+                          }}
+                        >
+                          <Button size="small" type="link" icon={<SwapOutlined />}>
+                            Xáo lại cảnh
+                          </Button>
+                        </Dropdown>
+                      )}
+                      <Button size="small" type="link" onClick={() => setAllExpanded(true)}>
+                        Mở tất cả
+                      </Button>
+                      <Button size="small" type="link" onClick={() => setAllExpanded(false)}>
+                        Thu gọn tất cả
+                      </Button>
+                      <Button
+                        size="small"
+                        className="soft-button"
+                        icon={<PlusOutlined />}
+                        disabled={video.locked || viewing || busy}
+                        onClick={() => void addScene()}
                       >
-                        <Button size="small" type="link" icon={<SwapOutlined />}>
-                          Xáo lại cảnh
-                        </Button>
-                      </Dropdown>
-                    )}
-                    <Button size="small" type="link" onClick={() => setAllExpanded(true)}>
-                      Mở tất cả
-                    </Button>
-                    <Button size="small" type="link" onClick={() => setAllExpanded(false)}>
-                      Thu gọn tất cả
-                    </Button>
+                        Thêm cảnh
+                      </Button>
+                    </Flex>
                   </Flex>
-                </Flex>
-                {video.title_scene && (
-                  <SceneCard
-                    scene={video.title_scene}
-                    label="Cảnh tiêu đề"
-                    backdrop={isBackdrop(video)}
-                    generating={job?.kind === "image" && job.scene_id === video.title_scene.id}
-                    editing={job?.kind === "image_edit" && job.scene_id === video.title_scene.id}
-                    voiceEnabled={video.voice_enabled}
-                    onPreview={() => setPreviewFrom(0)}
-                    expanded={expanded[video.title_scene.id] ?? false}
-                    onToggle={() => toggle(video.title_scene!.id)}
-                  />
-                )}
-                {scenes.map((scene, index) => (
-                  <SceneCard
-                    key={scene.id}
-                    scene={scene}
-                    label={`Cảnh ${index + 1}`}
-                    backdrop={isBackdrop(video)}
-                    backdropScene={video.title_scene}
-                    generating={job?.kind === "image" && job.scene_id === scene.id}
-                    editing={job?.kind === "image_edit" && job.scene_id === scene.id}
-                    voiceEnabled={video.voice_enabled}
-                    onPreview={() => setPreviewFrom(index + (video.title_scene ? 1 : 0))}
-                    expanded={expanded[scene.id] ?? false}
-                    onToggle={() => toggle(scene.id)}
-                    onMove={(step) => move(index, step)}
-                    reorder={
-                      viewing || video.locked
-                        ? undefined
-                        : {
-                            dragging: dragged === scene.id,
-                            over: dropTarget === scene.id && dragged !== scene.id,
-                            onStart: () => setDragged(scene.id),
-                            onOver: () => setDropTarget(scene.id),
-                            onDrop: (movedId) => {
-                              if (movedId) dropScene(movedId, scene.id);
-                              setDragged(null);
-                              setDropTarget(null);
-                            },
-                            onEnd: () => {
-                              setDragged(null);
-                              setDropTarget(null);
-                            },
-                          }
-                    }
-                    onDelete={
-                      video.created_by_id === me.id
-                        ? () => act(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))
-                        : undefined
-                    }
-                  />
-                ))}
-                <Button
-                  icon={<PlusOutlined />}
-                  disabled={video.locked || viewing || busy}
-                  onClick={() => void addScene()}
-                >
-                  Thêm cảnh
-                </Button>
+                  {video.title_scene && (
+                    <SceneCard
+                      scene={video.title_scene}
+                      label="Cảnh tiêu đề"
+                      badge="T"
+                      voiceTag={mixedVoices && video.title_scene.voice_custom}
+                      backdrop={isBackdrop(video)}
+                      generating={job?.kind === "image" && job.scene_id === video.title_scene.id}
+                      editing={job?.kind === "image_edit" && job.scene_id === video.title_scene.id}
+                      voiceEnabled={video.voice_enabled}
+                      onPreview={() => setPreviewFrom(0)}
+                      expanded={expanded[video.title_scene.id] ?? false}
+                      onToggle={() => toggle(video.title_scene!.id)}
+                    />
+                  )}
+                  {scenes.map((scene, index) => (
+                    <SceneCard
+                      key={scene.id}
+                      scene={scene}
+                      label={`Cảnh ${index + 1}`}
+                      badge={String(index + 1)}
+                      voiceTag={mixedVoices && scene.voice_custom}
+                      backdrop={isBackdrop(video)}
+                      backdropScene={video.title_scene}
+                      generating={job?.kind === "image" && job.scene_id === scene.id}
+                      editing={job?.kind === "image_edit" && job.scene_id === scene.id}
+                      voiceEnabled={video.voice_enabled}
+                      onPreview={() => setPreviewFrom(index + (video.title_scene ? 1 : 0))}
+                      expanded={expanded[scene.id] ?? false}
+                      onToggle={() => toggle(scene.id)}
+                      onMove={(step) => move(index, step)}
+                      reorder={
+                        viewing || video.locked
+                          ? undefined
+                          : {
+                              dragging: dragged === scene.id,
+                              over: dropTarget === scene.id && dragged !== scene.id,
+                              onStart: () => setDragged(scene.id),
+                              onOver: () => setDropTarget(scene.id),
+                              onDrop: (movedId) => {
+                                if (movedId) dropScene(movedId, scene.id);
+                                setDragged(null);
+                                setDropTarget(null);
+                              },
+                              onEnd: () => {
+                                setDragged(null);
+                                setDropTarget(null);
+                              },
+                            }
+                      }
+                      onDelete={
+                        video.created_by_id === me.id
+                          ? () => act(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
               </>
             )}
           </Flex>

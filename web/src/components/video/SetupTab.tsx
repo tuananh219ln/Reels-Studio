@@ -7,9 +7,11 @@ import { useState } from "react";
 import { COLORS } from "@/app/theme";
 import { useMe } from "@/components/MeContext";
 import { api, errorMessage, formatDateTime, type VideoDefaults, type VideoDetail } from "@/lib/api";
+import { narration } from "@/lib/narration";
 import { useEditor } from "./AutoSaveField";
 import LogoCard from "./LogoCard";
 import MusicCard from "./MusicCard";
+import { SpeechRemakeNote, UploadedVoiceNote, speechBefore, type SpeechBefore } from "./NarrationNotes";
 import { useTextStyleName } from "./TextStyleCards";
 import { AudioSettings, MotionSettings, TextSettings, motionSummary, textSummary } from "./VideoSettings";
 
@@ -47,6 +49,8 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
   const editor = useEditor();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<Section[]>(() => (typeof window === "undefined" ? FIRST_OPEN : readOpen(me.id)));
+  // The voice and speed before they were first changed here, to say what the change costs and to put them back.
+  const [before, setBefore] = useState<SpeechBefore | null>(null);
   const values = { ...video.options, voice_enabled: video.voice_enabled };
   const styleName = useTextStyleName(values);
 
@@ -62,6 +66,9 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
   }
 
   function change({ voice_enabled, music_volume, ...options }: Partial<VideoDefaults>) {
+    if (before === null && (options.voice_id !== undefined || options.voice_speed !== undefined)) {
+      setBefore(speechBefore(video));
+    }
     void save({
       ...(voice_enabled !== undefined ? { voice_enabled } : {}),
       ...(music_volume !== undefined ? { music_volume } : {}),
@@ -70,7 +77,15 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
   }
 
   const disabled = editor.locked || editor.readOnly || busy;
-  const audioSummary = video.voice_enabled ? `Có giọng đọc, ${video.options.voice_volume}%` : "Không giọng đọc";
+  const { uploaded, service } = narration(video);
+  const uploadedOnly = uploaded.length > 0 && service.length === 0;
+  const voiceSources =
+    uploaded.length === 0
+      ? "Có giọng đọc"
+      : uploadedOnly
+        ? `MP3 tải lên ${uploaded.length} cảnh`
+        : `Trộn giọng: MP3 ${uploaded.length}, dịch vụ ${service.length} cảnh`;
+  const audioSummary = video.voice_enabled ? `${voiceSources}, ${video.options.voice_volume}%` : "Không giọng đọc";
   const musicSummary = video.music ? `${video.music.name ?? "Nhạc tải lên"}, ${video.music_volume}%` : "Chưa có nhạc";
   const panel = (key: Section, title: string, summary: string, children: React.ReactNode) => ({
     key,
@@ -116,7 +131,21 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
             "audio",
             "Âm thanh",
             audioSummary,
-            <AudioSettings values={values} onChange={change} disabled={disabled} bare />,
+            <Flex vertical gap={10}>
+              <UploadedVoiceNote video={video} disabled={disabled} />
+              <AudioSettings values={values} onChange={change} disabled={disabled} bare uploadedOnly={uploadedOnly} />
+              {before && (
+                <SpeechRemakeNote
+                  video={video}
+                  before={before}
+                  disabled={disabled}
+                  onUndo={() => {
+                    setBefore(null);
+                    void save({ options: { voice_id: before.voiceId, voice_speed: before.speed } });
+                  }}
+                />
+              )}
+            </Flex>,
           ),
           panel("music", "Nhạc nền", musicSummary, <MusicCard video={video} />),
           panel(

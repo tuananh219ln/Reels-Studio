@@ -18,13 +18,16 @@ Với video nhóm PC Shopee (chữ gọn), tab **Thiết lập** có ô **Kiểu
 - Đổi kiểu thì bấm **Dựng lại tiêu đề** để video dùng kiểu mới.
 
 ## Đầu trang cố định
-- Hàng trên: **← Danh sách video**, tiêu đề, trạng thái, ai đang chỉnh sửa; các nút **Chỉnh sửa / Xong**, **⋯**, **Xem trước**, **Render** (nút chính).
+- Hàng trên: nút **←** (về danh sách video), tiêu đề, trạng thái, ai đang chỉnh sửa; các nút **Chỉnh sửa / Xong**, **⋯**, **Xem trước**, **Render** (nút chính).
 - Hàng dưới là **thanh tiến độ**: Kịch bản → Ảnh (số cảnh đã có ảnh hoặc clip) → Render → Đăng → Affiliate → 48 giờ. Dấu xanh là xong, dấu cam là cần xem, đồng hồ xám là chưa tới. Bấm một bước để nhảy tới tab liên quan.
 - **QC:** sau khi có MP4, chip QC cho biết video đạt hay còn mục chưa đạt; bấm để xem chi tiết.
 - Nút ⌃ thu đầu trang gọn lại; một nhãn nhỏ vẫn cho biết việc cần xem.
 
+## Thẻ ngữ cảnh
+Ngay dưới đầu trang: chủ đề, nhóm, người tạo, **Loại nội dung**, cách làm và nơi đã đăng. Video làm từ kế hoạch 30 ngày thì thẻ chỉ hiện một dòng ý tưởng (ngày, nhóm nỗi đau, hook, nỗi đau); bấm **Chi tiết** để xem phần còn lại.
+
 ## Video này được làm như thế nào
-Thẻ gấp dưới dòng "Chủ đề…, tạo bởi…". Mở ra có hai tab:
+Thẻ gấp dưới thẻ ngữ cảnh. Khi đóng, một dòng tóm tắt đã cho biết ai viết kịch bản, nguồn giọng đọc và nhạc. Mở ra có hai tab:
 - **Cách làm:** ai tạo, lúc nào, bằng cách nào (Muse qua MCP, AI của nhóm, tự viết, nhân bản…), nhóm, **giọng từng cảnh** kèm nguồn (VieNeu, ElevenLabs, Gemini, Google, MP3 tải lên; trộn nhiều nguồn thì có nhãn cam), nhạc, thời gian từ lúc tạo tới lúc render xong, và **dòng thời gian** các job, các bước duyệt và các lần sửa. **Sao chép hồ sơ video** copy cả thẻ thành chữ để dán vào báo cáo hoặc chat.
 - **Lịch sử sửa:** mỗi lần sửa video hoặc cảnh (trên web hay qua Claude/Muse): ai sửa, lúc nào, mục nào, cũ → mới. **Hoàn tác** đưa lần sửa đó về giá trị cũ thành một lần sửa mới, không xoá gì. Nếu sau đó đã có người sửa cùng mục, app báo và không đè lên. Giọng đã tạo và MP4 không hoàn tác được: hoàn tác xong thì render lại như mọi lần sửa. Lịch sử bắt đầu từ 26/11/2026; thay ảnh/clip và thêm, xoá, đổi thứ tự cảnh chưa được ghi.
 
@@ -35,6 +38,7 @@ Thẻ gấp dưới dòng "Chủ đề…, tạo bởi…". Mở ra có hai tab:
 - Dòng **Trên màn hình sẽ hiện: …** cho biết chữ sẽ hiện. Đổi tiêu đề sau khi render thì cần render lại trước khi duyệt.
 
 ## Các cảnh (cột trái)
+- Đầu danh sách: số cảnh, tổng số giây, số cảnh báo, **Mở tất cả / Thu gọn tất cả** và **Thêm cảnh**. Mỗi dòng cảnh có ảnh nhỏ đánh số (**T** là cảnh tiêu đề).
 - Mỗi cảnh có ảnh hoặc clip, chữ trên màn hình, lời đọc và chuyển động. **Cảnh chưa có ảnh sẽ chặn việc render.**
 - Cách có ảnh cho cảnh: tải lên, dán link, lấy từ Kho tư liệu, tìm ảnh kho miễn phí (Pexels, Unsplash, Pixabay…) hoặc ảnh AI.
 - Bấm **Chỉnh sửa** để sửa chữ, thứ tự, hiệu ứng và chuyển động của từng cảnh.
@@ -43,6 +47,12 @@ Thẻ gấp dưới dòng "Chủ đề…, tạo bởi…". Mở ra có hai tab:
 1. **Đăng bài:** thẻ trạng thái, xem và tải MP4, **Render lại**, chọn nền tảng (Facebook, Instagram, TikTok, YouTube Shorts) rồi **Đăng ngay** hoặc **Hẹn giờ**. Bên dưới là **Nội dung đăng** (caption có nút "Copy caption + hashtag") và **Hashtag**. Chỉ đăng lên Page của chính bạn.
 2. **Bình luận & Sản phẩm:** **Bình luận** ghim (có "Copy ghim", dòng khảo sát), **Bình luận thêm** (tối đa 5), **Bình luận aff tự động** và **Sản phẩm Shopee** (gợi ý của AI, tìm từ Shopee, sản phẩm đã duyệt, hoặc dán link). Link sản phẩm nằm sau bình luận ghim. Facebook không cho app tự ghim bình luận, nên bạn ghim tay.
 3. **Thiết lập:** các cài đặt riêng của video này (như giọng đọc, nhạc, chữ và phụ đề), bắt đầu theo cài đặt của nhóm. Đầu tab có công tắc **Giữ media** (xem "Dọn media" bên dưới).
+
+## Cảnh đọc bằng file MP3 tải lên
+File MP3 bạn (hoặc Muse qua MCP) tải lên cho cảnh được dùng nguyên: đổi dịch vụ, giọng hay tốc độ không đụng tới nó, chữ lời đọc của cảnh chỉ làm phụ đề, còn **Nghỉ sau lời đọc** vẫn áp dụng.
+- Ở tab Thiết lập › **Âm thanh**, app báo video đang đọc bằng file tải lên, hoặc **trộn 2 nguồn giọng** (khi đó dòng cảnh có file mang nhãn "MP3 tải lên"). Mọi cảnh đều dùng file thì ô chọn giọng và tốc độ được ẩn.
+- Muốn dịch vụ đọc lại: bấm **Bỏ file** ở cảnh, hoặc người tạo video bấm **Bỏ tất cả file, dùng giọng dịch vụ**.
+- Đổi giọng hay tốc độ sau khi đã tạo giọng, app báo số cảnh sẽ đọc lại ở lần render sau (tốn ký tự), kèm nút **Hoàn tác**.
 
 ## Render và đăng
 1. Đủ ảnh cho mọi cảnh → **Render** (có thể **Xem trước** trước). App dựng MP4 9:16.
