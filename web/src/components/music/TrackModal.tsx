@@ -1,6 +1,6 @@
 "use client";
 
-import { App, Form, Input, Select, Typography } from "antd";
+import { App, Form, Input, Select, Switch, Typography } from "antd";
 import { useEffect, useId, useState } from "react";
 import { api, errorMessage, upload, type MusicTrack } from "@/lib/api";
 import { useMusicOptions } from "./useTracks";
@@ -8,7 +8,14 @@ import FormDrawer from "@/components/FormDrawer";
 
 export const MAX_MUSIC_BYTES = 20 * 1024 * 1024;
 
-type Fields = { name: string; topics: string[]; mood: string; license_note: string };
+type Fields = {
+  name: string;
+  topics: string[];
+  mood: string;
+  license_note: string;
+  claimed_on_youtube?: boolean;
+  claimed_note?: string;
+};
 
 /** What the modal works on: a chosen MP3 to add to the library, or a track to edit. */
 export type TrackTarget = { file: File } | { track: MusicTrack };
@@ -33,6 +40,7 @@ export default function TrackModal({
   const formName = useId();
   const [busy, setBusy] = useState(false);
   const adding = target !== null && "file" in target;
+  const claimed = Form.useWatch("claimed_on_youtube", form);
 
   useEffect(() => {
     if (target === null) {
@@ -51,10 +59,16 @@ export default function TrackModal({
     }
     setBusy(true);
     try {
+      // A new track is never claimed yet: the flag is set by editing it once a claim is found.
+      const { claimed_on_youtube, claimed_note, ...added } = fields;
       const track =
         "file" in target
-          ? await upload<MusicTrack>("/music", target.file, fields)
-          : await api<MusicTrack>(`/music/${target.track.id}`, "PATCH", fields);
+          ? await upload<MusicTrack>("/music", target.file, added)
+          : await api<MusicTrack>(`/music/${target.track.id}`, "PATCH", {
+              ...added,
+              claimed_on_youtube: claimed_on_youtube ?? false,
+              claimed_note: claimed_note ?? "",
+            });
       await onDone(track);
     } catch (err) {
       message.error(errorMessage(err));
@@ -105,6 +119,28 @@ export default function TrackModal({
         >
           <Input />
         </Form.Item>
+        {!adding && (
+          <>
+            <Form.Item
+              label="Đã bị claim trên YouTube"
+              name="claimed_on_youtube"
+              valuePropName="checked"
+              extra="Bật khi YouTube Studio báo bài này bị claim Content ID: không video nào chọn được bài này nữa (kể cả nhạc mặc định). Video đã có bài này giữ nguyên."
+            >
+              <Switch aria-label="Đã bị claim trên YouTube" />
+            </Form.Item>
+            {claimed && (
+              <Form.Item
+                label="Ghi chú claim"
+                name="claimed_note"
+                rules={[{ max: 500, message: "Tối đa 500 ký tự" }]}
+                extra="Video nào, ai claim, ngày. Ví dụ: Video 409 – HAAWK Publishing – 26/11/2026."
+              >
+                <Input />
+              </Form.Item>
+            )}
+          </>
+        )}
       </Form>
     </FormDrawer>
   );

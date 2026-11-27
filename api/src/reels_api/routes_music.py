@@ -15,7 +15,7 @@ from .errors import ApiError
 from .models import MusicTrack, Session
 from .ownership import ensure_owner
 from .routes_videos import MAX_TEXT_LENGTH, _inline, invalid
-from .sessions import current_member
+from .sessions import current_member, now
 from .storage import DirectoryStorage, get_storage
 from .uploads import MAX_MUSIC_BYTES, UploadRejected, check_mp3, file_label, read_limited
 
@@ -31,6 +31,9 @@ class TrackPatchBody(BaseModel):
     topics: list[str] | None = None
     mood: str | None = None
     license_note: str | None = None
+    # "Đã bị claim trên YouTube" (music_claims.py) and what was claimed (video, claimant, date).
+    claimed_on_youtube: bool | None = None
+    claimed_note: str | None = None
 
 
 def like_pattern(value: str) -> str:
@@ -83,6 +86,13 @@ def _license(value: str) -> str:
     return value
 
 
+def _claim_note(value: str) -> str:
+    value = unicodedata.normalize("NFC", value).strip()
+    if len(value) > MAX_TEXT_LENGTH:
+        raise invalid(f"Ghi chú claim dài quá {MAX_TEXT_LENGTH} ký tự")
+    return value
+
+
 def track_payload(track: MusicTrack) -> dict:
     return {
         "id": track.id,
@@ -90,6 +100,9 @@ def track_payload(track: MusicTrack) -> dict:
         "topics": track.topics,
         "mood": track.mood,
         "license_note": track.license_note,
+        "claimed_on_youtube": track.claimed_on_youtube,
+        "claimed_at": track.claimed_at.isoformat() if track.claimed_at else None,
+        "claimed_note": track.claimed_note,
         "url": f"/api/music/{track.id}/audio.mp3",
         "created_by": track.created_by.name,
         "created_by_id": track.created_by_id,
@@ -194,6 +207,11 @@ def update_track(
         track.mood = _mood(body.mood)
     if body.license_note is not None:
         track.license_note = _license(body.license_note)
+    if body.claimed_note is not None:
+        track.claimed_note = _claim_note(body.claimed_note)
+    if body.claimed_on_youtube is not None and body.claimed_on_youtube != track.claimed_on_youtube:
+        track.claimed_on_youtube = body.claimed_on_youtube
+        track.claimed_at = now() if body.claimed_on_youtube else None
     db.commit()
     return track_payload(track)
 

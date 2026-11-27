@@ -41,7 +41,13 @@ export default function LibraryPicker({
                 <Button key="edit" disabled={busy} onClick={() => setEditing({ track })}>
                   Sửa thông tin
                 </Button>,
-                <Button key="pick" type="primary" disabled={busy} onClick={() => onPick(track)}>
+                <Button
+                  key="pick"
+                  type="primary"
+                  disabled={busy || track.claimed_on_youtube}
+                  title={track.claimed_on_youtube ? "Bài này đã bị claim trên YouTube" : undefined}
+                  onClick={() => onPick(track)}
+                >
                   Dùng bài này
                 </Button>,
               ]}
@@ -49,6 +55,11 @@ export default function LibraryPicker({
               <Flex vertical gap={6} style={{ width: "100%" }}>
                 <Typography.Text strong>{track.name}</Typography.Text>
                 <TrackTags track={track} />
+                {track.claimed_on_youtube && (
+                  <Typography.Text type="danger">
+                    Đã bị claim trên YouTube{track.claimed_note ? ` (${track.claimed_note})` : ""}: chọn bài khác.
+                  </Typography.Text>
+                )}
                 <Typography.Text type={track.license_note ? "secondary" : "warning"}>
                   {track.license_note || "Chưa ghi nguồn / giấy phép"}
                 </Typography.Text>

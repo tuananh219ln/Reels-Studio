@@ -9,6 +9,17 @@ Trang một video (`/videos/<số>`) tự cập nhật khi có job chạy và kh
 - **QC:** sau khi có MP4, chip QC cho biết video đạt hay còn mục chưa đạt; bấm để xem chi tiết.
 - Nút ⌃ thu đầu trang gọn lại; một nhãn nhỏ vẫn cho biết việc cần xem.
 
+## Video này được làm như thế nào
+Thẻ gấp dưới dòng "Chủ đề…, tạo bởi…". Mở ra có hai tab:
+- **Cách làm:** ai tạo, lúc nào, bằng cách nào (Muse qua MCP, AI của nhóm, tự viết, nhân bản…), nhóm, **giọng từng cảnh** kèm nguồn (VieNeu, ElevenLabs, Gemini, Google, MP3 tải lên; trộn nhiều nguồn thì có nhãn cam), nhạc, thời gian từ lúc tạo tới lúc render xong, và **dòng thời gian** các job, các bước duyệt và các lần sửa. **Sao chép hồ sơ video** copy cả thẻ thành chữ để dán vào báo cáo hoặc chat.
+- **Lịch sử sửa:** mỗi lần sửa video hoặc cảnh (trên web hay qua Claude/Muse): ai sửa, lúc nào, mục nào, cũ → mới. **Hoàn tác** đưa lần sửa đó về giá trị cũ thành một lần sửa mới, không xoá gì. Nếu sau đó đã có người sửa cùng mục, app báo và không đè lên. Giọng đã tạo và MP4 không hoàn tác được: hoàn tác xong thì render lại như mọi lần sửa. Lịch sử bắt đầu từ 26/11/2026; thay ảnh/clip và thêm, xoá, đổi thứ tự cảnh chưa được ghi.
+
+## Tiêu đề
+Ô **Tiêu đề** trên danh sách cảnh mở một bảng nhỏ:
+- **Chọn 1 tiêu đề gợi ý** của kịch bản, hoặc **tự nhập** rồi bấm **Lưu**: cả hai ghi vào chữ cảnh tiêu đề (5 gợi ý không đổi).
+- **Không dùng tiêu đề:** xoá chữ cảnh tiêu đề (chữ cũ được cất lại) và cho duyệt video dù nhóm bắt tiêu đề. Bỏ tick thì chữ cũ quay lại; gõ một tiêu đề mới thì ô này tự bỏ tick.
+- Dòng **Trên màn hình sẽ hiện: …** cho biết chữ sẽ hiện. Đổi tiêu đề sau khi render thì cần render lại trước khi duyệt.
+
 ## Các cảnh (cột trái)
 - Mỗi cảnh có ảnh hoặc clip, chữ trên màn hình, lời đọc và chuyển động. **Cảnh chưa có ảnh sẽ chặn việc render.**
 - Cách có ảnh cho cảnh: tải lên, dán link, lấy từ Kho tư liệu, tìm ảnh kho miễn phí (Pexels, Unsplash, Pixabay…) hoặc ảnh AI.
@@ -29,3 +40,9 @@ Trang một video (`/videos/<số>`) tự cập nhật khi có job chạy và kh
 - **Job lỗi:** nút **Thử lại** ở thẻ lỗi hoặc ở Nhật ký job.
 - **"MP4 cũ hơn bản sửa":** bạn sửa cảnh sau lần render cuối, bấm **Render lại**.
 - **Đăng thất bại:** hàng nền tảng hiện lý do màu đỏ và nút **Thử lại**.
+
+## YouTube: riêng tư và claim bản quyền
+- App tải video lên YouTube ở chế độ **riêng tư**. Hàng YouTube màu cam ghi **"Riêng tư, chưa công khai"** và chưa tính vào "Đã đăng lên X/Y nền tảng". Bấm **YouTube Studio ↗** để mở video và bật công khai.
+- **Trước khi công khai**, xem mục Hạn chế / Bản quyền của video trong YouTube Studio. Nhạc nền có thể bị claim Content ID dù có giấy phép miễn phí.
+- Gặp claim: ở thẻ Đăng bài bấm **Ghi claim YouTube**, ghi nhạc nào bị claim, ai claim, ngày. Hàng YouTube chuyển đỏ **"Bị chặn (claim)"** và bạn đăng lại YouTube được (ví dụ bản render với nhạc khác). Xử lý xong trong Studio (xoá bài hát, kháng nghị thắng, thay video) thì bấm **Đã xử lý claim**.
+- Claim do nhạc nền: vào **Thư viện nhạc**, **Sửa** bài đó, bật **Đã bị claim trên YouTube**. Từ đó không video nào chọn được bài này, kể cả làm nhạc mặc định. Video đã có bài này giữ nguyên: đổi nhạc rồi render lại nếu cần.

@@ -226,7 +226,12 @@ def test_new_videos_start_with_the_default_music_and_older_ones_keep_theirs(an, 
 
     saved = an.put(DEFAULTS_URL, json={"values": {"music_track_id": track["id"]}}).json()
     assert saved["music_track_id"] == track["id"]
-    assert saved["music_track"] == {"id": track["id"], "name": "Windy Hill", "url": track["url"]}
+    assert saved["music_track"] == {
+        "id": track["id"],
+        "name": "Windy Hill",
+        "url": track["url"],
+        "claimed_on_youtube": False,
+    }
 
     created = new_video(an, db)
     assert created["music"]["name"] == "Windy Hill" and an.get(created["music"]["url"]).content == MP3
