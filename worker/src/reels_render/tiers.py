@@ -16,7 +16,6 @@ TITLE_GAP = 0.08  # of the size
 # Each title preset's sizes (small, main, sub) and the gap between its lines, of the size; a negative gap overlaps the lines
 # (docs/decisions/2026-11-27-title-presets.md). Estimates from the spec's table, to compare with the five reels.
 PRESET_TITLE = {
-    "neon_tech_teal": ((52, 100, 56), 0.08),
     "neon_outline_price": ((56, 128, 56), -0.12),
     "gold_metal": ((56, 116, 68), 0.04),
     "grunge_rainbow": ((64, 104, 60), 0.04),

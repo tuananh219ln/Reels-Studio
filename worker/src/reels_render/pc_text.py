@@ -15,7 +15,7 @@ from .textbox import FONT_PATH as BE_VIETNAM_PATH
 
 BUNGEE_PATH = Path(__file__).parent / "fonts" / "Bungee-Regular.ttf"
 FONTS = Path(__file__).parent / "fonts"
-PRESETS = ("neon_tech_teal", "neon_outline_price", "gold_metal", "grunge_rainbow", "esports_blue")
+PRESETS = ("neon_outline_price", "gold_metal", "grunge_rainbow", "esports_blue")
 # Whole-frame effects of a title preset (the spec's frameEffects), as one FFmpeg chain on the title scene: Mẫu 4's
 # glitch (red and blue shifted apart) and vignette. The member can switch them off (option `title_effects`).
 SPARKLE_STYLES = ("gold_metal",)  # presets with the optional sparkles, drawn into the title's picture
@@ -24,7 +24,6 @@ PC_STYLES = (
     "neon_game",
     "brand_navy",
     # The five title presets (docs/decisions/2026-11-27-title-presets.md)
-    "neon_tech_teal",
     "neon_outline_price",
     "gold_metal",
     "grunge_rainbow",
@@ -67,7 +66,11 @@ def line_style(style: str, key: bool, index: int = 0) -> LineStyle:
             BE_VIETNAM_PATH,
             hex_rgb("#FFC816") if key else hex_rgb("#FEFFFA"),
             (6, navy),
-            shadow=(0, 6, navy),
+            glow=(
+                hex_rgb("#FFC816") if key else hex_rgb("#FEFFFA"),
+                0.55,
+                14,
+            ),  # neon game's glow in the brand's own colours
             gradient=(hex_rgb("#FFD84A"), hex_rgb("#FFB113")) if key else None,
             spacing=0.02,
         )
@@ -85,16 +88,6 @@ def _preset(style: str, key: bool, index: int) -> LineStyle:
     slot = 1 if key else 0 if index == 0 else 2
     white, navy = (255, 255, 255), hex_rgb("#0B1E2B")
     saira_wide = LineStyle(FONTS / "Saira-VF.ttf", white, (4, navy), variation=(900, 125), spacing=0.02)
-    if style == "neon_tech_teal":
-        teal = hex_rgb("#3DF5D6")
-        look = LineStyle(
-            FONTS / "Audiowide-Regular.ttf",
-            teal if key else white,
-            (5, hex_rgb("#06242A")),
-            glow=(teal, 0.6, 16),
-            spacing=0.02,
-        )
-        return replace(look, vi=replace(saira_wide, fill=look.fill, outline=look.outline, glow=look.glow))
     if style == "neon_outline_price":
         blue = hex_rgb("#4DA6FF")
         if slot == 0:

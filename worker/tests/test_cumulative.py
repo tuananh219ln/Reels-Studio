@@ -400,9 +400,9 @@ def test_the_hollow_price_preset_leaves_its_letters_clear_and_audiowide_falls_ba
     picture = render_line("III", 120, hollow)
     centre = picture.getpixel((picture.width // 2, picture.height // 2))
     assert centre[3] < 255  # the middle of a stem is not painted
-    teal = line_style("neon_tech_teal", True, 1)
-    assert teal.font == FONTS / "Audiowide-Regular.ttf" and teal.vi is not None
-    assert render_line("GIÁ RẺ", 100, teal).getbbox() is not None  # drawn with Saira, not missing boxes
+    sub = line_style("neon_outline_price", False, 2)  # the sub line is Audiowide
+    assert sub.font == FONTS / "Audiowide-Regular.ttf" and sub.vi is not None
+    assert render_line("GIÁ RẺ", 100, sub).getbbox() is not None  # drawn with Saira, not missing boxes
 
 
 def test_a_preset_title_keeps_its_line_proportions_when_one_line_is_too_wide():

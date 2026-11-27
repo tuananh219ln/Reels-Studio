@@ -4,7 +4,7 @@
 Trang một video (`/videos/<số>`) tự cập nhật khi có job chạy và khi đồng đội sửa cùng lúc.
 
 ## Kiểu chữ tiêu đề PC Shopee
-Với video nhóm PC Shopee (chữ gọn), tab **Thiết lập** có ô **Kiểu chữ PC Shopee** và **Kiểu chữ tiêu đề**. Ngoài Neon game và Thương hiệu, có thêm 5 kiểu cụm 2–3 dòng: **Neon xanh ngọc**, **Giá neon viền**, **Vàng kim loại**, **Grunge cầu vồng** và **Esports xanh**.
+Với video nhóm PC Shopee (chữ gọn), tab **Thiết lập** có ô **Kiểu chữ PC Shopee** và **Kiểu chữ tiêu đề**. Ngoài Neon game và Thương hiệu, có thêm 4 kiểu cụm 2–3 dòng: **Giá neon viền**, **Vàng kim loại**, **Grunge cầu vồng** và **Esports xanh**.
 - Chọn kiểu rồi chỉ nhập chữ cho từng dòng (Dòng nhỏ, Dòng chính, Dòng phụ). Dòng dài tự co để không tràn khung.
 - Chữ có dấu tiếng Việt vẫn đủ dấu: kiểu dùng phông không có tiếng Việt sẽ tự đổi sang phông thay thế cho cả dòng.
 - **Grunge cầu vồng** có thêm hiệu ứng glitch và tối viền trên cảnh tiêu đề; **Vàng kim loại** có thêm ngôi sao lấp lánh. Bỏ tick ô bên dưới ô kiểu chữ tiêu đề nếu không muốn.

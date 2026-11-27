@@ -1197,7 +1197,6 @@ export type VideoOptions = {
   pc_style:
     | "neon_game"
     | "brand_navy"
-    | "neon_tech_teal"
     | "neon_outline_price"
     | "gold_metal"
     | "grunge_rainbow"
@@ -1210,7 +1209,6 @@ export type VideoOptions = {
   pc_title_style:
     | "neon_game"
     | "brand_navy"
-    | "neon_tech_teal"
     | "neon_outline_price"
     | "gold_metal"
     | "grunge_rainbow"
