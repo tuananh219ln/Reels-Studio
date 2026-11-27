@@ -2488,6 +2488,13 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         reset_text_hold: bool = False,
         pc_style: Annotated[str | None, one_of("pc_style")] = None,
         pc_title_style: Annotated[str | None, one_of("pc_title_style")] = None,
+        title_effects: Annotated[
+            bool | None,
+            Field(
+                description="Hiệu ứng khung của kiểu chữ tiêu đề PC Shopee: glitch và tối viền (Grunge cầu vồng), ngôi sao "
+                "lấp lánh (Vàng kim loại). Mặc định true; false để tắt. Kiểu khác không có hiệu ứng này"
+            ),
+        ] = None,
         title_layout: Annotated[str | None, one_of("title_layout")] = None,
         scene_text_layout: Annotated[str | None, one_of("scene_text_layout")] = None,
         title_sfx: Annotated[
@@ -2551,6 +2558,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             text_hold_sec=text_hold_sec,
             pc_style=pc_style,
             pc_title_style=pc_title_style,
+            title_effects=title_effects,
             title_layout=title_layout,
             scene_text_layout=scene_text_layout,
             text_position=text_position,
