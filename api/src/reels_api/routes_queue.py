@@ -138,7 +138,23 @@ def queue(me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 def video_item(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     """The queue the video waits in, for its "Xuất bản" area; `item` is null when it waits in none."""
     item = db.scalar(select(PageQueueItem).where(PageQueueItem.video_id == video_id))
-    return {"item": _item_payload(db, item) if item else None}
+    # `next`: where the queue would put the video now on each Page of the member's that posts its group (shown
+    # before "Thêm vào hàng chờ"; the worker chooses again when it runs).
+    video = db.get(Video, video_id)
+    pages = (
+        db.scalars(
+            select(Fanpage).where(
+                Fanpage.active, Fanpage.owner_id == me.user_id, Fanpage.knowledge_topic_id == video.knowledge_topic_id
+            )
+        ).all()
+        if item is None and video is not None and video.knowledge_topic_id
+        else []
+    )
+    nexts = []
+    for page in pages:
+        slot = page_queue.next_slot(db, page, video)
+        nexts.append({"fanpage_id": page.id, "fanpage": page.name, "slot": slot.isoformat() if slot else None})
+    return {"item": _item_payload(db, item) if item else None, "next": nexts}
 
 
 @router.post("")

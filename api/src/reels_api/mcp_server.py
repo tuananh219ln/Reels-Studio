@@ -617,7 +617,8 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         publish: Annotated[
             Literal["none", "queue", "now", "schedule"],
             Field(
-                description="none: chỉ duyệt (mặc định); queue: duyệt rồi thêm vào hàng chờ Page; now: duyệt và đăng "
+                description="none: chỉ duyệt (mặc định); queue: duyệt rồi thêm vào hàng chờ Page (xếp vào khung trống tiếp theo, "
+                "không theo giờ gợi ý của kế hoạch); now: duyệt và đăng "
                 "ngay; schedule: duyệt và hẹn giờ schedule_at. Ba cách sau cần fanpage_id (trừ queue) và quyền đăng bài"
             ),
         ] = "none",
@@ -830,10 +831,14 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         post_at: Annotated[
             datetime | None, Field(description="Giờ đăng kèm múi giờ; bỏ trống = giờ gợi ý của ý tưởng kế hoạch")
         ] = None,
+        allow_overlap: Annotated[
+            bool, Field(description="true chỉ khi người dùng đã đồng ý đăng hai bài gần nhau (dưới 30 phút) trên Page")
+        ] = False,
     ) -> dict:
         """Hẹn giờ đăng THẬT một video đã duyệt lên Page (mọi kiểu video; schedule_video chỉ thêm vào hàng chờ, không chọn giờ). Video chưa duyệt bị từ chối (not_approved):
         chỉ gọi sau khi người dùng đồng ý, và duyệt bằng approve_video trước. Thiếu post_at thì dùng giờ gợi ý của
-        ý tưởng; không có giờ gợi ý (hoặc đã qua) thì báo lỗi."""
+        ý tưởng; không có giờ gợi ý (hoặc đã qua) thì báo lỗi. Page đã có bài trong vòng 30 phút quanh giờ đó thì báo
+        slot_taken: hỏi người dùng rồi mới gọi lại với allow_overlap."""
 
         def operation(db, me):
             when = post_at
@@ -843,7 +848,12 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                 when = plans_module.suggested_post_at(topic, idea) if idea and topic else None
                 if when is None:
                     raise ToolError("Video chưa có giờ gợi ý (hoặc giờ đã qua), hãy truyền post_at")
-            videos.publish(video_id, videos.PublishBody(fanpage_id=fanpage_id, scheduled_at=when), me, db)
+            videos.publish(
+                video_id,
+                videos.PublishBody(fanpage_id=fanpage_id, scheduled_at=when, allow_overlap=allow_overlap),
+                me,
+                db,
+            )
             video = db.get(Video, video_id)
             return {"video_id": video_id, "post_at": when.isoformat(), "review": review.payload(db, video)}
 
@@ -2938,7 +2948,9 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     ) -> dict:
         """Như nút "Thêm vào hàng chờ": chỉ gọi khi người dùng yêu cầu rõ và đã xem bản render. Video cần MP4 mới
         nhất; hàng chờ tự hẹn giờ vào khung giờ đăng trống tiếp theo của Page (trong 48 giờ tới), không chọn giờ ở
-        đây và không đăng ngay."""
+        đây và không đăng ngay. Khung được chọn khi worker chạy (trong ~1 phút) và né các khung mà ý tưởng khác
+        của kế hoạch đang giữ; hãy nói với người dùng khung dự kiến (Đọc Page và hàng chờ: free_slots) trước khi
+        thêm."""
         body = queue_routes.AddBody(video_id=video_id, fanpage_id=fanpage_id)
         return await run_in_threadpool(invoke, lambda db, me: queue_routes.add(body, me, db), write=True)
 

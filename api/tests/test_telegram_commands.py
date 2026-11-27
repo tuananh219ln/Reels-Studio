@@ -102,7 +102,8 @@ def test_after_duyet_the_video_goes_to_a_pages_queue_with_one_press(app, db, me,
     signature = video.rendered_signature[: telegram.SIGNATURE_CHARS]
     update(app, press(f"aq:{video.id}:{signature}"))
     offer = bot.telegram_sent("sendMessage")[-1]
-    assert offer["text"].startswith("✅ Đã duyệt") and "Thêm vào hàng chờ" in offer["text"]
+    assert offer["text"].startswith("✅ Đã duyệt") and "khung trống tiếp theo" in offer["text"]
+    assert "Chưa hẹn giờ" in offer["text"] and "Giờ trong kế hoạch" not in offer["text"]
     data = offer["reply_markup"]["inline_keyboard"][0][0]["callback_data"]
     assert data == f"qa:{video.id}:{page.id}"
     update(app, press(data))
@@ -111,6 +112,30 @@ def test_after_duyet_the_video_goes_to_a_pages_queue_with_one_press(app, db, me,
     assert "Đã thêm vào hàng chờ của <b>Trang Dưỡng Sinh</b>" in texts(bot)[-1]
     update(app, press(data))
     assert "đã ở trong một hàng chờ" in bot.telegram_sent("answerCallbackQuery")[-1]["text"]
+
+
+def test_a_planned_video_is_offered_its_plan_time_and_the_press_schedules_it(app, db, me, bot, storage):
+    from reels_api.models import KnowledgeTopic, TopicPlanItem
+
+    link(db, me)
+    video = rendered(db, storage, me)
+    page = fanpages.save(db, "pg1", "Trang Dưỡng Sinh", "token-cua-page", me.id)
+    page.knowledge_topic_id = video.knowledge_topic_id
+    group = db.get(KnowledgeTopic, video.knowledge_topic_id)
+    group.plan_start_date = (datetime.now(VIETNAM) + timedelta(days=2)).date()
+    db.add(TopicPlanItem(knowledge_topic_id=group.id, day=1, position=2, topic="Ý tưởng", video_id=video.id))
+    db.commit()
+    signature = video.rendered_signature[: telegram.SIGNATURE_CHARS]
+    update(app, press(f"aq:{video.id}:{signature}"))
+    offer = bot.telegram_sent("sendMessage")[-1]
+    assert "Giờ trong kế hoạch" in offer["text"]
+    buttons = [row[0] for row in offer["reply_markup"]["inline_keyboard"]]
+    assert buttons[0]["callback_data"] == f"qp:{video.id}:{page.id}" and buttons[0]["text"].startswith("📅 Đăng lúc")
+    assert buttons[1]["callback_data"] == f"qa:{video.id}:{page.id}"
+    update(app, press(buttons[0]["callback_data"]))
+    post = db.scalar(select(Publication).where(Publication.video_id == video.id))
+    assert post.fanpage_id == page.id and post.scheduled_at.astimezone(VIETNAM).strftime("%H:%M") == "11:30"
+    assert "Đã hẹn đăng lúc" in texts(bot)[-1]
 
 
 def test_after_bo_the_reason_typed_back_is_kept(app, db, me, bot, storage):
