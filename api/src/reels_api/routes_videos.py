@@ -2429,10 +2429,10 @@ def scene_image(
 @router.get("/scenes/{scene_id}/preview.jpg")
 def scene_preview(
     scene_id: int,
-    live: bool = False,
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
+    live: bool = False,  # last: the assistant's connection calls this with the arguments before it, by position
 ) -> Response:
     scene = _scene(db, scene_id)
     still = scene_still(storage, scene)

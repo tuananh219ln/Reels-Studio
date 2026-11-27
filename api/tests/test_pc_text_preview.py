@@ -111,3 +111,12 @@ def test_the_player_gets_the_steps_with_their_seconds_and_places_and_no_sample_p
     options = RenderOptions(captions="cumulative")
     live = frames.compose_frame(_photo(), "3. *Logitech*", False, options, narration="Chuột *Logitech*", live=True)
     assert not _changed(live, (0, 0, 1080, 1920))
+
+
+def test_the_preview_route_keeps_its_arguments_in_order_for_the_assistants_connection():
+    import inspect
+
+    from reels_api import routes_videos
+
+    # mcp_server calls scene_preview(scene_id, me, db, storage) by position: `live` must stay after them.
+    assert list(inspect.signature(routes_videos.scene_preview).parameters)[:4] == ["scene_id", "me", "db", "storage"]
