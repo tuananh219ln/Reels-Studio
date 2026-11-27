@@ -254,3 +254,57 @@ def test_a_scene_set_to_top_puts_the_captions_and_tiers_in_the_upper_zone():
         .text_zone
         == "top"
     )
+
+
+def test_with_two_lines_the_first_is_the_product_whatever_is_marked_and_the_rest_the_description():
+    from reels_render.markup import parse_scene_text
+    from reels_render.tiers import parse_scene
+
+    # The team's convention: the name on the first line, the benefit on the second with its keyword marked.
+    tiers = parse_scene(parse_scene_text("3. Chuột Logitech G304\n*Không dây, bàn gọn hẳn*"))
+    assert (tiers.number, tiers.main, tiers.sub) == ("3", "CHUỘT LOGITECH G304", "KHÔNG DÂY, BÀN GỌN HẲN")
+    # The marked benefit in the middle of the second line changes nothing; a third line joins the sub.
+    more = parse_scene(parse_scene_text("Chuột G304\nrất *nhẹ* và êm\nbàn gọn"))
+    assert (more.main, more.sub) == ("CHUỘT G304", "RẤT NHẸ VÀ ÊM BÀN GỌN")
+    # One line: marked words are the name, the rest the description; nothing marked is all name.
+    one = parse_scene(parse_scene_text("*Logitech G304* không dây"))
+    assert (one.main, one.sub) == ("LOGITECH G304", "KHÔNG DÂY")
+    assert parse_scene(parse_scene_text("Chuột nhẹ")).sub == ""
+
+
+def test_captions_start_only_after_the_text_has_gone():
+    from reels_render.captions import Cue, after_hold
+
+    cues = [Cue(1.0, 2.0, [["một"]], None), Cue(2.5, 3.5, [["hai"]], 0), Cue(3.5, 4.5, [["ba"]], 0)]
+    kept = after_hold(cues, 3.0)  # a text held 2.5 s + 0.25 s fade, 0.25 s into a scene starting at 0
+    assert [(cue.start, cue.end) for cue in kept] == [(3.0, 3.5), (3.5, 4.5)]
+    assert after_hold(cues, 0.0) == cues
+
+
+@needs_ffmpeg
+def test_a_scene_with_a_held_text_shows_no_caption_while_its_text_is_up(tmp_path):
+    make_image(tmp_path / "a.jpg", (1080, 1920), (30, 90, 160))
+    make_tone(tmp_path / "voice.wav", 3.0)
+    data = script_data(scene_count=2, image="a.jpg")
+    data["scenes"][0].update(
+        text="3. Chuột G304\n*Không dây*",
+        seconds=4,
+        voice="voice.wav",
+        voice_text="Chuột không dây rất nhẹ",
+        text_hold_sec=1.5,
+    )
+    data["scenes"][1]["seconds"] = 2
+    plain = Image.new("RGB", (1080, 1920), (30, 90, 160))
+    script = load_script(write_script(tmp_path, data))
+    options = RenderOptions(captions="word", scene_text_layout="two_tier", text_hold=True)
+    output = render_video(script, tmp_path / "out.mp4", options=options)
+
+    def region(second: float, box: tuple[int, int, int, int]) -> bool:
+        frame = extract_frame(output, second, tmp_path / f"f{second}.png")
+        difference = ImageChops.difference(frame.crop(box), plain.crop(box))
+        return max(high for _, high in difference.getextrema()) > 60
+
+    # Scene 1 runs 1–5 s: its text is up until 1 + 1.5 + 0.25 = 2.75 s, the captions (above it) start then.
+    assert region(1.9, (0, 1130, 1080, 1480)) and not region(1.9, (0, 1000, 1080, 1130))
+    assert not region(1.9, (0, 1000, 1080, 1100))  # no caption yet
+    assert region(3.5, (0, 1000, 1080, 1180))  # the caption, once the text has gone

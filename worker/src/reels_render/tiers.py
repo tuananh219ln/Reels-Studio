@@ -74,22 +74,28 @@ def parse_title(lines: list[list[Run]]) -> TitleTiers:
 
 
 def parse_scene(lines: list[list[Run]]) -> SceneTiers:
-    """A scene's text as the main line (the `*marked*` words; else the first line) and the sub line (the rest), with the
-    number the first line may start with ("3.")."""
+    """A scene's text as the main line and the sub line, with the number the first line may start with ("3."). With two
+    lines or more the first is the main one (the product's name) and the rest the sub (what it does), however the words
+    are marked: a scene's `*marked*` words highlight the benefit, not the name. A single line with marked words has them
+    as the main line and the rest as the sub (`*LOGITECH G304* không dây`); without any, the line is the main one."""
     number = ""
-    marked: list[str] = []
-    plain: list[str] = []
+    rows: list[list[Run]] = []
     for index, line in enumerate(lines):
         if index == 0 and line and (found := _NUMBER.match(line[0].text)):
             number = found.group(1)
             line = [Run(line[0].text[found.end() :], line[0].red), *line[1:]]
-        for run in line:
-            text = normalize_text(run.text.strip())
-            if text:
-                (marked if run.red else plain).append(text)
-    if not marked and plain:
-        marked, plain = [plain[0]], plain[1:]
-    return SceneTiers(number, " ".join(marked), " ".join(plain))
+        if any(run.text.strip() for run in line):
+            rows.append(line)
+    if not rows:
+        return SceneTiers(number, "", "")
+    text = lambda runs: normalize_text(" ".join(run.text.strip() for run in runs if run.text.strip()))  # noqa: E731
+    if len(rows) >= 2:
+        return SceneTiers(number, text(rows[0]), " ".join(text(row) for row in rows[1:]))
+    marked = [run for run in rows[0] if run.red]
+    plain = [run for run in rows[0] if not run.red]
+    if marked and any(run.text.strip() for run in plain):
+        return SceneTiers(number, text(marked), text(plain))
+    return SceneTiers(number, text(rows[0]), "")
 
 
 def _label(text: str) -> Image.Image:
