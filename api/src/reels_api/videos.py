@@ -1314,6 +1314,9 @@ def _upload_payload(db: DbSession, video: Video) -> dict | None:
 
 def _labels(video: Video, title: Scene | None, scenes: list[Scene], job: Job | None, failed: Job | None) -> dict:
     return {
+        # "Giữ media" and the day the worker deletes this video's media files (None when it was, or will not be).
+        "keep_media": video.keep_media,
+        "media_cleaned_at": video.media_cleaned_at.isoformat() if video.media_cleaned_at else None,
         "mp4_outdated": bool(video.mp4_key) and video.rendered_signature != render_signature(video, title, scenes),
         # A failed re-render keeps the old MP4 and the "Xong" status, with this extra label.
         "rerender_failed": job is None and bool(video.mp4_key) and failed is not None and failed.kind == "render",

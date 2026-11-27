@@ -25,6 +25,7 @@ from . import (
     comments_inbox,
     config,
     fanpages,
+    media_cleanup,
     meta_sync,
     metrics,
     outro,
@@ -200,6 +201,7 @@ def serve(factory: sessionmaker, lock: Connection) -> None:
             comments_inbox.run_round(factory)
             affiliate_rounds.run_round(factory)
             meta_sync.run_due(factory)
+            media_cleanup.run_due(factory)
             # Private Telegram messages (its own 15-second pace); only between jobs, like everything here.
             telegram.run_round(factory)
             next_metrics = time.monotonic() + METRICS_SECONDS
