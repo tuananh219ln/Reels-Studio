@@ -18,3 +18,6 @@
   the superscript "PHP", negative line gaps, per-preset font sizes (the title keeps 56/110/72), and the "Kiểu tiêu đề" thumbnails.
   Colours and sizes are estimates from the spec's table (`title-presets.json` was not in the repo) and need a person to compare them
   with the five reels.
+- **"Tiêu đề động" needs nothing** ([title-motion](2026-11-23-title-motion.md)): it is for the "Sức khỏe" groups, and its hook text is the
+  title scene's own text, drawn by the render core, not part of the motion's markup. So a preset applies to it as to any title,
+  and changing the preset does not need "Dựng lại tiêu đề" (the spec's section 6 line is moot).
