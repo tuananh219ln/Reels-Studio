@@ -344,7 +344,7 @@ def tier_picture(lines: list[list[Run]], index: int, last: int, options: RenderO
     video asks for them; None for a scene drawn as a text box."""
     if index == 0 and options.title_layout == "three_tier":
         return render_title(parse_title(lines), options.pc_title_style)
-    if 0 < index < last and options.scene_text_layout == "two_tier":
+    if index > 0 and options.scene_text_layout == "two_tier":
         return render_scene(parse_scene(lines), options.pc_style)
     return None
 

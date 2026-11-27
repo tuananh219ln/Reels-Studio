@@ -42,3 +42,7 @@ Part of the spec "Ẩn chữ & Phụ đề Cộng dồn" (Looper, 2026-11-27); l
   Moving the extra words to the caption and the AI's own split are still not built.
 - **The thumbnail follows the title layout and look** (they are part of `video_options.text_look`, which decides when it is drawn
   again), and every render of a video with the compact title draws it again, so a video set before this is brought up to date.
+- **Changed (2026-11-27): the last scene is in tiers too.** The call to action no longer keeps the text box: under the compact text its
+  text is the same main and sub lines in the same look and zone as the other scenes, so the video's text is all of one look. It still
+  stays the whole scene (never hidden by a hold, never replaced by "Cộng dồn") and is not warned about for its length (the line shrinks
+  to fit). The earlier "the last scene keeps the text box" lines above no longer apply to a video with the compact scene text.

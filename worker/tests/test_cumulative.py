@@ -342,7 +342,7 @@ def test_a_caption_of_a_compact_text_scene_sits_on_the_safe_zone_floor_unless_th
 
 
 @needs_ffmpeg
-def test_the_last_scene_keeps_its_box_but_its_captions_sit_on_the_floor_too(tmp_path):
+def test_the_last_scene_is_in_tiers_and_its_captions_sit_on_the_floor_too(tmp_path):
     make_image(tmp_path / "a.jpg", (1080, 1920), (30, 90, 160))
     make_tone(tmp_path / "voice.wav", 3.0)
     data = script_data(scene_count=1, image="a.jpg")
@@ -361,4 +361,23 @@ def test_the_last_scene_keeps_its_box_but_its_captions_sit_on_the_floor_too(tmp_
     frame = extract_frame(output, 2.5, tmp_path / "f.png")
     floor = (0, 1330, 1080, 1440)
     difference = ImageChops.difference(frame.crop(floor), plain.crop(floor))
+    assert max(high for _, high in difference.getextrema()) > 60
+
+
+@needs_ffmpeg
+def test_the_last_scene_text_is_in_tiers_with_no_box_like_the_others(tmp_path):
+    make_image(tmp_path / "a.jpg", (1080, 1920), (30, 90, 160))
+    data = script_data(scene_count=1, image="a.jpg")
+    data["title"]["seconds"] = 1
+    data["scenes"][0].update(text="DEAL HẤP DẪN\nMÌNH ĐỂ DƯỚI BÌNH LUẬN", seconds=3)
+    script = load_script(write_script(tmp_path, data))
+    output = render_video(script, tmp_path / "out.mp4", options=RenderOptions(scene_text_layout="two_tier"))
+    frame = extract_frame(output, 2.5, tmp_path / "f.png")
+    plain = Image.new("RGB", (1080, 1920), (30, 90, 160))
+    # No yellow box across the lower third (it spans the box width and 700+ px); the tiers sit in the 62–78% zone.
+    wide = (0, 700, 1080, 1130)
+    difference = ImageChops.difference(frame.crop(wide), plain.crop(wide))
+    assert max(high for _, high in difference.getextrema()) < 30
+    zone = (0, 1190, 1080, 1500)
+    difference = ImageChops.difference(frame.crop(zone), plain.crop(zone))
     assert max(high for _, high in difference.getextrema()) > 60
