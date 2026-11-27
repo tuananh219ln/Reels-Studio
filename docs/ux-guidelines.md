@@ -1567,7 +1567,8 @@ relied on (samples in the PR that added them).
   Changing the voice or speed makes the narration again on the next render.
 - **Captions (phụ đề theo giọng đọc):** content scenes with narration only, never the title scene.
   White bold 58 px text on a rounded black box at 67%, at most two lines and four words, centred
-  just above the scene's text box (or with its bottom at y = 1440 when the scene has none).
+  just above the scene's text box (or with its bottom at y = 1440 when the scene has none). In PC Shopee's compact
+  text the bottom is always y = 1440, the text having gone by then ([decision](decisions/2026-11-27-pc-caption-floor.md)).
   "Từng cụm" shows each phrase while it is read; "Từng từ" also lights the word being read in
   yellow. Phrases break after punctuation. The timing is an estimate spread over the narration by
   letters, not ElevenLabs' timestamps, so it can run slightly ahead or behind.

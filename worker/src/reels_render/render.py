@@ -201,9 +201,8 @@ def render_video(
                 placed = placed_words(scene, scene_start / FPS, scene_end, clip_lead(index, cut))
                 cues = plan_word_captions(placed, options.captions)
             # A scene whose text fades out after a hold shows the captions only once it has gone: one layer of text at a time.
-            if cues and (
-                hold := hold_seconds(scene.text_hold, index, len(script.all_scenes), timeline.scene_frames[index])
-            ):
+            hold = hold_seconds(scene.text_hold, index, len(script.all_scenes), timeline.scene_frames[index])
+            if cues and hold:
                 cues = after_hold(cues, scene_start / FPS + hold + HOLD_FADE_SECONDS)
             if cues:
                 bottom = box_y - CAPTION_GAP if layout is not None else SCENE_BOX_BOTTOM
@@ -212,11 +211,15 @@ def render_video(
                     path = work_dir / f"caption-{index:02d}-{number:03d}.png"
                     image_caption = render_caption(cue.lines, cue.lit)
                     image_caption.save(path)
+                    if index in tiers:
+                        caption_top = tier_caption_y(box_y, box_bottom, image_caption.height, hold is None)
+                    else:
+                        caption_top = caption_y(bottom, box_bottom, image_caption.height)
                     captions.append(
                         CaptionInput(
                             image=path,
                             x=(FRAME_WIDTH - image_caption.width) // 2,
-                            y=caption_y(bottom, box_bottom, image_caption.height),
+                            y=caption_top,
                             start=cue.start,
                             end=cue.end,
                         )
@@ -359,6 +362,16 @@ def tier_corner(
     left = min(max(0, centre_x - picture.width // 2), FRAME_WIDTH - picture.width)
     top = min(max(0, centre_y - picture.height // 2), FRAME_HEIGHT - picture.height)
     return left, top
+
+
+def tier_caption_y(box_top: int, box_bottom: int, height: int, text_stays: bool) -> int:
+    """Where a phrase or word caption goes in a scene with PC Shopee's compact text: its bottom on the safe zone's floor
+    (y = 1440), where the text has gone by the time captions start. When the text stays the whole scene and the caption
+    would land on it (a member dragged it low), the caption sits over the text, or under it when that leaves the safe zone."""
+    top = SCENE_BOX_BOTTOM - height
+    if text_stays and box_top < SCENE_BOX_BOTTOM and box_bottom + CAPTION_GAP > top:
+        return caption_y(box_top - CAPTION_GAP, box_bottom, height)
+    return top
 
 
 def has_words(scene: Scene, index: int, heard: list[bool], spoken: list[float | None]) -> bool:
