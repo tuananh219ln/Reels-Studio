@@ -104,11 +104,11 @@ const PC_STYLES = [
   { value: "grunge_rainbow", label: "Grunge cầu vồng" },
   { value: "esports_blue", label: "Esports xanh" },
 ];
-const TITLE_PRESETS = ["neon_outline_price", "gold_metal", "grunge_rainbow", "esports_blue"];
-/** A picker row: the name, and for the five title presets a picture of the preset drawn with sample text (api routes_title_presets). */
+
+/** A picker row: the name and a picture of the look drawn with sample text (api routes_title_presets). */
 function styleOption(option: { value?: string | number | null; label?: ReactNode }) {
   const value = String(option.value ?? "");
-  if (!TITLE_PRESETS.includes(value)) return option.label;
+  if (!PC_STYLES.some((style) => style.value === value)) return option.label;
   return (
     <Flex vertical gap={4} style={{ padding: "4px 0" }}>
       <span>{option.label}</span>
@@ -804,34 +804,30 @@ export function TextSettings({ values, onChange, disabled, bare, textHold }: Pro
             >
               Nền tối mờ sau chữ (đậm nhất 45%)
             </Checkbox>
-            {textHold && (
-              <Field label="Chữ cảnh gọn" hint="Số thứ tự, dòng chính và dòng phụ, không hộp nền; cảnh cuối giữ hộp.">
-                <Segmented
-                  aria-label="Chữ cảnh gọn"
-                  options={[
-                    { value: "box", label: "Hộp chữ" },
-                    { value: "two_tier", label: "2 tầng" },
-                  ]}
-                  value={values.scene_text_layout}
-                  disabled={disabled}
-                  onChange={(layout) => onChange({ scene_text_layout: layout as VideoOptions["scene_text_layout"] })}
-                />
-              </Field>
-            )}
-            {textHold && (
-              <Field label="Kiểu chữ PC Shopee" hint="Kiểu của phụ đề cộng dồn và chữ cảnh.">
-                <Select
-                  aria-label="Kiểu chữ PC Shopee"
-                  options={PC_STYLES}
-                  optionRender={styleOption}
-                  style={{ width: "100%" }}
-                  value={values.pc_style}
-                  disabled={disabled}
-                  onChange={(pc_style) => onChange({ pc_style: pc_style as VideoOptions["pc_style"] })}
-                />
-              </Field>
-            )}
-            {textHold && (
+            <Field label="Chữ cảnh gọn" hint="Số thứ tự, dòng chính và dòng phụ, không hộp nền; cảnh cuối giữ hộp.">
+              <Segmented
+                aria-label="Chữ cảnh gọn"
+                options={[
+                  { value: "box", label: "Hộp chữ" },
+                  { value: "two_tier", label: "2 tầng" },
+                ]}
+                value={values.scene_text_layout}
+                disabled={disabled}
+                onChange={(layout) => onChange({ scene_text_layout: layout as VideoOptions["scene_text_layout"] })}
+              />
+            </Field>
+            <Field label="Kiểu chữ cảnh gọn" hint="Kiểu của chữ cảnh gọn và phụ đề cộng dồn.">
+              <Select
+                aria-label="Kiểu chữ cảnh gọn"
+                options={PC_STYLES}
+                optionRender={styleOption}
+                style={{ width: "100%" }}
+                value={values.pc_style}
+                disabled={disabled}
+                onChange={(pc_style) => onChange({ pc_style: pc_style as VideoOptions["pc_style"] })}
+              />
+            </Field>
+            {(textHold || values.scene_text_layout === "two_tier") && (
               <Field
                 label="Thời gian hiện chữ"
                 hint={
@@ -885,46 +881,44 @@ export function TextSettings({ values, onChange, disabled, bare, textHold }: Pro
           </>
         ) : (
           <>
-            {textHold && (
-              <>
-                <Field label="Bố cục tiêu đề" hint="3 tầng: dòng nhỏ, dòng chính, dòng phụ; không hộp nền.">
-                  <Segmented
-                    aria-label="Bố cục tiêu đề"
-                    options={[
-                      { value: "box", label: "Hộp chữ" },
-                      { value: "three_tier", label: "3 tầng" },
-                    ]}
-                    value={values.title_layout}
+            <>
+              <Field label="Bố cục tiêu đề" hint="3 tầng: dòng nhỏ, dòng chính, dòng phụ; không hộp nền.">
+                <Segmented
+                  aria-label="Bố cục tiêu đề"
+                  options={[
+                    { value: "box", label: "Hộp chữ" },
+                    { value: "three_tier", label: "3 tầng" },
+                  ]}
+                  value={values.title_layout}
+                  disabled={disabled}
+                  onChange={(layout) => onChange({ title_layout: layout as VideoOptions["title_layout"] })}
+                />
+              </Field>
+              {values.title_layout === "three_tier" && (
+                <Field label="Kiểu chữ tiêu đề">
+                  <Select
+                    aria-label="Kiểu chữ tiêu đề"
+                    options={PC_STYLES}
+                    optionRender={styleOption}
+                    style={{ width: "100%" }}
+                    value={values.pc_title_style}
                     disabled={disabled}
-                    onChange={(layout) => onChange({ title_layout: layout as VideoOptions["title_layout"] })}
+                    onChange={(style) => onChange({ pc_title_style: style as VideoOptions["pc_title_style"] })}
                   />
-                </Field>
-                {values.title_layout === "three_tier" && (
-                  <Field label="Kiểu chữ tiêu đề">
-                    <Select
-                      aria-label="Kiểu chữ tiêu đề PC Shopee"
-                      options={PC_STYLES}
-                      optionRender={styleOption}
-                      style={{ width: "100%" }}
-                      value={values.pc_title_style}
+                  {(values.pc_title_style === "grunge_rainbow" || values.pc_title_style === "gold_metal") && (
+                    <Checkbox
+                      checked={values.title_effects}
                       disabled={disabled}
-                      onChange={(style) => onChange({ pc_title_style: style as VideoOptions["pc_title_style"] })}
-                    />
-                    {(values.pc_title_style === "grunge_rainbow" || values.pc_title_style === "gold_metal") && (
-                      <Checkbox
-                        checked={values.title_effects}
-                        disabled={disabled}
-                        onChange={(event) => onChange({ title_effects: event.target.checked })}
-                      >
-                        {values.pc_title_style === "gold_metal"
-                          ? "Thêm các ngôi sao lấp lánh quanh chữ"
-                          : "Hiệu ứng glitch và tối viền trên cảnh tiêu đề"}
-                      </Checkbox>
-                    )}
-                  </Field>
-                )}
-              </>
-            )}
+                      onChange={(event) => onChange({ title_effects: event.target.checked })}
+                    >
+                      {values.pc_title_style === "gold_metal"
+                        ? "Thêm các ngôi sao lấp lánh quanh chữ"
+                        : "Hiệu ứng glitch và tối viền trên cảnh tiêu đề"}
+                    </Checkbox>
+                  )}
+                </Field>
+              )}
+            </>
             <Checkbox
               checked={followsScenes}
               disabled={disabled}
