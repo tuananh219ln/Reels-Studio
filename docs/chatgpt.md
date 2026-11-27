@@ -124,7 +124,11 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
 - Deleting through MCP (`delete_scene`, `delete_layer`, `delete_sound`) works only on the connected member's own
   videos (part 4, [architecture.md](architecture.md#web-app-and-auth)).
 - `add_layer`, `update_layer`, `delete_layer` for text and sticker layers and half-frame photos on a "Video xuyên suốt" (`kind` "photo": the scene's own photo at 1080×960; only `y`, `start`, `seconds` change); `add_sound`, `delete_sound`;
-  `set_audio` for the music from the library, its volume and the narration on or off.
+  `set_audio` for the music from the library, its volume and the narration on or off. A track claimed on YouTube
+  (`claimed_on_youtube` in `list_edit_options`) is refused for every video.
+- **A YouTube claim**: `note_youtube_claim` notes a Content ID claim the member found in YouTube Studio on a video (the
+  app cannot read Content ID), or clears it with `cleared`; the video's YouTube row shows "Bị chặn" meanwhile. Only a
+  note: nothing goes to YouTube ([decision](decisions/2026-11-26-youtube-claimed-music.md)).
 - **Looking at its work**, like AIEV's "every frame verified": `view_scene` returns the scene's preview frame (the
   photo or the clip's first frame with the scene's text placed as the render places it), and
   `view_render_frames` returns up to eight frames of the rendered MP4 at the seconds it picks, both at 540×960.
@@ -437,6 +441,13 @@ and never a Page token.
 - `get_youtube_meta` (`reels:read`), `update_youtube_meta` (`reels:write`): a topic group's "Mô tả YouTube" (YouTube
   hashtags, keywords sent as tags, Subscribe line with `{channel}`, disclaimer), the same as its card on Kho kiến thức
   and with the same editors; only the fields sent change. The next YouTube upload of the group's videos uses it.
+- `get_qc_config` (`reels:read`), `update_qc_config` (`reels:write`): a topic group's "QC & duyệt" (whether approving
+  asks for a title, the yellow ranges of the script's length and scene count and of the MP4's length; `reset` back to the
+  app's defaults), same editors and history as its card on Kho kiến thức.
+- `update_voice_format` (`reels:write`): replaces a group's "Giọng đọc theo vai" (the card of the same name, checked by
+  `voice_format.clean`); the tool asks the assistant to change it only when the member asked and named each role's voice.
+- `set_video_title` (`reels:write`): the title scene's text from a suggestion (`option`, from 1), typed (`text`), or
+  `no_title` ("Không dùng tiêu đề"); exactly one. `update_scene` also takes `video_loop` ("Lặp clip").
 - `get_whats_new` (`reels:read`): "Có gì mới", the changes the web lists after each deploy (title, detail, kind, when
   merged and deployed, the screens and in-app guides they touched), newest first, optionally only after `since`. Read
   from the web's `changelog.json` (CHANGELOG_URL, else next to MCP_PUBLIC_URL); an error until the first deploy wrote it.

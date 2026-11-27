@@ -301,6 +301,23 @@ def test_a_text_post_goes_out_with_its_hashtags(committed, ready, fakes):
     assert (post.status, post.remote_id) == ("published", next(iter(fakes.page_posts)))
 
 
+def test_a_published_article_is_checked_again_only_when_due(committed, ready, fakes):
+    user, storage, article_id = ready
+    assert run(committed, storage, article_id, user.id).status == "done"
+
+    with committed() as db:
+        jobs.queue_post_checks(db)
+        assert db.scalar(select(Job).where(Job.article_id == article_id, Job.kind == "check")) is None
+        post = db.scalar(select(Publication).where(Publication.article_id == article_id))
+        assert post.checked_at == post.published_at
+
+        post.published_at = post.checked_at = ago(7 * 60)
+        db.flush()
+        jobs.queue_post_checks(db)
+        check = db.scalar(select(Job).where(Job.article_id == article_id, Job.kind == "check"))
+        assert (check.status, check.publication_id) == ("queued", post.id)
+
+
 def test_a_photo_post_sends_the_picture_and_a_scheduled_one_waits(committed, ready, fakes):
     user, storage, article_id = ready
     storage.save_bytes("articles/1/card.jpg", articles.text_card("Ngủ đủ giấc", "cam"))

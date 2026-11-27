@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session as DbSession
 from .errors import ApiError
 from .models import Job, PageQueueItem, Publication, User, Video, VideoEvent
 from .script_rules import Checks, Issue
-from .videos import active_job, render_signature, run_checks, split_scenes, title_of
+from .videos import active_job, group_qc, mp4_qc, render_signature, run_checks, split_scenes, title_of
 
 log = logging.getLogger(__name__)
 
@@ -91,7 +91,9 @@ def qc_report(db: DbSession, video: Video, checks: Checks | None = None) -> dict
             add("MP4_QC", "warn", text)
         return {"passed": not items, "items": items}
     title, scenes = split_scenes(db, video)
-    if not title_of(video, title):
+    config = group_qc(db, video)
+    # A group whose format has no title text (qc_config.title_required), or a member's "Không dùng tiêu đề".
+    if not title_of(video, title) and config["title_required"] and not video.no_title:
         add("TITLE_EMPTY", "blocker", "Video chưa có tiêu đề")
     if video.rendered_signature != render_signature(video, title, scenes):
         add("RENDER_OUTDATED", "blocker", "MP4 chưa cập nhật theo bản sửa, hãy render lại")
@@ -103,7 +105,7 @@ def qc_report(db: DbSession, video: Video, checks: Checks | None = None) -> dict
     for beat in video.beats or []:
         if not beat.get("scene_ids"):
             add("BEAT_WITHOUT_SCENE", "warn", f"Nhịp “{beat['type']}” chưa có cảnh", beat=beat["id"])
-    measured = video.qc or {}
+    measured = mp4_qc(db, video, config) or {}
     if measured.get("status", "pass") != "pass":
         for check in measured.get("checks", []):
             if check.get("status") != "pass":

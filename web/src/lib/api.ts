@@ -517,6 +517,8 @@ export type VideoDetail = VideoRow & {
   tiktok_posts: TikTokPost[];
   /** YouTube Shorts and Instagram Reels, posted by hand from the same MP4 and recorded with their link. */
   manual_posts: ManualPost[];
+  /** YouTube claims noted by hand (the app cannot read Content ID): `active` while one is not cleared. */
+  youtube_claim: { active: YouTubeClaim | null; history: YouTubeClaim[] };
   /** Shopee's product suggestions for the video (the worker searches with a member's own account). */
   suggest: { state: "idle" | "pending" | "failed"; error: string | null; at: string | null };
   /** "Dòng khảo sát": the pinned comment's last line, under the title and the scenes (lib/pinned.ts); "" for none. */
@@ -528,6 +530,10 @@ export type VideoDetail = VideoRow & {
   self_review: string[];
   music_suggestions: string[];
   locked: boolean;
+  /** "Không dùng tiêu đề": the member chose no title text, so approving does not ask for one. */
+  no_title: boolean;
+  /** Whether the video's group asks for a title when approving ("QC & duyệt"). */
+  title_required: boolean;
   active_job: JobInfo | null;
   failed_job: JobInfo | null;
   mp4: {
@@ -702,6 +708,16 @@ export type ManualPost = {
   checked_at: string | null;
 };
 
+/** A Content ID claim found in YouTube Studio and noted on the video, or its clearing (`cleared`). */
+export type YouTubeClaim = {
+  id: number;
+  cleared: boolean;
+  note: string;
+  at: string;
+  by: string | null;
+  channel: string;
+};
+
 /** A member's YouTube channel connected through Google; the tokens never leave the server. */
 export type YouTubeConnection = {
   id: number;
@@ -739,6 +755,17 @@ export type TikTokConnection = {
   /** TikTok revoked it or its refresh token ended: "Kết nối lại". */
   needs_reconnect: boolean;
   connected_at: string | null;
+};
+
+/** A {min, max} range of a group's "QC & duyệt". */
+export type QcRange = { min: number; max: number };
+
+/** A group's "QC & duyệt" (api qc_config.py): the yellow ranges of its checks and whether approving asks for a title. */
+export type QcConfig = {
+  title_required: boolean;
+  total_seconds: QcRange;
+  scene_count: QcRange;
+  channel_seconds: QcRange;
 };
 
 /** A group's "Mô tả YouTube" (api youtube_meta.py). `{channel}` in `cta` is the receiving channel's name. */
@@ -787,6 +814,10 @@ export type KnowledgeTopic = {
   youtube_meta: YouTubeMeta;
   /** False while nothing is set: uploads carry the caption and the video's own hashtags. */
   youtube_meta_set: boolean;
+  /** "QC & duyệt": every field present, the app's defaults where nothing is set. */
+  qc_config: QcConfig;
+  /** False while the group checks with the app's defaults. */
+  qc_config_set: boolean;
   /** The AI's last suggested looks ("AI gợi ý"), kept for a member to pick one; null before the first. */
   text_suggestions: TextSuggestions | null;
   /** The "AI gợi ý" job while queued or running, or the last one if it failed; null otherwise. */
@@ -1163,7 +1194,7 @@ export type VideoDefaults = VideoOptions & {
   /** The library track a new video starts with, copied into it; null for no music. */
   music_track_id: number | null;
   /** Read-only, never sent back: the default track's name and player link, null when none or deleted since. */
-  music_track?: { id: number; name: string; url: string } | null;
+  music_track?: { id: number; name: string; url: string; claimed_on_youtube?: boolean } | null;
 };
 
 /** The signed-in member's own defaults (/settings/my-video-defaults): the app's built-in ones until they save their
@@ -1353,6 +1384,10 @@ export type MusicTrack = {
   topics: string[];
   mood: string;
   license_note: string;
+  /** "Đã bị claim trên YouTube": no video may take it any more (the api refuses it); when, and what was claimed. */
+  claimed_on_youtube: boolean;
+  claimed_at: string | null;
+  claimed_note: string;
   url: string;
   created_by: string;
   /** Only they delete it. */
@@ -2704,3 +2739,58 @@ export type StatsInstagramRow = {
   best_times_zone: string;
 };
 export type Stats<Row> = { days: number; platform: "facebook" | "instagram"; start: string; end: string; rows: Row[] };
+
+/** One changed field of a "Lịch sử sửa" entry (api routes_video_story.py). */
+export type VideoEditChange = {
+  key: string;
+  /** "Video", "Tiêu đề", "Cảnh 3" or "Cảnh đã xóa". */
+  place: string;
+  field: string;
+  old: string;
+  new: string;
+  /** "Hoàn tác" puts it back (a text box's place and the video's options are followed only). */
+  restorable: boolean;
+};
+
+export type VideoEditEntry = {
+  id: number;
+  action: "update" | "restore";
+  at: string;
+  by: string | null;
+  /** "web" or "mcp" (an assistant). */
+  source: string;
+  restored_from_id: number | null;
+  /** A later "Hoàn tác" put this edit's old values back. */
+  undone: boolean;
+  changes: VideoEditChange[];
+};
+
+/** "Video này được làm như thế nào" and "Lịch sử sửa" (api routes_video_story.py). */
+export type VideoStory = {
+  made: {
+    by: string | null;
+    at: string;
+    via: string;
+    /** Written by a member's own assistant over MCP: no cost to the team's AI. */
+    free: boolean;
+    group: string | null;
+    mode: string;
+    platform: string;
+  };
+  voices: { scene_id: number; label: string; source: string; voice: string }[];
+  voice_sources: Record<string, number>;
+  mixed_voices: boolean;
+  music: { name: string | null; volume: number } | null;
+  times: {
+    created_at: string;
+    rendered_at: string | null;
+    minutes_to_render: number | null;
+    render_seconds: number | null;
+    last_edit_at: string | null;
+    last_edit_by: string | null;
+  };
+  timeline: { at: string; kind: "created" | "job" | "review" | "edit"; text: string; by: string | null }[];
+  history: VideoEditEntry[];
+  /** The whole card as plain text, for "Sao chép hồ sơ video". */
+  text: string;
+};

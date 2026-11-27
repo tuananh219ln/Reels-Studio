@@ -569,6 +569,24 @@ body {
   border-color: #f6c9cb;
 }
 
+/* YouTube: held by a claim noted by hand, as a failure; uploaded private and not public yet, in the brand's amber. */
+.post-row--blocked {
+  background: #fef3f3;
+  border-color: #f6c9cb;
+}
+
+.post-row--private {
+  background: #fff8ed;
+  border-color: #f5d9b0;
+}
+
+.post-row__hint {
+  flex-basis: 100%;
+  font-size: 12px;
+  line-height: 16px;
+  color: #78716c;
+}
+
 .post-row__name {
   font-size: 14px;
   font-weight: 600;

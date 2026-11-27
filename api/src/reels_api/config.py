@@ -295,3 +295,8 @@ def web_url() -> str:
     # else the first origin (local dev).
     origins = sorted(allowed_origins())
     return next((origin for origin in origins if origin.startswith("https://")), origins[0] if origins else "")
+
+
+def telegram_group_chat_id() -> str:
+    # The team's shared group (the same id as the CI's secret): the bot's daily summary. Empty: none is sent.
+    return read_env("TELEGRAM_CHAT_ID")
