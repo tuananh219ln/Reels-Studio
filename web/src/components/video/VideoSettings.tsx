@@ -99,13 +99,12 @@ const CAPTIONS = [
 const PC_STYLES = [
   { value: "neon_game", label: "Neon game" },
   { value: "brand_navy", label: "Thương hiệu" },
-  { value: "neon_tech_teal", label: "Neon xanh ngọc" },
   { value: "neon_outline_price", label: "Giá neon viền" },
   { value: "gold_metal", label: "Vàng kim loại" },
   { value: "grunge_rainbow", label: "Grunge cầu vồng" },
   { value: "esports_blue", label: "Esports xanh" },
 ];
-const TITLE_PRESETS = ["neon_tech_teal", "neon_outline_price", "gold_metal", "grunge_rainbow", "esports_blue"];
+const TITLE_PRESETS = ["neon_outline_price", "gold_metal", "grunge_rainbow", "esports_blue"];
 /** A picker row: the name, and for the five title presets a picture of the preset drawn with sample text (api routes_title_presets). */
 function styleOption(option: { value?: string | number | null; label?: ReactNode }) {
   const value = String(option.value ?? "");
