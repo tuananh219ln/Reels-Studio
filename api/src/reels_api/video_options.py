@@ -194,9 +194,17 @@ OLD_SPEEDS = {"slow": 0.8, "normal": 1.0, "fast": 1.2}
 SPEED_ERROR = f"Tốc độ đọc phải từ {MIN_SPEED} đến {MAX_SPEED}"
 
 
+# A look that was taken out: a video that still has it reads as the default one (no migration needed).
+REMOVED_STYLES = {"halftone_purple": "neon_game"}
+
+
 def effective(video: Video) -> dict:
     values = DEFAULTS | (video.options or {})
-    return values | {"voice_speed": OLD_SPEEDS.get(values["voice_speed"], values["voice_speed"])}
+    return values | {
+        "voice_speed": OLD_SPEEDS.get(values["voice_speed"], values["voice_speed"]),
+        "pc_style": REMOVED_STYLES.get(values["pc_style"], values["pc_style"]),
+        "pc_title_style": REMOVED_STYLES.get(values["pc_title_style"], values["pc_title_style"]),
+    }
 
 
 def clean_voice_id(value: object) -> str:

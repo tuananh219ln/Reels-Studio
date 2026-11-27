@@ -1196,7 +1196,6 @@ export type VideoOptions = {
   /** The look of PC Shopee's drawn text (api reels_render.pc_text.PC_STYLES). */
   pc_style:
     | "neon_game"
-    | "halftone_purple"
     | "brand_navy"
     | "neon_tech_teal"
     | "neon_outline_price"
@@ -1210,7 +1209,6 @@ export type VideoOptions = {
   title_effects: boolean;
   pc_title_style:
     | "neon_game"
-    | "halftone_purple"
     | "brand_navy"
     | "neon_tech_teal"
     | "neon_outline_price"

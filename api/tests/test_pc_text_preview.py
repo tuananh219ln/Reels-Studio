@@ -153,3 +153,13 @@ def test_each_title_preset_has_a_sample_picture_and_an_unknown_one_is_not_found(
     with pytest.raises(ApiError) as caught:
         routes_title_presets.sample("neon_game", me=None)
     assert caught.value.status == 404
+
+
+def test_a_video_that_still_has_the_removed_halftone_look_reads_as_neon_game():
+    from reels_api.models import Video
+    from reels_api.video_options import effective
+
+    old = Video(options={"pc_style": "halftone_purple", "pc_title_style": "halftone_purple"})
+    values = effective(old)
+    assert values["pc_style"] == values["pc_title_style"] == "neon_game"
+    assert effective(Video(options={"pc_style": "brand_navy"}))["pc_style"] == "brand_navy"

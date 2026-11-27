@@ -98,7 +98,6 @@ const CAPTIONS = [
 /** PC Shopee's fourth choice: the words pile up, and the scenes' own text is not drawn (api video_options). */
 const PC_STYLES = [
   { value: "neon_game", label: "Neon game" },
-  { value: "halftone_purple", label: "Halftone tím" },
   { value: "brand_navy", label: "Thương hiệu" },
   { value: "neon_tech_teal", label: "Neon xanh ngọc" },
   { value: "neon_outline_price", label: "Giá neon viền" },

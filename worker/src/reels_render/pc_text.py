@@ -1,5 +1,5 @@
-"""The three looks of PC Shopee's drawn text (docs/decisions/2026-11-27-pc-text-styles.md): "Neon game", "Halftone tím"
-and "Thương hiệu". Each draws one line of capitals as a picture: fill, outline(s), shadow and glow, all by role (a marked
+"""The looks of PC Shopee's drawn text (docs/decisions/2026-11-27-pc-text-styles.md): "Neon game" and "Thương hiệu"
+(and the title presets). Each draws one line of capitals as a picture: fill, outline(s), shadow and glow, all by role (a marked
 word or a plain one), so the captions, the scenes' text and the title look alike. No box behind any of them.
 """
 
@@ -22,7 +22,6 @@ SPARKLE_STYLES = ("gold_metal",)  # presets with the optional sparkles, drawn in
 FRAME_EFFECTS = {"grunge_rainbow": "format=gbrp,rgbashift=rh=-6:bh=6,vignette=angle=PI/5"}
 PC_STYLES = (
     "neon_game",
-    "halftone_purple",
     "brand_navy",
     # The five title presets (docs/decisions/2026-11-27-title-presets.md)
     "neon_tech_teal",
@@ -48,7 +47,6 @@ class LineStyle:
     outer: tuple[int, RGB] | None = None  # a second, outside outline: width, colour
     shadow: tuple[int, int, RGB] | None = None  # dx, dy, colour: a hard offset shadow, no blur
     glow: tuple[RGB, float, int] | None = None  # colour, opacity, blur
-    dots: tuple[RGB, float] | None = None  # halftone dots over the fill: colour, coverage
     gradient: tuple[RGB, RGB] | None = None  # the fill from the top colour to the bottom one
     spacing: float = 0.0  # extra space between letters, of the size
     variation: tuple[int, int | None] | None = None  # a variable font's weight and (if it has the axis) width
@@ -60,27 +58,9 @@ class LineStyle:
 
 
 def line_style(style: str, key: bool, index: int = 0) -> LineStyle:
-    """The look of one line. `index` is its place in the lines stacked (Halftone alternates black and white)."""
+    """The look of one line. `index` is its place in the lines stacked."""
     if style in PRESETS:
         return _preset(style, key, index)
-    if style == "halftone_purple":
-        if key or index % 2 == 0:
-            return LineStyle(
-                BE_VIETNAM_PATH,
-                hex_rgb("#111114"),
-                (6, (hex_rgb("#C8B6FF"), hex_rgb("#A8F0E0")) if key else hex_rgb("#C8B6FF")),
-                outer=(3, hex_rgb("#1A1530")),
-                dots=((255, 255, 255), 0.25),
-                spacing=0.02,
-            )
-        return LineStyle(
-            BE_VIETNAM_PATH,
-            hex_rgb("#EDEDF2"),
-            (5, hex_rgb("#111114")),
-            glow=((255, 255, 255), 0.4, 8),
-            dots=(hex_rgb("#3A3A44"), 0.30),
-            spacing=0.02,
-        )
     if style == "brand_navy":
         navy = hex_rgb("#10195E")
         return LineStyle(
@@ -285,25 +265,6 @@ def sparkles(size: tuple[int, int], colour: RGB, count: int, seed: int) -> Image
     return layer
 
 
-def _dots(size: tuple[int, int], colour: RGB, coverage: float) -> Image.Image:
-    """A halftone: dots on a grid of 128 px cells' worth of pattern, covering `coverage` of the area."""
-    cell = 14
-    radius = cell * math.sqrt(coverage / math.pi)
-    tile = Image.new("L", (cell * 8, cell * 8), 0)
-    draw = ImageDraw.Draw(tile)
-    for row in range(8):
-        for column in range(8):
-            cx, cy = (column + 0.5 + (0.5 if row % 2 else 0)) * cell, (row + 0.5) * cell
-            draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=255)
-    pattern = Image.new("L", size, 0)
-    for left in range(0, size[0], tile.width):
-        for top in range(0, size[1], tile.height):
-            pattern.paste(tile, (left, top))
-    layer = Image.new("RGBA", size, (*colour, 0))
-    layer.putalpha(pattern)
-    return layer
-
-
 def render_line(text: str, size: int, style: LineStyle, max_width: int = 990) -> Image.Image:
     """One line as an RGBA picture, text centred, with room all round for the glow and the shadow."""
     style = _for_text(text, style)
@@ -354,11 +315,6 @@ def render_line(text: str, size: int, style: LineStyle, max_width: int = 990) ->
         specks = _speckle(canvas, *style.speckle)
         specks.putalpha(ImageChops.multiply(specks.getchannel("A"), letters))
         picture.alpha_composite(specks)
-    if style.dots is not None:
-        dots = _dots(canvas, *style.dots)
-        clipped = ImageChops.multiply(dots.getchannel("A"), letters)
-        dots.putalpha(clipped)
-        picture.alpha_composite(dots)
     if style.tilt:
         picture = picture.rotate(style.tilt, expand=True, resample=Image.Resampling.BICUBIC)
     return picture
