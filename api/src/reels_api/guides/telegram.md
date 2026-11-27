@@ -33,7 +33,7 @@ Gõ `/` trong chat với bot (hoặc trong nhóm chung) để mở menu lệnh. 
 **Việc riêng luôn gửi riêng:** gõ `/cho_duyet`, `/hom_nay` hay `/loi` ngay trong nhóm thì bot chỉ trả lời "📩 Đã gửi riêng cho …" trong nhóm, còn nội dung gửi vào chat riêng của bạn. Người chưa kết nối Telegram sẽ được nhắc cách kết nối.
 
 ## Sau khi bấm Duyệt hoặc Bỏ
-- **Duyệt:** nếu bạn có Page đăng nhóm chủ đề của video, bot hiện nút **➕ Hàng chờ <Page>**. Bấm là video vào hàng chờ của Page đó; giờ đăng do hàng chờ tự xếp.
+- **Duyệt:** nếu bạn có Page đăng nhóm chủ đề của video, bot hiện nút **➕ Hàng chờ <Page>**. Tin nhắn nói trước khung trống tiếp theo của từng Page; bấm là video vào hàng chờ của Page đó và hàng chờ xếp vào khung trống lúc đó (có thể đổi nếu có bài khác vào trước). Video có giờ trong kế hoạch còn có nút **📅 Đăng lúc <giờ>** để hẹn đúng giờ kế hoạch. Muốn giờ khác thì chọn trong app (Đăng bài, Hẹn giờ).
 - **Bỏ video:** bot hỏi "Vì sao bỏ?". Trả lời ngay tin đó để ghi lý do vào video (không bắt buộc).
 
 ## Nhóm chung

@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from reels_api import fanpages, page_queue
 from reels_api.analytics import VIETNAM
-from reels_api.models import Fanpage, Job, PageQueueItem, Publication
+from reels_api.models import Fanpage, Job, KnowledgeTopic, PageQueueItem, Publication, TopicPlanItem
 from reels_api.storage import DirectoryStorage
 from reels_api.videos import render_signature, split_scenes
 
@@ -353,3 +353,86 @@ def test_a_queued_post_remembers_its_slot_and_is_off_slot_after_the_times_change
     db.commit()
     shown = an.get(f"/api/fanpages/{row.id}/dashboard").json()["upcoming"]["posts"]
     assert [p["off_slot"] for p in shown] == [True]
+
+
+# --- The queue and the plan ---
+
+
+def plan_idea(db, video=None) -> TopicPlanItem:
+    """Day 1, place 2 of the group's plan starting on MORNING's day: 11:30."""
+    group = db.get(KnowledgeTopic, first_topic(db).id)
+    group.plan_start_date = MORNING.date()
+    idea = TopicPlanItem(
+        knowledge_topic_id=group.id, day=1, position=2, topic="Ý tưởng", video_id=video.id if video else None
+    )
+    db.add(idea)
+    db.commit()
+    return idea
+
+
+def test_a_video_nobody_planned_leaves_a_time_a_plan_idea_holds(db, me, storage):
+    row = page(db, me)
+    plan_idea(db)
+    lone = rendered(db, storage, me)
+    queue_item(db, row, lone, me)
+
+    page_queue.fill(db, at=MORNING)
+
+    post = db.scalar(select(Publication).where(Publication.video_id == lone.id))
+    assert post.scheduled_at == MORNING.replace(hour=17, minute=0)
+
+
+def test_a_planned_video_goes_at_its_ideas_time(db, me, storage):
+    row = page(db, me)
+    planned = rendered(db, storage, me)
+    plan_idea(db, planned)
+    lone = rendered(db, storage, me)
+    queue_item(db, row, lone, me, position=1)
+    queue_item(db, row, planned, me, position=2)
+
+    page_queue.fill(db, at=MORNING)
+    page_queue.fill(db, at=MORNING)
+
+    times = {post.video_id: post.scheduled_at for post in db.scalars(select(Publication))}
+    assert times[planned.id] == MORNING.replace(hour=11, minute=30)
+    assert times[lone.id] == MORNING.replace(hour=17, minute=0)
+
+
+def test_a_plan_idea_lets_go_of_its_time_two_hours_before(db, me, storage):
+    row = page(db, me)
+    plan_idea(db)
+    lone = rendered(db, storage, me)
+    queue_item(db, row, lone, me)
+
+    page_queue.fill(db, at=MORNING.replace(hour=9, minute=45))
+
+    post = db.scalar(select(Publication).where(Publication.video_id == lone.id))
+    assert post.scheduled_at == MORNING.replace(hour=11, minute=30)
+
+
+def test_two_posts_at_one_time_need_a_second_yes(an, db, me, storage):
+    row = page(db, me)
+    first, second = rendered(db, storage, me), rendered(db, storage, me)
+    when = (datetime.now(VIETNAM) + timedelta(days=2)).replace(hour=11, minute=30, second=0, microsecond=0)
+    body = {"fanpage_id": row.id, "scheduled_at": when.isoformat()}
+    assert an.post(f"/api/videos/{first.id}/publish", json=body).status_code == 200
+
+    refused = an.post(
+        f"/api/videos/{second.id}/publish", json={**body, "scheduled_at": (when + timedelta(minutes=10)).isoformat()}
+    )
+    assert (refused.status_code, refused.json()["code"]) == (409, "slot_taken")
+    forced = an.post(
+        f"/api/videos/{second.id}/publish",
+        json={**body, "scheduled_at": (when + timedelta(minutes=10)).isoformat(), "allow_overlap": True},
+    )
+    assert forced.status_code == 200
+
+
+def test_the_video_page_shows_where_the_queue_would_put_it(an, db, me, storage):
+    row = page(db, me)
+    video = rendered(db, storage, me)
+
+    answer = an.get(f"/api/queue/videos/{video.id}").json()
+
+    assert answer["item"] is None
+    assert [(entry["fanpage_id"], entry["slot"] is not None) for entry in answer["next"]] == [(row.id, True)]

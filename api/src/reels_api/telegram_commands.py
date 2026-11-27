@@ -20,13 +20,14 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import aliased
 
-from . import changelog, config, review, routes_guides, telegram
+from . import changelog, config, page_queue, plans, review, routes_guides, telegram
 from .analytics import VIETNAM
 from .errors import ApiError
 from .models import (
     AppSetting,
     Fanpage,
     Job,
+    KnowledgeTopic,
     PostMetrics,
     Publication,
     User,
@@ -283,16 +284,55 @@ def queue_pages(db: DbSession, user: User, video: Video) -> list[Fanpage]:
     )
 
 
+def _when(moment: datetime) -> str:
+    local = moment.astimezone(VIETNAM)
+    return f"{local:%H:%M %d/%m}"
+
+
+def plan_time(db: DbSession, video: Video) -> datetime | None:
+    """The video's plan idea's posting time, when it has one still to come."""
+    idea = plans.idea_of_video(db, video.id)
+    topic = db.get(KnowledgeTopic, idea.knowledge_topic_id) if idea else None
+    return plans.suggested_post_at(topic, idea) if idea and topic else None
+
+
 def offer_queue(db: DbSession, user: User, chat: int, video: Video, done: str) -> None:
+    """After Duyệt: when to post, with the time shown before the press. The plan's time (if the video has one), or the
+    Page's queue at the time it would give now; anything else is chosen in the app."""
     pages = queue_pages(db, user, video)
     text = f"{done}: <b>{html.escape(_name(video))}</b>."
     if not pages:
         telegram.send_text(chat, text + " Vào app để hẹn giờ đăng.")
         return
-    buttons = [
-        [{"text": f"➕ Hàng chờ {page.name}"[:60], "callback_data": f"qa:{video.id}:{page.id}"}] for page in pages
-    ]
-    telegram.send_text(chat, text + " Thêm vào hàng chờ của Page? Giờ đăng do hàng chờ tự xếp.", buttons)
+    planned = plan_time(db, video)
+    buttons, lines = [], []
+    for page in pages:
+        if planned is not None:
+            buttons.append(
+                [
+                    {
+                        "text": f"📅 Đăng lúc {_when(planned)} · {page.name}"[:60],
+                        "callback_data": f"qp:{video.id}:{page.id}",
+                    }
+                ]
+            )
+        slot = page_queue.next_slot(db, page, video)
+        label = f" ({_when(slot)})" if slot else ""
+        buttons.append([{"text": f"➕ Hàng chờ {page.name}{label}"[:60], "callback_data": f"qa:{video.id}:{page.id}"}])
+        lines.append(
+            f"• {html.escape(page.name)}: khung trống tiếp theo {_when(slot)}"
+            if slot
+            else f"• {html.escape(page.name)}: chưa có khung trống trong 48 giờ tới"
+        )
+    head = "Chưa hẹn giờ. "
+    if planned is not None:
+        head += f"Giờ trong kế hoạch: <b>{_when(planned)}</b>. "
+    telegram.send_text(
+        chat,
+        text + f" {head}Hàng chờ xếp vào khung trống lúc bấm, giờ có thể đổi nếu có bài khác vào trước. "
+        "Muốn giờ khác thì chọn trong app (Đăng bài).\n" + "\n".join(lines),
+        buttons,
+    )
 
 
 def ask_reason(chat: int, video: Video) -> None:
@@ -352,6 +392,8 @@ def button(db: DbSession, user: User, action: str, rest: str, chat: int) -> str:
             return "Video này không còn chờ duyệt"
         telegram.send_review(db, get_storage(), chat, video)
         return "Đã gửi video"
+    if action == "qp":
+        return _plan_post(db, user, int(parts[0]), int(parts[1]), chat)
     try:
         body = routes_queue.AddBody(video_id=int(parts[0]), fanpage_id=int(parts[1]))
         added = routes_queue.add(body, SimpleNamespace(user_id=user.id), db)["item"]
@@ -360,6 +402,24 @@ def button(db: DbSession, user: User, action: str, rest: str, chat: int) -> str:
         return err.message
     telegram.send_text(chat, f"➕ Đã thêm vào hàng chờ của <b>{html.escape(added['fanpage'])}</b>.")
     return "Đã thêm vào hàng chờ"
+
+
+def _plan_post(db: DbSession, user: User, video_id: int, page_id: int, chat: int) -> str:
+    """`qp:<video>:<page>`: the same as the plan tab's "Duyệt": post at the plan idea's time on the Page."""
+    from .routes_videos import PublishBody, publish
+
+    video = db.get(Video, video_id)
+    when = plan_time(db, video) if video is not None else None
+    if when is None:
+        return "Video chưa có giờ trong kế hoạch, hoặc giờ đó đã qua"
+    try:
+        publish(video_id, PublishBody(fanpage_id=page_id, scheduled_at=when), SimpleNamespace(user_id=user.id), db)
+        db.commit()
+    except ApiError as err:
+        db.rollback()
+        return err.message
+    telegram.send_text(chat, f"📅 Đã hẹn đăng lúc <b>{_when(when)}</b>.")
+    return "Đã hẹn giờ"
 
 
 # --- The group's daily summary ---

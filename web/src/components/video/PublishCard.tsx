@@ -23,6 +23,7 @@ import { myPages, NO_PAGE_OF_MINE, pageOptions } from "@/lib/myPages";
 import { loadLastChoices, myPageOfGroup, saveLastChoice } from "@/lib/lastChoices";
 import {
   api,
+  ApiError,
   errorMessage,
   formatDateTime,
   fromVietnamInput,
@@ -120,7 +121,7 @@ export function PublishButton({
     (post) => post.fanpage === name && (post.status === "scheduled" || post.status === "published"),
   );
 
-  async function publish() {
+  async function publish(allowOverlap = false) {
     setBusy(true);
     try {
       // The post uses the saved caption: leave the field being typed in and wait until it is saved.
@@ -131,6 +132,7 @@ export function PublishButton({
           fanpage_id: fanpage,
           scheduled_at,
           auto_comment: autoComment,
+          allow_overlap: allowOverlap,
         }),
       );
       await saveLastChoice({ fanpage_id: fanpage });
@@ -139,7 +141,16 @@ export function PublishButton({
       setMode("now");
       setWhen("");
     } catch (err) {
-      message.error(errorMessage(err));
+      if (err instanceof ApiError && err.code === "slot_taken") {
+        // The Page already posts around that time: two at once is possible, but only on a second yes.
+        modal.confirm({
+          title: "Giờ này đã có bài khác",
+          content: err.message,
+          okText: "Vẫn hẹn",
+          cancelText: "Chọn giờ khác",
+          onOk: () => publish(true),
+        });
+      } else message.error(errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -254,7 +265,7 @@ export function PublishButton({
         onClose={() => setOpen(false)}
         okText="Đăng"
         cancelText="Huỷ"
-        onOk={publish}
+        onOk={() => publish()}
         confirmLoading={busy}
         okButtonProps={{ disabled: waiting }}
         // Only Facebook posts from the drawer's own button; the other tabs carry their own.
