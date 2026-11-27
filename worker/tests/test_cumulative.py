@@ -324,3 +324,40 @@ def test_a_title_written_on_one_line_is_cut_at_its_punctuation_into_three_tiers(
     # No punctuation: all the main line. A label line still comes out of the text.
     plain = parse_title(parse_scene_text("5 món PC đáng săn\n[[-50%]]"))
     assert (plain.small, plain.main, plain.sub, plain.label) == ("", "5 MÓN PC ĐÁNG SĂN", "", "-50%")
+
+
+def _orange(frame: Image.Image, box: tuple[int, int, int, int]) -> int:
+    """How many pixels of the box are the numbered circle's orange."""
+    return sum(
+        1 for r, g, b in frame.convert("RGB").crop(box).get_flattened_data() if r > 220 and 90 < g < 150 and b < 70
+    )
+
+
+def test_the_numbered_circle_sits_above_the_first_phrase_in_either_zone():
+    from reels_render.cumulative import Line, number_corner
+    from reels_render.pc_text import PAD
+    from reels_render.tiers import number_circle
+
+    circle = number_circle("3")
+    (_, lower), (_, upper) = number_corner(circle), number_corner(circle, "top")
+    _, phrase = render_cumulative((Line("CHUỘT", 72, False),))
+    _, phrase_top = render_cumulative((Line("CHUỘT", 72, False),), zone="top")
+    assert lower + circle.height < phrase[1] + PAD and upper + circle.height < phrase_top[1] + PAD
+    assert number_corner(circle)[0] == (1080 - circle.width) // 2
+
+
+@needs_ffmpeg
+def test_the_scene_number_stays_for_two_and_a_half_seconds_under_cumulative(tmp_path):
+    make_image(tmp_path / "a.jpg", (1080, 1920), (30, 90, 160))
+    make_tone(tmp_path / "voice.wav", 5.0)
+    data = script_data(scene_count=2, image="a.jpg")
+    for item in data["scenes"]:
+        item["seconds"] = 6
+    data["scenes"][0].update(text="3. *CHUỘT*", voice="voice.wav", voice_text="Chuột *Logitech* không dây")
+    script = load_script(write_script(tmp_path, data))
+    output = render_video(script, tmp_path / "out.mp4", options=RenderOptions(captions="cumulative"))
+    box = (400, 960, 680, 1190)  # above the phrase, where the circle is
+    early = extract_frame(output, 2.0, tmp_path / "early.png")  # scene 1 starts at 1 s: 1 s in
+    late = extract_frame(output, 4.5, tmp_path / "late.png")  # 3.5 s in
+    assert _orange(early, box) > 1000
+    assert _orange(late, box) == 0
