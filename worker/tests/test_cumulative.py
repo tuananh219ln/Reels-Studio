@@ -512,3 +512,9 @@ def test_a_smaller_compact_text_stays_centred_on_the_same_place():
         left, top = tier_corner(picture, 1, None)
         centres.append((left + picture.width / 2, top + picture.height / 2))
     assert abs(centres[0][0] - centres[1][0]) <= 1 and abs(centres[0][1] - centres[1][1]) <= 1
+
+
+def test_the_brand_look_is_drawn_in_bungee():
+    from reels_render.pc_text import BUNGEE_PATH, line_style
+
+    assert line_style("brand_navy", True).font == BUNGEE_PATH and line_style("brand_navy", False).font == BUNGEE_PATH
