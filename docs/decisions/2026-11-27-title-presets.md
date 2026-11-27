@@ -9,8 +9,8 @@
   Montserrat, Saira, Saira Condensed, Permanent Marker. Oswald, Montserrat and Saira are variable fonts (weight, Saira also width);
   Pillow sets the axes.
 - **Vietnamese:** Audiowide and Permanent Marker have no Vietnamese marks (checked). A line with a mark outside ASCII is drawn with the
-  preset's fallback (`LineStyle.vi`): Saira wdth 125 for Audiowide. **Open question from the spec:** Permanent Marker falls back to
-  Be Vietnam Pro Black for now; a handwritten brush font with Vietnamese is still to be chosen.
+  preset's fallback (`LineStyle.vi`): Saira wdth 125 for Audiowide. **The spec's open question is answered:** Permanent Marker falls back
+  to Mali Bold (OFL, hand-written, every Vietnamese mark tested) for the whole line.
 - **Frame effects (Mẫu 4):** the glitch (red and blue shifted 6 px apart) and a vignette are one FFmpeg chain on the title scene
   (`pc_text.FRAME_EFFECTS`, applied after the text so the title is glitched too). The option `title_effects` (default on, shown
   under the title's look only for Grunge cầu vồng) switches them off; the text is the same either way. Sparkles are not built.
@@ -23,7 +23,7 @@
   shrinks by one factor if it is still too wide. A line with no space shrinks as before.
 - **The picker shows a sample of each preset** (`GET /api/title-presets/<style>.png`, drawn by `render_title` with sample text,
   cached): the five rows of the two "Kiểu chữ" selects have a picture under the name.
-- **Not built:** sparkles on the other presets (the spec does not say which have them), and the spec's brush font with Vietnamese.
+- **Not built:** sparkles on the other presets (the spec does not say which have them).
 - **"Tiêu đề động" needs nothing** ([title-motion](2026-11-23-title-motion.md)): it is for the "Sức khỏe" groups, and its hook text is the
   title scene's own text, drawn by the render core, not part of the motion's markup. So a preset applies to it as to any title,
   and changing the preset does not need "Dựng lại tiêu đề" (the spec's section 6 line is moot).

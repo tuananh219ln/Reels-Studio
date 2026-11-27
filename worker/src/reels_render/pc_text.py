@@ -156,7 +156,7 @@ def _preset(style: str, key: bool, index: int) -> LineStyle:
             )
         if slot == 2:
             marker = LineStyle(FONTS / "PermanentMarker-Regular.ttf", dark, (5, white), tilt=4.0)
-            return replace(marker, vi=LineStyle(BE_VIETNAM_PATH, dark, (5, white), tilt=4.0))
+            return replace(marker, vi=LineStyle(FONTS / "Mali-Bold.ttf", dark, (5, white), tilt=4.0))
         return LineStyle(
             FONTS / "Montserrat-VF.ttf",
             hex_rgb("#F2F2F2"),
