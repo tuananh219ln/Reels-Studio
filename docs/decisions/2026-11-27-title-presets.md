@@ -14,10 +14,16 @@
 - **Frame effects (Mẫu 4):** the glitch (red and blue shifted 6 px apart) and a vignette are one FFmpeg chain on the title scene
   (`pc_text.FRAME_EFFECTS`, applied after the text so the title is glitched too). The option `title_effects` (default on, shown
   under the title's look only for Grunge cầu vồng) switches them off; the text is the same either way. Sparkles are not built.
-- **Not built yet:** sparkles, texture images (gold uses a gradient, the spec's `fallback`),
-  the superscript "PHP", negative line gaps, per-preset font sizes (the title keeps 56/110/72), and the "Kiểu tiêu đề" thumbnails.
-  Colours and sizes are estimates from the spec's table (`title-presets.json` was not in the repo) and need a person to compare them
-  with the five reels.
+- **Textures are made in code, not bundled** (`LineStyle.speckle`): gold glitter and the grunge's dark specks are seeded random dots
+  over the letters, so they are the same every render. The spec's texture images (`gold-glitter`, `grunge-white`) are not used; if a
+  real PNG is wanted later it replaces `_speckle`.
+- **Sparkles** (Gold): four-pointed stars drawn into the title's own picture, inside its padding, behind the letters; the same
+  `title_effects` switch turns them off, and the thumbnail follows it (`text_look`). Mẫu 4's glitch stays an FFmpeg filter.
+- **A line that would shrink under 70% is wrapped** at the space nearest its middle (the halves keep the role); then the whole block
+  shrinks by one factor if it is still too wide. A line with no space shrinks as before.
+- **The picker shows a sample of each preset** (`GET /api/title-presets/<style>.png`, drawn by `render_title` with sample text,
+  cached): the five rows of the two "Kiểu chữ" selects have a picture under the name.
+- **Not built:** sparkles on the other presets (the spec does not say which have them), and the spec's brush font with Vietnamese.
 - **"Tiêu đề động" needs nothing** ([title-motion](2026-11-23-title-motion.md)): it is for the "Sức khỏe" groups, and its hook text is the
   title scene's own text, drawn by the render core, not part of the motion's markup. So a preset applies to it as to any title,
   and changing the preset does not need "Dựng lại tiêu đề" (the spec's section 6 line is moot).
