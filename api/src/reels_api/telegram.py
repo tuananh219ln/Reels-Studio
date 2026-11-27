@@ -327,7 +327,7 @@ def _button(db: DbSession, query: dict) -> None:
         return
     action, _, rest = (query.get("data") or "").partition(":")
     video_id, _, signature = rest.partition(":")
-    if action in ("qa", "rv"):
+    if action in ("qa", "qp", "rv"):
         from . import telegram_commands
 
         answer(telegram_commands.button(db, user, action, rest, chat))

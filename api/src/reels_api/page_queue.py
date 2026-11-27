@@ -14,8 +14,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
 
-from . import brands, review, schedule_tz
-from .models import Fanpage, Job, KnowledgeTopic, PageQueueItem, Publication, Video
+from . import brands, plans, review, schedule_tz
+from .models import Fanpage, Job, KnowledgeTopic, PageQueueItem, Publication, TopicPlanItem, Video
 from .sessions import now
 from .videos import (
     OPEN_POST_STATUSES,
@@ -36,6 +36,11 @@ FILL_LEAD = timedelta(minutes=30)
 # A post of the Page this close to a posting time, scheduled by hand or not, takes that time.
 SLOT_GAP = timedelta(minutes=30)
 MAX_ITEMS = 100
+# A plan idea whose video is not scheduled yet holds its posting time against other videos of the Page's queue,
+# until this long before that time: a video made for the day then goes out at its time, and one nobody planned
+# takes the next free time after it (docs/decisions/2026-11-27-queue-respects-plan.md).
+PLAN_RELEASE = timedelta(hours=2)
+SAME_SLOT = timedelta(minutes=1)
 
 
 def post_times(db: DbSession, page: Fanpage) -> list[str]:
@@ -70,6 +75,55 @@ def free_slots(db: DbSession, page: Fanpage, start: datetime, until: datetime) -
         )
     ).all()
     return [slot for slot in slots if all(abs(slot - post) >= SLOT_GAP for post in taken)]
+
+
+def post_near(db: DbSession, page: Fanpage, when: datetime, video_id: int) -> datetime | None:
+    """The time of another video's open post of the Page within SLOT_GAP of `when`, or None."""
+    at = func.coalesce(Publication.scheduled_at, Publication.published_at, Publication.created_at)
+    return db.scalar(
+        select(at)
+        .where(
+            Publication.fanpage_id == page.id,
+            Publication.platform == "facebook",
+            Publication.video_id != video_id,
+            Publication.status.in_(OPEN_POST_STATUSES),
+            at > when - SLOT_GAP,
+            at < when + SLOT_GAP,
+        )
+        .limit(1)
+    )
+
+
+def plan_held(db: DbSession, page: Fanpage, slots: list[datetime], at: datetime) -> dict[datetime, int]:
+    """Which of the Page's free `slots` a plan idea of its group holds: {slot: idea id}. Only ideas whose video is not
+    scheduled or posted on this Page hold one, and none within PLAN_RELEASE of its time."""
+    topic = db.get(KnowledgeTopic, page.knowledge_topic_id) if page.knowledge_topic_id else None
+    if topic is None or not slots:
+        return {}
+    held: dict[datetime, int] = {}
+    ideas = db.scalars(
+        select(TopicPlanItem).where(TopicPlanItem.knowledge_topic_id == topic.id, TopicPlanItem.day.is_not(None))
+    )
+    for idea in ideas:
+        when = plans.suggested_post_at(topic, idea, at)
+        if when is None or when - at < PLAN_RELEASE:
+            continue
+        slot = next((slot for slot in slots if abs(slot - when) < SAME_SLOT), None)
+        if slot is None:
+            continue
+        if idea.video_id is not None and db.scalar(
+            select(func.count())
+            .select_from(Publication)
+            .where(
+                Publication.video_id == idea.video_id,
+                Publication.fanpage_id == page.id,
+                Publication.platform == "facebook",
+                Publication.status.in_(OPEN_POST_STATUSES),
+            )
+        ):
+            continue
+        held.setdefault(slot, idea.id)
+    return held
 
 
 def problem(db: DbSession, video: Video, page: Fanpage | None = None) -> str | None:
@@ -129,15 +183,38 @@ def fill(db: DbSession, at: datetime | None = None) -> int:
         page = db.get(Fanpage, page_id)
         slots = free_slots(db, page, at + FILL_LEAD, at + FILL_AHEAD)
         if slots:
-            made += _fill_page(db, page, slots[0], at)
+            made += _fill_page(db, page, slots, at)
         db.commit()
     return made
 
 
-def _fill_page(db: DbSession, page: Fanpage, slot: datetime, at: datetime) -> int:
+def _slot_for(db: DbSession, page: Fanpage, video: Video, slots: list[datetime], at: datetime) -> datetime | None:
+    """The idea's own time when it is free, else the first free time no other idea holds; None when all are held."""
+    idea = plans.idea_of_video(db, video.id)
+    topic = db.get(KnowledgeTopic, idea.knowledge_topic_id) if idea else None
+    own = plans.suggested_post_at(topic, idea, at) if idea and topic else None
+    if own is not None and (slot := next((slot for slot in slots if abs(slot - own) < SAME_SLOT), None)):
+        return slot
+    held = plan_held(db, page, slots, at)
+    return next((slot for slot in slots if held.get(slot) in (None, idea.id if idea else None)), None)
+
+
+def next_slot(db: DbSession, page: Fanpage, video: Video, at: datetime | None = None) -> datetime | None:
+    """The time the queue would give the video on the Page now (what the worker would choose), for showing before."""
+    at = at or now()
+    slots = free_slots(db, page, at + FILL_LEAD, at + FILL_AHEAD)
+    return _slot_for(db, page, video, slots, at) if slots else None
+
+
+def _fill_page(db: DbSession, page: Fanpage, slots: list[datetime], at: datetime) -> int:
     for item in items_of(db, page.id):
         video = lock_video(db, item.video_id)
         reason = problem(db, video, page) or _busy(db, video)
+        slot = None
+        if reason is None:
+            slot = _slot_for(db, page, video, slots, at)
+            if slot is None:
+                reason = "Các khung giờ trống gần nhất đang giữ cho ý tưởng trong kế hoạch, sẽ thử lại"
         if reason is not None:
             if item.error != reason:
                 item.error = reason

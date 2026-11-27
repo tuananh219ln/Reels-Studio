@@ -42,6 +42,7 @@ from . import (
     music_claims,
     music_topics,
     outro,
+    page_queue,
     pinned,
     plans,
     post_comments,
@@ -57,6 +58,7 @@ from . import (
     voice_format,
     youtube_meta,
 )
+from .analytics import VIETNAM
 from .claude import GeneratedScript
 from .db import get_db
 from .duplicate import MAX_NAME_LENGTH, duplicate_video, variant_drafts
@@ -240,6 +242,8 @@ class PublishBody(BaseModel):
     scheduled_at: datetime | None = None
     # "Tự bình luận": the worker writes the affiliate comment under the reel once it is live (post_comments.py).
     auto_comment: bool = True
+    # "Vẫn hẹn": the Page already has a post at that time and the member said two at once is meant.
+    allow_overlap: bool = False
 
 
 class ReelLinkBody(BaseModel):
@@ -921,6 +925,13 @@ def publish(
     if fanpage.id in posted_fanpage_ids(video, publications_of(db, video.id)):
         raise ApiError(
             409, "already_published", "Bản MP4 này đang có trên Fanpage đó, hãy render bản mới hoặc xóa bài cũ"
+        )
+    if when is not None and not body.allow_overlap and (clash := page_queue.post_near(db, fanpage, when, video.id)):
+        raise ApiError(
+            409,
+            "slot_taken",
+            f"Page “{fanpage.name}” đã có bài lúc {clash.astimezone(VIETNAM):%H:%M %d/%m} "
+            "(gần giờ hẹn dưới 30 phút). Chọn giờ khác hoặc bấm Vẫn hẹn.",
         )
     post = pending_publication(db, video.id)
     if post is None:

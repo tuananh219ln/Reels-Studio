@@ -873,6 +873,9 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     timer, and a later re-render never changes what was scheduled. Facebook then publishes by itself,
     so the app counts a scheduled post as published once its time has passed. Changing the time is
     done in Meta Business Suite.
+  - **Queue and plan:** `page_queue._slot_for` gives a video its plan idea's time when free, else the first free time no
+    other plan idea holds (until 2 hours before it); `publish` answers 409 `slot_taken` for a post within 30 minutes of
+    another of the Page unless `allow_overlap` ([decision](decisions/2026-11-27-queue-respects-plan.md)).
   - **The Page queues** (the "Lịch đăng" tab of a Page's dashboard on "Quản lý kênh", and "Thêm vào hàng chờ" on the video). Once a minute, beside the post checks, the worker's `page_queue.fill` gives
     each Page in use whose last token check worked, and whose queue is not empty, at most one post: the first
     video of its queue that can go is given the Page's next free posting time (its own `post_times`, else its
@@ -1385,7 +1388,9 @@ off.
   hears "📩 Đã gửi riêng cho …". `/tong_quan` (numbers only), `/moi` (`changelog.read`) and `/huongdan <words>` (the
   in-app guides, every word in the title or text) answer where asked. The menu is set with `setMyCommands` together
   with the webhook. After **Duyệt** the bot offers a `qa:<video>:<page>` button per Page of the member posting the
-  video's group (`routes_queue.add`, as the web's "Thêm vào hàng chờ"); after **Bỏ** it asks why with a forced reply
+  video's group (`routes_queue.add`, as the web's "Thêm vào hàng chờ") with the time the queue would give now
+  (`page_queue.next_slot`), and, for a video with a plan idea, a `qp:<video>:<page>` button that posts at the idea's
+  time ([decision](decisions/2026-11-27-queue-respects-plan.md)); after **Bỏ** it asks why with a forced reply
   marked `(#v<id>)`, and the answer goes into that rejection's `video_events.payload.reason`. At 21:00 Vietnam time the
   worker posts the day's summary to `TELEGRAM_CHAT_ID` (once a day, `app_settings.telegram_group_summary`).
 - **Muse** sends a member a private message with the MCP tool `send_telegram` (write scope), to the member of the

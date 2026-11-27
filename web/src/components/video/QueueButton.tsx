@@ -5,7 +5,7 @@ import { UnorderedListOutlined } from "@ant-design/icons";
 import { App, Button, Checkbox, Flex, Popconfirm, Select, Typography } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage, type QueueItem, type VideoDetail } from "@/lib/api";
+import { api, errorMessage, formatDateTime, type QueueItem, type VideoDetail } from "@/lib/api";
 import { useMe } from "@/components/MeContext";
 import { myPages, pageOptions } from "@/lib/myPages";
 import { postBlock } from "@/lib/videoStatus";
@@ -26,14 +26,18 @@ export default function QueueButton({
   const { message } = App.useApp();
   const { me } = useMe();
   const [item, setItem] = useState<QueueItem | null>(null);
+  const [next, setNext] = useState<{ fanpage_id: number; fanpage: string; slot: string | null }[]>([]);
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<number>(OWN_PAGE);
   const [autoComment, setAutoComment] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
-    api<{ item: QueueItem | null }>(`/queue/videos/${video.id}`).then(
-      (answer) => setItem(answer.item),
+    api<{ item: QueueItem | null; next: typeof next }>(`/queue/videos/${video.id}`).then(
+      (answer) => {
+        setItem(answer.item);
+        setNext(answer.next ?? []);
+      },
       () => undefined,
     );
   }, [video.id]);
@@ -120,6 +124,15 @@ export default function QueueButton({
       >
         <Flex vertical gap={8}>
           <Hint>Hãy xem hết MP4 trước khi thêm. Video sẽ tự lên lịch vào khung giờ trống gần nhất của Page.</Hint>
+          {next.map((row) => (
+            <Typography.Text key={row.fanpage_id} data-testid="queue-next-slot">
+              {row.fanpage}:{" "}
+              {row.slot ? `khung trống tiếp theo ${formatDateTime(row.slot)}` : "chưa có khung trống trong 48 giờ tới"}
+            </Typography.Text>
+          ))}
+          <Typography.Text type="secondary">
+            Giờ có thể đổi nếu có bài khác vào trước. Muốn giờ cụ thể thì dùng “Đăng” rồi chọn Hẹn giờ.
+          </Typography.Text>
           <Select
             aria-label="Fanpage"
             value={page}

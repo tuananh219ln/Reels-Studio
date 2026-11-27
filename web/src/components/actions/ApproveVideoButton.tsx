@@ -1,7 +1,7 @@
 "use client";
 
 import { useMe } from "@/components/MeContext";
-import { api, errorMessage, formatDateTime, type VideoDetail } from "@/lib/api";
+import { api, ApiError, errorMessage, formatDateTime, type VideoDetail } from "@/lib/api";
 import { myPageOfGroup } from "@/lib/lastChoices";
 import { myPages, NO_PAGE_OF_MINE } from "@/lib/myPages";
 import { App, Button, Popconfirm } from "antd";
@@ -18,7 +18,7 @@ export default function ApproveVideoButton({
   testId?: string;
 }) {
   const { me } = useMe();
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [busy, setBusy] = useState(false);
   const [prepared, setPrepared] = useState<{
     when: string;
@@ -60,23 +60,35 @@ export default function ApproveVideoButton({
       setBusy(false);
     }
   }
-  async function send() {
+  async function send(allowOverlap = false, approved = prepared?.review === "approved") {
     if (!prepared) return;
     try {
       // The review gate: "Duyệt" approves the MP4 first (the warnings were shown in the confirmation), then
       // schedules it exactly as before.
-      if (prepared.review !== "approved") {
+      if (!approved) {
         await api(`/review/${videoId}/approve`, "POST", { acknowledge_qc: prepared.warnings.length > 0 });
       }
       await api(`/videos/${videoId}/publish`, "POST", {
         fanpage_id: prepared.fanpage,
         scheduled_at: prepared.when,
         auto_comment: true,
+        allow_overlap: allowOverlap,
       });
       message.success(`Đã hẹn đăng lúc ${formatDateTime(prepared.when)}`);
       setPrepared(null);
       await onDone();
     } catch (err) {
+      if (err instanceof ApiError && err.code === "slot_taken") {
+        // Approved already; only the time clashes with another post of the Page.
+        modal.confirm({
+          title: "Giờ này đã có bài khác",
+          content: err.message,
+          okText: "Vẫn hẹn",
+          cancelText: "Để sau",
+          onOk: () => send(true, true),
+        });
+        return;
+      }
       message.error(errorMessage(err));
       throw err;
     }
@@ -103,7 +115,7 @@ export default function ApproveVideoButton({
       }
       okText={prepared && prepared.warnings.length > 0 ? "Vẫn duyệt" : "Duyệt"}
       cancelText="Huỷ"
-      onConfirm={send}
+      onConfirm={() => send()}
     >
       <Button size="small" type="primary" loading={busy} data-testid={testId}>
         Duyệt
