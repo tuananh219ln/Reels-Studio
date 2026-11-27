@@ -8,7 +8,15 @@ from PIL import Image
 
 from . import ffmpeg
 from .captions import Word, after_hold, plan_captions, plan_word_captions
-from .cumulative import Step, known_words, narration_steps, plan_cumulative, render_cumulative
+from .cumulative import (
+    NUMBER_SECONDS,
+    Step,
+    known_words,
+    narration_steps,
+    number_corner,
+    plan_cumulative,
+    render_cumulative,
+)
 from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplacedError
 from .graph import (
     HOLD_FADE_SECONDS,
@@ -48,7 +56,16 @@ from .textbox import (
     render_caption,
     with_shade,
 )
-from .tiers import SCENE_CENTRE, SCENE_CENTRE_TOP, TITLE_CENTRE, parse_scene, parse_title, render_scene, render_title
+from .tiers import (
+    SCENE_CENTRE,
+    SCENE_CENTRE_TOP,
+    TITLE_CENTRE,
+    number_circle,
+    parse_scene,
+    parse_title,
+    render_scene,
+    render_title,
+)
 from .timeline import FPS, VOICE_LEAD, build_timeline, fit_seconds
 
 DEFAULT_MUSIC_VOLUME = 0.25
@@ -186,9 +203,17 @@ def render_video(
             scene_end = (scene_start + timeline.scene_frames[index]) / FPS
             if options.captions == "cumulative":
                 if 0 < index < len(script.all_scenes) - 1:
-                    for number, step in enumerate(
-                        cumulative_steps(scene, index, scene_start, spoken, heard, cut, scene_end)
-                    ):
+                    steps = cumulative_steps(scene, index, scene_start, spoken, heard, cut, scene_end)
+                    # The scene's own text is replaced, so its number ("3.") would vanish: keep it as the orange circle
+                    # for the first seconds, just above the first phrase.
+                    if steps and (digits := parse_scene(scene.lines).number):
+                        circle = number_circle(digits)
+                        left, top = number_corner(circle, scene.text_zone)
+                        path = work_dir / f"number-{index:02d}.png"
+                        circle.save(path)
+                        first = scene_start / FPS
+                        captions.append(CaptionInput(path, left, top, first, min(first + NUMBER_SECONDS, scene_end)))
+                    for number, step in enumerate(steps):
                         picture, (left, top) = render_cumulative(step.lines, options.pc_style, scene.text_zone)
                         path = work_dir / f"cumulative-{index:02d}-{number:03d}.png"
                         picture.save(path)

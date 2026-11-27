@@ -21,7 +21,7 @@ the per-scene "Trên / Dưới" button; the compact title and scene text are in 
   real seconds for an old narration, make it again ("Tạo giọng thật"); this costs a call, so it is never done silently.
   The spec's ±80 ms is checked by a person on 10 words of a real ElevenLabs narration.
 - **Not animated yet:** a word appears at once (the spec's 180 ms pop-in and 150 ms clear are left out: each needs a looped
-  input per picture). The numbered circle that stays 2.5 s in a "Cộng dồn" scene is not built. The studio's previews show the first
+  input per picture). The numbered circle is in [cumulative-number-circle](2026-11-27-cumulative-number-circle.md). The studio's previews show the first
   phrase whole and still ([tiers](2026-11-27-pc-text-tiers.md)).
 - **A render machine on older code refuses** the video (it does not know the value), instead of drawing the old text.
 - **A person watches the render** against round 2's checklist, which an agent cannot judge.

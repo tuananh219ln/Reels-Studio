@@ -197,6 +197,16 @@ def plan_cumulative(words: list[TimedWord], scene_end: float) -> list[Step]:
     return steps
 
 
+NUMBER_SECONDS = 2.5  # the numbered circle stays this long at the start of a "Cộng dồn" scene
+NUMBER_GAP = 16  # between the circle and the first line
+
+
+def number_corner(circle: Image.Image, zone: str | None = None) -> tuple[int, int]:
+    """Where the numbered circle goes: centred across, just above where the phrase starts."""
+    top = round(FRAME_HEIGHT * (ZONE_TOP_UPPER if zone == "top" else ZONE_TOP)) - PAD - NUMBER_GAP - circle.height
+    return (FRAME_WIDTH - circle.width) // 2, top
+
+
 def render_cumulative(
     lines: tuple[Line, ...], style: str = "neon_game", zone: str | None = None
 ) -> tuple[Image.Image, tuple[int, int]]:

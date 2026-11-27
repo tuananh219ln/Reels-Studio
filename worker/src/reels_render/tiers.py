@@ -145,7 +145,7 @@ def render_title(tiers: TitleTiers, style: str = "brand_navy") -> Image.Image:
     return block
 
 
-def _circle(number: str) -> Image.Image:
+def number_circle(number: str) -> Image.Image:
     circle = Image.new("RGBA", (NUMBER_DIAMETER, NUMBER_DIAMETER), (0, 0, 0, 0))
     draw = ImageDraw.Draw(circle)
     draw.ellipse((0, 0, NUMBER_DIAMETER - 1, NUMBER_DIAMETER - 1), fill=ORANGE)
@@ -160,7 +160,7 @@ def render_scene(tiers: SceneTiers, style: str = "neon_game") -> Image.Image:
     if tiers.main:
         main = render_line(tiers.main, SCENE_SIZES[0], line_style(style, True, 0), SCENE_MAX_WIDTH - NUMBER_DIAMETER)
         if tiers.number:
-            circle = _circle(tiers.number)
+            circle = number_circle(tiers.number)
             left = circle.width + NUMBER_GAP - PAD  # the line's own padding overlaps the circle's side
             row = Image.new("RGBA", (left + main.width, max(main.height, circle.height)), (0, 0, 0, 0))
             row.alpha_composite(main, (left, (row.height - main.height) // 2))
