@@ -2481,7 +2481,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         text_hold_sec: Annotated[
             float | None,
             Field(
-                description="Chỉ nhóm PC Shopee. “Thời gian hiện chữ”: chữ các cảnh nội dung hiện đầu cảnh rồi mờ dần sau "
+                description="“Thời gian hiện chữ” (chữ cảnh gọn 2 tầng): chữ các cảnh nội dung hiện đầu cảnh rồi mờ dần sau "
                 "số giây này (1–6, bước 0,5); cảnh tiêu đề và cảnh cuối giữ chữ. Dùng reset_text_hold để chữ hiện suốt cảnh"
             ),
         ] = None,

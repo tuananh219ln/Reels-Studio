@@ -62,27 +62,33 @@ def test_a_broken_mark_in_a_tiered_text_draws_nothing_instead_of_failing():
     assert not _changed(frame, (0, 0, 1080, 1920))
 
 
-# --- The group's own look: PC Shopee's fields belong to that group only ---
+# --- The group's own look: the compact text is every group's, "Cộng dồn" captions are PC Shopee's ---
 
 
-def test_pc_shopee_fields_and_cumulative_captions_are_kept_for_that_group_only():
+def test_compact_text_fields_are_kept_for_every_group_and_cumulative_captions_for_pc_shopee_only():
     import pytest
 
     from reels_api import text_looks, video_options
     from reels_api.models import KnowledgeTopic
 
     pc, other = KnowledgeTopic(name="PC Shopee"), KnowledgeTopic(name="Sức khỏe")
-    look = {"captions": "cumulative", "text_hold_sec": 3.5, "pc_style": "brand_navy", "scene_text_layout": "two_tier"}
+    compact = {
+        "text_hold_sec": 3.5,
+        "pc_style": "brand_navy",
+        "title_layout": "three_tier",
+        "scene_text_layout": "two_tier",
+    }
+    assert text_looks.clean_look(compact, pc) == compact
+    assert text_looks.clean_look(compact, other) == compact  # every group may hold them (compact-text-all-groups)
+    look = compact | {"captions": "cumulative"}
     assert text_looks.clean_look(look, pc) == look
-    with pytest.raises(video_options.OptionError, match="PC Shopee"):
-        text_looks.clean_look({"text_hold_sec": 2.5}, other)
     with pytest.raises(video_options.OptionError, match="PC Shopee"):
         text_looks.clean_look({"captions": "cumulative"}, other)
     assert text_looks.clean_look({"captions": "word"}, other) == {"captions": "word"}  # an ordinary look is fine
-    # Read back: another group's stored look drops them, the group's own keeps them.
+    # Read back: another group's stored look keeps the compact text, and drops only "Cộng dồn".
     pc.text_look = other.text_look = look | {"text_style": "none"}
     assert text_looks.group_look(pc) == look | {"text_style": "none"}
-    assert text_looks.group_look(other) == {"text_style": "none"}
+    assert text_looks.group_look(other) == compact | {"text_style": "none"}
     # The AI is never asked for them, and never writes them.
     assert "cumulative" not in text_looks.LOOK_RULES and "text_hold_sec" not in text_looks.LOOK_RULES
     assert text_looks.loose_look({"captions": "cumulative", "pc_style": "brand_navy", "text_size": "small"}) == {
