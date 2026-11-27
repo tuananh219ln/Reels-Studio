@@ -8,3 +8,6 @@
   the safe zone, so the two never overlap.
 - **The studio's preview draws no phrase or word captions** (they only come with a render, as its header says), so it cannot disagree
   with the MP4 about them; "Cộng dồn" is the render's own pictures. Nothing changes on the web.
+- **The last scene (the call to action) follows too:** it keeps its text box, but under the compact text its captions also sit on the
+  floor (y = 1440) instead of following the box wherever it was put, so they no longer jump to the top in the last scene. The rule
+  applies to every content scene of a video with `scene_text_layout` = `two_tier`; the box, which stays all scene, is still dodged.

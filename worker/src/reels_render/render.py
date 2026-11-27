@@ -211,7 +211,7 @@ def render_video(
                     path = work_dir / f"caption-{index:02d}-{number:03d}.png"
                     image_caption = render_caption(cue.lines, cue.lit)
                     image_caption.save(path)
-                    if index in tiers:
+                    if options.scene_text_layout == "two_tier":
                         caption_top = tier_caption_y(box_y, box_bottom, image_caption.height, hold is None)
                     else:
                         caption_top = caption_y(bottom, box_bottom, image_caption.height)

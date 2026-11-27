@@ -339,3 +339,26 @@ def test_a_caption_of_a_compact_text_scene_sits_on_the_safe_zone_floor_unless_th
     assert tier_caption_y(1300, 1440, 100, text_stays=True) == 1300 - CAPTION_GAP - 100
     # Text dragged high does not meet the caption: it stays on the floor.
     assert tier_caption_y(300, 500, 100, text_stays=True) == SCENE_BOX_BOTTOM - 100
+
+
+@needs_ffmpeg
+def test_the_last_scene_keeps_its_box_but_its_captions_sit_on_the_floor_too(tmp_path):
+    make_image(tmp_path / "a.jpg", (1080, 1920), (30, 90, 160))
+    make_tone(tmp_path / "voice.wav", 3.0)
+    data = script_data(scene_count=1, image="a.jpg")
+    data["title"]["seconds"] = 1
+    data["scenes"][0].update(
+        text="DEAL HẤP DẪN\nMÌNH ĐỂ DƯỚI BÌNH LUẬN",
+        seconds=4,
+        voice="voice.wav",
+        voice_text="Túi tiền là của bạn",
+        text_position=[540, 520],
+    )
+    plain = Image.new("RGB", (1080, 1920), (30, 90, 160))
+    script = load_script(write_script(tmp_path, data))
+    options = RenderOptions(captions="word", scene_text_layout="two_tier")
+    output = render_video(script, tmp_path / "out.mp4", options=options)
+    frame = extract_frame(output, 2.5, tmp_path / "f.png")
+    floor = (0, 1330, 1080, 1440)
+    difference = ImageChops.difference(frame.crop(floor), plain.crop(floor))
+    assert max(high for _, high in difference.getextrema()) > 60
