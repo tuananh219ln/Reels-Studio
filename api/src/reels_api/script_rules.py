@@ -43,6 +43,7 @@ class SceneInput:
     photo_credit: dict | None = None  # the shown photo's licence asks for credit (videos.photo_credit)
     clip_loop: bool = False  # "Lặp clip": a short clip starts again instead of holding its last frame
     photo_blurry: bool = False  # the photo looks soft even sharpened (reels_render.framing.is_blurry)
+    text_font: str = "be_vietnam"  # the font its text box is drawn in (reels_render.textbox.FONTS)
 
 
 @dataclass(frozen=True)
@@ -62,7 +63,9 @@ def count_words(text: str) -> int:
     return len(text.replace("*", "").replace("\n", " ").split())
 
 
-def text_problem(text: str, is_title: bool, size: str = "large", case: str = "upper") -> str | None:
+def text_problem(
+    text: str, is_title: bool, size: str = "large", case: str = "upper", font: str = "be_vietnam"
+) -> str | None:
     """Why reels_render would refuse this text, drawn at `size` in `case` ("Dạng chữ"), or None. Also the reason
     shown instead of a preview."""
     if not text.strip():
@@ -72,7 +75,7 @@ def text_problem(text: str, is_title: bool, size: str = "large", case: str = "up
     except MarkupError as err:
         return f"Chữ sai cách đánh dấu: {err}"
     try:
-        layout_sized(lines, size, is_title)
+        layout_sized(lines, size, is_title, font)
     except TextFitError as err:
         return f"Chữ tràn hộp: {err}"
     return None
@@ -116,7 +119,7 @@ def check_script(
 
     every = ([title] if title else []) + scenes
     for index, scene in enumerate(every):
-        problem = text_problem(scene.text, scene.is_title, scene.text_size, scene.text_case)
+        problem = text_problem(scene.text, scene.is_title, scene.text_size, scene.text_case, scene.text_font)
         if problem:
             block(Issue(problem, scene.id))
         if not scene.has_image:

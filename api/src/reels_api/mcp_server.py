@@ -2477,6 +2477,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         text_size: Annotated[str | None, one_of("text_size")] = None,
         title_text_size: Annotated[str | None, one_of("title_text_size")] = None,
         text_case: Annotated[str | None, one_of("text_case")] = None,
+        text_font: Annotated[str | None, one_of("text_font")] = None,
         title_text_case: Annotated[str | None, one_of("title_text_case")] = None,
         text_hold_sec: Annotated[
             float | None,
@@ -2553,6 +2554,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             text_size=text_size,
             title_text_size=title_text_size,
             text_case=text_case,
+            text_font=text_font,
             title_text_case=title_text_case,
             title_sfx=title_sfx,
             text_hold_sec=text_hold_sec,
