@@ -12,11 +12,15 @@ from sqlalchemy.orm import Session as DbSession
 from .claude import ClaudeError, ScriptOutputError, json_object
 from .models import Job, KnowledgeTopic
 from .plans import VIETNAM
-from .video_options import CAPTIONS, CHOICES, COLORS, LOOK_FIELDS, OptionError, clean
+from .video_options import CAPTIONS, CHOICES, COLORS, LOOK_FIELDS, OptionError, clean, is_pc_shopee
 
 JOB_KIND = "text_look"
 # What "Chữ & phụ đề" holds (Cài đặt › Thiết lập mặc định's card of that name): the text boxes' look and captions.
 FIELDS = (*LOOK_FIELDS, "captions")
+# What only the topic group PC Shopee may hold besides (docs/decisions/2026-11-27-pc-text-tiers.md): its tiers, looks and the
+# hold. "cumulative" captions are PC Shopee's too. The AI never writes these (FIELDS is what it is asked for).
+PC_FIELDS = ("text_hold_sec", "pc_style", "pc_title_style", "title_layout", "scene_text_layout")
+PC_ONLY = {"captions": "cumulative"}
 MAX_SUGGESTIONS = 3
 MAX_NAME_LENGTH = 60
 MAX_REASON_LENGTH = 300
@@ -45,7 +49,11 @@ def _field_lines() -> str:
             named = ", ".join(value for value in COLORS[name])
             lines.append(f'- "{name}": {named} hoặc mã màu "#RRGGBB" ("auto" = màu sẵn của kiểu)')
         else:
-            values = CAPTIONS if name == "captions" else CHOICES[name]
+            values = (
+                tuple(value for value in CAPTIONS if value != PC_ONLY["captions"])
+                if name == "captions"
+                else CHOICES[name]
+            )
             note = VALUE_NOTES.get(name, "")
             lines.append(f'- "{name}": một trong {", ".join(values)}' + (f" ({note})" if note else ""))
     return "\n".join(lines)
@@ -62,13 +70,20 @@ cho hợp với nội dung, cảm xúc và người xem của video này (không
 {LOOK_RULES}"""
 
 
-def clean_look(values: object) -> dict:
-    """A look a member saved: only the text fields, every one valid, or OptionError."""
+def _pc_only(name: str, value: object) -> bool:
+    return name in PC_FIELDS or PC_ONLY.get(name) == value
+
+
+def clean_look(values: object, group: KnowledgeTopic | None = None) -> dict:
+    """A look a member saved: only the text fields, every one valid, or OptionError. PC Shopee's own fields and its
+    "Cộng dồn" captions are kept only for that group."""
     if not isinstance(values, dict):
         raise OptionError("Kiểu chữ không hợp lệ")
-    unknown = [name for name in values if name not in FIELDS]
+    unknown = [name for name in values if name not in (*FIELDS, *PC_FIELDS)]
     if unknown:
         raise OptionError(f"Không có tuỳ chọn chữ “{unknown[0]}”")
+    if not is_pc_shopee(group) and (only := [name for name, value in values.items() if _pc_only(name, value)]):
+        raise OptionError(f"“{only[0]}” chỉ dùng cho nhóm PC Shopee")
     return clean(values)
 
 
@@ -94,16 +109,16 @@ def loose_look(values: object) -> dict:
             values[f"{prefix}text_style"] = "box"
             for name, value in named.items():
                 values.setdefault(f"{prefix}{name}", value)
-    return valid_fields(values)
+    return valid_fields({name: value for name, value in values.items() if not _pc_only(name, value)})
 
 
-def valid_fields(values: object) -> dict:
-    """The valid text fields of a stored look, anything else left out."""
+def valid_fields(values: object, pc: bool = False) -> dict:
+    """The valid text fields of a stored look, anything else left out; PC Shopee's own only with `pc`."""
     if not isinstance(values, dict):
         return {}
     look = {}
     for name, value in values.items():
-        if name not in FIELDS:
+        if name not in (*FIELDS, *PC_FIELDS) or (not pc and _pc_only(name, value)):
             continue
         try:
             look.update(clean({name: value}))
@@ -114,7 +129,7 @@ def valid_fields(values: object) -> dict:
 
 def group_look(group: KnowledgeTopic | None) -> dict:
     """The group's own look, valid values only; {} when it has none (its videos take their maker's)."""
-    return valid_fields(group.text_look) if group is not None and group.text_look else {}
+    return valid_fields(group.text_look, is_pc_shopee(group)) if group is not None and group.text_look else {}
 
 
 def suggest_prompt(group: KnowledgeTopic, current: dict) -> str:

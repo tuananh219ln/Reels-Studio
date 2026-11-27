@@ -1,3 +1,4 @@
+import hashlib
 import io
 import logging
 import math
@@ -20,6 +21,7 @@ from reels_render.blur import parse_blur
 from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from reels_render.errors import InputError
 from reels_render.layers import card_corner, render_card
+from reels_render.markup import MarkupError, parse_scene_text
 from reels_render.script import MAX_VIDEO_SPEED, MIN_VIDEO_SPEED
 from reels_render.sounds import MUSIC_LEVELS
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
@@ -2430,6 +2432,7 @@ def scene_preview(
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
+    live: bool = False,  # last: the assistant's connection calls this with the arguments before it, by position
 ) -> Response:
     scene = _scene(db, scene_id)
     still = scene_still(storage, scene)
@@ -2444,6 +2447,8 @@ def scene_preview(
         text_position(video, scene),
         under=_card_under(storage, scene),
         **_framed(db, storage, video, scene),
+        **_pc_text(db, video, scene),
+        live=live,
     )
     return Response(
         frames.jpeg_bytes(frame), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
@@ -2462,6 +2467,18 @@ def _card_under(storage: DirectoryStorage, scene: Scene) -> list:
     return [(picture, card_corner(picture.width, picture.height, card.y))]
 
 
+def _is_last(db: DbSession, video: Video, scene: Scene) -> bool:
+    """The scene is the video's last content scene (the call to action, which keeps its text box)."""
+    scenes = split_scenes(db, video)[1]
+    return bool(scenes) and scenes[-1].id == scene.id
+
+
+def _pc_text(db: DbSession, video: Video, scene: Scene) -> dict:
+    """What PC Shopee's tiers and "Cộng dồn" captions need to draw a scene's preview: whether it is the last scene, its
+    zone and its narration."""
+    return {"last": _is_last(db, video, scene), "zone": scene.text_zone, "narration": spoken(video, scene)}
+
+
 def _framed(db: DbSession, storage: DirectoryStorage, video: Video, scene: Scene) -> dict:
     """How the preview frames the scene's photo, as the render does ("Khung ảnh"): with the video's tallest framed
     text box, so every scene's photo starts on the same line."""
@@ -2473,6 +2490,61 @@ def _framed(db: DbSession, storage: DirectoryStorage, video: Video, scene: Scene
         "crop_offset": scene.image_crop_offset,
         "reserve": text_reserve(storage, video, split_scenes(db, video)[1]),
     }
+
+
+def _cumulative(db: DbSession, scene: Scene) -> tuple:
+    """The pictures "Cộng dồn" lays over the scene (frames.cumulative_pictures); () when the scene shows none."""
+    video = db.get(Video, scene.video_id)
+    options = video_options.render_options(video)
+    narration = spoken(video, scene)
+    if not frames.captioned(options, scene.is_title, _is_last(db, video, scene), narration):
+        return ()
+    try:
+        marked = frozenset(
+            word.strip(",.!?:;…").casefold()
+            for line in parse_scene_text(scene.text)
+            for run in line
+            if run.red
+            for word in run.text.split()
+        )
+    except MarkupError:
+        marked = frozenset()
+    words = tuple((word["text"], float(word["start"]), float(word["end"])) for word in scene.voice_words or [])
+    seconds = scene.voice_seconds or max(2.0, 0.35 * len(narration.split()))
+    return frames.cumulative_pictures(
+        narration, words, seconds, scene.seconds, marked, options.pc_style, scene.text_zone
+    )
+
+
+@router.get("/scenes/{scene_id}/cumulative")
+def scene_cumulative(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """The steps of the scene's "Cộng dồn" captions for the studio's player: their seconds into the scene and where
+    each picture goes; the pictures are `cumulative/<n>.png`."""
+    scene = _scene(db, scene_id)
+    return {
+        "steps": [
+            {
+                "start": start,
+                "end": end,
+                "url": f"/api/scenes/{scene_id}/cumulative/{number}.png?v={hashlib.md5(png).hexdigest()[:10]}",
+                "left": left,
+                "top": top,
+                "width": width,
+                "height": height,
+            }
+            for number, (start, end, png, left, top, width, height) in enumerate(_cumulative(db, scene))
+        ]
+    }
+
+
+@router.get("/scenes/{scene_id}/cumulative/{number}.png")
+def scene_cumulative_picture(
+    scene_id: int, number: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> Response:
+    pictures = _cumulative(db, _scene(db, scene_id))
+    if not 0 <= number < len(pictures):
+        raise ApiError(404, "no_caption_step", "Cảnh này không có phụ đề cộng dồn ở bước này")
+    return Response(pictures[number][2], media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.get("/scenes/{scene_id}/frame.jpg")
@@ -2500,6 +2572,7 @@ def scene_frame(
             centre,
             show_text=False,
             **_framed(db, storage, video, scene),
+            last=_is_last(db, video, scene),
         )
     else:
         frame = frames.compose_frame(still, "", is_title=False)
@@ -2515,9 +2588,16 @@ def scene_textbox(scene_id: int, me: Session = Depends(current_member), db: DbSe
     video = db.get(Video, scene.video_id)
     size = video_options.text_size(video, scene.is_title)
     case = video_options.text_case(video, scene.is_title)
-    if not scene.text.strip() or text_problem(scene.text, scene.is_title, size, case) is not None:
+    options = video_options.render_options(video)
+    last = _is_last(db, video, scene)
+    drawn = frames.tiered(options, scene.is_title, last)
+    if (
+        not scene.text.strip()
+        or frames.captioned(options, scene.is_title, last, spoken(video, scene))
+        or (not drawn and text_problem(scene.text, scene.is_title, size, case) is not None)
+    ):
         raise ApiError(404, "no_text_box", "Cảnh này không có chữ để đặt vị trí")
-    box, _ = frames.text_box(scene.text, scene.is_title, video_options.render_options(video))
+    box, _ = frames.text_box(scene.text, scene.is_title, options, last=last, zone=scene.text_zone)
     buffer = io.BytesIO()
     box.save(buffer, "PNG")
     return Response(buffer.getvalue(), media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
@@ -2968,7 +3048,7 @@ def patch_topic(
         topic.video_mode = body.video_mode
     if "text_look" in body.model_fields_set:
         try:
-            topic.text_look = text_looks.clean_look(body.text_look) if body.text_look else None
+            topic.text_look = text_looks.clean_look(body.text_look, topic) if body.text_look else None
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
     if body.text_ai is not None:

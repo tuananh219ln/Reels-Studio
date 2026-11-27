@@ -52,7 +52,7 @@ from . import (
 )
 from .clips import ClipError, frame_at
 from .errors import ApiError
-from .frames import is_framed, photo_blurry, plan_photo, text_height, thumbnail_bytes
+from .frames import captioned, is_framed, photo_blurry, plan_photo, text_height, thumbnail_bytes, tiered
 from .models import (
     ACTIVE_JOB_STATUSES,
     Fanpage,
@@ -483,7 +483,7 @@ def text_reserve(storage: DirectoryStorage, video: Video, scenes: list[Scene]) -
     on one line below it (reels_render.framing), as the render works it out. None when no scene has one."""
     options = render_options(video)
     heights = [
-        text_height(scene.text, False, options)
+        text_height(scene.text, False, options, scene is scenes[-1])
         for scene in scenes
         if framable(video, scene)
         and storage.exists(scene.image_key)
@@ -1227,11 +1227,28 @@ def photo_credit(scene: Scene) -> dict | None:
     return {name: value for name, value in credit.items() if name != "url"}
 
 
-def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | None = None) -> dict:
+def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | None = None, last: bool = False) -> dict:
     image = f"/api/scenes/{scene.id}"
     size, case = text_size(video, scene.is_title), text_case(video, scene.is_title)
     voice_seconds = made_voice_seconds(video, scene)
     style = preview_look(video, scene.is_title)
+    # PC Shopee's tiers and "Cộng dồn" change what the preview draws, so they join its address (only when in use, so the
+    # addresses of every other video stay as they were).
+    options = render_options(video)
+    tier_mode = tiered(options, scene.is_title, last)
+    caption_mode = captioned(options, scene.is_title, last, spoken(video, scene))
+    if tier_mode or caption_mode:
+        style = [
+            *style,
+            "pc",
+            tier_mode,
+            caption_mode,
+            last,
+            scene.text_zone,
+            options.pc_style,
+            options.pc_title_style,
+            spoken(video, scene) if caption_mode else "",
+        ]
     position = text_position(video, scene)
     if position:
         style = [*style, "text_position", *position]
@@ -1296,6 +1313,18 @@ def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | Non
             if scene.image_key
             else None
         ),
+        # "Cộng dồn": the steps the studio's player lays over the scene's picture (routes_videos.scene_cumulative), and the
+        # preview without the sample phrase drawn into it; None for every scene that shows no such captions.
+        "cumulative_url": (
+            f"{image}/cumulative?v={_version(*style, scene.voice_seconds, len(scene.voice_words or []))}"
+            if caption_mode
+            else None
+        ),
+        "live_preview_url": (
+            f"{image}/preview.jpg?live=true&v={_version(scene.video_key or scene.image_key, scene.text, *style)}"
+            if caption_mode and (scene.video_key or scene.image_key)
+            else None
+        ),
         # Where a member dragged this scene's box; None: the video's place (content scenes) or the template's.
         "text_position": [scene.text_x, scene.text_y] if scene.text_x is not None else None,
         "placed_at": position,  # where it goes after all: its own place, the video's, or None (the template's)
@@ -1306,11 +1335,13 @@ def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | Non
         # "Khung ảnh": how the photo fills the frame; None for a title, a clip or a backdrop video's scene.
         "image_frame": frame_payload(video, scene, reserve),
         "textbox_url": (
-            f"{image}/textbox.png?v={_version(scene.text, *preview_look(video, scene.is_title))}"
-            if scene.text.strip() and text_problem(scene.text, scene.is_title, size, case) is None
+            f"{image}/textbox.png?v={_version(scene.text, *preview_look(video, scene.is_title), *(['pc', last, options.pc_style, options.pc_title_style] if tier_mode else []))}"
+            if scene.text.strip()
+            and not caption_mode
+            and (tier_mode or text_problem(scene.text, scene.is_title, size, case) is None)
             else None
         ),
-        "text_problem": text_problem(scene.text, scene.is_title, size, case),
+        "text_problem": None if tier_mode else text_problem(scene.text, scene.is_title, size, case),
         "transition": scene.transition,
         "color": scene.color,
         "layers": [layer_payload(layer, text_case(video, False), video) for layer in scene.layers],
@@ -1687,7 +1718,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         # "Clone" from "Phân tích đối thủ": the competitor's video it was built from, and its sample comments.
         "competitor_source": competitors.source_payload(db, video),
         "title_scene": scene_payload(video, title, checks) if title else None,
-        "scenes": [scene_payload(video, scene, checks, reserve) for scene in scenes],
+        "scenes": [scene_payload(video, scene, checks, reserve, last=scene is scenes[-1]) for scene in scenes],
         "video_blocking": [issue.message for issue in checks.blocking if issue.scene_id is None],
         "video_warnings": [
             {"field": issue.field, "message": issue.message} for issue in checks.warnings if issue.scene_id is None

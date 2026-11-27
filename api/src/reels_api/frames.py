@@ -11,9 +11,12 @@ from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from reels_render.captions import Word
+from reels_render.cumulative import chunks, estimate_words, narration_steps, plan_cumulative, render_cumulative
 from reels_render.framing import COVER, Framing, choose_kind, frame_photo, is_blurry, plan_frame, unpadded
-from reels_render.markup import parse_scene_text
+from reels_render.markup import MarkupError, parse_scene_text
 from reels_render.options import DEFAULT_OPTIONS, RenderOptions
+from reels_render.render import tier_corner, tier_picture
 from reels_render.textbox import (
     FRAME_HEIGHT,
     FRAME_WIDTH,
@@ -22,6 +25,7 @@ from reels_render.textbox import (
     render_box,
     shade_band,
 )
+from reels_render.timeline import VOICE_LEAD
 
 from .script_rules import text_problem
 
@@ -31,14 +35,85 @@ THUMBNAIL_SIZE = (540, 960)
 Centre = list[int] | tuple[int, int] | None
 
 
+def tiered(options: RenderOptions, is_title: bool, last: bool = False) -> bool:
+    """PC Shopee's compact text draws this scene's text (the title in three tiers, a content scene's in two; never the
+    last scene's call to action, which keeps its box): the same rule as reels_render.render.tier_picture."""
+    if is_title:
+        return options.title_layout == "three_tier"
+    return not last and options.scene_text_layout == "two_tier"
+
+
+def captioned(options: RenderOptions, is_title: bool, last: bool, narration: str) -> bool:
+    """ "Cộng dồn" replaces this scene's text: a content scene that is not the last and has a narration to read."""
+    return options.captions == "cumulative" and not is_title and not last and bool(narration.strip())
+
+
+@lru_cache(maxsize=16)
+def cumulative_pictures(
+    narration: str,
+    voice_words: tuple[tuple[str, float, float], ...],
+    narration_seconds: float,
+    scene_seconds: float,
+    marked: frozenset[str],
+    style: str,
+    zone: str | None,
+) -> tuple[tuple[float, float, bytes, int, int, int, int], ...]:
+    """What the studio's player lays over a "Cộng dồn" scene, one entry per step: its seconds into the scene, the PNG of
+    the phrase so far and where it goes (left, top, width, height in the 1080×1920 frame). The narration starts after
+    the render's VOICE_LEAD (0.2 s) and lasts `narration_seconds` (the made MP3's, else an estimate)."""
+    steps = narration_steps(
+        narration, [Word(*word) for word in voice_words], VOICE_LEAD, narration_seconds, scene_seconds, marked
+    )
+    made = []
+    for step in steps:
+        picture, (left, top) = render_cumulative(step.lines, style, zone)
+        buffer = io.BytesIO()
+        picture.save(buffer, "PNG")
+        made.append((step.start, step.end, buffer.getvalue(), left, top, picture.width, picture.height))
+    return tuple(made)
+
+
+def tier_box(
+    text: str, is_title: bool, options: RenderOptions, centre: Centre, last: bool, zone: str | None
+) -> tuple[Image.Image, tuple[int, int]] | None:
+    """The picture of PC Shopee's tiers for the text and its corner, as the render lays it; None when the text is not
+    drawn so or cannot be read."""
+    if not tiered(options, is_title, last):
+        return None
+    try:
+        lines = parse_scene_text(text, "upper")
+    except MarkupError:
+        return None
+    picture = tier_picture(lines, 0 if is_title else 1, 2, options)
+    if picture is None:
+        return None
+    return picture, tier_corner(picture, 0 if is_title else 1, tuple(centre) if centre else None, zone)
+
+
+def caption_preview(
+    narration: str, options: RenderOptions, zone: str | None
+) -> tuple[Image.Image, tuple[int, int]] | None:
+    """What "Cộng dồn" shows once its first phrase is complete, drawn still: the preview cannot play the words in."""
+    words = estimate_words(narration, 0.0, max(2.0, 0.35 * len(narration.split())))
+    if not words:
+        return None
+    done = chunks(words)[0][-1].end
+    steps = [step for step in plan_cumulative(words, 9999.0) if step.start < done]
+    return render_cumulative(steps[-1].lines, options.pc_style, zone) if steps else None
+
+
 def text_box(
     text: str,
     is_title: bool,
     options: RenderOptions = DEFAULT_OPTIONS,
     centre: Centre = None,
     min_top: int | None = None,
+    last: bool = False,
+    zone: str | None = None,
 ) -> tuple[Image.Image, tuple[int, int]]:
     """The exact RGBA box image render_video overlays for this scene, and where it goes."""
+    if (tiers := tier_box(text, is_title, options, centre, last, zone)) is not None:
+        return tiers
     case = options.title_text_case if is_title else options.text_case
     layout = layout_sized(
         parse_scene_text(text, case), options.title_text_size if is_title else options.text_size, is_title
@@ -48,8 +123,10 @@ def text_box(
     return render_box(layout, palette), place_box(layout.width, layout.height, position, is_title, min_top)
 
 
-def text_height(text: str, is_title: bool, options: RenderOptions = DEFAULT_OPTIONS) -> int:
+def text_height(text: str, is_title: bool, options: RenderOptions = DEFAULT_OPTIONS, last: bool = False) -> int:
     """The height of the scene's text box as the render lays it; 0 without text or while it cannot render."""
+    if text.strip() and (tiers := tier_box(text, is_title, options, None, last, None)) is not None:
+        return tiers[0].height
     size = options.title_text_size if is_title else options.text_size
     case = options.title_text_case if is_title else options.text_case
     if not text.strip() or text_problem(text, is_title, size, case) is not None:
@@ -124,6 +201,10 @@ def compose_frame(
     crop_offset: float | None = None,
     show_text: bool = True,
     reserve: int | None = None,
+    last: bool = False,
+    zone: str | None = None,
+    narration: str = "",
+    live: bool = False,
 ) -> Image.Image:
     """The fitted photo (or clip frame) plus the text box; no box without text or while the text cannot render.
     `under`: pictures laid on the frame under the text box, at their corners (a card, as the render lays it). `fit`,
@@ -140,19 +221,28 @@ def compose_frame(
     else:
         position = tuple(centre) if centre else None
         frame, framing = frame_photo(
-            upright, fit, text_height(text, is_title, options), position, min_top, crop_offset, reserve
+            upright, fit, text_height(text, is_title, options, last), position, min_top, crop_offset, reserve
         )
         centre = centre or framing.text_centre
     for picture, corner in under or []:
         frame.paste(picture, corner, picture if picture.mode == "RGBA" else None)
     size = options.title_text_size if is_title else options.text_size
     case = options.title_text_case if is_title else options.text_case
-    if show_text and text.strip() and text_problem(text, is_title, size, case) is None:
-        box, position = text_box(text, is_title, options, centre, min_top)
-        if options.text_shade and not is_title:
-            band, first = shade_band(position[1], position[1] + box.height)
-            frame.paste(band, (0, first), band)
-        frame.paste(box, position, box)
+    if show_text and captioned(options, is_title, last, narration):
+        # The words come in one by one in the MP4; the preview shows the first phrase whole, in the lower or upper zone.
+        # `live`: the studio's player lays the words over it by itself, so none is drawn here.
+        if not live and (shown := caption_preview(narration, options, zone)) is not None:
+            frame.paste(shown[0], shown[1], shown[0])
+    elif show_text and text.strip():
+        drawn = tier_box(text, is_title, options, centre, last, zone)
+        if drawn is None and text_problem(text, is_title, size, case) is None:
+            drawn = text_box(text, is_title, options, centre, min_top)
+        if drawn is not None:
+            box, position = drawn
+            if options.text_shade and not is_title:
+                band, first = shade_band(position[1], position[1] + box.height)
+                frame.paste(band, (0, first), band)
+            frame.paste(box, position, box)
     return _yuv420(frame)
 
 

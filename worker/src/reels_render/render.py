@@ -8,7 +8,7 @@ from PIL import Image
 
 from . import ffmpeg
 from .captions import Word, plan_captions, plan_word_captions
-from .cumulative import Step, estimate_words, known_words, plan_cumulative, render_cumulative, voiced_words
+from .cumulative import Step, known_words, narration_steps, plan_cumulative, render_cumulative
 from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplacedError
 from .graph import (
     MAX_CLIP_PIXELS,
@@ -378,9 +378,13 @@ def cumulative_steps(
             if run.red
             for word in run.text.split()
         )
-        begin = scene_start / FPS + VOICE_LEAD
-        words = voiced_words(scene.voice_text, list(scene.voice_words), begin, marked) or estimate_words(
-            scene.voice_text, begin, spoken[index], marked
+        return narration_steps(
+            scene.voice_text,
+            list(scene.voice_words),
+            scene_start / FPS + VOICE_LEAD,
+            spoken[index],
+            scene_end,
+            marked,
         )
     elif heard[index] and scene.words:
         words = known_words(placed_words(scene, scene_start / FPS, scene_end, clip_lead(index, cut)))

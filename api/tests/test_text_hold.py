@@ -130,3 +130,14 @@ def test_a_content_scene_takes_top_or_the_lower_zone_and_nothing_else(an, db, me
     an.patch(f"/api/scenes/{scene.id}", json={"text_zone": None})
     db.refresh(video)
     assert render_signature(video, *split_scenes(db, video)) == before  # back to the lower zone: the MP4 stays current
+
+
+def test_the_groups_own_look_wins_over_pc_shopee_starting_values(db, me, storage):
+    shopee = KnowledgeTopic(name="PC Shopee", text_look={"captions": "word", "text_hold_sec": 3.5})
+    db.add(shopee)
+    db.flush()
+    video = make_video(db, storage, me)
+    video.knowledge_topic_id = shopee.id
+    video_options.apply_defaults(db, video, me.id)
+    assert video.options["captions"] == "word" and video.options["text_hold_sec"] == 3.5  # the group's choices
+    assert video.options["title_layout"] == "three_tier"  # what it did not choose keeps PC Shopee's start

@@ -70,6 +70,8 @@ export function laneSpans(
     const start = starts[index];
     const length = lengths[index];
     if (key === "text") {
+      // "Cộng dồn" replaces the scene's text, so nothing of it is on screen.
+      if (scene.cumulative_url) return;
       const text = plain(scene.text);
       if (text) spans.push({ index, start, length, label: text });
       return;
