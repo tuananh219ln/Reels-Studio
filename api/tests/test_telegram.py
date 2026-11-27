@@ -295,20 +295,22 @@ def test_the_morning_reminder(db, me, bot, storage):
     page = fanpages.save(db, "pg1", "Trang Dưỡng Sinh", "token-cua-page", me.id)
     page.post_times = ["08:00", "20:00"]
     db.commit()
+    today = datetime.now(VIETNAM).date()
+    early = datetime(today.year, today.month, today.day, 7, 0, tzinfo=VIETNAM)
+    morning = early + timedelta(hours=2)
+    # Scheduled after the reminder's own time, not after the clock's: from midnight to 6 AM Vietnam time "now + 3 h"
+    # fell before 9 AM and the post no longer counted.
     db.add(
         Publication(
             video_id=make_video(db, storage, me).id,
             platform="facebook",
             fanpage_id=page.id,
             status="scheduled",
-            scheduled_at=datetime.now(UTC) + timedelta(hours=3),
+            scheduled_at=morning + timedelta(hours=3),
             created_by_id=me.id,
         )
     )
     db.commit()
-    today = datetime.now(VIETNAM).date()
-    early = datetime(today.year, today.month, today.day, 7, 0, tzinfo=VIETNAM)
-    morning = early + timedelta(hours=2)
     assert telegram.collect(db, early) == 0
     assert telegram.collect(db, morning) == 1
     assert telegram.collect(db, morning + timedelta(hours=3)) == 0
