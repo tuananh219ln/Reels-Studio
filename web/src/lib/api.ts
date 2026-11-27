@@ -1184,6 +1184,8 @@ export type VideoOptions = {
    * case is also their text layers'; the title has its own. */
   text_case: "upper" | "keep";
   title_text_case: "upper" | "keep";
+  /** The text boxes' font: "be_vietnam" (Be Vietnam Pro Black, the original) or "bungee" (api video_options). */
+  text_font: "be_vietnam" | "bungee";
   /** The content scenes' text box centre [x, y]; null: where the template puts it. A scene's own wins. */
   text_position: [number, number] | null;
   /** The title scene's text box centre [x, y]; null: the middle of the frame. Only y counts (the title stays centred
@@ -1194,27 +1196,13 @@ export type VideoOptions = {
   /** "Thời gian hiện chữ" (PC Shopee only): seconds the scenes' text stays before it fades out; null: all scene. */
   text_hold_sec: number | null;
   /** The look of PC Shopee's drawn text (api reels_render.pc_text.PC_STYLES). */
-  pc_style:
-    | "neon_game"
-    | "brand_navy"
-    | "neon_tech_teal"
-    | "neon_outline_price"
-    | "gold_metal"
-    | "grunge_rainbow"
-    | "esports_blue";
+  pc_style: "neon_game" | "brand_navy" | "neon_outline_price" | "gold_metal" | "grunge_rainbow" | "esports_blue";
   /** PC Shopee's compact text: the title in three tiers, a content scene's text in two ("box": the text boxes). */
   title_layout: "box" | "three_tier";
   scene_text_layout: "box" | "two_tier";
   /** The title preset's whole-frame effects (glitch, vignette) on the title scene, where the preset has some. */
   title_effects: boolean;
-  pc_title_style:
-    | "neon_game"
-    | "brand_navy"
-    | "neon_tech_teal"
-    | "neon_outline_price"
-    | "gold_metal"
-    | "grunge_rainbow"
-    | "esports_blue";
+  pc_title_style: "neon_game" | "brand_navy" | "neon_outline_price" | "gold_metal" | "grunge_rainbow" | "esports_blue";
 };
 
 /** One of the team's text box styles (Cài đặt, shared); a video copies its colours. */

@@ -169,3 +169,24 @@ def test_a_video_that_still_has_the_removed_halftone_look_reads_as_neon_game():
     values = effective(old)
     assert values["pc_style"] == values["pc_title_style"] == "neon_game"
     assert effective(Video(options={"pc_style": "brand_navy"}))["pc_style"] == "brand_navy"
+
+
+def test_the_text_font_is_a_video_option_sent_to_a_machine_only_when_it_is_not_the_original():
+    from reels_api import render_nodes, video_options
+    from reels_render import RenderOptions
+
+    assert video_options.DEFAULTS["text_font"] == "be_vietnam" and "text_font" in video_options.LOOK_FIELDS
+    assert "text_font" not in render_nodes.options_dict(RenderOptions())
+    assert render_nodes.options_dict(RenderOptions(text_font="bungee"))["text_font"] == "bungee"
+
+
+def test_a_bungee_text_box_is_drawn_and_checked_in_bungee():
+    from reels_api import frames
+    from reels_api.script_rules import text_problem
+
+    options = RenderOptions(text_font="bungee")
+    plain = frames.text_box("ĂN 6 MÓN NÀY", True, RenderOptions())[0]
+    box = frames.text_box("ĂN 6 MÓN NÀY", True, options)[0]
+    assert box.size != plain.size
+    assert text_problem("ĂN 6 MÓN NÀY", True, "large", "upper", "bungee") is None
+    assert text_problem("ĂN " + "RẤT " * 40, True, "large", "upper", "bungee") is not None

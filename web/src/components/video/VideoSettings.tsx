@@ -99,13 +99,12 @@ const CAPTIONS = [
 const PC_STYLES = [
   { value: "neon_game", label: "Neon game" },
   { value: "brand_navy", label: "Thương hiệu" },
-  { value: "neon_tech_teal", label: "Neon xanh ngọc" },
   { value: "neon_outline_price", label: "Giá neon viền" },
   { value: "gold_metal", label: "Vàng kim loại" },
   { value: "grunge_rainbow", label: "Grunge cầu vồng" },
   { value: "esports_blue", label: "Esports xanh" },
 ];
-const TITLE_PRESETS = ["neon_tech_teal", "neon_outline_price", "gold_metal", "grunge_rainbow", "esports_blue"];
+const TITLE_PRESETS = ["neon_outline_price", "gold_metal", "grunge_rainbow", "esports_blue"];
 /** A picker row: the name, and for the five title presets a picture of the preset drawn with sample text (api routes_title_presets). */
 function styleOption(option: { value?: string | number | null; label?: ReactNode }) {
   const value = String(option.value ?? "");
@@ -123,6 +122,10 @@ function styleOption(option: { value?: string | number | null; label?: ReactNode
     </Flex>
   );
 }
+const TEXT_FONTS = [
+  { value: "be_vietnam", label: "Be Vietnam Pro" },
+  { value: "bungee", label: "Bungee" },
+];
 const CUMULATIVE = { value: "cumulative", label: "Cộng dồn" };
 let voiceCache: Promise<VoiceList> | null = null;
 
@@ -761,6 +764,15 @@ export function TextSettings({ values, onChange, disabled, bare, textHold }: Pro
               disabled={disabled}
               onChange={(text_case) => onChange({ text_case })}
             />
+            <Field label="Phông chữ" hint="Phông của chữ tiêu đề và chữ các cảnh. Bungee là chữ to, vuông, kiểu game.">
+              <Segmented
+                aria-label="Phông chữ"
+                options={TEXT_FONTS}
+                value={values.text_font ?? "be_vietnam"}
+                disabled={disabled}
+                onChange={(text_font) => onChange({ text_font: text_font as VideoOptions["text_font"] })}
+              />
+            </Field>
             <Checkbox
               checked={values.text_shade}
               disabled={disabled}

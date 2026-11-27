@@ -25,6 +25,7 @@ TEXT_STYLES = ("yellow", "white", "dark", "red", "box", "none")
 BOX_OPACITIES = ("auto", "solid", "soft", "clear", "faint", "none")
 TEXT_COLORS = ("auto", "white", "black", "yellow", "red")  # "auto": the style's own text colour; or "#RRGGBB"
 TITLE_STYLES = ("same", "yellow")  # "same": the title scene is drawn like the other scenes
+TEXT_FONTS = ("be_vietnam", "bungee")  # the text boxes' font (textbox.FONTS)
 TITLE_TEXT_STYLES = ("same", *TEXT_STYLES)  # "same": no look of its own (title_style decides)
 # "cumulative" ("Cộng dồn", PC Shopee): the words pile up and a phrase clears; the content scenes' own text is not drawn.
 CAPTIONS = ("off", "phrase", "word", "cumulative")
@@ -53,6 +54,7 @@ class RenderOptions:
     title_box_opacity: str = "auto"
     text_size: str = "large"  # the content scenes' text box (textbox.TEXT_SIZES); "large" is the original
     title_text_size: str = "large"  # the title scene's
+    text_font: str = "be_vietnam"  # the text boxes' font (TEXT_FONTS); "be_vietnam" is the original
     # "Dạng chữ" (markup.TEXT_CASES): the content scenes' text and the text layers, and the title scene's.
     text_case: str = "upper"
     title_text_case: str = "upper"
@@ -103,6 +105,7 @@ class RenderOptions:
             ("scene_text_layout", self.scene_text_layout, ("box", "two_tier")),
             ("text_size", self.text_size, TEXT_SIZE_NAMES),
             ("title_text_size", self.title_text_size, TEXT_SIZE_NAMES),
+            ("text_font", self.text_font, TEXT_FONTS),
             ("text_case", self.text_case, TEXT_CASES),
             ("title_text_case", self.title_text_case, TEXT_CASES),
         ):

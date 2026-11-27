@@ -19,6 +19,7 @@ from reels_render.cumulative import (
     plan_cumulative,
     render_cumulative,
 )
+from reels_render.errors import InputError
 from reels_render.options import RenderOptions
 from reels_render.pc_text import PRESETS
 from reels_render.render import render_video
@@ -400,9 +401,9 @@ def test_the_hollow_price_preset_leaves_its_letters_clear_and_audiowide_falls_ba
     picture = render_line("III", 120, hollow)
     centre = picture.getpixel((picture.width // 2, picture.height // 2))
     assert centre[3] < 255  # the middle of a stem is not painted
-    teal = line_style("neon_tech_teal", True, 1)
-    assert teal.font == FONTS / "Audiowide-Regular.ttf" and teal.vi is not None
-    assert render_line("GIÁ RẺ", 100, teal).getbbox() is not None  # drawn with Saira, not missing boxes
+    sub = line_style("neon_outline_price", False, 2)  # the sub line is Audiowide
+    assert sub.font == FONTS / "Audiowide-Regular.ttf" and sub.vi is not None
+    assert render_line("GIÁ RẺ", 100, sub).getbbox() is not None  # drawn with Saira, not missing boxes
 
 
 def test_a_preset_title_keeps_its_line_proportions_when_one_line_is_too_wide():
@@ -512,3 +513,24 @@ def test_a_smaller_compact_text_stays_centred_on_the_same_place():
         left, top = tier_corner(picture, 1, None)
         centres.append((left + picture.width / 2, top + picture.height / 2))
     assert abs(centres[0][0] - centres[1][0]) <= 1 and abs(centres[0][1] - centres[1][1]) <= 1
+
+
+def test_a_text_box_is_drawn_in_the_chosen_font_and_bungee_is_wider():
+    from reels_render.markup import parse_scene_text
+    from reels_render.textbox import layout_sized, render_box
+
+    lines = parse_scene_text("ĂN 6 MÓN NÀY")
+    original = layout_sized(lines, "medium", False)
+    bungee = layout_sized(lines, "medium", False, "bungee")
+    assert original.font == "be_vietnam" and bungee.font == "bungee"
+    assert bungee.width != original.width  # the same words measured in another font
+    assert render_box(bungee).getbbox() != render_box(original).getbbox()
+    assert RenderOptions().text_font == "be_vietnam"
+    with pytest.raises(InputError):
+        RenderOptions(text_font="comic")
+
+
+def test_the_brand_look_is_drawn_in_bungee():
+    from reels_render.pc_text import BUNGEE_PATH, line_style
+
+    assert line_style("brand_navy", True).font == BUNGEE_PATH and line_style("brand_navy", False).font == BUNGEE_PATH
