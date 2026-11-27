@@ -177,6 +177,7 @@ Ca kiểm thử: video 444 phải hiện đúng số thật — NamTC 17:37 qua 
   `qc.py` (`SHORT`, `LONG`, `TARGET_LUFS`), `web/src/app/(app)/videos/[id]/page.tsx`
   (Card `title-options`), `docs/specs/web-video-render/user-spec.md` (quy tắc tiêu đề).
   TITLE_EMPTY\*\* — không phải thiếu bước, mà là mâu thuẫn cấu trúc.
+  TITLE_EMPTY** — không phải thiếu bước, mà là mâu thuẫn cấu trúc.
 - `api/src/reels_api/script_rules.py`: `SCENE_COUNT_RANGE = (5, 7)`,
   `TOTAL_SECONDS_RANGE = (20, 55)`; giả định kịch bản sức khỏe ~150 từ. Threads: OP + 5–10
   comment ≈ 200–330 từ → 60–96 giây, 9–13 cảnh. `check_script` không có tham số nhóm/format nào.
@@ -302,6 +303,12 @@ render. **Các lần sửa trước khi PR này deploy (vd. 21:08 đặt tiêu �
       lại chữ cũ.
 - [ ] Sửa video/cảnh trên web hoặc qua MCP hiện trong Lịch sử sửa; Hoàn tác trả lại giá trị cũ, báo xung đột khi đã
       có lần sửa sau.
+  `TITLE_EMPTY`, không warns độ dài/số cảnh khi trong ngưỡng nhóm, kể cả video đã render trước deploy.
+- [ ] Nhóm để trống `qc_config` → hành vi cũ y nguyên.
+- [ ] Nhập tay tiêu đề lưu được; tick "Không dùng tiêu đề" thì duyệt được video của nhóm bắt tiêu đề; bỏ tick trả
+  lại chữ cũ.
+- [ ] Sửa video/cảnh trên web hoặc qua MCP hiện trong Lịch sử sửa; Hoàn tác trả lại giá trị cũ, báo xung đột khi đã
+  có lần sửa sau.
 - [ ] Header hiện đúng dữ liệu thật của video 444 (kiểm bằng mắt sau deploy).
 - [ ] MCP: `set_video_title`, `get_qc_config`/`update_qc_config`, `update_voice_format`, `update_scene.video_loop`.
 - [ ] Không đổi hành vi đăng và ngưỡng âm lượng; không đổi render.
