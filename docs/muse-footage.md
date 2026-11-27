@@ -27,6 +27,43 @@ Notes: clips and photos are other people's, so the member is responsible for rig
 scenes the assistant fills keep their source link and the "check again" mark. YouTube may refuse downloads from the
 server; the assistant then falls back to Pexels, Pixabay and photos.
 
+## Making a clip with Muse (trial, not yet verified)
+
+Instead of searching for other people's footage, Muse makes the clip itself on the member's own account and attaches
+it over MCP, at no cost to the team. Reels Studio needs no new code, but whether Muse can hand over a file the server
+can download has not been verified, so run it on **one scene** first. MCP carries no files
+([decision](decisions/2026-11-24-media-links-drive.md)): the clip arrives through a public direct link, or a Google
+Drive link to one file shared "anyone with the link". Anyone holding that link can read the file, so use a Drive
+folder kept only for this; the library keeps its own copy once the clip is in.
+
+Replace `<số>` with the video's number and send:
+
+```text
+Nhiệm vụ: dùng kết nối Reels Studio, tạo clip cho ĐÚNG 1 cảnh của video <số> rồi gắn vào cảnh. Không render,
+không đăng, không sửa cảnh khác.
+
+1. Gọi "Liệt kê cảnh thiếu tư liệu" (video_id=<số>, upgrade_photos=true). Không có cảnh nào thì báo và dừng.
+2. Gọi "Đọc video", lấy chữ, lời đọc, prompt ảnh, thời lượng của cảnh và giá trị no_people. Chọn 1 cảnh.
+3. Tạo 1 clip dọc 9:16 đúng đối tượng và hành động của cảnh, giống quay thật; dài bằng hoặc hơn thời lượng cảnh
+   nếu tạo được; cạnh ngắn từ 576 px; MP4, tối đa 50 MB; không chữ, không logo. no_people=true thì không có mặt
+   hay thân người (bàn tay thì được).
+4. Gọi "Thêm vào kho từ link" (folder "Muse", tags gồm số video và mã cảnh) với link tải trực tiếp của clip. Lỗi
+   hoặc không có link như vậy thì lưu clip lên Google Drive, chia sẻ "Bất kỳ ai có đường liên kết", rồi gọi lại
+   với link của file đó (không phải link thư mục). Thử tối đa 2 lần; vẫn lỗi thì báo và dừng.
+5. Gọi "Xem nhiều khung hình của clip" (media_id, start=0, seconds = thời lượng cảnh). Sai món, hình méo hoặc phi
+   thực tế, có chữ, logo hay watermark, hoặc phạm luật không người thì không gắn: báo lý do và dừng. Không làm mờ
+   hay cắt bỏ watermark.
+6. Đạt thì gọi "Gắn clip cho cảnh" (scene_id, media_id, video_start=0) và xem ảnh trả về.
+7. Báo lại cho tôi:
+   - bước nào được, bước nào lỗi (nguyên văn error và reason);
+   - link đã dùng thuộc tên miền nào, có cần đăng nhập không;
+   - kích thước, thời lượng clip và thời lượng cảnh;
+   - clip ngắn hơn cảnh không (nếu có, tôi tự bật "Lặp clip" trên web).
+```
+
+Check by hand: the clip looks real enough for the group's topic, and the member watches the MP4 before it is
+approved. "Lặp clip" cannot be turned on over MCP; the member does it on the video page.
+
 ## The clip flow with TikTok (owner, 2026-11-15)
 
 Run by message ("lấy clip TikTok cho video 170") or inside a building job, by an assistant that has a browser. The
