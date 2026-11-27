@@ -36,6 +36,8 @@ SCENE_CENTRE = (
 SCENE_MAX_WIDTH = round(FRAME_WIDTH * 0.92)
 SCENE_CENTRE_TOP = (FRAME_WIDTH // 2, round(FRAME_HEIGHT * 0.22))  # "Trên": the 14–30% zone
 NUMBER_DIAMETER, NUMBER_SIZE, NUMBER_GAP = 76, 52, 16
+# The video's "Cỡ chữ" (options.text_size, title_text_size) as a share of the sizes above: "large" is how it always was.
+TEXT_SCALE = {"large": 1.0, "medium": 0.8, "small": 0.65}
 
 ORANGE = hex_rgb("#FB7A14")
 LABEL_RADIUS, LABEL_SIZE, LABEL_TILT = 16, 48, 6
@@ -166,11 +168,13 @@ def _wrapped(text: str) -> list[str]:
     return [text[:cut], text[cut + 1 :]]
 
 
-def render_title(tiers: TitleTiers, style: str = "brand_navy", effects: bool = True) -> Image.Image:
+def render_title(tiers: TitleTiers, style: str = "brand_navy", effects: bool = True, scale: float = 1.0) -> Image.Image:
     """The three tiers stacked and centred, the label at the block's top right. Each line shrinks to fit 88% of the width;
     in a title preset a line that would shrink under 70% is wrapped in two, and the whole block shrinks by one factor
-    instead, so the lines keep their sizes' proportions. `effects` draws the preset's sparkles, where it has them."""
+    instead, so the lines keep their sizes' proportions. `effects` draws the preset's sparkles, where it has them; `scale`
+    is the video's text size (TEXT_SCALE)."""
     base, gap = PRESET_TITLE.get(style, (TITLE_SIZES, TITLE_GAP))
+    base = tuple(round(size * scale) for size in base)
     # (text, size, is the main line, the place for the look): a wrapped line's halves share the last two
     items = [
         (text, size, text == tiers.main, index)
@@ -209,33 +213,38 @@ def render_title(tiers: TitleTiers, style: str = "brand_navy", effects: bool = T
     return block
 
 
-def _circle(number: str) -> Image.Image:
-    circle = Image.new("RGBA", (NUMBER_DIAMETER, NUMBER_DIAMETER), (0, 0, 0, 0))
+def _circle(number: str, scale: float = 1.0) -> Image.Image:
+    diameter = round(NUMBER_DIAMETER * scale)
+    circle = Image.new("RGBA", (diameter, diameter), (0, 0, 0, 0))
     draw = ImageDraw.Draw(circle)
-    draw.ellipse((0, 0, NUMBER_DIAMETER - 1, NUMBER_DIAMETER - 1), fill=ORANGE)
-    font = ImageFont.truetype(str(FONT_PATH), NUMBER_SIZE)
-    draw.text((NUMBER_DIAMETER / 2, NUMBER_DIAMETER / 2), number, font=font, fill=(255, 255, 255), anchor="mm")
+    draw.ellipse((0, 0, diameter - 1, diameter - 1), fill=ORANGE)
+    font = ImageFont.truetype(str(FONT_PATH), round(NUMBER_SIZE * scale))
+    draw.text((diameter / 2, diameter / 2), number, font=font, fill=(255, 255, 255), anchor="mm")
     return circle
 
 
-def render_scene(tiers: SceneTiers, style: str = "neon_game") -> Image.Image:
-    """The main line with the numbered circle at its left, and the sub line under, the whole block centred."""
+def render_scene(tiers: SceneTiers, style: str = "neon_game", scale: float = 1.0) -> Image.Image:
+    """The main line with the numbered circle at its left, and the sub line under, the whole block centred. `scale` is the
+    video's text size (TEXT_SCALE)."""
     rows: list[Image.Image] = []
+    sizes = [round(size * scale) for size in SCENE_SIZES]
     if tiers.main:
-        main = render_line(tiers.main, SCENE_SIZES[0], line_style(style, True, 0), SCENE_MAX_WIDTH - NUMBER_DIAMETER)
+        main = render_line(
+            tiers.main, sizes[0], line_style(style, True, 0), SCENE_MAX_WIDTH - round(NUMBER_DIAMETER * scale)
+        )
         if tiers.number:
-            circle = _circle(tiers.number)
-            left = circle.width + NUMBER_GAP - PAD  # the line's own padding overlaps the circle's side
+            circle = _circle(tiers.number, scale)
+            left = circle.width + round(NUMBER_GAP * scale) - PAD  # the line's own padding overlaps the circle's side
             row = Image.new("RGBA", (left + main.width, max(main.height, circle.height)), (0, 0, 0, 0))
             row.alpha_composite(main, (left, (row.height - main.height) // 2))
             row.alpha_composite(circle, (0, (row.height - circle.height) // 2))  # on top of the line's glow
             main = row
         rows.append(main)
     if tiers.sub:
-        rows.append(render_line(tiers.sub, SCENE_SIZES[1], line_style(style, False, 1), SCENE_MAX_WIDTH))
+        rows.append(render_line(tiers.sub, sizes[1], line_style(style, False, 1), SCENE_MAX_WIDTH))
     if not rows:
         return Image.new("RGBA", (1, 1), (0, 0, 0, 0))
-    return stack(rows, [round(0.1 * SCENE_SIZES[0])] * (len(rows) - 1))
+    return stack(rows, [round(0.1 * sizes[0])] * (len(rows) - 1))
 
 
 def title_problems(tiers: TitleTiers) -> list[str]:
