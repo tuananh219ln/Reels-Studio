@@ -2150,16 +2150,27 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         color: str | None = None,
         music_level: str | None = None,
         seconds_auto: bool | None = None,
+        text_hold_sec: Annotated[float | None, Field(description="1–6 giây, bước 0,5")] = None,
+        reset_text_hold: bool = False,
+        text_zone: Literal["top", "bottom"] | None = None,
     ) -> dict:
         """Đặt chuyển cảnh vào cảnh này, màu (preset), mức nhạc trong cảnh, và "Tự khớp lời đọc" (seconds_auto).
         Giá trị lấy từ "Đọc lựa chọn dựng video"; "default" đưa về mặc định của video (chuyển cảnh, mức nhạc) hoặc
-        màu gốc. Cảnh tiêu đề không có chuyển cảnh hay màu riêng."""
+        màu gốc. Cảnh tiêu đề không có chuyển cảnh hay màu riêng. Video nhóm PC Shopee: text_hold_sec là số giây chữ
+        của riêng cảnh này hiện trước khi mờ đi (reset_text_hold theo video), text_zone "top" (Trên) hoặc "bottom"
+        (Dưới) đặt chữ gọn và phụ đề cộng dồn của cảnh ở vùng 14–30% hay 62–78% khung hình."""
         fields = {
             key: (None if value == "default" else value)
             for key, value in given(transition=transition, color=color, music_level=music_level).items()
         }
         if seconds_auto is not None:
             fields["seconds_auto"] = seconds_auto
+        if text_hold_sec is not None:
+            fields["text_hold_sec"] = text_hold_sec
+        if reset_text_hold:
+            fields["text_hold_sec"] = None
+        if text_zone is not None:
+            fields["text_zone"] = None if text_zone == "bottom" else "top"
         body = videos.ScenePatchBody(**fields)
         return await run_in_threadpool(
             invoke, lambda db, me: changed(videos.patch_scene(scene_id, body, me, db, get_storage())), write=True
@@ -2467,6 +2478,18 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         title_text_size: Annotated[str | None, one_of("title_text_size")] = None,
         text_case: Annotated[str | None, one_of("text_case")] = None,
         title_text_case: Annotated[str | None, one_of("title_text_case")] = None,
+        text_hold_sec: Annotated[
+            float | None,
+            Field(
+                description="Chỉ nhóm PC Shopee. “Thời gian hiện chữ”: chữ các cảnh nội dung hiện đầu cảnh rồi mờ dần sau "
+                "số giây này (1–6, bước 0,5); cảnh tiêu đề và cảnh cuối giữ chữ. Dùng reset_text_hold để chữ hiện suốt cảnh"
+            ),
+        ] = None,
+        reset_text_hold: bool = False,
+        pc_style: Annotated[str | None, one_of("pc_style")] = None,
+        pc_title_style: Annotated[str | None, one_of("pc_title_style")] = None,
+        title_layout: Annotated[str | None, one_of("title_layout")] = None,
+        scene_text_layout: Annotated[str | None, one_of("scene_text_layout")] = None,
         title_sfx: Annotated[
             str | None,
             Field(
@@ -2525,6 +2548,11 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             text_case=text_case,
             title_text_case=title_text_case,
             title_sfx=title_sfx,
+            text_hold_sec=text_hold_sec,
+            pc_style=pc_style,
+            pc_title_style=pc_title_style,
+            title_layout=title_layout,
+            scene_text_layout=scene_text_layout,
             text_position=text_position,
             title_text_position=title_text_position,
         )
@@ -2532,6 +2560,8 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             changes["brand_id"] = brand_id
         if logo_enabled is not None:
             changes["logo_enabled"] = logo_enabled
+        if reset_text_hold:
+            changes["text_hold_sec"] = None
         if reset_text_position:
             changes["text_position"] = None
         if reset_title_text_position:
