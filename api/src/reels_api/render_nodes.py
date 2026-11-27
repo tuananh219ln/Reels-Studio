@@ -147,6 +147,9 @@ def options_dict(options) -> dict:
     ):
         if values[name] == default:
             del values[name]
+    # Likewise the text boxes' font, unless it is the original.
+    if values["text_font"] == "be_vietnam":
+        del values["text_font"]
     # Likewise "Dạng chữ" only when the text is drawn as typed: an older machine would draw it in capitals.
     for name in ("text_case", "title_text_case"):
         if values[name] == "upper":

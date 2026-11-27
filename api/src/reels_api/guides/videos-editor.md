@@ -3,6 +3,9 @@
 
 Trang một video (`/videos/<số>`) tự cập nhật khi có job chạy và khi đồng đội sửa cùng lúc.
 
+## Phông chữ của hộp chữ
+Tab **Thiết lập** có ô **Phông chữ**: **Be Vietnam Pro** (chữ gốc) hoặc **Bungee** (chữ to, vuông, kiểu game). Áp cho chữ tiêu đề và chữ các cảnh. Muốn cả nhóm (như Sức khỏe) dùng Bungee, chọn ở thẻ **Chữ & phụ đề** của nhóm đó trong Kho kiến thức; video mới của nhóm sẽ bắt đầu bằng phông đó.
+
 ## Cỡ chữ gọn của PC Shopee
 Chữ gọn (tiêu đề 3 tầng, cảnh 2 tầng) theo mục **Cỡ chữ** ở tab Thiết lập: **Lớn** như cũ, **Vừa** nhỏ khoảng 80%, **Nhỏ** khoảng 65%. Chữ thu nhỏ quanh đúng chỗ cũ, vẫn căn giữa.
 

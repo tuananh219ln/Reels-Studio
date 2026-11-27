@@ -84,6 +84,7 @@ from .video_options import (
     render_options,
     scene_voice,
     text_case,
+    text_font,
     text_hold,
     text_size,
     voice_id,
@@ -801,6 +802,7 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             photo_credit(scene),
             bool(scene.video_key and scene.video_loop),
             blurry_photo(storage, video, scene),
+            text_font(video),
         )
 
     storage = get_storage()
@@ -1338,10 +1340,10 @@ def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | Non
             f"{image}/textbox.png?v={_version(scene.text, *preview_look(video, scene.is_title), *(['pc', last, options.pc_style, options.pc_title_style] if tier_mode else []))}"
             if scene.text.strip()
             and not caption_mode
-            and (tier_mode or text_problem(scene.text, scene.is_title, size, case) is None)
+            and (tier_mode or text_problem(scene.text, scene.is_title, size, case, options.text_font) is None)
             else None
         ),
-        "text_problem": None if tier_mode else text_problem(scene.text, scene.is_title, size, case),
+        "text_problem": None if tier_mode else text_problem(scene.text, scene.is_title, size, case, options.text_font),
         "transition": scene.transition,
         "color": scene.color,
         "layers": [layer_payload(layer, text_case(video, False), video) for layer in scene.layers],

@@ -1184,6 +1184,8 @@ export type VideoOptions = {
    * case is also their text layers'; the title has its own. */
   text_case: "upper" | "keep";
   title_text_case: "upper" | "keep";
+  /** The text boxes' font: "be_vietnam" (Be Vietnam Pro Black, the original) or "bungee" (api video_options). */
+  text_font: "be_vietnam" | "bungee";
   /** The content scenes' text box centre [x, y]; null: where the template puts it. A scene's own wins. */
   text_position: [number, number] | null;
   /** The title scene's text box centre [x, y]; null: the middle of the frame. Only y counts (the title stays centred

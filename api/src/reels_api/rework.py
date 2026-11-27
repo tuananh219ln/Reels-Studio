@@ -15,7 +15,7 @@ from .models import Job, Publication, Scene, Video
 from .script_rules import text_problem
 from .sessions import now
 from .storage import DirectoryStorage
-from .video_options import text_case, text_size
+from .video_options import text_case, text_font, text_size
 from .videos import refresh_thumbnail, run_checks, split_scenes
 
 KIND = "rework"
@@ -147,7 +147,11 @@ def validated(raw: str, video: Video, scenes: list[Scene]) -> list[tuple[Scene, 
             not isinstance(item.get("text"), str)
             or len(item["text"]) > 500
             or text_problem(
-                item["text"], scene.is_title, text_size(video, scene.is_title), text_case(video, scene.is_title)
+                item["text"],
+                scene.is_title,
+                text_size(video, scene.is_title),
+                text_case(video, scene.is_title),
+                text_font(video),
             )
             or not isinstance(item.get("voice"), str)
             or len(item["voice"]) > 1000

@@ -8,6 +8,8 @@ from PIL import Image, ImageDraw, ImageFont
 from .markup import Run
 
 FONT_PATH = Path(__file__).parent / "fonts" / "BeVietnamPro-Black.ttf"
+# The text boxes' font (options.text_font): Be Vietnam Pro Black is the original, Bungee the display font of the PC looks.
+FONTS = {"be_vietnam": FONT_PATH, "bungee": Path(__file__).parent / "fonts" / "Bungee-Regular.ttf"}
 
 FRAME_WIDTH = 1080
 FRAME_HEIGHT = 1920
@@ -212,11 +214,12 @@ class TextLayout:
     line_height: int
     width: int
     height: int
+    font: str = "be_vietnam"  # a key of FONTS
 
 
 @lru_cache(maxsize=64)
-def _font(size: int) -> ImageFont.FreeTypeFont:
-    return ImageFont.truetype(str(FONT_PATH), size)
+def _font(size: int, name: str = "be_vietnam") -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(str(FONTS[name]), size)
 
 
 def _overshoot(font: ImageFont.FreeTypeFont) -> int:
@@ -261,11 +264,11 @@ def _wrap(line: list[Run], font: ImageFont.FreeTypeFont, max_width: float) -> li
     return wrapped
 
 
-def layout_text(lines: list[list[Run]], style: BoxStyle) -> TextLayout:
+def layout_text(lines: list[list[Run]], style: BoxStyle, font_name: str = "be_vietnam") -> TextLayout:
     max_text_width = MAX_BOX_WIDTH - 2 * PAD_X
     needed_lines = 0
     for size in _sizes(style):
-        font = _font(size)
+        font = _font(size, font_name)
         wrapped: list[tuple[list[Run], float]] = []
         for line in lines:
             line_wrap = _wrap(line, font, max_text_width)
@@ -286,6 +289,7 @@ def layout_text(lines: list[list[Run]], style: BoxStyle) -> TextLayout:
                     line_height=line_height,
                     width=math.ceil(max(width for _, width in wrapped)) + 2 * PAD_X,
                     height=line_height * len(wrapped) - round(LEADING * size) + 2 * PAD_Y,
+                    font=font_name,
                 )
     if needed_lines:
         raise TextFitError(
@@ -294,20 +298,20 @@ def layout_text(lines: list[list[Run]], style: BoxStyle) -> TextLayout:
     raise TextFitError(f"có từ quá dài, không vừa hộp rộng {MAX_BOX_WIDTH}px ở cỡ tối thiểu {style.min_size}px")
 
 
-def layout_sized(lines: list[list[Run]], size: str, is_title: bool) -> TextLayout:
+def layout_sized(lines: list[list[Run]], size: str, is_title: bool, font: str = "be_vietnam") -> TextLayout:
     """The box's layout at a text size (TEXT_SIZES): Lớn picks the largest font that fits; Vừa and Nhỏ start from
     that font scaled down (SIZE_FACTORS), never below their own floor, and shrink further only to fit."""
     large = box_style("large", is_title)
     if size == "large":
-        return layout_text(lines, large)
+        return layout_text(lines, large, font)
     style = box_style(size, is_title)
     try:
-        chosen = layout_text(lines, large).font_size
+        chosen = layout_text(lines, large, font).font_size
     except TextFitError:
         chosen = large.min_size
     target = max(style.min_size, round(chosen * SIZE_FACTORS[size]))
     return layout_text(
-        lines, BoxStyle(max_size=target, min_size=min(style.min_size, target), max_lines=style.max_lines)
+        lines, BoxStyle(max_size=target, min_size=min(style.min_size, target), max_lines=style.max_lines), font
     )
 
 
@@ -316,7 +320,7 @@ def render_box(layout: TextLayout, palette: Palette = PALETTES["yellow"]) -> Ima
     draw = ImageDraw.Draw(image)
     if palette.box is not None:
         draw.rounded_rectangle((0, 0, layout.width - 1, layout.height - 1), radius=RADIUS, fill=palette.box)
-    font = _font(layout.font_size)
+    font = _font(layout.font_size, layout.font)
     ascent = font.getmetrics()[0]
     outline = round(OUTLINE_RATIO * layout.font_size) if palette.outline else 0
     for index, (runs, line_width) in enumerate(zip(layout.lines, layout.line_widths)):

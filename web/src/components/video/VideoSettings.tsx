@@ -123,6 +123,10 @@ function styleOption(option: { value?: string | number | null; label?: ReactNode
     </Flex>
   );
 }
+const TEXT_FONTS = [
+  { value: "be_vietnam", label: "Be Vietnam Pro" },
+  { value: "bungee", label: "Bungee" },
+];
 const CUMULATIVE = { value: "cumulative", label: "Cộng dồn" };
 let voiceCache: Promise<VoiceList> | null = null;
 
@@ -761,6 +765,15 @@ export function TextSettings({ values, onChange, disabled, bare, textHold }: Pro
               disabled={disabled}
               onChange={(text_case) => onChange({ text_case })}
             />
+            <Field label="Phông chữ" hint="Phông của chữ tiêu đề và chữ các cảnh. Bungee là chữ to, vuông, kiểu game.">
+              <Segmented
+                aria-label="Phông chữ"
+                options={TEXT_FONTS}
+                value={values.text_font ?? "be_vietnam"}
+                disabled={disabled}
+                onChange={(text_font) => onChange({ text_font: text_font as VideoOptions["text_font"] })}
+              />
+            </Field>
             <Checkbox
               checked={values.text_shade}
               disabled={disabled}

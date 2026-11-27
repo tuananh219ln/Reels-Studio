@@ -29,6 +29,7 @@ const FIELDS = [
   "title_text_size",
   "text_case",
   "title_text_case",
+  "text_font",
   "captions",
   // PC Shopee's own (api text_looks.PC_FIELDS): only that group's card shows them.
   "text_hold_sec",
@@ -67,6 +68,7 @@ function describe(look: Look): string[] {
   }
   if (look.text_size) words.push({ large: "Chữ lớn", medium: "Chữ vừa", small: "Chữ nhỏ" }[look.text_size]);
   if (look.text_case) words.push(look.text_case === "upper" ? "VIẾT HOA" : "Giữ chữ như kịch bản");
+  if (look.text_font) words.push(look.text_font === "bungee" ? "Phông Bungee" : "Phông Be Vietnam Pro");
   if (look.captions) {
     words.push(
       { off: "Không phụ đề", phrase: "Phụ đề từng cụm", word: "Phụ đề từng từ", cumulative: "Phụ đề cộng dồn" }[

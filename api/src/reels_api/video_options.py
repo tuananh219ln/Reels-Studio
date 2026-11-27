@@ -13,6 +13,7 @@ from reels_render.options import (
     CAPTIONS,
     MOTIONS,
     TEXT_COLORS,
+    TEXT_FONTS,
     TEXT_SIZE_NAMES,
     TEXT_STYLES,
     TITLE_STYLES,
@@ -61,6 +62,8 @@ DEFAULTS: dict = {
     # The text box's size, the content scenes' and the title's ("large": the original template).
     "text_size": "large",
     "title_text_size": "large",
+    # The text boxes' font (reels_render.options.TEXT_FONTS): "be_vietnam" is the original, "bungee" the PC looks' display font.
+    "text_font": "be_vietnam",
     # "Dạng chữ", the content scenes' (and their text layers') and the title's: "upper" (the original template) or
     # "keep", drawn as typed.
     "text_case": "upper",
@@ -113,6 +116,7 @@ LOOK_FIELDS = (
     "title_text_size",
     "text_case",
     "title_text_case",
+    "text_font",
 )
 # Left out of the MP4 fingerprint while unused, so videos rendered before each existed stay current.
 LATER_LOOK_FIELDS = LOOK_FIELDS[2:]
@@ -140,6 +144,7 @@ CHOICES = {
     "captions": CAPTIONS,
     "text_size": TEXT_SIZE_NAMES,
     "title_text_size": TEXT_SIZE_NAMES,
+    "text_font": TEXT_FONTS,
     "text_case": TEXT_CASES,
     "title_text_case": TEXT_CASES,
     "title_sfx": TITLE_SFX,
@@ -170,6 +175,7 @@ LABELS = {
     "text_size": "Cỡ chữ",
     "title_text_size": "Cỡ chữ tiêu đề",
     "text_case": "Dạng chữ",
+    "text_font": "Phông chữ",
     "title_text_case": "Dạng chữ tiêu đề",
     "text_hold_sec": "Thời gian hiện chữ",
     "pc_style": "Kiểu chữ PC Shopee",
@@ -387,6 +393,7 @@ SCENE_LOOK_FIELDS = (
     "box_opacity",
     "text_size",
     "text_case",
+    "text_font",
     "text_shade",
 )
 # The scenes' letter case is not the title's, which has its own.
@@ -405,6 +412,13 @@ def text_case(video: Video | None, is_title: bool) -> str:
     if video is None:
         return DEFAULTS["text_case"]
     return effective(video)["title_text_case" if is_title else "text_case"]
+
+
+def text_font(video: Video | None) -> str:
+    """The font a scene's text box is drawn in (reels_render.options.TEXT_FONTS)."""
+    if video is None:
+        return DEFAULTS["text_font"]
+    return effective(video)["text_font"]
 
 
 def preview_look(video: Video, is_title: bool) -> list[str]:

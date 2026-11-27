@@ -2594,7 +2594,7 @@ def scene_textbox(scene_id: int, me: Session = Depends(current_member), db: DbSe
     if (
         not scene.text.strip()
         or frames.captioned(options, scene.is_title, last, spoken(video, scene))
-        or (not drawn and text_problem(scene.text, scene.is_title, size, case) is not None)
+        or (not drawn and text_problem(scene.text, scene.is_title, size, case, options.text_font) is not None)
     ):
         raise ApiError(404, "no_text_box", "Cảnh này không có chữ để đặt vị trí")
     box, _ = frames.text_box(scene.text, scene.is_title, options, last=last, zone=scene.text_zone)
