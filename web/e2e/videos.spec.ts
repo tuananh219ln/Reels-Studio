@@ -2169,6 +2169,9 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await posts.getByRole("button", { name: "Cập nhật view" }).click();
   await expect(posts.getByTestId("post-views")).toHaveText("1.200", { timeout: 30_000 });
   await expect(groups.getByTestId("cell-facebook")).toContainText("1.200 view", { timeout: 30_000 });
+  // The reading asked for is done: until then the button under the mouse is "Đang đo view", disabled, and its tooltip
+  // can stay open over the one hovered next.
+  await expect(posts.getByRole("button", { name: "Cập nhật view" })).toBeEnabled({ timeout: 30_000 });
   // The views stay on one line: the details sit in a tooltip.
   await expect(posts.getByText("3 share, 5 bình luận, 40 cảm xúc")).toHaveCount(0);
   await posts.getByTestId("post-views").hover();

@@ -252,6 +252,35 @@ def test_refresh_asks_the_shown_videos_posts_once_per_five_minutes(an, db, me, s
     assert again.status_code == 429 and "thử lại sau 5 phút" in again.json()["message"]
 
 
+def test_a_post_waiting_for_its_first_reading_is_refreshing_so_the_board_reads_it_again(an, db, fb, fakes):
+    """The worker reads a reel as soon as it is live, without anyone asking: "Bài đăng" opened before that reading
+    must still keep reading the board (it polls only while a cell is refreshing), or the views never show."""
+    post = fb(0.01)
+    cell = an.get("/api/posts/board").json()["items"][0]["cells"]["facebook"]
+    assert cell["refreshing"] is True
+    metrics.measure(db, post)
+    cell = an.get("/api/posts/board").json()["items"][0]["cells"]["facebook"]
+    assert cell["refreshing"] is False
+    assert cell["views"] == 1200
+
+
+def test_a_post_the_worker_cannot_read_is_never_refreshing(an, db, me, storage):
+    """A TikTok post with no connected account is never read: no spinner and no polling that never ends."""
+    video = make_video(db, storage, me, scene_count=1)
+    db.add(
+        Publication(
+            video_id=video.id,
+            platform="tiktok",
+            external_id="7301234567890123456",
+            status="published",
+            published_at=hours_ago(0.01),
+            created_by_id=me.id,
+        )
+    )
+    db.commit()
+    assert an.get("/api/posts/board").json()["items"][0]["cells"]["tiktok"]["refreshing"] is False
+
+
 def test_the_opened_row_shows_the_marks_missed_estimated_and_the_trend(an, db, me, storage, fakes):
     post = youtube_post(db, storage, me, published_at=hours_ago(30), views_24h=1400, marks_estimated=["24h"])
     for hours, views in ((1, 10), (10, 500), (29, 1900)):

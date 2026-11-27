@@ -1142,7 +1142,8 @@ steps open the status card or the products block on its tab, the QC chip its pop
     rendered video and where it stands on Facebook, TikTok and YouTube Shorts. Under the title "Video đã render và
     trạng thái đăng trên từng nền tảng…"; at its right "Cập nhật view" (asks the worker for the out Facebook and
     YouTube posts of the videos shown, at most 200, once per 5 minutes per member; the cells being read spin until
-    their numbers come), "Dán link bài đã đăng" and "Danh sách | Lịch". No weekly KPIs,
+    their numbers come, and so does a post just out that the worker has not read yet, so the board is read again
+    every few seconds until its first numbers show), "Dán link bài đã đăng" and "Danh sách | Lịch". No weekly KPIs,
     no "Sẵn sàng đăng" and no "Nhân bản" card any more (their api stays): the "Chưa đăng" tab is where a video waits,
     and "Nhân bản" / "Nhân bản y hệt" sit in each row's "⋮" menu.
     - **Tabs**, one count each (videos, under the other filters): "Chưa đăng" (no post on its way, scheduled, waiting
