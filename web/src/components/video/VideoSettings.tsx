@@ -5,7 +5,7 @@ import { InfoCircleOutlined, PauseCircleOutlined, PlayCircleOutlined } from "@an
 import { Button, Card, Checkbox, Flex, Segmented, Select, Slider, Switch, Tooltip, Typography } from "antd";
 import type { SelectProps, SliderSingleProps } from "antd";
 import Link from "next/link";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { COLORS } from "@/app/theme";
 import {
   api,
@@ -106,6 +106,24 @@ const PC_STYLES = [
   { value: "grunge_rainbow", label: "Grunge cầu vồng" },
   { value: "esports_blue", label: "Esports xanh" },
 ];
+const TITLE_PRESETS = ["neon_tech_teal", "neon_outline_price", "gold_metal", "grunge_rainbow", "esports_blue"];
+/** A picker row: the name, and for the five title presets a picture of the preset drawn with sample text (api routes_title_presets). */
+function styleOption(option: { value?: string | number | null; label?: ReactNode }) {
+  const value = String(option.value ?? "");
+  if (!TITLE_PRESETS.includes(value)) return option.label;
+  return (
+    <Flex vertical gap={4} style={{ padding: "4px 0" }}>
+      <span>{option.label}</span>
+      {/* eslint-disable-next-line @next/next/no-img-element -- a small sample from the api, not a page image */}
+      <img
+        src={`/api/title-presets/${value}.png`}
+        alt={`Mẫu chữ ${String(option.label)}`}
+        width={180}
+        style={{ background: "#2c3e3a", borderRadius: 6 }}
+      />
+    </Flex>
+  );
+}
 const CUMULATIVE = { value: "cumulative", label: "Cộng dồn" };
 let voiceCache: Promise<VoiceList> | null = null;
 
@@ -770,6 +788,7 @@ export function TextSettings({ values, onChange, disabled, bare, textHold }: Pro
                 <Select
                   aria-label="Kiểu chữ PC Shopee"
                   options={PC_STYLES}
+                  optionRender={styleOption}
                   style={{ width: "100%" }}
                   value={values.pc_style}
                   disabled={disabled}
@@ -850,18 +869,21 @@ export function TextSettings({ values, onChange, disabled, bare, textHold }: Pro
                     <Select
                       aria-label="Kiểu chữ tiêu đề PC Shopee"
                       options={PC_STYLES}
+                      optionRender={styleOption}
                       style={{ width: "100%" }}
                       value={values.pc_title_style}
                       disabled={disabled}
                       onChange={(style) => onChange({ pc_title_style: style as VideoOptions["pc_title_style"] })}
                     />
-                    {values.pc_title_style === "grunge_rainbow" && (
+                    {(values.pc_title_style === "grunge_rainbow" || values.pc_title_style === "gold_metal") && (
                       <Checkbox
                         checked={values.title_effects}
                         disabled={disabled}
                         onChange={(event) => onChange({ title_effects: event.target.checked })}
                       >
-                        Hiệu ứng glitch và tối viền trên cảnh tiêu đề
+                        {values.pc_title_style === "gold_metal"
+                          ? "Thêm các ngôi sao lấp lánh quanh chữ"
+                          : "Hiệu ứng glitch và tối viền trên cảnh tiêu đề"}
                       </Checkbox>
                     )}
                   </Field>

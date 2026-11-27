@@ -454,3 +454,27 @@ def test_the_title_effects_chain_is_a_valid_ffmpeg_filter(tmp_path):
         check=True, capture_output=True,
     )  # fmt: skip
     assert Image.open(out).size == (1080, 1920)
+
+
+def test_a_preset_wraps_a_line_that_would_shrink_too_far_and_gold_has_sparkles_only_when_on():
+    from reels_render.tiers import TitleTiers, render_title
+
+    one = render_title(TitleTiers("", "GIÁ RẺ", "MUA NGAY", ""), "gold_metal", effects=False)
+    long = render_title(
+        TitleTiers("", "GIÁ RẺ BẤT NGỜ CHƯA TỪNG CÓ TRONG NĂM NAY", "MUA NGAY", ""), "gold_metal", effects=False
+    )
+    assert long.width <= 1080 and long.height > 0.8 * one.height  # wrapped in two, not shrunk to a sliver
+    on = render_title(TitleTiers("", "GIÁ RẺ", "MUA NGAY", ""), "gold_metal", effects=True)
+    assert on.size == one.size and on.tobytes() != one.tobytes()  # the stars are inside the same picture
+    assert (
+        render_title(TitleTiers("", "GIÁ RẺ", "MUA NGAY", ""), "esports_blue", effects=True).size
+        == render_title(TitleTiers("", "GIÁ RẺ", "MUA NGAY", ""), "esports_blue", effects=False).size
+    )
+
+
+def test_the_brush_label_falls_back_to_a_hand_written_font_that_has_vietnamese_marks():
+    from reels_render.pc_text import FONTS, line_style, render_line
+
+    label = line_style("grunge_rainbow", False, 2)
+    assert label.font == FONTS / "PermanentMarker-Regular.ttf" and label.vi.font == FONTS / "Mali-Bold.ttf"
+    assert render_line("MÁY TÍNH ĐỒ HOẠ", 64, label).getbbox() is not None

@@ -137,3 +137,19 @@ def test_the_title_effects_are_sent_to_a_machine_only_when_on():
 
     assert render_nodes.options_dict(RenderOptions(title_effects=True))["title_effects"] is True
     assert "title_effects" not in render_nodes.options_dict(RenderOptions())
+
+
+def test_each_title_preset_has_a_sample_picture_and_an_unknown_one_is_not_found():
+    import pytest
+
+    from reels_api import routes_title_presets
+    from reels_api.errors import ApiError
+    from reels_render.pc_text import PRESETS
+
+    for style in PRESETS:
+        answer = routes_title_presets.sample(style, me=None)
+        picture = Image.open(io.BytesIO(answer.body))
+        assert picture.width == routes_title_presets.WIDTH and picture.getbbox() is not None
+    with pytest.raises(ApiError) as caught:
+        routes_title_presets.sample("neon_game", me=None)
+    assert caught.value.status == 404

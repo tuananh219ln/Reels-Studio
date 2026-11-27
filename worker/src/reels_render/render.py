@@ -343,7 +343,7 @@ def tier_picture(lines: list[list[Run]], index: int, last: int, options: RenderO
     """The title in three tiers, or a content scene's text in two (never the last scene's call to action), when the
     video asks for them; None for a scene drawn as a text box."""
     if index == 0 and options.title_layout == "three_tier":
-        return render_title(parse_title(lines), options.pc_title_style)
+        return render_title(parse_title(lines), options.pc_title_style, options.title_effects)
     if index > 0 and options.scene_text_layout == "two_tier":
         return render_scene(parse_scene(lines), options.pc_style)
     return None
