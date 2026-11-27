@@ -135,3 +135,44 @@ def test_a_cleaned_video_refuses_what_needs_its_files(db):
     with pytest.raises(ApiError) as error:
         media_cleanup.ensure_media(row, "render")
     assert error.value.status == 409 and "đã được dọn ngày 20/12/2026" in error.value.message
+
+
+def test_soon_lists_the_videos_due_within_three_days_only_while_the_cleanup_is_on(db, monkeypatch):
+    user = make_user(db)
+    due_in_two_days = video(db, user, "a", 28)
+    video(db, user, "b", 20)
+    monkeypatch.setenv("MEDIA_CLEANUP_ENABLED", "")
+    assert media_cleanup.soon(db, NOW) == []
+    monkeypatch.setenv("MEDIA_CLEANUP_ENABLED", "true")
+    assert [item.video_id for item in media_cleanup.soon(db, NOW)] == [due_in_two_days.id]
+    assert media_cleanup.soon(db, NOW, video_id=due_in_two_days.id)[0].due_at == NOW - timedelta(days=28) + timedelta(
+        days=30
+    )
+
+
+def test_the_reminder_warns_the_maker_of_a_video_about_to_be_cleaned(db, monkeypatch):
+    from reels_api.telegram import reminder_lines
+
+    monkeypatch.setenv("MEDIA_CLEANUP_ENABLED", "true")
+    user, other = make_user(db), make_user(db, email="b@doi.vn")
+    video(db, user, "mine", 28)
+    assert any("sắp bị dọn media" in line for line in reminder_lines(db, user, NOW))
+    assert not any("sắp bị dọn media" in line for line in reminder_lines(db, other, NOW))
+
+
+def test_keep_media_is_saved_and_a_cleaned_video_cannot_render_or_be_copied(client, db, storage):
+    from conftest import login, make_video
+
+    user = make_user(db)
+    login(client)
+    row = make_video(db, storage, user)
+    db.commit()
+    saved = client.patch(f"/api/videos/{row.id}", json={"keep_media": True}).json()
+    assert saved["keep_media"] is True and saved["media_cleaned_at"] is None and saved["media_due_at"] is None
+    row.media_cleaned_at = NOW
+    db.commit()
+    for path in (f"/api/videos/{row.id}/render", f"/api/videos/{row.id}/duplicate"):
+        response = client.post(path)
+        assert response.status_code == 409, response.text
+        assert response.json()["code"] == "media_cleaned"
+    assert client.get(f"/api/videos/{row.id}").json()["media_cleaned_at"] is not None

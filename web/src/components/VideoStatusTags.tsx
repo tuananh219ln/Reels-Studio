@@ -20,6 +20,7 @@ export default function VideoStatusTags({ video, only }: { video: VideoRow; only
   const notes = [
     video.rerender_failed && "Render lại lỗi",
     video.mp4_outdated && "MP4 chưa cập nhật theo bản sửa",
+    video.media_cleaned_at && "Đã dọn media",
     // A "Nhân bản xáo cảnh" copy still showing its source's title.
     video.title_review && "Chưa đổi tiêu đề",
   ];

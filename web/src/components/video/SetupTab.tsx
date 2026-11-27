@@ -1,11 +1,11 @@
 "use client";
 
-import { App, Collapse, Flex, Typography } from "antd";
+import { Alert, App, Collapse, Flex, Switch, Typography } from "antd";
 import Link from "next/link";
 import { useState } from "react";
 import { COLORS } from "@/app/theme";
 import { useMe } from "@/components/MeContext";
-import { api, errorMessage, type VideoDefaults, type VideoDetail } from "@/lib/api";
+import { api, errorMessage, formatDateTime, type VideoDefaults, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
 import LogoCard from "./LogoCard";
 import MusicCard from "./MusicCard";
@@ -93,6 +93,11 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
 
   return (
     <Flex vertical gap={12} data-testid="setup-tab">
+      <MediaKeep
+        video={video}
+        disabled={editor.readOnly || busy}
+        onChange={(keep_media) => void save({ keep_media })}
+      />
       <LogoCard video={video} disabled={disabled} onSave={(options) => void save({ options })} />
       <Collapse
         size="small"
@@ -151,6 +156,55 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
           </Link>
         </Typography.Text>
       </Flex>
+    </Flex>
+  );
+}
+
+/**
+ * "Giữ media": a posted video's photos, clips and narration are deleted by the worker some days after its last post
+ * (its MP4s and thumbnail stay). This keeps them, so the video can still be copied, shuffled and rendered.
+ */
+function MediaKeep({
+  video,
+  disabled,
+  onChange,
+}: {
+  video: VideoDetail;
+  disabled: boolean;
+  onChange: (keep: boolean) => void;
+}) {
+  if (video.media_cleaned_at) {
+    return (
+      <Alert
+        type="info"
+        showIcon
+        data-testid="media-cleaned"
+        title={`Media đã được dọn ngày ${formatDateTime(video.media_cleaned_at).slice(0, 10)}`}
+        description="Ảnh, clip và lời đọc đã xoá; MP4 và số liệu vẫn còn. Video này không render, nhân bản hay xáo cảnh được nữa."
+      />
+    );
+  }
+  return (
+    <Flex vertical gap={4} data-testid="media-keep">
+      <Flex gap={8} align="center">
+        <Switch
+          size="small"
+          checked={video.keep_media}
+          disabled={disabled}
+          onChange={onChange}
+          aria-label="Giữ media"
+        />
+        <Typography.Text strong>Giữ media</Typography.Text>
+      </Flex>
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        Video đã đăng quá hạn sẽ bị dọn ảnh, clip và lời đọc để nhẹ ổ (MP4 và số liệu vẫn giữ). Bật để giữ lại, nếu bạn
+        còn muốn nhân bản hay xáo cảnh video này.
+      </Typography.Text>
+      {video.media_due_at && !video.keep_media && (
+        <Typography.Text type="warning" style={{ fontSize: 12 }} data-testid="media-due">
+          Media sẽ được dọn từ {formatDateTime(video.media_due_at).slice(0, 10)}.
+        </Typography.Text>
+      )}
     </Flex>
   );
 }
