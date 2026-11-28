@@ -1,12 +1,12 @@
 import pytest
 
+from reels_render.layout import place_box
 from reels_render.markup import parse_scene_text
 from reels_render.textbox import (
     FRAME_HEIGHT,
     FRAME_WIDTH,
     MAX_BOX_WIDTH,
     PALETTES,
-    SCENE_BOX_BOTTOM,
     SCENE_STYLE,
     SHADE_ALPHA,
     SHADE_FADE,
@@ -14,10 +14,8 @@ from reels_render.textbox import (
     TextFitError,
     layout_text,
     render_box,
-    scene_box_position,
     shade_alpha,
     shade_band,
-    title_box_position,
     with_shade,
 )
 
@@ -49,7 +47,7 @@ def is_dark(pixel):
 
 
 def test_agreed_box_geometry():
-    assert MAX_BOX_WIDTH == 960
+    assert MAX_BOX_WIDTH == 950  # between the text's side edges, 65 and 1015
     assert (TITLE_STYLE.max_size, TITLE_STYLE.min_size, TITLE_STYLE.max_lines) == (96, 64, 5)
     assert (SCENE_STYLE.max_size, SCENE_STYLE.min_size, SCENE_STYLE.max_lines) == (84, 60, 3)
 
@@ -58,7 +56,7 @@ def test_text_that_only_fits_near_minimum_size_is_accepted():
     result = layout("Cá nhỏ ăn cả xương\nGiàu canxi, rẻ, dễ tìm, ăn ngon mỗi ngày")
     assert result.font_size <= 66
     assert len(result.lines) == 3
-    assert result.width <= 960
+    assert result.width <= 950
 
 
 def test_shrinking_reaches_the_exact_minimum_before_failing():
@@ -66,9 +64,9 @@ def test_shrinking_reaches_the_exact_minimum_before_failing():
     assert layout("H" * 19).font_size == 60
     with pytest.raises(TextFitError):
         layout("H" * 20)
-    assert layout("H" * 18, TITLE_STYLE).font_size == 64
+    assert layout("H" * 17 + "II", TITLE_STYLE).font_size == 64
     with pytest.raises(TextFitError):
-        layout("H" * 19, TITLE_STYLE)
+        layout("H" * 17 + "III", TITLE_STYLE)
 
 
 def test_short_text_keeps_full_size():
@@ -98,20 +96,6 @@ def test_title_allows_five_lines_but_not_six():
     assert len(layout("a\nb\nc\nd\ne", TITLE_STYLE).lines) == 5
     with pytest.raises(TextFitError, match="tối đa 5 dòng"):
         layout("a\nb\nc\nd\ne\nf", TITLE_STYLE)
-
-
-def test_scene_box_bottom_sits_on_lower_third_line_and_is_centred():
-    result = layout("Cá nhỏ\nGiàu *canxi*")
-    x, y = scene_box_position(result.width, result.height)
-    assert y + result.height == SCENE_BOX_BOTTOM
-    assert abs((x + result.width / 2) - FRAME_WIDTH / 2) <= 1
-
-
-def test_title_box_is_centred_in_frame():
-    result = layout("5 món giúp\n*xương chắc khỏe*\nsau tuổi 50", TITLE_STYLE)
-    x, y = title_box_position(result.width, result.height)
-    assert abs((y + result.height / 2) - FRAME_HEIGHT / 2) <= 2
-    assert abs((x + result.width / 2) - FRAME_WIDTH / 2) <= 1
 
 
 # Pillow rendering
@@ -148,32 +132,6 @@ def test_stacked_diacritics_are_not_clipped_or_touching(style):
     assert any(all(is_yellow(p) for p in row[30:-30]) for row in gap)
 
 
-def test_a_moved_box_is_centred_on_its_point_and_kept_inside_the_safe_zone():
-    from reels_render.textbox import SAFE_ZONE, place_box
-
-    left, top, right, bottom = SAFE_ZONE
-    # Without a point a box sits where the template puts it.
-    assert place_box(400, 200, None, is_title=False) == scene_box_position(400, 200)
-    assert place_box(400, 200, None, is_title=True) == title_box_position(400, 200)
-    # A point inside the zone centres the box on it.
-    assert place_box(400, 200, (500, 700), is_title=False) == (300, 600)
-    # Past an edge, the box stops at that edge: clear of the top bar, the buttons and the caption area.
-    assert place_box(400, 200, (1080, 0), is_title=False) == (right - 400, top)
-    assert place_box(400, 200, (0, 1920), is_title=False) == (left, bottom - 200)
-    # A box wider than the zone stays centred across the frame.
-    assert place_box(MAX_BOX_WIDTH, 200, (900, 700), is_title=False)[0] == (FRAME_WIDTH - MAX_BOX_WIDTH) // 2
-    # The title moves only up and down, so the thumbnail stays centred.
-    assert place_box(400, 200, (100, 500), is_title=True) == ((FRAME_WIDTH - 400) // 2, 400)
-
-
-def test_captions_go_under_a_box_moved_to_the_top():
-    from reels_render.textbox import CAPTION_GAP, SAFE_ZONE, caption_y
-
-    assert caption_y(1200, 1400, 100) == 1100
-    # Above a box near the top the captions would run under the top bar: they go below the box instead.
-    assert caption_y(SAFE_ZONE[1] + 50, 600, 100) == 600 + CAPTION_GAP
-
-
 def test_the_shade_is_45_percent_at_the_text_and_fades_out_either_side():
     assert SHADE_ALPHA == round(0.45 * 255)
     assert shade_alpha(600, 500, 900) == SHADE_ALPHA  # over the text
@@ -194,7 +152,7 @@ def test_the_shade_band_spans_the_frame_width_and_is_cut_at_the_frame_edges():
 
 def test_a_box_over_its_shade_is_one_picture_that_keeps_the_box_where_it_was():
     box = render_box(layout_text(parse_scene_text("Một hai ba"), SCENE_STYLE), PALETTES["yellow"])
-    x, y = scene_box_position(box.width, box.height)
+    x, y = place_box(box.width, box.height, None, is_title=False)
     shaded, (left, top) = with_shade(box, x, y)
     assert left == 0 and shaded.width == FRAME_WIDTH and top == max(0, y - SHADE_FADE)
     # The box's own pixels are where they were, the band's alpha is round it, and the corner is plain shade.

@@ -7,6 +7,7 @@ Colours may also be any "#RRGGBB" (the page warns about faint ones); sizes stay 
 from dataclasses import dataclass
 
 from .errors import InputError
+from .layout import DEFAULT_PROFILE, PROFILES, Profile
 from .markup import TEXT_CASES
 from .pc_text import PC_STYLES
 from .textbox import Palette, is_hex, palette_for, title_palette
@@ -87,9 +88,16 @@ class RenderOptions:
     # The title preset's whole-frame effects (pc_text.FRAME_EFFECTS) on the title scene; sent only when on and the
     # preset has some, so a machine on older code refuses the option instead of rendering without them.
     title_effects: bool = False
+    # Where text, captions and the logo may go (layout.PROFILES). Always sent to a render machine, so one on older code,
+    # which would put them where they used to go, refuses the video instead.
+    layout_profile: str = DEFAULT_PROFILE
+    # The channel logo's own place (its ring's top-left corner) and diameter; None: the profile's.
+    logo_position: tuple[int, int] | None = None
+    logo_size: int | None = None
 
     def __post_init__(self) -> None:
         for name, value, allowed in (
+            ("layout_profile", self.layout_profile, tuple(PROFILES)),
             ("transition", self.transition, TRANSITIONS),
             ("motion", self.motion, MOTIONS),
             ("zoom", self.zoom, tuple(ZOOMS)),
@@ -128,6 +136,13 @@ class RenderOptions:
         ):
             if not isinstance(flag, bool):
                 raise InputError(f"Tuỳ chọn {name} phải là true hoặc false (đang là {flag!r})")
+        position = self.logo_position
+        if position is not None:
+            if len(position) != 2 or not all(type(number) is int for number in position):
+                raise InputError(f"Vị trí logo phải là [x, y] (đang là {position!r})")
+            object.__setattr__(self, "logo_position", tuple(position))  # a render machine reads it from JSON, as a list
+        if self.logo_size is not None and type(self.logo_size) is not int:
+            raise InputError(f"Cỡ logo phải là số nguyên (đang là {self.logo_size!r})")
         volume = self.voice_volume
         if isinstance(volume, bool) or not isinstance(volume, (int, float)) or not 0 <= volume <= 1:
             raise InputError(f"Âm lượng giọng đọc phải là số từ 0 đến 1 (đang là {volume})")
@@ -135,6 +150,10 @@ class RenderOptions:
     @property
     def zoom_end(self) -> float:
         return ZOOMS[self.zoom]
+
+    @property
+    def profile(self) -> Profile:
+        return PROFILES[self.layout_profile]
 
     def scene_palette(self) -> Palette:
         """The content scenes' text box."""

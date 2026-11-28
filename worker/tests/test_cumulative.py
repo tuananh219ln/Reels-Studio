@@ -21,7 +21,7 @@ from reels_render.cumulative import (
 )
 from reels_render.errors import InputError
 from reels_render.options import RenderOptions
-from reels_render.pc_text import PRESETS
+from reels_render.pc_text import PAD, PRESETS
 from reels_render.render import render_video
 from reels_render.script import load_script
 
@@ -106,11 +106,11 @@ def test_a_render_shows_the_words_so_far_and_no_scene_text_in_a_content_scene(tm
         difference = ImageChops.difference(frame.crop(box), plain.crop(box))
         return max(high for _, high in difference.getextrema()) > 60
 
-    # Scene 1 runs from 1 s to 3.4 s. Its narration is on the lower zone (62–78%); nothing in the old text place.
+    # Scene 1 runs from 1 s to 3.4 s. Its narration is on the lower zone (from 62% down); nothing where the text goes.
     assert changed(3.0, (0, 1190, 1080, 1500))
-    assert not changed(3.0, (0, 780, 1080, 1140))
-    # The last scene is the call to action: its own text stays and no caption is drawn there.
-    assert changed(5.6, (0, 700, 1080, 1250))
+    assert not changed(3.0, (0, 250, 1080, 1140))
+    # The last scene is the call to action: its own text stays at the top and no caption is drawn there.
+    assert changed(5.6, (0, 290, 1080, 700))
 
 
 @needs_ffmpeg
@@ -123,7 +123,7 @@ def test_a_scene_with_no_narration_keeps_its_own_text_under_cumulative(tmp_path)
     script = load_script(write_script(tmp_path, data))
     output = render_video(script, tmp_path / "out.mp4", options=RenderOptions(captions="cumulative"))
     frame = extract_frame(output, 2.0, tmp_path / "f.png")  # scene 1: nothing to say, so nothing replaces its text
-    box = (0, 700, 1080, 1250)
+    box = (0, 290, 1080, 700)
     difference = ImageChops.difference(frame.crop(box), plain.crop(box))
     assert max(high for _, high in difference.getextrema()) > 60
 
@@ -223,16 +223,16 @@ def test_a_render_draws_the_title_in_tiers_and_a_scene_text_in_two_with_no_box(t
         frame = extract_frame(output, second, tmp_path / f"f{second}.png")
         return ImageChops.difference(frame.crop(box), plain.crop(box))
 
-    # The title sits about 22% down (a block of at most 22% of the frame), with no yellow box behind it.
+    # The title starts 290 down (a block of at most 22% of the frame), with no yellow box behind it.
     title = region(1.0, (0, 200, 1080, 660))
     assert max(high for _, high in title.getextrema()) > 60
     assert max(high for _, high in region(1.0, (0, 900, 1080, 1700)).getextrema()) < 40
-    # The content scene's text sits in the lower zone, the title's place is clear.
-    assert max(high for _, high in region(3.0, (0, 1130, 1080, 1480)).getextrema()) > 60
-    assert max(high for _, high in region(3.0, (0, 200, 1080, 660)).getextrema()) < 40
+    # The content scene's text starts there too; the lower part is clear.
+    assert max(high for _, high in region(3.0, (0, 250, 1080, 660)).getextrema()) > 60
+    assert max(high for _, high in region(3.0, (0, 900, 1080, 1700)).getextrema()) < 40
 
 
-def test_a_scene_set_to_top_puts_the_captions_and_tiers_in_the_upper_zone():
+def test_a_scene_says_where_its_captions_and_compact_text_sit():
     from reels_render.cumulative import Line
     from reels_render.markup import parse_scene_text
     from reels_render.render import tier_corner
@@ -242,10 +242,13 @@ def test_a_scene_set_to_top_puts_the_captions_and_tiers_in_the_upper_zone():
     lines = (Line("CHUỘT", 72, False),)
     _, lower = render_cumulative(lines)
     _, upper = render_cumulative(lines, zone="top")
-    assert lower[1] > 1920 * 0.55 and upper[1] < 1920 * 0.2  # 62–78% and 14–30%
+    assert lower[1] > 1920 * 0.55 and upper[1] < 1920 * 0.15  # low by default; "Trên" at the text's highest
     picture = render_scene(parse_scene(parse_scene_text("3. *Logitech*\nkhông dây")))
-    assert tier_corner(picture, 1, None, "top")[1] < 1920 * 0.2 < 1920 * 0.55 < tier_corner(picture, 1, None)[1]
-    assert tier_corner(picture, 1, (100, 100), "top")[0] == 0  # a place a member moved it to wins, kept on the frame
+    # The compact text sits high unless the scene is set to "Dưới".
+    assert tier_corner(picture, 1, None) == tier_corner(picture, 1, None, "top")
+    assert tier_corner(picture, 1, None)[1] < 1920 * 0.2 < 1920 * 0.55 < tier_corner(picture, 1, None, "bottom")[1]
+    # A place a member moved it to wins, kept inside the text's edges.
+    assert tier_corner(picture, 1, (100, 100), "bottom")[0] == 65 - PAD
     assert (
         parse_script(
             {"title": {"text": "A", "seconds": 1}, "scenes": [{"text": "B", "seconds": 1, "text_zone": "top"}]},
@@ -305,11 +308,10 @@ def test_a_scene_with_a_held_text_shows_no_caption_while_its_text_is_up(tmp_path
         difference = ImageChops.difference(frame.crop(box), plain.crop(box))
         return max(high for _, high in difference.getextrema()) > 60
 
-    # Scene 1 runs 1–5 s: its text is up until 1 + 1.5 + 0.25 = 2.75 s, the captions (bottom on y = 1440) start then.
-    assert region(1.9, (0, 1130, 1080, 1480)) and not region(1.9, (0, 1000, 1080, 1130))
-    assert not region(1.9, (0, 1000, 1080, 1100))  # no caption yet
-    assert region(3.5, (0, 1330, 1080, 1440))  # the caption, once the text has gone
-    assert not region(3.5, (0, 1000, 1080, 1300)) and not region(3.5, (0, 1445, 1080, 1700))
+    # Scene 1 runs 1–5 s: its text is up until 1 + 1.5 + 0.25 = 2.75 s, the captions (bottom on y = 1530) start then.
+    assert region(1.9, (0, 250, 1080, 700)) and not region(1.9, (0, 900, 1080, 1700))  # the text; no caption yet
+    assert region(3.5, (0, 1420, 1080, 1530))  # the caption, once the text has gone
+    assert not region(3.5, (0, 250, 1080, 1300)) and not region(3.5, (0, 1535, 1080, 1800))
 
 
 def test_a_title_written_on_one_line_is_cut_at_its_punctuation_into_three_tiers():
@@ -326,20 +328,6 @@ def test_a_title_written_on_one_line_is_cut_at_its_punctuation_into_three_tiers(
     # No punctuation: all the main line. A label line still comes out of the text.
     plain = parse_title(parse_scene_text("5 món PC đáng săn\n[[-50%]]"))
     assert (plain.small, plain.main, plain.sub, plain.label) == ("", "5 MÓN PC ĐÁNG SĂN", "", "-50%")
-
-
-def test_a_caption_of_a_compact_text_scene_sits_on_the_safe_zone_floor_unless_the_text_stays_under_it():
-    from reels_render.render import tier_caption_y
-    from reels_render.textbox import CAPTION_GAP, SCENE_BOX_BOTTOM
-
-    # The text goes before the captions start (a hold): the caption's bottom is y = 1440, wherever the text was dragged.
-    assert tier_caption_y(1190, 1400, 100, text_stays=False) == SCENE_BOX_BOTTOM - 100
-    assert tier_caption_y(1300, 1440, 100, text_stays=False) == SCENE_BOX_BOTTOM - 100
-    # The text stays the whole scene: a caption that would land on it goes over it, as before.
-    assert tier_caption_y(1190, 1400, 100, text_stays=True) == 1190 - CAPTION_GAP - 100
-    assert tier_caption_y(1300, 1440, 100, text_stays=True) == 1300 - CAPTION_GAP - 100
-    # Text dragged high does not meet the caption: it stays on the floor.
-    assert tier_caption_y(300, 500, 100, text_stays=True) == SCENE_BOX_BOTTOM - 100
 
 
 @needs_ffmpeg
@@ -375,11 +363,11 @@ def test_the_last_scene_text_is_in_tiers_with_no_box_like_the_others(tmp_path):
     output = render_video(script, tmp_path / "out.mp4", options=RenderOptions(scene_text_layout="two_tier"))
     frame = extract_frame(output, 2.5, tmp_path / "f.png")
     plain = Image.new("RGB", (1080, 1920), (30, 90, 160))
-    # No yellow box across the lower third (it spans the box width and 700+ px); the tiers sit in the 62–78% zone.
-    wide = (0, 700, 1080, 1130)
+    # Nothing lower down; the tiers start 290 down like every text.
+    wide = (0, 800, 1080, 1700)
     difference = ImageChops.difference(frame.crop(wide), plain.crop(wide))
     assert max(high for _, high in difference.getextrema()) < 30
-    zone = (0, 1190, 1080, 1500)
+    zone = (0, 290, 1080, 660)
     difference = ImageChops.difference(frame.crop(zone), plain.crop(zone))
     assert max(high for _, high in difference.getextrema()) > 60
 
@@ -502,17 +490,17 @@ def test_a_render_draws_the_compact_text_by_the_options_text_size():
     assert small.height < big.height
 
 
-def test_a_smaller_compact_text_stays_centred_on_the_same_place():
+def test_a_smaller_compact_text_starts_on_the_same_line():
     from reels_render.render import tier_corner
     from reels_render.tiers import SceneTiers, render_scene
 
     scene = SceneTiers("3", "CHUỘT LOGITECH", "KHÔNG DÂY")
-    centres = []
+    places = []
     for scale in (1.0, 0.65):
         picture = render_scene(scene, "neon_game", scale)
         left, top = tier_corner(picture, 1, None)
-        centres.append((left + picture.width / 2, top + picture.height / 2))
-    assert abs(centres[0][0] - centres[1][0]) <= 1 and abs(centres[0][1] - centres[1][1]) <= 1
+        places.append((left + picture.width / 2, top))
+    assert abs(places[0][0] - places[1][0]) <= 1 and places[0][1] == places[1][1]
 
 
 def test_a_text_box_is_drawn_in_the_chosen_font_and_bungee_is_wider():

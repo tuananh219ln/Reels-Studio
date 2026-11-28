@@ -14,14 +14,15 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from reels_render.captions import Word
 from reels_render.cumulative import chunks, estimate_words, narration_steps, plan_cumulative, render_cumulative
 from reels_render.framing import COVER, Framing, choose_kind, frame_photo, is_blurry, plan_frame, unpadded
+from reels_render.layout import DEFAULT_PROFILE, PROFILES, place_box
 from reels_render.markup import MarkupError, parse_scene_text
 from reels_render.options import DEFAULT_OPTIONS, RenderOptions
+from reels_render.pc_text import PAD
 from reels_render.render import tier_corner, tier_picture
 from reels_render.textbox import (
     FRAME_HEIGHT,
     FRAME_WIDTH,
     layout_sized,
-    place_box,
     render_box,
     shade_band,
 )
@@ -57,6 +58,7 @@ def cumulative_pictures(
     marked: frozenset[str],
     style: str,
     zone: str | None,
+    profile: str = DEFAULT_PROFILE,
 ) -> tuple[tuple[float, float, bytes, int, int, int, int], ...]:
     """What the studio's player lays over a "Cộng dồn" scene, one entry per step: its seconds into the scene, the PNG of
     the phrase so far and where it goes (left, top, width, height in the 1080×1920 frame). The narration starts after
@@ -66,7 +68,7 @@ def cumulative_pictures(
     )
     made = []
     for step in steps:
-        picture, (left, top) = render_cumulative(step.lines, style, zone)
+        picture, (left, top) = render_cumulative(step.lines, style, zone, PROFILES[profile])
         buffer = io.BytesIO()
         picture.save(buffer, "PNG")
         made.append((step.start, step.end, buffer.getvalue(), left, top, picture.width, picture.height))
@@ -87,7 +89,8 @@ def tier_box(
     picture = tier_picture(lines, 0 if is_title else 1, 2, options)
     if picture is None:
         return None
-    return picture, tier_corner(picture, 0 if is_title else 1, tuple(centre) if centre else None, zone)
+    where = tuple(centre) if centre else None
+    return picture, tier_corner(picture, 0 if is_title else 1, where, zone, options.profile)
 
 
 def caption_preview(
@@ -99,7 +102,7 @@ def caption_preview(
         return None
     done = chunks(words)[0][-1].end
     steps = [step for step in plan_cumulative(words, 9999.0) if step.start < done]
-    return render_cumulative(steps[-1].lines, options.pc_style, zone) if steps else None
+    return render_cumulative(steps[-1].lines, options.pc_style, zone, options.profile) if steps else None
 
 
 def text_box(
@@ -107,7 +110,6 @@ def text_box(
     is_title: bool,
     options: RenderOptions = DEFAULT_OPTIONS,
     centre: Centre = None,
-    min_top: int | None = None,
     last: bool = False,
     zone: str | None = None,
 ) -> tuple[Image.Image, tuple[int, int]]:
@@ -120,10 +122,27 @@ def text_box(
         options.title_text_size if is_title else options.text_size,
         is_title,
         options.text_font,
+        options.profile.text_width,
     )
     palette = options.title_palette() if is_title else options.scene_palette()
     position = tuple(centre) if centre else None
-    return render_box(layout, palette), place_box(layout.width, layout.height, position, is_title, min_top)
+    return render_box(layout, palette), place_box(layout.width, layout.height, position, is_title, options.profile)
+
+
+@lru_cache(maxsize=1024)
+def text_rect(
+    text: str, is_title: bool, options: RenderOptions, centre: tuple[int, int] | None, last: bool, zone: str | None
+) -> tuple[int, int, int, int] | None:
+    """Where a scene's text is drawn in the frame (left, top, right, bottom), without the compact text's clear margin;
+    None without text or while it cannot render."""
+    if not text.strip():
+        return None
+    try:
+        box, (left, top) = text_box(text, is_title, options, centre, last, zone)
+    except ValueError:  # a broken mark or a text too long for its box: the text's own check says so
+        return None
+    inset = PAD if tiered(options, is_title, last) else 0
+    return left + inset, top + inset, left + box.width - inset, top + box.height - inset
 
 
 def text_height(text: str, is_title: bool, options: RenderOptions = DEFAULT_OPTIONS, last: bool = False) -> int:
@@ -132,9 +151,10 @@ def text_height(text: str, is_title: bool, options: RenderOptions = DEFAULT_OPTI
         return tiers[0].height
     size = options.title_text_size if is_title else options.text_size
     case = options.title_text_case if is_title else options.text_case
-    if not text.strip() or text_problem(text, is_title, size, case, options.text_font) is not None:
+    width = options.profile.text_width
+    if not text.strip() or text_problem(text, is_title, size, case, options.text_font, width) is not None:
         return 0
-    return layout_sized(parse_scene_text(text, case), size, is_title, options.text_font).height
+    return layout_sized(parse_scene_text(text, case), size, is_title, options.text_font, width).height
 
 
 @lru_cache(maxsize=1024)
@@ -172,7 +192,6 @@ def plan_photo(
     is_title: bool,
     options: RenderOptions = DEFAULT_OPTIONS,
     centre: Centre = None,
-    min_top: int | None = None,
     crop_offset: float | None = None,
     reserve: int | None = None,
 ) -> tuple[Framing, tuple[int, int]] | None:
@@ -182,7 +201,8 @@ def plan_photo(
     if size is None:
         return None
     height = text_height(text, is_title, options)
-    return plan_frame(*size, fit, height, tuple(centre) if centre else None, min_top, crop_offset, reserve), size
+    where = tuple(centre) if centre else None
+    return plan_frame(*size, fit, height, where, crop_offset, reserve, options.profile), size
 
 
 def is_framed(path: Path, fit: str) -> bool:
@@ -200,7 +220,6 @@ def compose_frame(
     centre: Centre = None,
     under: list[tuple[Image.Image, tuple[int, int]]] | None = None,
     fit: str = COVER,
-    min_top: int | None = None,
     crop_offset: float | None = None,
     show_text: bool = True,
     reserve: int | None = None,
@@ -211,7 +230,7 @@ def compose_frame(
 ) -> Image.Image:
     """The fitted photo (or clip frame) plus the text box; no box without text or while the text cannot render.
     `under`: pictures laid on the frame under the text box, at their corners (a card, as the render lays it). `fit`,
-    `min_top`, `crop_offset` and `reserve` (the video's tallest framed text box) frame a photo as the render does (reels_render.framing); `show_text` False leaves the
+    `crop_offset` and `reserve` (the video's tallest framed text box) frame a photo as the render does (reels_render.framing); `show_text` False leaves the
     box out but still frames the photo around it, for dragging the box."""
     if isinstance(image, Image.Image):
         upright = image.convert("RGB")
@@ -224,7 +243,7 @@ def compose_frame(
     else:
         position = tuple(centre) if centre else None
         frame, framing = frame_photo(
-            upright, fit, text_height(text, is_title, options, last), position, min_top, crop_offset, reserve
+            upright, fit, text_height(text, is_title, options, last), position, crop_offset, reserve, options.profile
         )
         centre = centre or framing.text_centre
     for picture, corner in under or []:
@@ -238,8 +257,10 @@ def compose_frame(
             frame.paste(shown[0], shown[1], shown[0])
     elif show_text and text.strip():
         drawn = tier_box(text, is_title, options, centre, last, zone)
-        if drawn is None and text_problem(text, is_title, size, case, options.text_font) is None:
-            drawn = text_box(text, is_title, options, centre, min_top)
+        if drawn is None:
+            width = options.profile.text_width
+            if text_problem(text, is_title, size, case, options.text_font, width) is None:
+                drawn = text_box(text, is_title, options, centre)
         if drawn is not None:
             box, position = drawn
             if options.text_shade and not is_title:

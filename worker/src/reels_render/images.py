@@ -5,6 +5,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .errors import InputError
 from .framing import COVER, choose_kind, layers, plan_frame, unpadded
+from .layout import DEFAULT_PROFILE, PROFILES, Profile
 
 _READ_ERRORS = (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError)
 JPEG_QUALITY = 95
@@ -51,9 +52,9 @@ def fit_image(
     fit: str,
     text_height: int,
     centre: tuple[int, int] | None,
-    min_top: int | None,
     crop_offset: float | None = None,
     reserve: int | None = None,
+    profile: Profile = PROFILES[DEFAULT_PROFILE],
 ) -> Fitted:
     """The scene's photo made ready for FFmpeg as its "image_fit" asks (framing.py): a photo to cover-crop as before,
     or its blurred copy at 1080x1920 in `target` and the photo alone beside it (`<target>-photo.jpg`). `centre` is a
@@ -63,7 +64,7 @@ def fit_image(
         upright.save(target, "JPEG", quality=JPEG_QUALITY)
         return Fitted()
     picture = unpadded(upright, fit)
-    framing = plan_frame(picture.width, picture.height, fit, text_height, centre, min_top, crop_offset, reserve)
+    framing = plan_frame(picture.width, picture.height, fit, text_height, centre, crop_offset, reserve, profile)
     if framing.kind == COVER:
         picture.save(target, "JPEG", quality=JPEG_QUALITY)
         return Fitted(framing.text_centre)

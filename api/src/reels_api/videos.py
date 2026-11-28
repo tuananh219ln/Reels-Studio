@@ -17,10 +17,13 @@ from reels_render.errors import FFmpegError
 from reels_render.ffmpeg import audio_seconds, find_tools
 from reels_render.framing import COVER
 from reels_render.layers import HALF, HALF_HEIGHT_DEFAULT, HALF_X, half_height, half_y, is_card, is_half
-from reels_render.logo import TEXT_TOP_MIN
+from reels_render.layout import logo_box
 from reels_render.markup import MarkupError, parse_scene_text
+from reels_render.options import RenderOptions
+from reels_render.pc_text import PAD
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 from reels_render.tiers import (
+    SCENE_CENTRE_LOW,
     SCENE_MAX_CHARS,
     SCENE_MAX_SUB_WORDS,
     TITLE_MAX_CHARS,
@@ -52,7 +55,7 @@ from . import (
 )
 from .clips import ClipError, frame_at
 from .errors import ApiError
-from .frames import captioned, is_framed, photo_blurry, plan_photo, text_height, thumbnail_bytes, tiered
+from .frames import captioned, is_framed, photo_blurry, plan_photo, text_height, text_rect, thumbnail_bytes, tiered
 from .models import (
     ACTIVE_JOB_STATUSES,
     Fanpage,
@@ -474,11 +477,6 @@ def photo_fit(video: Video, scene: Scene) -> str:
     return (scene.image_fit or "auto") if framable(video, scene) else COVER
 
 
-def text_floor(video: Video, scene: Scene) -> int | None:
-    """Where a content scene's text may start while the channel's logo is on, as the render keeps it."""
-    return TEXT_TOP_MIN if not scene.is_title and brands.logo_signature(video) is not None else None
-
-
 def text_reserve(storage: DirectoryStorage, video: Video, scenes: list[Scene]) -> int | None:
     """The tallest text box among the video's scenes whose photo is laid over its blurred copy: every such photo starts
     on one line below it (reels_render.framing), as the render works it out. None when no scene has one."""
@@ -508,7 +506,6 @@ def photo_framing(
         False,
         render_options(video),
         text_position(video, scene) if centre == "placed" else centre,
-        text_floor(video, scene),
         scene.image_crop_offset,
         reserve,
     )
@@ -536,17 +533,23 @@ def frame_payload(video: Video, scene: Scene, reserve: int | None = None) -> dic
     }
 
 
+# The room a content scene's text needs under its top place (about two lines of a box) before an inset photo counts as
+# clear of it; the page's window works it out the same way (PlaceModal.tsx).
+INSET_CLEAR = 300
+
+
 def opposite_the_inset(video: Video, scene: Scene) -> list[int] | None:
     """Where a content scene's text goes when nobody placed it (its own, the video's) and the scene has an inset photo:
-    the side facing away from it, so it does not sit on the photo. An inset flush with the top edge leaves the text at
-    the template's place (the bottom); one in the middle or at the bottom sends it to the top. Never moved once a
-    member chose a place: moving the inset does not touch a place that is set."""
+    clear of it. The text's usual place is at the top, so an inset reaching up there sends the text to the bottom (the
+    render keeps it above the captions' floor); one in the middle or lower leaves it. Never moved once a member chose a
+    place: moving the inset does not touch a place that is set."""
     inset = next((layer for layer in scene.layers if is_half_layer(layer)), None)
     if inset is None or not is_backdrop(video):
         return None
-    if inset.y - half_height(inset.height) // 2 <= 0:
+    top_of_inset = inset.y - half_height(inset.height) // 2
+    if top_of_inset >= render_options(video).profile.text_top_min + INSET_CLEAR:
         return None
-    return [FRAME_WIDTH // 2, 0]
+    return [FRAME_WIDTH // 2, FRAME_HEIGHT]
 
 
 LAYER_FIELDS = ("kind", "text", "sticker", "start", "seconds", "x", "y", "size", "style", "animation", "height")
@@ -803,6 +806,7 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             bool(scene.video_key and scene.video_loop),
             blurry_photo(storage, video, scene),
             text_font(video),
+            render_options(video).profile.text_width,
         )
 
     storage = get_storage()
@@ -850,7 +854,30 @@ def run_checks(db: DbSession, video: Video, title: Scene | None, scenes: list[Sc
             )
             checks.blocking.append(Issue(missing, scene.id, "image"))
     checks.warnings.extend(tier_warnings(video, title, scenes))
+    checks.warnings.extend(logo_warnings(video, scenes))
     return checks
+
+
+LOGO_ON_TEXT = "Logo đè lên chữ của cảnh: dời logo (thẻ “Logo”) hoặc dời chữ"
+
+
+def logo_warnings(video: Video, scenes: list[Scene]) -> list[Issue]:
+    """A yellow warning for each content scene whose text the channel logo covers, where both are really drawn (the
+    render keeps each inside the layout profile's edges by itself, so only an overlap can be wrong)."""
+    if brands.logo_signature(video) is None:
+        return []
+    options = render_options(video)
+    x, y, size = logo_box(options.profile, options.logo_position, options.logo_size)
+    warnings = []
+    for scene in scenes:
+        last = scene is scenes[-1]
+        if captioned(options, False, last, spoken(video, scene)):
+            continue  # "Cộng dồn" draws no text of the scene's own
+        position = text_position(video, scene)
+        rect = text_rect(scene.text, False, options, tuple(position) if position else None, last, scene.text_zone)
+        if rect and rect[0] < x + size and x < rect[2] and rect[1] < y + size and y < rect[3]:
+            warnings.append(Issue(LOGO_ON_TEXT, scene.id, "text"))
+    return warnings
 
 
 def tier_warnings(video: Video, title: Scene | None, scenes: list[Scene]) -> list[Issue]:
@@ -1229,6 +1256,21 @@ def photo_credit(scene: Scene) -> dict | None:
     return {name: value for name, value in credit.items() if name != "url"}
 
 
+def text_area(options: RenderOptions, scene: Scene, tier_mode: bool) -> dict:
+    """The edges the scene's text keeps to (reels_render.layout), the clear margin of its picture that may leave them
+    (the compact text's), and `home`: where it goes when nobody placed it, null for the top."""
+    profile = options.profile
+    low = tier_mode and not scene.is_title and scene.text_zone == "bottom"
+    return {
+        "left": profile.text_left,
+        "top": profile.text_top_min,
+        "right": profile.text_right,
+        "bottom": profile.subtitle_bottom,
+        "inset": PAD if tier_mode else 0,
+        "home": list(SCENE_CENTRE_LOW) if low else None,
+    }
+
+
 def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | None = None, last: bool = False) -> dict:
     image = f"/api/scenes/{scene.id}"
     size, case = text_size(video, scene.is_title), text_case(video, scene.is_title)
@@ -1256,9 +1298,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | Non
         style = [*style, "text_position", *position]
     # A framed photo's preview also follows its fit, its square, the logo's row and its text's height.
     frame_look = (
-        ["fit", photo_fit(video, scene), scene.image_crop_offset, text_floor(video, scene), scene.text, reserve]
-        if framable(video, scene)
-        else []
+        ["fit", photo_fit(video, scene), scene.image_crop_offset, scene.text, reserve] if framable(video, scene) else []
     )
     style = [*style, *frame_look]
     still = scene.video_key or scene.image_key
@@ -1340,10 +1380,18 @@ def scene_payload(video: Video, scene: Scene, checks: Checks, reserve: int | Non
             f"{image}/textbox.png?v={_version(scene.text, *preview_look(video, scene.is_title), *(['pc', last, options.pc_style, options.pc_title_style] if tier_mode else []))}"
             if scene.text.strip()
             and not caption_mode
-            and (tier_mode or text_problem(scene.text, scene.is_title, size, case, options.text_font) is None)
+            and (
+                tier_mode
+                or text_problem(scene.text, scene.is_title, size, case, options.text_font, options.profile.text_width)
+                is None
+            )
             else None
         ),
-        "text_problem": None if tier_mode else text_problem(scene.text, scene.is_title, size, case, options.text_font),
+        "text_problem": None
+        if tier_mode
+        else text_problem(scene.text, scene.is_title, size, case, options.text_font, options.profile.text_width),
+        # Where its text may be dragged (text_area), for the page's windows and preview.
+        "text_area": text_area(options, scene, tier_mode),
         "transition": scene.transition,
         "color": scene.color,
         "layers": [layer_payload(layer, text_case(video, False), video) for layer in scene.layers],
@@ -1558,6 +1606,26 @@ def _media_due_at(db: DbSession, video: Video) -> str | None:
     return due[0].due_at.isoformat() if due else None
 
 
+def layout_payload(video: Video) -> dict:
+    """The video's layout profile as the page draws it, and its logo where the render lays it."""
+    options = render_options(video)
+    profile = options.profile
+    x, y, size = logo_box(profile, options.logo_position, options.logo_size)
+    return {
+        "profile": options.layout_profile,
+        "text_top_min": profile.text_top_min,
+        "text_left": profile.text_left,
+        "text_right": profile.text_right,
+        "subtitle_bottom": profile.subtitle_bottom,
+        "logo": {
+            "x": x,
+            "y": y,
+            "size": size,
+            "own": options.logo_position is not None or options.logo_size is not None,
+        },
+    }
+
+
 def video_payload(db: DbSession, video: Video) -> dict:
     from . import review  # review.py reads this module's checks, so it cannot be imported at the top
 
@@ -1645,6 +1713,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         else None,
         "thumbnail_url": thumbnail_url(video),
         **brands.payload_of(db, video),
+        # Where text, captions and the logo go (reels_render.layout), for the page's drag windows and preview.
+        "layout": layout_payload(video),
         "music": {
             "url": f"/api/videos/{video.id}/music.mp3?v={_version(video.music_key)}",
             "name": video.music_name,

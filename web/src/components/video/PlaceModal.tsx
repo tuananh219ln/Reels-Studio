@@ -6,7 +6,7 @@ import { api, errorMessage, type SceneData, type VideoDetail } from "@/lib/api";
 import { COLORS } from "@/app/theme";
 import { FRAME_HEIGHT, FRAME_WIDTH, HALF_X, halfHeight, halfHomeY, halfY, isHalf, layerCorner } from "./preview/layers";
 import { silentVideo } from "./silentVideo";
-import { SAFE, placeBox } from "./TextPositionModal";
+import { placeBox } from "./TextPositionModal";
 
 export type PlaceTab = "text" | "inset";
 
@@ -17,21 +17,22 @@ const SHOWN_WIDTH = 270; // the frame on screen, a quarter of its size
 const SCALE = SHOWN_WIDTH / FRAME_WIDTH;
 const STEP = 10; // frame pixels an arrow key moves the chosen one
 const RESTING_OPACITY = 0.55; // the one not being moved
+const INSET_CLEAR = 300; // the room the text needs under its top place before an inset is clear of it (videos.py)
 const scaled = (value: number) => value * SCALE;
 
 /**
  * Where the scene's text goes when nobody placed it (videos.placed_at): the video's own place if it has one, else the
- * side facing away from an inset photo that is not flush with the top edge (videos.opposite_the_inset), else the
- * template's (None).
+ * bottom when an inset photo reaches up to the text's usual place (videos.opposite_the_inset), else that place.
  */
 function textHome(scene: SceneData, insetTop: number | null): Point | null {
+  const inTheWay = (top: number | null) => top !== null && top < scene.text_area.top + INSET_CLEAR;
   const savedInset = scene.layers.find(isHalf);
   const savedTop = savedInset ? savedInset.y - Math.floor(halfHeight(savedInset.height) / 2) : null;
-  const fromInset = scene.text_position === null && savedTop !== null && savedTop > 0 && scene.placed_at?.[1] === 0;
+  const fromInset = scene.text_position === null && inTheWay(savedTop) && scene.placed_at?.[1] === FRAME_HEIGHT;
   if (scene.text_position === null && scene.placed_at !== null && !fromInset) {
     return scene.placed_at;
   }
-  return insetTop !== null && insetTop > 0 ? [FRAME_WIDTH / 2, 0] : null;
+  return inTheWay(insetTop) ? [FRAME_WIDTH / 2, FRAME_HEIGHT] : scene.text_area.home;
 }
 
 /**
@@ -70,7 +71,7 @@ export default function PlaceModal({
   const side = inset ? halfHeight(inset.height) : 0;
   const insetCorner = inset && insetY !== null ? layerCorner(side, side, { x: HALF_X, y: insetY }) : null;
   const shownCentre = textCentre ?? textHome(scene, insetCorner ? insetCorner[1] : null);
-  const textCorner = size ? placeBox(size, shownCentre, false) : null;
+  const textCorner = size ? placeBox(size, shownCentre, false, scene.text_area) : null;
   const textY = size && textCorner ? textCorner[1] + Math.floor(size.height / 2) : null;
 
   /** Moves the text or the inset to `y` (frame pixels), kept where the render will really put it. */
@@ -78,7 +79,7 @@ export default function PlaceModal({
     if (which === "inset" && inset) {
       setInsetY(halfY(y, inset.height, snap));
     } else if (size) {
-      const corner = placeBox(size, [FRAME_WIDTH / 2, y], false);
+      const corner = placeBox(size, [FRAME_WIDTH / 2, y], false, scene.text_area);
       setTextCentre([FRAME_WIDTH / 2, corner[1] + Math.floor(size.height / 2)]);
       setTextMoved(true);
     }
@@ -244,9 +245,15 @@ export default function PlaceModal({
             // Outside the safe zone, where TikTok and Reels put their buttons, darkened.
             <>
               <div
-                style={{ position: "absolute", inset: 0, bottom: "auto", height: scaled(SAFE.top), background: shade }}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  bottom: "auto",
+                  height: scaled(scene.text_area.top),
+                  background: shade,
+                }}
               />
-              <div style={{ position: "absolute", inset: 0, top: scaled(SAFE.bottom), background: shade }} />
+              <div style={{ position: "absolute", inset: 0, top: scaled(scene.text_area.bottom), background: shade }} />
             </>
           )}
           {inset && insetCorner && (

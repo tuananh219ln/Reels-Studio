@@ -1,17 +1,18 @@
 "use client";
 
 import { ArrowRightOutlined } from "@ant-design/icons";
-import { Card, Flex, Select, Switch, Typography } from "antd";
+import { Button, Card, Flex, Select, Switch, Typography } from "antd";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { COLORS } from "@/app/theme";
 import StatusText from "@/components/StatusText";
 import { api, type BrandRow, type VideoDetail } from "@/lib/api";
+import LogoPositionModal, { type LogoPlace } from "./LogoPositionModal";
 
 /**
- * "Logo", first on a video's Thiết lập tab, in two rows: the switch with where the logo goes and whether it is on,
- * then the channel with "Quản lý kênh". The logo sits in the platforms' safe zone, so one file serves Facebook,
- * TikTok and YouTube (docs/decisions/2026-11-13-brand-logo.md). A posted video keeps its channel.
+ * "Logo", first on a video's Thiết lập tab, in two rows: the switch with "Vị trí & cỡ" and whether it is on, then the
+ * channel with "Quản lý kênh". The logo sits in the platforms' safe zone, so one file serves Facebook, TikTok and
+ * YouTube (docs/decisions/2026-11-28-safe-layout.md). A posted video keeps its channel.
  */
 export default function LogoCard({
   video,
@@ -20,9 +21,10 @@ export default function LogoCard({
 }: {
   video: VideoDetail;
   disabled: boolean;
-  onSave: (options: { brand_id?: number | null; logo_enabled?: boolean }) => void;
+  onSave: (options: { brand_id?: number | null; logo_enabled?: boolean } & Partial<LogoPlace>) => void;
 }) {
   const [brands, setBrands] = useState<BrandRow[]>([]);
+  const [placing, setPlacing] = useState(false);
   useEffect(() => {
     api<BrandRow[]>("/brands")
       .then(setBrands)
@@ -67,9 +69,21 @@ export default function LogoCard({
             disabled={disabled || !badge}
             onChange={(logo_enabled) => onSave({ logo_enabled })}
           />
-          <Typography.Text type="secondary" ellipsis style={{ fontSize: 12, minWidth: 0 }}>
-            {video.brand ? "Góc trên phải, trừ cảnh tiêu đề" : "Chọn kênh để gắn logo"}
-          </Typography.Text>
+          {on ? (
+            <Button
+              type="link"
+              size="small"
+              style={{ padding: 0 }}
+              disabled={disabled}
+              onClick={() => setPlacing(true)}
+            >
+              Vị trí & cỡ
+            </Button>
+          ) : (
+            <Typography.Text type="secondary" ellipsis style={{ fontSize: 12, minWidth: 0 }}>
+              {video.brand ? "Trừ cảnh tiêu đề" : "Chọn kênh để gắn logo"}
+            </Typography.Text>
+          )}
           <span style={{ marginLeft: "auto", flex: "none" }}>
             {on ? <StatusText tone="success">Đang gắn</StatusText> : <StatusText tone="idle">Chưa gắn</StatusText>}
           </span>
@@ -106,6 +120,17 @@ export default function LogoCard({
           </Typography.Text>
         )}
       </Flex>
+      {placing && badge && (
+        <LogoPositionModal
+          video={video}
+          badge={badge}
+          onClose={() => setPlacing(false)}
+          onSave={(place) => {
+            setPlacing(false);
+            onSave(place);
+          }}
+        />
+      )}
     </Card>
   );
 }
