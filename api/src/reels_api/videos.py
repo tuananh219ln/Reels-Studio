@@ -17,7 +17,7 @@ from reels_render.errors import FFmpegError
 from reels_render.ffmpeg import audio_seconds, find_tools
 from reels_render.framing import COVER
 from reels_render.layers import HALF, HALF_HEIGHT_DEFAULT, HALF_X, half_height, half_y, is_card, is_half
-from reels_render.layout import logo_box
+from reels_render.layout import LOGO_TOP_MIN, logo_box
 from reels_render.markup import MarkupError, parse_scene_text
 from reels_render.options import RenderOptions
 from reels_render.pc_text import PAD
@@ -1629,6 +1629,7 @@ def layout_payload(video: Video) -> dict:
         "text_left": profile.text_left,
         "text_right": profile.text_right,
         "subtitle_bottom": profile.subtitle_bottom,
+        "logo_top_min": LOGO_TOP_MIN,
         "logo": {
             "x": x,
             "y": y,

@@ -4,7 +4,15 @@ import pytest
 
 from reels_render.captions import plan_captions
 from reels_render.cumulative import Line, render_cumulative
-from reels_render.layout import CAPTION_GAP, PROFILES, Profile, caption_top, logo_box, place_box
+from reels_render.layout import (
+    CAPTION_GAP,
+    LOGO_TOP_MIN,
+    PROFILES,
+    Profile,
+    caption_top,
+    logo_box,
+    place_box,
+)
 from reels_render.markup import parse_scene_text
 from reels_render.options import RenderOptions
 from reels_render.pc_text import PAD
@@ -17,8 +25,8 @@ LONG = "Năm món đồ công nghệ\nnên mua ngay"
 
 
 def test_the_two_profiles_hold_the_specs_numbers():
-    assert BALANCED == Profile(BALANCED.label, 290, 65, 1015, 1530, 192, 750, 660, 130)
-    assert UNIVERSAL == Profile(UNIVERSAL.label, 290, 65, 888, 1248, 192, 750, 660, 130)
+    assert BALANCED == Profile(BALANCED.label, 290, 65, 1015, 1530, 192, 895, 160, 120)
+    assert UNIVERSAL == Profile(UNIVERSAL.label, 290, 65, 888, 1248, 192, 768, 160, 120)
     assert BALANCED.subtitle_width == UNIVERSAL.subtitle_width == 696
     assert RenderOptions().layout_profile == "balanced"
 
@@ -108,12 +116,14 @@ def test_a_caption_goes_over_a_text_that_is_still_there_and_would_be_under_it():
 
 
 @EVERY
-def test_the_logo_defaults_to_the_specs_place_and_is_kept_inside_the_edges(profile):
-    assert logo_box(profile) == (750, 660, 130)
+def test_the_logo_defaults_to_the_top_right_over_the_text_and_is_kept_inside_the_edges(profile):
+    x, y, size = logo_box(profile)
+    assert (x + size, y, size) == (profile.text_right, 160, 120)
+    assert y + size < profile.text_top_min, "over every text, so it covers none"
     for position in [(0, 0), (1080, 1920)]:
         x, y, size = logo_box(profile, position, 200)
         assert profile.text_left <= x and x + size <= profile.text_right
-        assert profile.text_top_min <= y and y + size <= profile.subtitle_bottom
+        assert LOGO_TOP_MIN <= y and y + size <= profile.subtitle_bottom
 
 
 @EVERY

@@ -32,12 +32,13 @@ def test_the_page_is_sent_the_profiles_edges_and_the_logos_place():
         "text_left": 65,
         "text_right": 1015,
         "subtitle_bottom": 1530,
-        "logo": {"x": 750, "y": 660, "size": 130, "own": False},
+        "logo_top_min": 120,
+        "logo": {"x": 895, "y": 160, "size": 120, "own": False},
     }
     moved = Video(mode="slides", options={"layout_profile": "universal", "logo_position": [1000, 100]})
     payload = layout_payload(moved)
     # Kept inside the profile's edges, as the render keeps it.
-    assert payload["logo"] == {"x": 758, "y": 290, "size": 130, "own": True}
+    assert payload["logo"] == {"x": 768, "y": 120, "size": 120, "own": True}
     assert (payload["text_right"], payload["subtitle_bottom"]) == (888, 1248)
 
 
@@ -69,7 +70,7 @@ def test_the_logos_place_is_saved_checked_and_put_back(an, db, me, storage):  # 
     for bad in ({"logo_position": [1, 2, 3]}, {"logo_position": [-5, 0]}, {"logo_size": 20}, {"logo_size": "to"}):
         assert patch(an, video, **bad).status_code == 400, bad
     back = patch(an, video, logo_position=None, logo_size=None)
-    assert back.json()["layout"]["logo"] == {"x": 750, "y": 660, "size": 130, "own": False}
+    assert back.json()["layout"]["logo"] == {"x": 895, "y": 160, "size": 120, "own": False}
     db.refresh(video)
     assert "logo_position" not in video.options and "logo_size" not in video.options
 
@@ -97,7 +98,7 @@ def test_a_logo_laid_over_a_scenes_text_is_warned_about(an, db, me, storage):
     def warned(response) -> bool:
         return any(LOGO_ON_TEXT in scene["warnings"] for scene in response.json()["scenes"])
 
-    assert not warned(patch(an, video, brand_id=brand_id)), "the default place is under the text"
+    assert not warned(patch(an, video, brand_id=brand_id)), "the default place is over the text"
     assert warned(patch(an, video, logo_position=[475, 300]))
     assert not warned(patch(an, video, logo_enabled=False))
 

@@ -1488,7 +1488,9 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
   - "TikTok, Facebook" (default): text between x 65 and 1015, from y 290; captions end at y 1530; no text goes lower.
   - "Mọi nền tảng" (also Shorts, Instagram, ads): x 65–888, from y 290; captions end at y 1248.
   - A text nobody placed (title or scene) starts at y 290, centred across (moved left only when the right edge asks);
-    captions are at most 696 px wide in the middle; the logo's ring is 130 px at x 750, y 660 unless the video moves it.
+    captions are at most 696 px wide in the middle; the logo's ring is 120 px in the top right corner, over the text
+    (y 160–280, its right side on the zone's: x 895 or 768), unless the video moves it, anywhere from y 120 down
+    ([decision](decisions/2026-11-28-logo-top-corner.md)).
   - Sizes, fonts and styles are each video's and its topic group's own.
 - **Motion:** every scene zooms in linearly around the centre, from 1.00 to 1.12. Scenes are
   joined by a 0.4 s crossfade centred on the boundary, so the total length equals the summed
