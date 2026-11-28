@@ -131,7 +131,7 @@ when set to an empty string. Containers use real environment variables only.
 | `DATABASE_URL` | api and worker: dev database; in production the Coolify Postgres internal URL |
 | `TEST_DATABASE_URL` | api: pytest database `reels_test` |
 | `REVIEW_GATE` | api, optional: `on` makes a rendered video wait for a member's approval before it can be scheduled or posted ([decision](decisions/2026-11-26-review-gate.md)); empty or anything else keeps the gate off ([decision](decisions/2026-11-27-review-gate-off.md)) |
-| `ALLOWED_ORIGINS` | api: comma-separated origins allowed to change data; the default is `http://localhost:3000`; in production the web domain |
+| `ALLOWED_ORIGINS` | api and worker: comma-separated origins allowed to change data; the default is `http://localhost:3000`; in production the web domain. The worker builds the links in Telegram messages from it, so without it they point at localhost |
 | `INSTAGRAM_VIDEO_BASE_URL` | api, optional: public https address Instagram fetches a Reel's MP4 from (`video_url`); empty uses the first https origin of `ALLOWED_ORIGINS` (the web domain). With neither, the MP4 is sent by resumable upload |
 | `MCP_PUBLIC_URL` | api, optional: public web URL ending in `/api/mcp`; enables private ChatGPT and Claude MCP/OAuth. Empty disables it. HTTPS required except localhost; the origin must be in `ALLOWED_ORIGINS`. See [chatgpt.md](chatgpt.md) |
 | `TELEGRAM_BOT_TOKEN` | api + worker, optional: the team's Telegram bot (the same token as the repo secret of "Có gì mới"), for private messages to each member ([Telegram](#telegram)). Empty turns them off |

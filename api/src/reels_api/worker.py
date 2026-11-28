@@ -60,6 +60,9 @@ DEFAULT_JOB_TIMEOUT = 15 * 60
 RESTARTED = "Worker khởi động lại giữa chừng"
 # `params` of a job the restart queued again: a second restart leaves it failed, for "Thử lại".
 AFTER_RESTART = "after_restart"
+# Jobs a deploy cut off that are queued again once by themselves: an Instagram post (ig_publish.py never posts twice,
+# 2026-11-19), a render (narration already made is reused) and a Facebook check (a free read) (2026-11-28).
+RERUN_AFTER_RESTART = frozenset({"ig_publish", "render", "check"})
 
 
 class Stop(Exception):
@@ -117,8 +120,8 @@ def acquire_worker_lock(engine: Engine) -> Connection:
 def recover_interrupted(factory: sessionmaker) -> None:
     """A job still `running` belonged to a worker that died: it fails and is never re-run automatically (cost).
 
-    Except an Instagram post (`ig_publish`), cut off by a deploy while Instagram processes the video: it costs no AI
-    money and ig_publish.py never posts twice, so it is queued again once, as "Thử lại" would (2026-11-19)."""
+    Except the kinds in RERUN_AFTER_RESTART, which cost no AI money: they are queued again once, as "Thử lại" would,
+    and telegram.py says nothing about a job tried again. A second cut leaves the new job failed."""
     with factory() as db:
         cut = db.execute(
             update(Job)
@@ -127,11 +130,12 @@ def recover_interrupted(factory: sessionmaker) -> None:
             .values(status="failed", error=RESTARTED, finished_at=now())
             .returning(Job.id, Job.kind, Job.params)
         ).all()
-        again = [row.id for row in cut if row.kind == "ig_publish" and not (row.params or {}).get(AFTER_RESTART)]
+        again = [row.id for row in cut if row.kind in RERUN_AFTER_RESTART and not (row.params or {}).get(AFTER_RESTART)]
         for job in db.scalars(select(Job).where(Job.id.in_(again))):
             db.add(
                 Job(
                     video_id=job.video_id,
+                    article_id=job.article_id,
                     kind=job.kind,
                     status="queued",
                     created_by_id=job.created_by_id,
@@ -144,7 +148,7 @@ def recover_interrupted(factory: sessionmaker) -> None:
     for row in cut:
         log.warning("Job %s was running when the previous worker stopped: marked failed", row.id)
     for job_id in again:
-        log.warning("Instagram post job %s was queued again after the restart", job_id)
+        log.warning("Job %s was queued again after the restart", job_id)
 
 
 def claim_next(factory: sessionmaker) -> int | None:
