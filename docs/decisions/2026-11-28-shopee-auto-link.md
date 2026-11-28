@@ -40,7 +40,12 @@ extension would call Shopee's Custom Link from the member's own logged-in Chrome
 
 No scraping with a fake `TelegramBot` user agent (it dodges Shopee's anti-bot), and no cashback model.
 
+## Result (28/11, owner's click report)
+
+The `an_redir` test clicks (about 00:46-00:49 on 28/11, incognito) are **absent** from Shopee's click report downloaded 22 hours
+later, while two `p9----` clicks from real Custom Link links are there: so `sub_id1` through Custom Link reaches the report
+as `p<page>----`, and `an_redir` is dropped as a way to make links.
+
 ## Open
 
 - Is the Open API really closed to a personal account? The owner opens `affiliate.shopee.vn/open_api` to check.
-- Does `an_redir` keep `sub_id` and count commission? Unverified.
