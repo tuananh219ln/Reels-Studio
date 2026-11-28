@@ -791,12 +791,14 @@ export default function VideoPage() {
           )}
         </Flex>
       </div>
-      {/* What the video is about: read once, so it scrolls away under the header. */}
-      <VideoContext
-        video={video}
-        onContentType={(content_type) => act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { content_type }))}
-      />
-      <VideoStoryCard video={video} locked={video.locked || viewing} act={act} />
+      {/* What the video is about and how it was made: read once, so it scrolls away under the header. */}
+      <div className="video-about">
+        <VideoContext
+          video={video}
+          onContentType={(content_type) => act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { content_type }))}
+        />
+        <VideoStoryCard video={video} locked={video.locked || viewing} act={act} />
+      </div>
       {video.clone_of && (
         <Typography.Paragraph type="secondary" style={{ margin: "0 0 12px", fontSize: 13 }} data-testid="clone-of">
           Nhân bản từ “{video.clone_of.title}” — yêu cầu đổi: {video.clone_of.request}
@@ -1060,7 +1062,7 @@ export default function VideoPage() {
           {/* A light green outline while editing, so the member sees at a glance that the page can be changed. */}
           <Flex
             vertical
-            gap={16}
+            gap={12}
             data-testid="editor-column"
             onKeyDown={sceneKeys}
             style={
@@ -1077,10 +1079,16 @@ export default function VideoPage() {
                 {video.video_warnings
                   .filter((warning) => warning.field === "total" || warning.field === "scenes")
                   .map((warning) => (
-                    <Alert key={warning.message} type="warning" showIcon title={warning.message} />
+                    <Alert
+                      key={warning.message}
+                      type="warning"
+                      showIcon
+                      title={warning.message}
+                      style={{ padding: "6px 12px" }}
+                    />
                   ))}
                 {/* One row instead of two cards: the title picked from the script's options, and the video's kind. */}
-                <Flex wrap align="flex-end" gap="8px 16px" className="panel-card" data-testid="scenes-toolbar">
+                <Flex wrap align="flex-start" gap="8px 16px" className="panel-card" data-testid="scenes-toolbar">
                   {video.title_scene && (
                     <Flex vertical gap={4} style={{ flex: "1 1 280px", minWidth: 0 }}>
                       <Typography.Text type="secondary" style={{ fontSize: 13 }}>
@@ -1121,7 +1129,8 @@ export default function VideoPage() {
                         )}
                       >
                         <Button
-                          style={{ flex: 1, minWidth: 0, justifyContent: "space-between" }}
+                          // Its antd height: `flex: 1` in this column would squash it below the "Kiểu video" switch.
+                          style={{ width: "100%", justifyContent: "space-between" }}
                           aria-label="Chọn tiêu đề"
                         >
                           <Typography.Text ellipsis style={{ minWidth: 0 }}>

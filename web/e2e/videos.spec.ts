@@ -2300,6 +2300,13 @@ test("Đăng bài: Instagram goes through the Page's linked account, at a time o
   const row = page.getByTestId("platform-row-instagram");
   await expect(row).toContainText("Hẹn đăng lúc");
   await expect(card()).toHaveAttribute("data-state", "scheduled");
+  // The time is a line of its own under the platform's badge, not pushed to the row's right end.
+  await expect(async () => {
+    const badge = (await row.locator(".platform-badge").boundingBox())!;
+    const status = (await row.locator(".post-row__status").boundingBox())!;
+    expect(Math.abs(status.x - badge.x)).toBeLessThan(1);
+    expect(status.y).toBeGreaterThanOrEqual(badge.y + badge.height);
+  }).toPass({ timeout: 15_000 });
   await row.getByRole("button", { name: "Hủy hẹn" }).click();
   await page.locator(".ant-popconfirm").getByRole("button", { name: "Hủy hẹn" }).click();
   await expect(row).toHaveCount(0);

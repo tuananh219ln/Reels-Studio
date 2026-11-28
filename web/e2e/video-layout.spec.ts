@@ -89,3 +89,43 @@ test("the line between the scenes and the panel is dragged, kept, held to each s
   await page.getByTestId("split-handle").dblclick();
   await expect(split).toHaveAttribute("data-share", "0.600");
 });
+
+test("the video page's cards keep their padding, and its labels and scene rows line up", async ({ page }) => {
+  test.setTimeout(150_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await videoWithScript(page);
+
+  // antd's Flex sets its own `padding: 0`, which a single class loses to: each card says its padding with two.
+  await expect(page.locator(".progress-pill").first()).toHaveCSS("padding-left", "10px");
+  const toolbar = page.getByTestId("scenes-toolbar");
+  await expect(toolbar).toHaveCSS("padding-left", "12px");
+  await expect(page.locator(".scene-list__head")).toHaveCSS("padding-left", "12px");
+  await expect(page.locator(".video-context__details")).toHaveCSS("padding-left", "12px");
+  await expect(page.locator("[data-side-panel] .side-tabs > .ant-tabs-nav")).toHaveCSS("padding-bottom", "12px");
+  // The menu folded to its icons draws a line between its groups, not a name cut to "T…".
+  await expect(page.locator(".ant-layout-sider-collapsed .ant-menu-item-group-title").nth(1)).toHaveCSS(
+    "height",
+    "1px",
+  );
+
+  await expect(async () => {
+    // "Tiêu đề" and "Kiểu video" start on one line, and the title's button keeps a button's height.
+    const title = (await toolbar.getByText("Tiêu đề", { exact: true }).boundingBox())!;
+    const mode = (await toolbar.getByText("Kiểu video", { exact: true }).boundingBox())!;
+    expect(Math.abs(title.y - mode.y)).toBeLessThan(1);
+    const chooser = (await toolbar.getByRole("button", { name: "Chọn tiêu đề" }).boundingBox())!;
+    expect(chooser.height).toBeGreaterThanOrEqual(31);
+
+    // Editing: the title scene, which has no drag handle, starts where the others do, and every status ends there.
+    const titleThumb = (await page.getByTestId("title-scene").locator(".scene-thumb").boundingBox())!;
+    const sceneThumb = (await page.getByTestId("scene").first().locator(".scene-thumb").boundingBox())!;
+    expect(Math.abs(titleThumb.x - sceneThumb.x)).toBeLessThan(1);
+    const ends: number[] = [];
+    for (const status of await page.getByTestId("scene-status").all()) {
+      const box = (await status.boundingBox())!;
+      ends.push(box.x + box.width);
+    }
+    expect(ends).toHaveLength(6);
+    expect(Math.max(...ends) - Math.min(...ends)).toBeLessThan(1);
+  }).toPass({ timeout: 15_000 });
+});

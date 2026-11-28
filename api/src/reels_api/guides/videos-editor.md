@@ -38,7 +38,7 @@ Thẻ gấp dưới thẻ ngữ cảnh. Khi đóng, một dòng tóm tắt đã 
 - Dòng **Trên màn hình sẽ hiện: …** cho biết chữ sẽ hiện. Đổi tiêu đề sau khi render thì cần render lại trước khi duyệt.
 
 ## Các cảnh (cột trái)
-- Đầu danh sách: số cảnh, tổng số giây, số cảnh báo, **Mở tất cả / Thu gọn tất cả** và **Thêm cảnh**. Mỗi dòng cảnh có ảnh nhỏ đánh số (**T** là cảnh tiêu đề).
+- Đầu danh sách: số cảnh, tổng số giây, số cảnh báo, **Mở tất cả / Thu gọn tất cả** và **Thêm cảnh**. Mỗi dòng cảnh có ảnh nhỏ đánh số (**T** là cảnh tiêu đề), chữ trên màn hình (cảnh không có chữ thì hiện **Lời đọc: …**) và trạng thái ở cuối dòng.
 - Mỗi cảnh có ảnh hoặc clip, chữ trên màn hình, lời đọc và chuyển động. **Cảnh chưa có ảnh sẽ chặn việc render.**
 - Cách có ảnh cho cảnh: tải lên, dán link, lấy từ Kho tư liệu, tìm ảnh kho miễn phí (Pexels, Unsplash, Pixabay…) hoặc ảnh AI.
 - Bấm **Chỉnh sửa** để sửa chữ, thứ tự, hiệu ứng và chuyển động của từng cảnh.
@@ -55,7 +55,7 @@ File MP3 bạn (hoặc Muse qua MCP) tải lên cho cảnh được dùng nguyê
 - Đổi giọng hay tốc độ sau khi đã tạo giọng, app báo số cảnh sẽ đọc lại ở lần render sau (tốn ký tự), kèm nút **Hoàn tác**.
 
 ## Render và đăng
-1. Đủ ảnh cho mọi cảnh → **Render** (có thể **Xem trước** trước). App dựng MP4 9:16.
+1. Đủ ảnh cho mọi cảnh → **Render** (có thể **Xem trước** trước). App dựng MP4 9:16. Thanh **Âm lượng nghe** chỉ chỉnh độ to trên máy bạn; bấm vào thanh rồi dùng phím mũi tên để chỉnh từng 1%.
 2. Xem lại MP4 → chọn nền tảng → **Đăng**. Nếu QC đỏ, app hỏi lại trước khi cho đăng.
 3. Video Facebook xong thì Page tự viết bình luận ghim và link sản phẩm; bạn ghim tay.
 4. Sau 48 giờ, app đọc view, share và so với trung vị của Page.
