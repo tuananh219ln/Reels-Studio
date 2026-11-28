@@ -143,6 +143,7 @@ export default function Products() {
   const [ticked, setTicked] = useState<number[]>([]);
   // "Nhập / Xuất" opens these two; "Chưa có link" narrows the list to what Custom Link still has to convert.
   const [customLink, setCustomLink] = useState<"export" | "import" | null>(null);
+  const [convertedFile, setConvertedFile] = useState<File | null>(null);
   const [noLink, setNoLink] = useState(false);
   // The table is the default; the member's choice of the board is remembered in this browser.
   const view = useSyncExternalStore(subscribeView, readView, () => "table" as const);
@@ -840,10 +841,18 @@ export default function Products() {
         topicId={topicId}
         topicName={open?.name}
         pages={topicId === undefined ? [] : pagesOf(topicId).map((page) => ({ id: page.id, name: page.name }))}
+        onConverted={(file) => {
+          setConvertedFile(file);
+          setCustomLink("import");
+        }}
       />
       <CustomLinkImport
         open={customLink === "import"}
-        onClose={() => setCustomLink(null)}
+        initialFile={convertedFile}
+        onClose={() => {
+          setCustomLink(null);
+          setConvertedFile(null);
+        }}
         topicId={topicId}
         onDone={() => reload(true)}
       />

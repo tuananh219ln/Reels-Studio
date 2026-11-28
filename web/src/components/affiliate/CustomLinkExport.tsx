@@ -1,6 +1,7 @@
 "use client";
 import { errorMessage } from "@/lib/api";
-import { Alert, App, Checkbox, Flex, Modal, Select, Typography } from "antd";
+import { convertShopeeLinks, convertedFile, useShopeeConvert } from "@/lib/shopeeExtension";
+import { Alert, App, Button, Checkbox, Flex, Modal, Select, Typography } from "antd";
 import { useState } from "react";
 
 /** "Xuất file Custom Link": the group's approved products as the Excel file Shopee's Custom Link page takes
@@ -11,6 +12,7 @@ export default function CustomLinkExport({
   topicId,
   topicName,
   pages,
+  onConverted,
 }: {
   open: boolean;
   onClose: () => void;
@@ -18,12 +20,48 @@ export default function CustomLinkExport({
   topicName?: string;
   /** The Pages that post the group: with two or more, the file is for one of them. */
   pages: { id: number; name: string }[];
+  /** The converted links, as a file for "Nhập link đã chuyển đổi" to preview. */
+  onConverted: (file: File) => void;
 }) {
   const { message } = App.useApp();
   const [includeLinked, setIncludeLinked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pageId, setPageId] = useState<number>();
   const several = pages.length > 1;
+  const extension = useShopeeConvert();
+  const [problem, setProblem] = useState<string>();
+
+  async function convert() {
+    if (topicId === undefined) {
+      return;
+    }
+    setBusy(true);
+    setProblem(undefined);
+    try {
+      const query = new URLSearchParams({ topic_id: String(topicId), include_linked: String(includeLinked) });
+      if (several && pageId) query.set("fanpage_id", String(pageId));
+      const response = await fetch(`/api/affiliate-products/custom-link/links?${query}`, { cache: "no-store" });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.message ?? "Không lấy được danh sách link");
+      }
+      const answer = await convertShopeeLinks(data.links, data.sub_id1);
+      if (answer.error === "login") {
+        setProblem("Chưa đăng nhập Shopee Affiliate. Đăng nhập affiliate.shopee.vn trên Chrome này rồi bấm lại.");
+        return;
+      }
+      if (answer.error || !answer.rows) {
+        const detail = answer.detail ? ` (mã ${answer.detail.status ?? "?"}: ${answer.detail.body ?? ""})` : "";
+        setProblem(`Shopee không trả lời như mong đợi, hãy dùng file Excel bên dưới.${detail}`);
+        return;
+      }
+      onConverted(convertedFile(answer.rows));
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function download() {
     if (topicId === undefined) {
@@ -87,6 +125,18 @@ export default function CustomLinkExport({
         <Checkbox checked={includeLinked} onChange={(event) => setIncludeLinked(event.target.checked)}>
           Gồm cả món đã có link
         </Checkbox>
+        {extension && (
+          <Flex vertical gap={8}>
+            <Button type="primary" onClick={convert} loading={busy} disabled={several && !pageId}>
+              Chuyển bằng tiện ích Chrome
+            </Button>
+            <Typography.Text type="secondary">
+              Tiện ích tự chuyển link trong tab Shopee Affiliate của bạn (cần đã đăng nhập), rồi cho bạn xem trước kết
+              quả. Dùng file Excel nếu cách này không chạy.
+            </Typography.Text>
+            {problem && <Alert type="warning" showIcon message={problem} />}
+          </Flex>
+        )}
         <Typography.Text type="secondary">
           Mỗi dòng gắn Sub_id1 là Page của nhóm, nên đơn chỉ đo được tới Page, không biết từ video nào.
         </Typography.Text>

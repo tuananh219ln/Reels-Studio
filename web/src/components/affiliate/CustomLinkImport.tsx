@@ -2,7 +2,7 @@
 import { errorMessage, upload } from "@/lib/api";
 import { UploadOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Flex, Modal, Table, Tag, Typography, Upload } from "antd";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Row = {
   row: number;
@@ -27,16 +27,27 @@ export default function CustomLinkImport({
   onClose,
   topicId,
   onDone,
+  initialFile,
 }: {
   open: boolean;
   onClose: () => void;
   topicId?: number;
   onDone: () => void;
+  /** A file already made (by the Chrome extension): previewed as soon as the dialog opens. */
+  initialFile?: File | null;
 }) {
   const { message } = App.useApp();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (open && initialFile) {
+      void choose(initialFile);
+    }
+    // choose only reads state set above and the topic; the file is what starts it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialFile]);
 
   function close() {
     onClose();

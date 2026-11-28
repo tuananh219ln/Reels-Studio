@@ -88,6 +88,20 @@ def export_links(
     return page, links
 
 
+@router.get("/links")
+def export_json(
+    topic_id: int,
+    include_linked: bool = False,
+    fanpage_id: int | None = None,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """The same product pages and `Sub_id1` as the file, as JSON, for the Chrome extension that converts them in the
+    member's own Shopee Affiliate tab (docs/decisions/2026-11-28-shopee-auto-link.md)."""
+    page, links = export_links(db, me.user_id, topic_id, include_linked, fanpage_id)
+    return {"fanpage_id": page.id, "sub_id1": f"p{page.id}", "links": links}
+
+
 @router.get("/export.xlsx")
 def export_file(
     topic_id: int,
