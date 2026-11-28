@@ -29,7 +29,8 @@ export default function VideoContext({
       style={{ display: idea && !open ? "none" : undefined }}
       data-testid="video-kind-line"
     >
-      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+      {/* Takes the room left, so the type and the tags stand together at the right. */}
+      <Typography.Text type="secondary" style={{ flex: "1 1 360px", minWidth: 0, fontSize: 13 }}>
         Chủ đề {video.topic}
         {video.knowledge_topic ? `, nhóm ${video.knowledge_topic}` : ""}, tạo bởi {video.created_by} lúc{" "}
         <span data-testid="video-created-at">{formatDateTime(video.created_at)}</span>

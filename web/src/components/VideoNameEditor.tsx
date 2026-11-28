@@ -135,7 +135,8 @@ export default function VideoNameEditor({
   );
   return (
     <Flex
-      align="center"
+      // A large name may take two lines: its pencil stays with the first one.
+      align={large ? "flex-start" : "center"}
       gap={4}
       className="name-edit-host"
       style={{ minWidth: 0 }}
@@ -161,7 +162,8 @@ export default function VideoNameEditor({
           icon={<EditOutlined />}
           aria-label="Đổi tên video"
           className={`name-edit-btn${alwaysShowButton ? " always" : ""}${armed ? " armed" : ""}`}
-          style={{ flex: "none" }}
+          // Centred on the 20 px name's first line.
+          style={{ flex: "none", marginTop: large ? 4 : undefined }}
           onKeyDown={own.onKeyDown}
           onClick={(event) => {
             event.stopPropagation();

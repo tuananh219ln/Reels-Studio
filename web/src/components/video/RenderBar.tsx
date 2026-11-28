@@ -163,11 +163,11 @@ export function RenderStatus({
   }
 
   return (
-    <Flex wrap gap={8} align="center" style={{ minWidth: 0 }}>
+    <Flex wrap gap={8} align="baseline" style={{ minWidth: 0 }}>
       {status}
       <Typography.Text
         type="secondary"
-        style={{ fontSize: 12, display: compact ? "none" : undefined }}
+        style={{ fontSize: 13, display: compact ? "none" : undefined }}
         data-testid="render-bar-summary"
       >
         {video.scenes.length} cảnh, dài khoảng {Math.round(seconds)} giây,{" "}

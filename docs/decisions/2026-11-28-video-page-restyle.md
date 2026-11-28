@@ -14,4 +14,13 @@ Asked by namtc07 from a mock-up of their own; the same header goes on the articl
 - **What a new voice or speed costs is said after it is changed** (scenes read again, about the new length), with
   "Hoàn tác". It is worked out on the page from the narration already made; no new request.
 
+- **Follow-up the same day** (namtc07: the page still looked crooked): the context card and "Video này được làm như
+  thế nào" are one card; the side panel's tabs sit in a card; a scene's status moves to the row's end so the statuses
+  form a column; a closed scene with no screen text shows what it reads.
+- **A card on an antd `Flex` is styled with two classes** (`.ant-flex.<name>`): antd's own `padding: 0` beats a single
+  class, which left the progress chips and the toolbar without padding.
+- **"Âm lượng nghe" handles its keys itself, with no slider tooltip.** antd's slider keyboard handling and its open
+  tooltip each leave a React update pending after every commit, so a held arrow key ran past React's nested-update
+  limit and took the page down. The number is printed beside the slider instead.
+
 No api, data or render change.
