@@ -397,15 +397,16 @@ Built:
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
   A **header fixed at the top** (2026-11-14), a white bar with a line under it (2026-11-28,
   [decision](decisions/2026-11-28-video-page-restyle.md); the article's page has the same one), holds, on its first
-  row, a round back button (←, "Danh sách video" in its tooltip), the title on one line (cut
-  with "…", whole in a tooltip), the status in a rounded chip, "Đang chỉnh sửa" and who else is here, then the actions: "Chỉnh sửa" or
+  row, a round back button (←, "Danh sách video" in its tooltip), the title on up to two lines (cut
+  with "…", whole in a tooltip; its pencil stays beside the first), the status in a rounded chip, "Đang chỉnh sửa" and who else is here, then the actions: "Chỉnh sửa" or
   "Xong", "⋯", the photo helpers while a scene has no picture, "Xem trước" and "Render"/"Render lại" (the main
   button). Its second row is the progress line, a **QC chip** once the MP4 has QC ("QC: đạt" in green, "QC: N mục chưa
   đạt" in red or yellow; pressing it opens its popover), and, at its end, the render's state and summary (below).
   Under the header, scrolling away with the page: one **context card** with the topic, group and maker, "Loại nội
   dung" with the kind tags and where it is posted (for a video made from a plan idea, one line with the idea and
-  "Chi tiết", which opens the rest); then the clone and TikTok-version notes; then the folded card "Video này được
-  làm như thế nào", whose closed row sums up who wrote the script, where the narration comes from and the music.
+  "Chi tiết", which opens the rest) and, in the same card under a line, the folded "Video này được làm như thế
+  nào", whose closed row sums up who wrote the script, where the narration comes from and the music; then the clone
+  and TikTok-version notes.
   The progress line's steps are rounded chips.
   The status line ends "tạo bởi <member> lúc dd/mm/yyyy hh:mm". Under it, the **progress line** (2026-11-10):
   where the video stands, one step after another, each with a green tick (done), an orange mark (needs a look), a grey
@@ -434,7 +435,7 @@ progress line, QC and the render's state hide, and a small pill beside the title
 running or waiting, "<job> lỗi", "Còn N lỗi cần sửa"), unfolding the header on a click; nothing when all is well. The
 fold is kept per member in this browser (2026-11-15, fold and split).
   The scenes fill the left column (60%). The right column (40%) is the side panel with three tabs, "Đăng bài",
-"Bình luận & Sản phẩm" and "Thiết lập" (2026-11-14, video editor spec and engage tab), the panel has no scroll of its own and grows with the page, its tab row held just under the page header (2026-11-15).
+"Bình luận & Sản phẩm" and "Thiết lập" (2026-11-14, video editor spec and engage tab), the panel has no scroll of its own and grows with the page, its tab row held just under the page header (2026-11-15). The tab row is a white card, its top level with the first block of the scenes' column.
 A line between the two columns is dragged to share the width another way (a grip that stays in view, orange while
 hovered or dragged; ← → keys move it, a double click or Enter goes back to 60/40), the scenes never under 420 px and the
 panel never under 440 px, the share kept per member in this browser. The panel lays its tabs out by its own width: from
@@ -476,7 +477,8 @@ a grey note: the newest MP4 goes with the saved caption and hashtags, Facebook c
 Facebook is picked and there is a pinned comment), several platforms go one by one with the page left open. Once
 tried, the card says "Đã đăng lên X/Y nền tảng", "MP4 · N giây · Tải MP4", one row per platform (green #f1faf4: "✓
 hh:mm", "Xem bài ↗", or "✓ Đã gửi nháp" for a TikTok draft; red #fef3f3: "✕ <why>" and "Thử lại"; a spinner and
-"Đang đăng…" on its way; "Hẹn đăng lúc …" when scheduled; a Facebook row keeps "Kiểm tra", "Sửa link reel" and
+"Đang đăng…" on its way; "Hẹn đăng lúc …" when scheduled, both on a line of their own under the platform's name with
+the buttons starting under them; a Facebook row keeps "Kiểm tra", "Sửa link reel" and
 "Hủy đăng"/"Xóa"), "Bình luận ghim:" with "đang chờ…", "✓ đã đăng, nhớ ghim trên Facebook" (an app cannot pin it) or
 "✕ không đăng được · Thử lại" and "+ Đăng thêm". Every Facebook post, cancelled and deleted ones
 included, is under "Lịch sử bài Facebook (N)", folded. A red QC check asks before posting ("MP4 chưa đạt kiểm tra
@@ -557,7 +559,10 @@ steps open the status card or the products block on its tab, the QC chip its pop
     thumbnail of the preview with the scene's number on it ("T" for the title), "Cảnh N" (or "Cảnh tiêu đề"), its
     seconds, while closed its text on one line (without the `*` marks), a purple "MP3 tải lên" tag when the scene
     reads an uploaded file while others are read by the voice service, a status pill (red "N lỗi", amber "N cảnh
-    báo" or green "Sẵn sàng") and "Xem từ cảnh này" (▷). "Lên
+    báo" or green "Sẵn sàng") and "Xem từ cảnh này" (▷). The pill sits just before ▷, so every row's statuses make
+    one column. A closed scene with nothing written on screen shows "Lời đọc: …" instead, or "(không có chữ)" when it
+    reads nothing either. While the page can be edited, the title scene keeps the handle's room empty so its row lines
+    up with the others. "Lên
     trên", "Xuống dưới" and "Xóa cảnh" show only on hover, keyboard focus or while the card is open (always on a
     touch screen). While the page can be edited, a content scene's row starts with a handle (⋮⋮, "Kéo để đổi thứ tự"):
     dragged onto another content scene's card, it takes that place and the ones between shift by one (a brand line
@@ -735,7 +740,8 @@ steps open the status card or the products block on its tab, the QC chip its pop
   - a photo pasted from a stock site's link (Shutterstock, Getty, iStock, Adobe Stock, 123RF, Dreamstime…) is kept,
     with a warning that its preview carries a watermark and needs a licence;
   - **listening volume** ("Âm lượng nghe"): a speaker button that mutes ("Tắt tiếng" / "Bật tiếng")
-    and a slider from 0 to 100 %, beside the preview's play buttons, under the MP4 in "Đăng bài",
+    and a slider from 0 to 100 % with the number beside it (arrows move it by 1, Page Up and Page Down by 10, Home
+    and End to the ends), beside the preview's play buttons, under the MP4 in "Đăng bài",
     and in "Cắt video" once "Nghe tiếng gốc" is on. It is how loud this browser plays, never part of
     the video: it multiplies the video's own mix (music, narration, ducking keep their proportions),
     changes nothing rendered or posted, and is remembered per browser, the same level for every
@@ -1412,7 +1418,7 @@ Phones (below 992 px wide; built):
   with the member's name and account menu (Đổi mật khẩu, Sửa tên, Đăng xuất) at its foot. The page
   beside it has no maximum width: on a large screen tables and cards fill the window, and only
   paragraphs of grey explanation stop at about 820 px so they stay readable. On a video's page the sidebar folds to
-  a 56 px rail of icons (each a link, its name in a tooltip), with "Mở rộng menu" on top to widen it and "Thu gọn
+  a 56 px rail of icons (each a link, its name in a tooltip; a short line stands where a group's name was), with "Mở rộng menu" on top to widen it and "Thu gọn
   menu" to fold it back (widened, it stays so until folded or the page is reloaded). A menu hidden with "Ẩn menu"
   elsewhere is the rail here too.
 - In the video editor the actions wrap under the title in the fixed header, the tab panel is the drawer, and each
