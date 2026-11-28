@@ -39,6 +39,7 @@ import {
   Segmented,
   Space,
   Spin,
+  Tag,
   Tooltip,
   Typography,
 } from "antd";
@@ -317,6 +318,8 @@ export function SceneIssues({ scene, fix }: { scene: SceneData; fix?: (issue: Sc
 export default function SceneCard({
   scene,
   label,
+  badge,
+  voiceTag,
   voiceEnabled,
   expanded,
   onToggle,
@@ -331,6 +334,10 @@ export default function SceneCard({
 }: {
   scene: SceneData;
   label: string;
+  /** The scene's place, drawn on its thumbnail. */
+  badge?: string;
+  /** Says the scene reads an uploaded MP3, shown when others read the voice service. */
+  voiceTag?: boolean;
   voiceEnabled: boolean;
   /** "Video xuyên suốt": the title scene's picture is the backdrop of every scene; a content scene's own photo
    * shows only as its "Ảnh món". */
@@ -510,7 +517,14 @@ export default function SceneCard({
             </Tooltip>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <SceneHeader scene={scene} label={label} expanded={expanded} onToggle={onToggle} />
+            <SceneHeader
+              scene={scene}
+              label={label}
+              badge={badge}
+              voiceTag={voiceTag}
+              expanded={expanded}
+              onToggle={onToggle}
+            />
           </div>
         </Flex>
       }
@@ -662,15 +676,22 @@ function AdvancedPrompt({ scene }: { scene: SceneData }) {
 function SceneHeader({
   scene,
   label,
+  badge,
+  voiceTag,
   expanded,
   onToggle,
 }: {
   scene: SceneData;
   label: string;
+  /** The scene's place, drawn on its thumbnail: "T" for the title scene, else its number. */
+  badge?: string;
+  /** Says the scene reads an uploaded MP3, shown when others read the voice service. */
+  voiceTag?: boolean;
   expanded: boolean;
   onToggle: () => void;
 }) {
   const summary = scene.text.replaceAll("*", "").replace(/\s+/g, " ").trim();
+  const statusTone = scene.blocking.length > 0 ? "danger" : scene.warnings.length > 0 ? "warning" : "success";
   const status =
     scene.blocking.length > 0 ? (
       <StatusText tone="danger">{scene.blocking.length} lỗi</StatusText>
@@ -705,17 +726,17 @@ function SceneHeader({
           transform: `rotate(${expanded ? 90 : 0}deg)`,
         }}
       />
-      {scene.preview_url ? (
-        // eslint-disable-next-line @next/next/no-img-element -- the api draws the preview; next/image adds nothing
-        <img
-          src={scene.preview_url}
-          alt=""
-          loading="lazy"
-          style={{ width: 24, height: 32, objectFit: "cover", borderRadius: 4, flex: "none" }}
-        />
-      ) : (
-        <div style={{ width: 24, height: 32, borderRadius: 4, background: COLORS.selected, flex: "none" }} />
-      )}
+      <span className="scene-thumb">
+        {scene.preview_url && (
+          // eslint-disable-next-line @next/next/no-img-element -- the api draws the preview; next/image adds nothing
+          <img src={scene.preview_url} alt="" loading="lazy" />
+        )}
+        {badge && (
+          <span className="scene-thumb__badge" aria-hidden="true">
+            {badge}
+          </span>
+        )}
+      </span>
       <Typography.Text strong style={{ flex: "none" }}>
         {label}
       </Typography.Text>
@@ -735,7 +756,12 @@ function SceneHeader({
           {summary || "(không có chữ)"}
         </Typography.Text>
       )}
-      <span style={{ flex: "none", fontWeight: "normal", fontSize: 13 }}>{status}</span>
+      {voiceTag && (
+        <Tag color="purple" style={{ flex: "none", marginInlineEnd: 0, fontWeight: "normal" }} data-testid="scene-mp3">
+          MP3 tải lên
+        </Tag>
+      )}
+      <span className={`pill pill--${statusTone}`}>{status}</span>
     </Flex>
   );
 }

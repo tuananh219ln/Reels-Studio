@@ -17,9 +17,11 @@ from .video_options import CAPTIONS, CHOICES, COLORS, LOOK_FIELDS, OptionError, 
 JOB_KIND = "text_look"
 # What "Chữ & phụ đề" holds (Cài đặt › Thiết lập mặc định's card of that name): the text boxes' look and captions.
 FIELDS = (*LOOK_FIELDS, "captions")
-# What only the topic group PC Shopee may hold besides (docs/decisions/2026-11-27-pc-text-tiers.md): its tiers, looks and the
-# hold. "cumulative" captions are PC Shopee's too. The AI never writes these (FIELDS is what it is asked for).
-PC_FIELDS = ("text_hold_sec", "pc_style", "pc_title_style", "title_layout", "scene_text_layout")
+# What a group may hold besides (docs/decisions/2026-11-27-compact-text-all-groups.md): the compact text's tiers and looks and the
+# hold, first built for PC Shopee (2026-11-27-pc-text-tiers.md) and open to every group, off ("box") unless chosen. The AI never
+# writes these (FIELDS is what it is asked for).
+COMPACT_FIELDS = ("text_hold_sec", "pc_style", "pc_title_style", "title_layout", "scene_text_layout")
+# What only the topic group PC Shopee may hold: "cumulative" captions.
 PC_ONLY = {"captions": "cumulative"}
 MAX_SUGGESTIONS = 3
 MAX_NAME_LENGTH = 60
@@ -72,15 +74,15 @@ cho hợp với nội dung, cảm xúc và người xem của video này (không
 
 
 def _pc_only(name: str, value: object) -> bool:
-    return name in PC_FIELDS or PC_ONLY.get(name) == value
+    return PC_ONLY.get(name) == value
 
 
 def clean_look(values: object, group: KnowledgeTopic | None = None) -> dict:
-    """A look a member saved: only the text fields, every one valid, or OptionError. PC Shopee's own fields and its
-    "Cộng dồn" captions are kept only for that group."""
+    """A look a member saved: only the text fields, every one valid, or OptionError. PC Shopee's "Cộng dồn" captions are
+    kept only for that group."""
     if not isinstance(values, dict):
         raise OptionError("Kiểu chữ không hợp lệ")
-    unknown = [name for name in values if name not in (*FIELDS, *PC_FIELDS)]
+    unknown = [name for name in values if name not in (*FIELDS, *COMPACT_FIELDS)]
     if unknown:
         raise OptionError(f"Không có tuỳ chọn chữ “{unknown[0]}”")
     if not is_pc_shopee(group) and (only := [name for name, value in values.items() if _pc_only(name, value)]):
@@ -110,16 +112,18 @@ def loose_look(values: object) -> dict:
             values[f"{prefix}text_style"] = "box"
             for name, value in named.items():
                 values.setdefault(f"{prefix}{name}", value)
-    return valid_fields({name: value for name, value in values.items() if not _pc_only(name, value)})
+    return valid_fields(
+        {name: value for name, value in values.items() if name not in COMPACT_FIELDS and not _pc_only(name, value)}
+    )
 
 
 def valid_fields(values: object, pc: bool = False) -> dict:
-    """The valid text fields of a stored look, anything else left out; PC Shopee's own only with `pc`."""
+    """The valid text fields of a stored look, anything else left out; PC Shopee's "Cộng dồn" captions only with `pc`."""
     if not isinstance(values, dict):
         return {}
     look = {}
     for name, value in values.items():
-        if name not in (*FIELDS, *PC_FIELDS) or (not pc and _pc_only(name, value)):
+        if name not in (*FIELDS, *COMPACT_FIELDS) or (not pc and _pc_only(name, value)):
             continue
         try:
             look.update(clean({name: value}))

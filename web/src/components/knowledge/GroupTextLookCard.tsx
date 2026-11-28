@@ -31,7 +31,7 @@ const FIELDS = [
   "title_text_case",
   "text_font",
   "captions",
-  // PC Shopee's own (api text_looks.PC_FIELDS): only that group's card shows them.
+  // The compact text's (api text_looks.COMPACT_FIELDS): every group's card shows them.
   "text_hold_sec",
   "pc_style",
   "pc_title_style",

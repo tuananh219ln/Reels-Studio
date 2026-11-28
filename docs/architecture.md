@@ -1231,12 +1231,17 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
   "2)", "3:", "4 -", "#5.", "Số 6:", "Cách 7.", "Món 8)", "Bước 9." — not "1.5 kg", "3-4 lần", "50 tuổi"),
   `renumber` writes that number, at the start of the on-screen text and of the voice text, as the scene's new place;
   a changed voice text no longer matches its narration's signature, so the next voice job or render makes it again.
+  The copy's "Bình luận thêm" (`videos.extra_comments`, the detailed comment per dish) follow their scenes into the
+  new order when there is one per content scene, or one fewer (the closing scene left out); their list numbers are
+  rewritten with the scenes'. Any other count keeps their order, with a warning
+  ([decision](decisions/2026-11-27-shuffle-dish-comments.md)).
   The copy keeps `videos.shuffled_from_id` (the first video, for a copy of a copy), `videos.scene_order` (its order as
   the first video's scene ids, `scenes.source_scene_id`, migration 0096) and `videos.review_title` (the title it
   started with). `title_review` on the list and detail payloads is true while the title scene still says it;
   `DELETE /api/shuffle/videos/{id}/title-review` ("Bỏ qua") clears it. The detail's `shuffle` gives the source and
   the source or other copies with the same title. `POST /api/shuffle/videos/{id}/reshuffle` ("Xáo lại cảnh", only on
-  a copy, locks the video) takes another order the same way, or `order` (its `previous_order`, for "Hoàn tác").
+  a copy, locks the video) takes another order the same way, or `order` (its `previous_order`, for "Hoàn tác"); its
+  dish comments move with the scenes there too.
 - **Files:** every file endpoint (photos, previews, thumbnail, MP3, MP4) requires login; the MP4
   supports Range requests for seeking. Uploads are one file per request with api-side limits
   (photos JPG/PNG/WebP up to 15 MB and 24 megapixels; MP3 up to 20 MB, checked by its first bytes;
