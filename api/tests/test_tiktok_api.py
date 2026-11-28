@@ -89,6 +89,18 @@ def test_rate_limit_and_unaudited_refusals_are_translated(fakes, tmp_path):
     assert "unaudited_client_can_only_post_to_private_accounts" in caught.value.detail
 
 
+def test_a_full_inbox_says_what_to_do_in_tiktok(fakes):
+    token = tiktok.exchange_code(TIKTOK_CODE).access_token
+    fakes.tiktok_init_error = "spam_risk_too_many_pending_share"
+    with pytest.raises(tiktok.TikTokError) as caught:
+        tiktok.init_inbox(token, 10, 10, 1)
+    assert caught.value.message == tiktok.INBOX_FULL
+    assert "spam_risk_too_many_pending_share" not in caught.value.message
+    assert "nháp" in caught.value.message and "Thử lại" in caught.value.message
+    # The Telegram notice cuts the reason at 300 characters: the whole instruction has to fit.
+    assert len(caught.value.message) <= 300
+
+
 def test_chunk_plan_follows_tiktok_rules():
     assert tiktok.chunk_plan(12 * 1024 * 1024) == (12 * 1024 * 1024, 1)
     assert tiktok.chunk_plan(64 * 1024 * 1024) == (64 * 1024 * 1024, 1)

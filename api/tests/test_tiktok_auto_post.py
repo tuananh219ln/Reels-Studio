@@ -8,7 +8,7 @@ from conftest import first_topic, login, make_user, make_video
 from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN
 from sqlalchemy import select
 
-from reels_api import fanpages
+from reels_api import fanpages, tiktok
 from reels_api.jobs import queue_tiktok_posts
 from reels_api.models import AffiliateAccount, Article, Fanpage, Job, Publication
 from reels_api.sessions import now
@@ -220,3 +220,87 @@ def test_only_the_owner_sets_the_auto_mode(client, db, me):
     login(client, email=other.email)
     refused = client.put(f"/api/fanpages/{page.id}/tiktok-auto-mode", json={"mode": "direct"})
     assert refused.status_code == 403
+
+
+def failed_draft(db, storage, me, page, *, hours_ago=1, error=tiktok.INBOX_FULL):
+    """A draft job of the Page's TikTok account that TikTok refused, by default because the account's inbox was full."""
+    video = make_video(db, storage, me)
+    post = Publication(
+        video_id=video.id,
+        platform="tiktok",
+        status="pending",
+        created_by_id=me.id,
+        affiliate_account_id=page.tiktok_account_id,
+        publish_mode="draft",
+    )
+    db.add(post)
+    db.flush()
+    job = Job(
+        video_id=video.id,
+        kind="tiktok_publish",
+        status="failed",
+        created_by_id=me.id,
+        publication_id=post.id,
+        error=error,
+        finished_at=now() - timedelta(hours=hours_ago),
+    )
+    db.add(job)
+    db.commit()
+    return job
+
+
+def test_a_full_tiktok_inbox_pauses_drafts_of_that_account_for_a_day(db, me, storage):
+    page = page_with_tiktok(db, me)
+    failed_draft(db, storage, me, page, hours_ago=1)
+    video = due_post(db, storage, me, page)
+    queue_tiktok_posts(db)
+    db.commit()
+    assert tiktok_posts(db, video) == []
+
+
+def test_drafts_go_again_a_day_after_the_full_inbox(db, me, storage):
+    page = page_with_tiktok(db, me)
+    failed_draft(db, storage, me, page, hours_ago=25)
+    video = due_post(db, storage, me, page)
+    queue_tiktok_posts(db)
+    db.commit()
+    assert len(tiktok_posts(db, video)) == 1
+
+
+def test_a_draft_that_got_through_after_the_full_inbox_ends_the_pause(db, me, storage):
+    page = page_with_tiktok(db, me)
+    refused = failed_draft(db, storage, me, page, hours_ago=3)
+    db.add(
+        Job(
+            video_id=refused.video_id,
+            kind="tiktok_publish",
+            status="done",
+            created_by_id=me.id,
+            publication_id=refused.publication_id,
+            retry_of_id=refused.id,
+            finished_at=now() - timedelta(hours=1),
+        )
+    )
+    db.commit()
+    video = due_post(db, storage, me, page)
+    queue_tiktok_posts(db)
+    db.commit()
+    assert len(tiktok_posts(db, video)) == 1
+
+
+def test_another_refusal_does_not_pause_drafts(db, me, storage):
+    page = page_with_tiktok(db, me)
+    failed_draft(db, storage, me, page, error="TikTok đang giới hạn tốc độ, thử lại sau")
+    video = due_post(db, storage, me, page)
+    queue_tiktok_posts(db)
+    db.commit()
+    assert len(tiktok_posts(db, video)) == 1
+
+
+def test_a_full_inbox_does_not_stop_direct_posts(db, me, storage):
+    page = page_with_tiktok(db, me, mode="direct")
+    failed_draft(db, storage, me, page)
+    video = due_post(db, storage, me, page)
+    queue_tiktok_posts(db)
+    db.commit()
+    assert len(tiktok_posts(db, video)) == 1

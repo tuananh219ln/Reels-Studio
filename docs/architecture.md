@@ -1459,7 +1459,11 @@ into the job. See [the decision](decisions/2026-11-13-auto-approve.md).
 `jobs.queue_tiktok_posts` (worker round, once a minute) sends a video whose Facebook post is scheduled or out and whose
 slot has passed (within 24 hours) to TikTok, through the same `tiktok_publish` job as the manual card, when its Page
 has an active TikTok account of its owner. `fanpages.tiktok_auto_mode` (migration 0084) says draft (default) or direct.
-See [the decision](decisions/2026-11-13-tiktok-auto-post.md).
+See [the decision](decisions/2026-11-13-tiktok-auto-post.md). When TikTok refuses a draft because the account's inbox
+is full (`spam_risk_too_many_pending_share`, about 5 drafts waiting), the job fails with `tiktok.INBOX_FULL`, which tells
+the member (privately, through the usual Telegram failure notice) to post or delete the waiting drafts in TikTok's app
+and press "Thử lại"; the sweep then sends that account no draft for 24 hours, or until a draft of it gets through
+([decision](decisions/2026-11-28-tiktok-inbox-full.md)). Direct posts are not paused.
 
 ### Instagram at the Facebook slot
 
