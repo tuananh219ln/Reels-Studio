@@ -4,7 +4,7 @@
  */
 (() => {
   const VERSION = chrome.runtime.getManifest().version;
-  const announce = () => window.postMessage({ source: "reels-extension", type: "ready", version: VERSION }, "*");
+  const announce = () => window.postMessage({ source: "reels-extension", type: "ready", version: VERSION, features: ["shopee-convert"] }, "*");
   announce();
   window.addEventListener("message", (event) => {
     const data = event.data;
