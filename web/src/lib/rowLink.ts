@@ -4,7 +4,8 @@ import type { MouseEvent } from "react";
  * the app, Ctrl/Cmd/Shift-click and the middle button open a new tab, like a real link. A click on a link or button
  * inside it keeps its own. Right-click "Mở trong tab mới" needs a real `<a>`, so the row's title is one too. */
 export function rowLink(push: (href: string) => void, href: string) {
-  const inside = (event: MouseEvent) => Boolean((event.target as HTMLElement).closest("a, button, input, .ant-select"));
+  const inside = (event: MouseEvent) =>
+    Boolean((event.target as HTMLElement).closest("a, button, input, .ant-select, .ant-table-selection-column"));
   return {
     onClick: (event: MouseEvent) => {
       if (inside(event)) return;

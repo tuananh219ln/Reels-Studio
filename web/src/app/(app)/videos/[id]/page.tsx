@@ -1,6 +1,6 @@
 "use client";
 import CloneModal, { type CloneTarget } from "@/components/video/CloneModal";
-import DeleteVideoContent from "@/components/video/DeleteVideoContent";
+import DeleteVideoContent, { deleteBlock } from "@/components/video/DeleteVideoContent";
 import CompetitorSource from "@/components/video/CompetitorSource";
 
 import { COLORS } from "@/app/theme";
@@ -39,7 +39,6 @@ import { unlockSpeech } from "@/lib/speech";
 import {
   ArrowLeftOutlined,
   CheckOutlined,
-  CopyOutlined,
   DeleteOutlined,
   DownOutlined,
   EditOutlined,
@@ -683,12 +682,6 @@ export default function VideoPage() {
                   items: [
                     ...(video.has_script
                       ? [
-                          {
-                            key: "clone",
-                            icon: <CopyOutlined />,
-                            label: "Nhân bản",
-                            onClick: () => setCloning("same"),
-                          },
                           { key: "duplicate", label: "Nhân bản y hệt", onClick: () => void duplicate() },
                           { key: "shuffle", label: "Nhân bản xáo cảnh", onClick: () => setShuffling(true) },
                         ]
@@ -710,9 +703,15 @@ export default function VideoPage() {
                           {
                             key: "delete",
                             icon: <DeleteOutlined />,
-                            label: "Xóa video",
+                            label: deleteBlock(video) ? (
+                              <Tooltip title={deleteBlock(video)} placement="left">
+                                Xóa video
+                              </Tooltip>
+                            ) : (
+                              "Xóa video"
+                            ),
                             danger: true,
-                            disabled: video.locked,
+                            disabled: Boolean(deleteBlock(video)),
                             onClick: remove,
                           },
                         ]

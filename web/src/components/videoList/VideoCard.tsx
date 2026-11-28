@@ -10,7 +10,7 @@ import WinnerFlag from "@/components/WinnerFlag";
 import type { VideoRow } from "@/lib/api";
 import { videoStatusLabel, videoStatusTone } from "@/lib/videoStatus";
 import { ClockCircleOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
-import { Card, Flex, theme, Typography } from "antd";
+import { Card, Checkbox, Flex, theme, Typography } from "antd";
 import Link from "next/link";
 import { useState } from "react";
 import { CardChip, VersionLinks } from "./cells";
@@ -23,12 +23,15 @@ export default function VideoCard({
   versions = [],
   onChanged,
   showGroup = true,
+  selection,
 }: {
   row: VideoRow;
   versions?: VideoRow[];
   onChanged: () => Promise<void>;
   /** The group and plan day at the foot of the card: for a list across groups. */
   showGroup?: boolean;
+  /** The tick in the thumbnail's corner (bulk actions): shown on hover, and on every card once any is ticked. */
+  selection?: { checked: boolean; anyChecked: boolean; onChange: (checked: boolean, shift: boolean) => void };
 }) {
   const { token } = theme.useToken();
   const name = row.name || row.title || row.topic;
@@ -49,11 +52,37 @@ export default function VideoCard({
     >
       <Card
         hoverable
-        style={{ flex: 1, minWidth: 0, borderColor: token.colorBorderSecondary }}
+        style={{
+          flex: 1,
+          minWidth: 0,
+          borderColor: selection?.checked ? token.colorPrimary : token.colorBorderSecondary,
+          ...(selection?.checked ? { boxShadow: `0 0 0 1px ${token.colorPrimary}` } : {}),
+        }}
         styles={{ body: { padding: 12, display: "flex", gap: 14 } }}
       >
         <div style={{ position: "relative", width: 92, flex: "none" }}>
           <VideoThumbnail name={name} url={row.thumbnail_url} width={92} plain />
+          {selection && (
+            <Checkbox
+              className={`card-select${selection.anyChecked ? " on" : ""}`}
+              checked={selection.checked}
+              aria-label={`Chọn video ${name}`}
+              data-testid="video-card-select"
+              onChange={(event) =>
+                selection.onChange(event.target.checked, Boolean((event.nativeEvent as MouseEvent).shiftKey))
+              }
+              style={{
+                position: "absolute",
+                // Above the card's stretched link.
+                zIndex: 2,
+                left: 4,
+                top: 4,
+                background: "rgba(255,255,255,0.9)",
+                borderRadius: 4,
+                padding: 2,
+              }}
+            />
+          )}
           {post && (post.state === "scheduled" || post.views !== null) && (
             <span
               data-testid="video-card-views"
