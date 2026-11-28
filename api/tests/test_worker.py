@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import time
+from datetime import timedelta
 
 import psutil
 import pytest
@@ -26,8 +27,8 @@ from worker_helpers import (  # noqa: F401  (fixtures)
     worker_env,
 )
 
-from reels_api import crypto, jobs, llm
-from reels_api.models import AppSetting, Job, KnowledgeTopic, LlmProvider, Scene, Video
+from reels_api import crypto, jobs, llm, sessions, telegram, worker
+from reels_api.models import AppSetting, Job, KnowledgeTopic, LlmProvider, Scene, TelegramNotice, User, Video
 from reels_api.storage import DirectoryStorage
 from reels_api.videos import active_job, script_writer
 
@@ -295,6 +296,47 @@ def test_a_restarted_worker_fails_the_interrupted_job_and_does_not_rerun_it(comm
         assert active_job(db, video_id) is None
         assert [j.status for j in db.scalars(select(Job).where(Job.video_id == video_id))] == ["failed"]
     assert services.claude_prompts == []
+
+
+@pytest.mark.parametrize("kind", ["render", "check"])
+def test_a_render_or_post_check_cut_off_by_a_restart_is_queued_again_once_without_a_telegram_notice(committed, kind):
+    """A deploy restarts the worker: a render (stored narration is reused) or a Facebook check (a free read) goes on
+    by itself, so its creator hears nothing; cut off again, it fails for good and they hear about it (2026-11-28)."""
+    user = add_user(committed)
+    with committed() as db:
+        member = db.get(User, user.id)
+        member.telegram_chat_id, member.telegram_linked_at = 4242, sessions.now() - timedelta(hours=1)
+        db.commit()
+    video_id = new_video(committed, user)
+    first = add_job(committed, video_id, user.id, kind=kind, status="running", publication_id=7)
+
+    worker.recover_interrupted(committed)
+
+    with committed() as db:
+        old = db.get(Job, first)
+        again = db.scalar(select(Job).where(Job.video_id == video_id, Job.status == "queued"))
+        assert (old.status, old.error) == ("failed", worker.RESTARTED)
+        assert (again.kind, again.retry_of_id, again.created_by_id, again.publication_id) == (kind, first, user.id, 7)
+        assert again.params == {worker.AFTER_RESTART: True}
+        telegram.collect(db)
+        db.commit()
+        assert job_notices(db) == [], "a job the worker runs again is not news"
+        again.status = "running"  # claimed, as the worker does with any queued job
+        db.commit()
+        again_id = again.id
+
+    worker.recover_interrupted(committed)
+
+    with committed() as db:
+        jobs_now = [(j.id, j.status) for j in db.scalars(select(Job).where(Job.video_id == video_id).order_by(Job.id))]
+        assert jobs_now == [(first, "failed"), (again_id, "failed")], "a second restart does not queue it again"
+        telegram.collect(db)
+        db.commit()
+        assert job_notices(db) == [f"job:{again_id}"]
+
+
+def job_notices(db) -> list[str]:
+    return [n.key for n in db.scalars(select(TelegramNotice).order_by(TelegramNotice.id)) if n.key.startswith("job:")]
 
 
 def test_a_second_worker_waits_for_the_lock_before_cleaning_or_claiming(committed, services, start_worker):

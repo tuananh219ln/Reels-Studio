@@ -827,10 +827,11 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
     restart.
   - A job still marked running when a worker starts belonged to a worker that died: it becomes
     failed ("Worker khởi động lại giữa chừng") and is never re-run automatically, to avoid
-    unplanned Claude spending. Members press "Thử lại", which always creates a new job. The one
-    exception is an Instagram post (`ig_publish`): it is queued again once by itself
-    (`params.after_restart`), since it costs no AI money and `ig_publish.py` never posts twice; cut
-    off again, it waits for "Thử lại".
+    unplanned Claude spending. Members press "Thử lại", which always creates a new job. The
+    exceptions (`worker.RERUN_AFTER_RESTART`) cost no AI money and are queued again once by
+    themselves (`params.after_restart`, `retry_of_id` the cut job, so Telegram says nothing): an
+    Instagram post (`ig_publish.py` never posts twice), a render (narration already made is reused)
+    and a Facebook check (a read). Cut off again, the job stays failed and waits for "Thử lại".
   - Retrying a script or clone job whose script was saved does nothing: no new Claude call, no
     overwritten edits.
   - The worker waits instead of crashing while the `jobs` table does not exist yet.
