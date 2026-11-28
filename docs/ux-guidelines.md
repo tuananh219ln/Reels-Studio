@@ -395,13 +395,18 @@ Built:
   all of today's ideas have a video. "Tạo video" lets any group be picked but suggests the plan's ideas only
   for the member's own groups.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
-  A **header fixed at the top** (2026-11-14) holds, on its first row, "← Danh sách video", the title on one line (cut
-  with "…", whole in a tooltip), the status, "Đang chỉnh sửa" and who else is here, then the actions: "Chỉnh sửa" or
+  A **header fixed at the top** (2026-11-14), a white bar with a line under it (2026-11-28,
+  [decision](decisions/2026-11-28-video-page-restyle.md); the article's page has the same one), holds, on its first
+  row, a round back button (←, "Danh sách video" in its tooltip), the title on one line (cut
+  with "…", whole in a tooltip), the status in a rounded chip, "Đang chỉnh sửa" and who else is here, then the actions: "Chỉnh sửa" or
   "Xong", "⋯", the photo helpers while a scene has no picture, "Xem trước" and "Render"/"Render lại" (the main
   button). Its second row is the progress line, a **QC chip** once the MP4 has QC ("QC: đạt" in green, "QC: N mục chưa
   đạt" in red or yellow; pressing it opens its popover), and, at its end, the render's state and summary (below).
-  Under the header, scrolling away with the page: the topic, group and maker, "Loại nội dung" with the kind tags,
-  and the clone, TikTok-version and 30-day-plan notes.
+  Under the header, scrolling away with the page: one **context card** with the topic, group and maker, "Loại nội
+  dung" with the kind tags and where it is posted (for a video made from a plan idea, one line with the idea and
+  "Chi tiết", which opens the rest); then the clone and TikTok-version notes; then the folded card "Video này được
+  làm như thế nào", whose closed row sums up who wrote the script, where the narration comes from and the music.
+  The progress line's steps are rounded chips.
   The status line ends "tạo bởi <member> lúc dd/mm/yyyy hh:mm". Under it, the **progress line** (2026-11-10):
   where the video stands, one step after another, each with a green tick (done), an orange mark (needs a look), a grey
   clock (not yet) or a spinner (a job on it), and its time: **Kịch bản** (when written), **Ảnh** ("5/7 cảnh" with a
@@ -545,10 +550,14 @@ steps open the status card or the products block on its tab, the QC chip its pop
     này…"), but still unlocks the page: nothing is locked, the last field saved wins;
   - **above the scenes, one toolbar row** (2026-11-14): "Tiêu đề" with a button showing the title in use and "N gợi
     ý", which opens the five options as radios with "Kịch bản viết bởi …" under them; then "Kiểu video" with its
-    switch, the explanation in a tooltip. Under it "Cảnh (N)" and "Mở tất cả" / "Thu gọn tất cả";
+    switch, the explanation in a tooltip. The row is a white card, each label above its control. Under it the scenes
+    are one white card whose head holds "Cảnh (N)", their total seconds, "N cảnh báo" in an amber pill, "Xáo lại
+    cảnh", "Mở tất cả" / "Thu gọn tất cả" and "Thêm cảnh";
   - **scene cards, one open at a time** (2026-11-14). Every card's title row is 44 px: the arrow, a small 9:16
-    thumbnail of the preview, "Cảnh N" (or "Cảnh tiêu đề"), its seconds, while closed its text on one line (without
-    the `*` marks), a status (red "N lỗi", amber "N cảnh báo" or green "Sẵn sàng") and "Xem từ cảnh này" (▷). "Lên
+    thumbnail of the preview with the scene's number on it ("T" for the title), "Cảnh N" (or "Cảnh tiêu đề"), its
+    seconds, while closed its text on one line (without the `*` marks), a purple "MP3 tải lên" tag when the scene
+    reads an uploaded file while others are read by the voice service, a status pill (red "N lỗi", amber "N cảnh
+    báo" or green "Sẵn sàng") and "Xem từ cảnh này" (▷). "Lên
     trên", "Xuống dưới" and "Xóa cảnh" show only on hover, keyboard focus or while the card is open (always on a
     touch screen). While the page can be edited, a content scene's row starts with a handle (⋮⋮, "Kéo để đổi thứ tự"):
     dragged onto another content scene's card, it takes that place and the ones between shift by one (a brand line
@@ -808,7 +817,12 @@ steps open the status card or the products block on its tab, the QC chip its pop
     tự)." and the link to Cài đặt › Thiết lập mặc định. "Âm thanh" puts one control per row, its label on the left
     (92 px) and any explanation behind an ⓘ: "Đọc lời" (the switch beside the voice and "Nghe thử"), "Tốc độ" (the
     slider with its value beside it), "Âm lượng giọng", "Nghỉ sau lời" (0,4 / 0,7 / 1 giây); Cài đặt › Thiết lập mặc
-    định keeps the stacked card. In "Chữ & phụ đề" the style cards are 56 px, on one row that scrolls sideways.
+    định keeps the stacked card. While scenes read uploaded MP3s, a note on top of "Âm thanh" says so (blue; amber
+    "Trộn 2 nguồn giọng" when the service reads the others), that voice and speed do not change those files, and
+    offers the maker "Bỏ tất cả file, dùng giọng dịch vụ" (confirmed); with every scene on a file the voice and
+    "Tốc độ" rows are hidden. The closed row then reads "MP3 tải lên N cảnh" or "Trộn giọng: MP3 a, dịch vụ b
+    cảnh". Changing the voice or speed once narration was made shows under the rows how many scenes the next render
+    reads again (and, for the speed, about how long the video becomes), with "Hoàn tác". In "Chữ & phụ đề" the style cards are 56 px, on one row that scrolls sideways.
     The groups: "Âm thanh" (narration on/off, the
     voice picked from the ElevenLabs account's voices, and VieNeu's, Gemini's and Google's once their key is set (Gemini's
     is the key that makes AI photos), grouped "ElevenLabs", "VieNeu", "Gemini" and "Google" when two or more have voices,
@@ -1002,8 +1016,8 @@ steps open the status card or the products block on its tab, the QC chip its pop
   - the "Backlog" tab: "Thêm ý tưởng", "Nhập file JSON/CSV" (a file needs no day column; the preview's
     "Thêm vào Backlog" adds every idea, skipping topics already in the plan), a search and a pain-group
     filter, and the ideas as cards with "Xếp vào ngày…" (a full day cannot be picked).
-- **Video editor** idea card: a video made from a plan idea shows "Theo kế hoạch 30 ngày, ngày N" (or "Backlog")
-  with its pain group, pain and hook under the title.
+- **Video editor** idea line: a video made from a plan idea shows "Theo kế hoạch 30 ngày, ngày N" (or "Backlog")
+  with its pain group, hook and pain on one line of the context card under the header.
 - **Cài đặt › Máy render** (`/settings/render-nodes`): a switch "Render và cảnh động chạy trên máy render" with what
   it changes, a warning when it is on and no machine is running (with the number of jobs waiting); the machines with
   "Đang chạy"/"Đang tắt" and when each was last seen, "Xoá" (confirmed); "Thêm máy" takes a name and shows the

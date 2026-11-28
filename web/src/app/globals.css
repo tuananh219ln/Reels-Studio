@@ -792,3 +792,175 @@ body {
 .doc-markdown code {
   padding: 0 4px;
 }
+
+/* A detail page's header: the way back, the status and the progress line's steps. Colours are theme.ts COLORS. */
+.back-button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #e7e8ea;
+  border-radius: 8px;
+  color: #1f2328;
+}
+
+.status-pill {
+  display: inline-flex;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: #f8f8f9;
+}
+
+.progress-pill {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #e7e8ea;
+  border-radius: 999px;
+}
+
+/* The video page: what it is about, under the header. */
+.video-context {
+  margin-bottom: 12px;
+  border: 1px solid #e7e8ea;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.video-context__idea {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.video-context__day {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #fff2eb;
+  color: #c2410c;
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+.video-context__text {
+  display: flex;
+  flex: 1 1 240px;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  min-width: 0;
+}
+
+.video-context__toggle {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: #5f6670;
+  font: inherit;
+  cursor: pointer;
+}
+
+.video-context__details {
+  padding: 8px 12px;
+}
+
+.video-context__idea + .video-context__details {
+  border-top: 1px solid #e7e8ea;
+}
+
+.panel-card {
+  padding: 12px;
+  border: 1px solid #e7e8ea;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.soft-button.ant-btn:not(:disabled) {
+  border-color: transparent;
+  background: #fff2eb;
+  color: #c2410c;
+}
+
+/* The scenes as one list: a head, then a row per scene with a line between them. */
+.scene-list {
+  overflow: clip;
+  border: 1px solid #e7e8ea;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.scene-list__head {
+  padding: 8px 12px;
+}
+
+.scene-list > .scene-card {
+  border-width: 1px 0 0;
+  border-radius: 0;
+}
+
+.scene-thumb {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  width: 30px;
+  height: 40px;
+  border-radius: 5px;
+  background: #eeeff1;
+}
+
+.scene-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scene-thumb__badge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  min-width: 14px;
+  padding: 0 3px;
+  border-top-left-radius: 5px;
+  background: rgb(0 0 0 / 65%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+}
+
+.pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-weight: normal;
+  font-size: 13px;
+}
+
+.pill--success {
+  background: #f6ffed;
+}
+
+.pill--warning {
+  background: #fffbe6;
+}
+
+.pill--danger {
+  background: #fff1f0;
+}
+
+/* The side panel's three tabs share its width. */
+.side-panel .side-tabs > .ant-tabs-nav .ant-tabs-nav-list {
+  width: 100%;
+}
+
+.side-panel .side-tabs > .ant-tabs-nav .ant-tabs-tab {
+  flex: 1 0 auto;
+  justify-content: center;
+  margin: 0;
+  padding-inline: 8px;
+}

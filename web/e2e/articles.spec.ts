@@ -237,3 +237,24 @@ test("Bài viết: a Page's 30-day plan is set up, filled from a file, and an ar
   await expect(page).toHaveURL(/\/articles\/\d+$/);
   await expect(page.getByLabel("Caption")).toHaveValue("Bữa sáng 10 phút\n\nSáng nào cũng vội?\n\nBạn ăn sáng món gì?");
 });
+
+test("Bài viết: the header stays on screen while the article scrolls, and ← goes back to the list", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loginAsSeed(page);
+  await page.goto("/articles");
+  await page.getByRole("button", { name: "Tạo bài viết" }).click();
+  const drawer = page.getByRole("dialog", { name: "Tạo bài viết" });
+  await drawer.getByLabel("Chủ đề của bài").fill("uống nước ấm buổi sáng");
+  await drawer.getByRole("button", { name: "Tạo bài" }).click();
+  await expect(page).toHaveURL(/\/articles\/\d+$/);
+  const header = page.getByTestId("article-header");
+  await expect(header.getByTestId("article-status")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const back = header.getByRole("link", { name: "Về danh sách bài viết" });
+  await expect(back).toBeInViewport();
+  await back.click();
+  await expect(page).toHaveURL(/\/articles$/);
+});

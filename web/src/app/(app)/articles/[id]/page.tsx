@@ -23,8 +23,9 @@ import {
 import { usePolling } from "@/lib/polling";
 import ArticleImages from "@/components/article/ArticleImages";
 import PinnedCommentsCard from "@/components/article/PinnedCommentsCard";
+import { detailHeaderStyle } from "@/components/detailHeader";
 import { ArrowLeftOutlined, RobotOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Col, Flex, Input, Result, Row, Select, Spin, Typography } from "antd";
+import { Alert, App, Button, Card, Col, Flex, Grid, Input, Result, Row, Select, Spin, Typography } from "antd";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -137,6 +138,8 @@ export default function ArticlePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { message, modal } = App.useApp();
+  // A computer has no header bar of its own (AppShell's lg), so the page's sticks to the very top.
+  const desktop = Grid.useBreakpoint().lg ?? true;
   const [article, setArticle] = useState<Article | null>(null);
   const [missing, setMissing] = useState(false);
   const [options, setOptions] = useState<ArticleOptions | null>(null);
@@ -259,9 +262,17 @@ export default function ArticlePage() {
 
   return (
     <Flex vertical gap={16}>
-      <Flex justify="space-between" align="center" gap={12} wrap>
+      {/* Held at the top while the article scrolls, as on a video's page; the Flex's gap spaces what follows. */}
+      <Flex
+        justify="space-between"
+        align="center"
+        gap={12}
+        wrap
+        data-testid="article-header"
+        style={{ ...detailHeaderStyle(desktop), marginBottom: 0 }}
+      >
         <Flex align="center" gap={12} wrap>
-          <Link prefetch={false} href="/articles" aria-label="Về danh sách bài viết">
+          <Link prefetch={false} href="/articles" className="back-button" aria-label="Về danh sách bài viết">
             <ArrowLeftOutlined />
           </Link>
           <Typography.Title level={3} style={{ margin: 0, fontWeight: 600 }}>
@@ -270,9 +281,11 @@ export default function ArticlePage() {
           {aiWriting || aiDrawing ? (
             <StatusText tone="active">{aiWriting ? "AI đang viết…" : "AI đang tạo ảnh…"}</StatusText>
           ) : (
-            <StatusText tone={ARTICLE_STATUS_TONES[article.status]} data-testid="article-status">
-              {article.status_label}
-            </StatusText>
+            <span className="status-pill">
+              <StatusText tone={ARTICLE_STATUS_TONES[article.status]} data-testid="article-status">
+                {article.status_label}
+              </StatusText>
+            </span>
           )}
         </Flex>
         <Flex gap={8} wrap>

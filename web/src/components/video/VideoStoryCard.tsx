@@ -3,7 +3,9 @@
 import { CopyOutlined, ReloadOutlined, UndoOutlined } from "@ant-design/icons";
 import { App, Button, Collapse, Descriptions, Empty, Flex, Spin, Tabs, Tag, Timeline, Typography } from "antd";
 import { useCallback, useState } from "react";
+import { COLORS } from "@/app/theme";
 import { api, errorMessage, formatDateTime, type VideoDetail, type VideoEditEntry, type VideoStory } from "@/lib/api";
+import { narration } from "@/lib/narration";
 
 const SOURCE_COLORS: Record<string, string> = {
   VieNeu: "green",
@@ -69,21 +71,39 @@ function HistoryList({
   );
 }
 
+/** The card's one line while closed, from what the page already has: who wrote it, its narration and its music. */
+function summaryOf(video: VideoDetail): string {
+  const { uploaded, service } = narration(video);
+  const voices = [
+    uploaded.length > 0 && `MP3 tải lên ${uploaded.length} cảnh`,
+    service.length > 0 && `giọng dịch vụ ${service.length} cảnh`,
+  ].filter(Boolean);
+  return [
+    video.script_by ?? (video.hand_written ? "Kịch bản tự viết" : null),
+    voices.join(", ") || "không lời đọc",
+    video.music ? `nhạc ${video.music.name ?? "tải lên"} ${video.music_volume}%` : "không nhạc",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 /**
  * "Video này được làm như thế nào": who made the video and how, each scene's voice and its source, the music, how long
  * it took and one timeline of its jobs, review steps and edits; and "Lịch sử sửa" with "Hoàn tác" (api
  * routes_video_story.py). Read when opened, so the page's polling does not fetch it.
  */
 export default function VideoStoryCard({
-  videoId,
+  video,
   locked,
   act,
 }: {
-  videoId: number;
+  video: VideoDetail;
   locked: boolean;
   act: (action: () => Promise<VideoDetail>) => Promise<unknown>;
 }) {
   const { message } = App.useApp();
+  const videoId = video.id;
+  const [open, setOpen] = useState(false);
   const [story, setStory] = useState<VideoStory | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -204,15 +224,25 @@ export default function VideoStoryCard({
   return (
     <Collapse
       size="small"
-      style={{ marginBottom: 12 }}
+      style={{ marginBottom: 12, background: COLORS.surface }}
       data-testid="video-story"
       onChange={(keys) => {
+        setOpen(keys.length > 0);
         if (keys.length > 0 && !story) void load();
       }}
       items={[
         {
           key: "story",
-          label: "Video này được làm như thế nào",
+          label: (
+            <Flex gap={10} align="baseline" wrap style={{ minWidth: 0 }}>
+              <span>Video này được làm như thế nào</span>
+              {!open && video.has_script && (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="story-summary">
+                  {summaryOf(video)}
+                </Typography.Text>
+              )}
+            </Flex>
+          ),
           extra: story && (
             <Flex gap={4} onClick={(event) => event.stopPropagation()}>
               <Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={() => void load()}>
