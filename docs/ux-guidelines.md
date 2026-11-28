@@ -1474,6 +1474,8 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
   - the item name plus one benefit line, separated by a manual line break;
   - text box at the top, starting 290 px down, clear of the apps' top bar; a member may drag it elsewhere inside the
     safe zone (see "Vị trí chữ" above).
+- A card ("Thẻ") or an inset photo reaching up to the text's place sends that scene's text to the bottom, unless a
+  member placed it.
 - **Vùng an toàn** ([decision](decisions/2026-11-28-safe-layout.md); the numbers are in
   [reels_render/layout.py](../worker/src/reels_render/layout.py)), the same for every video and group:
   - "TikTok, Facebook" (default): text between x 65 and 1015, from y 290; captions end at y 1530; no text goes lower.

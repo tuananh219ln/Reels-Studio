@@ -463,7 +463,7 @@ def text_position(video: Video, scene: Scene) -> list[int] | None:
     if scene.is_title:
         position = effective(video)["title_text_position"]
         return [FRAME_WIDTH // 2, position[1]] if position else None
-    return effective(video)["text_position"] or opposite_the_inset(video, scene)
+    return effective(video)["text_position"] or clear_of_pictures(video, scene)
 
 
 def framable(video: Video, scene: Scene) -> bool:
@@ -533,23 +533,35 @@ def frame_payload(video: Video, scene: Scene, reserve: int | None = None) -> dic
     }
 
 
-# The room a content scene's text needs under its top place (about two lines of a box) before an inset photo counts as
-# clear of it; the page's window works it out the same way (PlaceModal.tsx).
+# The room a content scene's text needs under its top place (about two lines of a box) before a picture laid on the
+# scene counts as clear of it; the page's window works it out the same way (PlaceModal.tsx).
 INSET_CLEAR = 300
 
 
-def opposite_the_inset(video: Video, scene: Scene) -> list[int] | None:
-    """Where a content scene's text goes when nobody placed it (its own, the video's) and the scene has an inset photo:
-    clear of it. The text's usual place is at the top, so an inset reaching up there sends the text to the bottom (the
-    render keeps it above the captions' floor); one in the middle or lower leaves it. Never moved once a member chose a
-    place: moving the inset does not touch a place that is set."""
+def clear_of_pictures(video: Video, scene: Scene) -> list[int] | None:
+    """Where a content scene's text goes when nobody placed it (its own, the video's) and a picture laid on the scene
+    reaches up to the text's usual place at the top: a card ("Thẻ", hung from its top edge) or an inset photo over a
+    backdrop. The text then goes to the bottom (the render keeps it above the captions' floor); else None, the top.
+    Never moved once a member chose a place: moving the picture does not touch a place that is set."""
+    tops = [layer.y for layer in scene.layers if is_card_layer(layer)]
     inset = next((layer for layer in scene.layers if is_half_layer(layer)), None)
-    if inset is None or not is_backdrop(video):
+    if inset is not None and is_backdrop(video):
+        tops.append(inset.y - half_height(inset.height) // 2)
+    floor = render_options(video).profile.text_top_min + INSET_CLEAR
+    return [FRAME_WIDTH // 2, FRAME_HEIGHT] if any(top < floor for top in tops) else None
+
+
+def signed_position(video: Video, scene: Scene) -> list[int] | None:
+    """The text's place as the MP4's fingerprint holds it: the one a member chose, else what the inset photo's rule gave
+    before the safe layout (2026-11-28). Kept so, an MP4 rendered before it, with nothing changed since, is not marked
+    outdated; where the pictures are is in the fingerprint with the scene's layers."""
+    own = scene.text_x is not None and scene.text_y is not None
+    if own or scene.is_title or effective(video)["text_position"]:
+        return text_position(video, scene)
+    inset = next((layer for layer in scene.layers if is_half_layer(layer)), None)
+    if inset is None or not is_backdrop(video) or inset.y - half_height(inset.height) // 2 <= 0:
         return None
-    top_of_inset = inset.y - half_height(inset.height) // 2
-    if top_of_inset >= render_options(video).profile.text_top_min + INSET_CLEAR:
-        return None
-    return [FRAME_WIDTH // 2, FRAME_HEIGHT]
+    return [FRAME_WIDTH // 2, 0]
 
 
 LAYER_FIELDS = ("kind", "text", "sticker", "start", "seconds", "x", "y", "size", "style", "animation", "height")
@@ -677,7 +689,7 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             *([["video_loop", True]] if scene.video_key and scene.video_loop else []),
             # The clip's own sound and its words join only when heard, so MP4s rendered before them stay current.
             *([["video_sound", scene.words or []]] if scene.video_key and scene.video_sound else []),
-            *([["text_position", *position]] if (position := text_position(video, scene)) else []),
+            *([["text_position", *position]] if (position := signed_position(video, scene)) else []),
             # The studio's effects join only when set, so MP4s rendered before they existed stay current.
             *([["transition", scene.transition]] if scene.transition else []),
             *([["color", scene.color]] if scene.color else []),

@@ -2,8 +2,8 @@
 what the page is sent, the warning and the render machine's options."""
 
 import pytest
-from test_brands import patch, with_logo
-from test_videos_api import make_video
+from conftest import make_video
+from test_brands import an, me, patch, with_logo  # noqa: F401  (fixtures)
 
 from reels_api import frames, render_nodes, video_options
 from reels_api.models import Video
@@ -61,7 +61,7 @@ def test_the_previews_text_starts_290_down(is_title):
 # --- With the database ---
 
 
-def test_the_logos_place_is_saved_checked_and_put_back(an, db, me, storage):
+def test_the_logos_place_is_saved_checked_and_put_back(an, db, me, storage):  # noqa: F811  (fixtures)
     video = make_video(db, storage, me)
     saved = patch(an, video, logo_position=[100, 900], logo_size=180)
     assert saved.status_code == 200, saved.text

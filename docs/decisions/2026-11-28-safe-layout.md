@@ -20,7 +20,9 @@ posts and may change when the apps do.
 - **The compact text starts at the top too.** `scenes.text_zone` now holds "top", "bottom" or null, null meaning each
   thing's usual place: the compact text high, the "Cộng dồn" captions low (from 62% down, as before). "Dưới" puts the
   compact text where it used to be. A scene saved as null before reads as the new usual place.
-- **An inset photo that reaches up to the text's place sends the text to the bottom**, the mirror of the rule before.
+- **A card ("Thẻ") or an inset photo that reaches up to the text's place sends the text to the bottom**: for the inset
+  the mirror of the rule before; a card hangs from y 220, where text now goes. The MP4's fingerprint keeps the place the
+  old inset rule gave, so MP4s rendered before stay current.
 - **The logo moves under the text, top right**, and may be moved and resized for a video (`logo_position`, `logo_size`
   in the video's options, 80–240 px), one place for the whole video so it stays still through transitions (the owner's
   choice; the spec's "saved per scene" is not done for the logo). The title scene still has no logo, so the spec's
