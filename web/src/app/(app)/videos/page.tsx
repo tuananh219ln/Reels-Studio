@@ -4,6 +4,13 @@ import VideoCard from "@/components/videoList/VideoCard";
 import VideoTable from "@/components/videoList/VideoTable";
 import { useVideoColumns } from "@/components/videoList/columns";
 import { useVideoView, VideoSearch, ViewToggle } from "@/components/videoList/toolbar";
+import {
+  BulkActionBar,
+  BulkDeleteDialog,
+  deleteAction,
+  reportBulkDelete,
+  useVideoSelection,
+} from "@/components/videoList/bulkDelete";
 
 import EmptyState from "@/components/EmptyState";
 import type { SelectProps } from "antd";
@@ -62,7 +69,7 @@ import {
 } from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, Suspense, useCallback, useEffect, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 /** While a video is being made the list follows its stages closely; otherwise only teammates' new videos and the
  * numbers change, which a minute's wait shows soon enough. */
@@ -283,6 +290,24 @@ function Videos() {
   // The api lists the newest first; "Nhiều view nhất" puts videos without views after, newest first among them.
   const sorted = sort === "views" ? [...kept].sort((a, b) => (b.post?.views ?? -1) - (a.post?.views ?? -1)) : kept;
   const { shown, versions } = withVersions(sorted, platform === "all");
+  // Bulk delete: the ticked videos, across pages. Any filter, search or the "Cột"-less views reset it, so nothing
+  // out of sight is ever deleted.
+  const selection = useVideoSelection();
+  const { clear: clearSelection } = selection;
+  const [deleting, setDeleting] = useState(false);
+  const selectedIds = useMemo(() => [...selection.ids], [selection.ids]);
+  useEffect(() => {
+    clearSelection();
+  }, [query, status, creator, platform, kind, fanpage, group, clearSelection]);
+  useEffect(() => {
+    if (selection.ids.size === 0 || deleting) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") clearSelection();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selection.ids.size, deleting, clearSelection]);
+  const shownIds = shown.map((row) => row.id);
   const videoColumns = useVideoColumns({
     storageKey: "videos-columns",
     versionsOf: (row) => versions.get(row.id) ?? [],
@@ -428,6 +453,37 @@ function Videos() {
         </Typography.Paragraph>
       )}
       <PlanBanners today={today} onContinue={startFrom} />
+      {selection.ids.size > 0 && shown.length > selection.ids.size && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          data-testid="bulk-all-strip"
+          message={
+            <>
+              Đã chọn <strong>{selection.ids.size}</strong> video.{" "}
+              <Button type="link" size="small" onClick={() => selection.selectAll(shownIds)}>
+                Chọn tất cả {shown.length} video khớp bộ lọc
+              </Button>
+            </>
+          }
+        />
+      )}
+      {selection.matchAll && selection.ids.size > 0 && shown.length === selection.ids.size && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={
+            <>
+              Đã chọn <strong>tất cả {shown.length}</strong> video khớp bộ lọc.{" "}
+              <Button type="link" size="small" onClick={clearSelection}>
+                Bỏ chọn
+              </Button>
+            </>
+          }
+        />
+      )}
       {rows === null ? (
         <Flex justify="center" style={{ padding: 48 }}>
           <Spin />
@@ -446,15 +502,65 @@ function Videos() {
           />
         </Card>
       ) : view === "cards" ? (
-        <Row gutter={[16, 16]}>
-          {shown.map((row) => (
-            <Col key={row.id} xs={24} md={12} xl={8} xxl={6} style={{ display: "flex" }}>
-              <VideoCard row={row} versions={versions.get(row.id) ?? []} onChanged={() => reload(query, true)} />
-            </Col>
-          ))}
-        </Row>
+        <>
+          <Checkbox
+            style={{ marginBottom: 12 }}
+            data-testid="cards-select-all"
+            checked={shown.length > 0 && selection.ids.size >= shown.length}
+            indeterminate={selection.ids.size > 0 && selection.ids.size < shown.length}
+            onChange={(event) => selection.setMany(shownIds, event.target.checked)}
+          >
+            Chọn tất cả
+          </Checkbox>
+          <Row gutter={[16, 16]}>
+            {shown.map((row) => (
+              <Col key={row.id} xs={24} md={12} xl={8} xxl={6} style={{ display: "flex" }}>
+                <VideoCard
+                  row={row}
+                  versions={versions.get(row.id) ?? []}
+                  onChanged={() => reload(query, true)}
+                  selection={{
+                    checked: selection.ids.has(row.id),
+                    anyChecked: selection.ids.size > 0,
+                    onChange: (checked, shift) => selection.toggle(row.id, checked, shift, shownIds),
+                  }}
+                />
+              </Col>
+            ))}
+          </Row>
+        </>
       ) : (
-        <VideoRows rows={shown} columns={videoColumns.columns} onChanged={() => reload(query, true)} />
+        <VideoRows
+          rows={shown}
+          columns={videoColumns.columns}
+          onChanged={() => reload(query, true)}
+          selection={selection}
+        />
+      )}
+      {selection.ids.size > 0 && (
+        <BulkActionBar
+          count={selection.ids.size}
+          onClear={clearSelection}
+          actions={[deleteAction(() => setDeleting(true))]}
+        />
+      )}
+      {deleting && (
+        <BulkDeleteDialog
+          ids={selectedIds}
+          matchAll={selection.matchAll}
+          onClose={() => setDeleting(false)}
+          onDone={(result) => {
+            setDeleting(false);
+            reportBulkDelete(message, result);
+            // What was refused stays ticked, so it can be seen and tried again; what went is gone from the set.
+            const left = new Set(result.skipped.map((item) => item.id));
+            selection.setMany(
+              selectedIds.filter((id) => !left.has(id)),
+              false,
+            );
+            void reload(query, true);
+          }}
+        />
       )}
       <ImportMp4Modal
         open={importing}
@@ -525,10 +631,12 @@ function VideoRows({
   rows,
   columns,
   onChanged,
+  selection,
 }: {
   rows: VideoRow[];
   columns: ColumnsType<VideoRow>;
   onChanged: () => Promise<void>;
+  selection: ReturnType<typeof useVideoSelection>;
 }) {
   // The table's page is in the address too, back to 1 when a filter changes.
   const tablePage = useUrlPage();
@@ -542,6 +650,21 @@ function VideoRows({
         page={tablePage}
         rowHref={(row) => `/videos/${row.id}`}
         rowTestId="video-row"
+        tableProps={{
+          rowSelection: {
+            columnWidth: 40,
+            selectedRowKeys: [...selection.ids],
+            // The header's tick ticks or unticks the rows of the page shown; a click on a row's tick never opens it.
+            onSelectAll: (checked, _selected, changed) =>
+              selection.setMany(
+                changed.map((row) => row.id),
+                checked,
+              ),
+            onSelect: (row, checked) => selection.toggle(row.id, checked, false, []),
+            // The table does Shift-click itself, within the page shown, and gives the rows whose tick it turned.
+            onSelectMultiple: (_checked, _selected, changed) => selection.flip(changed.map((row) => row.id)),
+          },
+        }}
         actions={(row) => <VideoActions video={row} onChanged={onChanged} onRename={() => setRenaming(row.id)} />}
         columns={[
           {

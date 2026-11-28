@@ -147,15 +147,12 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
     /facebook\.com\/reel\//,
   );
 
-  // "Xóa video" first says where the video is posted, so nobody deletes it unaware that its posts stay on the platform.
+  // A posted video is kept for the view report: "Xóa video" is greyed out and says why.
   await page.getByRole("button", { name: "Thao tác khác với video" }).click();
-  await page.getByRole("menuitem", { name: "Xóa video" }).click();
-  const deleting = page.getByRole("dialog", { name: "Xóa video này?" });
-  await expect(deleting.getByTestId("delete-video-posts")).toContainText("Facebook: đã đăng lúc");
-  await expect(deleting.getByTestId("delete-video-posts")).toContainText("Trang Dưỡng Sinh");
-  await expect(deleting).toContainText("Video đang có 1 bài trên nền tảng");
-  await deleting.getByRole("button", { name: "Huỷ" }).click();
-  await expect(deleting).toBeHidden();
+  const remove = page.getByRole("menuitem", { name: "Xóa video" });
+  await expect(remove).toBeDisabled();
+  await expect(remove).toHaveAttribute("title", "Video đã đăng, cần giữ để làm báo cáo view");
+  await page.keyboard.press("Escape");
 
   // Once posted, the card says so rather than "Chờ đăng".
   await page.goto("/videos");
@@ -995,6 +992,69 @@ test("video list: 5 videos a page until a member picks more, and the choice surv
   await page.reload();
   await expect(rows).toHaveCount(7);
   await expect(pager.getByText("10 / trang")).toBeVisible();
+});
+
+test("video list: videos are ticked one, a stretch or all that match, and deleted together", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  const knowledge = await (await page.request.get("/api/knowledge")).json();
+  for (let index = 1; index <= 7; index += 1) {
+    const made = await page.request.post("/api/videos", {
+      data: { topic: `món số ${index}`, knowledge_topic_id: knowledge.topics[0].id, mode: "manual", script: "Một" },
+      headers: { Origin: new URL(page.url()).origin },
+    });
+    expect(made.ok()).toBe(true);
+  }
+  await page.goto("/videos");
+  await page.getByLabel("Kiểu hiển thị").getByText("Bảng", { exact: true }).click();
+  const rows = page.getByTestId("video-row");
+  await expect(rows).toHaveCount(5);
+  const bar = page.getByTestId("bulk-bar");
+  const header = page.locator(".ant-table-thead").getByRole("checkbox");
+
+  // The header ticks the page shown and never opens a video; one unticked leaves it half ticked.
+  await header.check();
+  await expect(bar).toContainText("Đã chọn 5 video");
+  await rows.nth(0).getByRole("checkbox").uncheck();
+  await expect(bar).toContainText("Đã chọn 4 video");
+  await expect(header).toHaveJSProperty("indeterminate", true);
+  await expect(page).toHaveURL(/\/videos$/);
+  await page.keyboard.press("Escape");
+  await expect(bar).toBeHidden();
+
+  // Shift-click ticks the whole stretch.
+  await rows.nth(0).getByRole("checkbox").click();
+  await rows
+    .nth(3)
+    .getByRole("checkbox")
+    .click({ modifiers: ["Shift"] });
+  await expect(bar).toContainText("Đã chọn 4 video");
+
+  // The cards keep the choice; a card's tick never opens it.
+  await page.getByLabel("Kiểu hiển thị").getByText("Thẻ", { exact: true }).click();
+  await expect(bar).toContainText("Đã chọn 4 video");
+  await page.getByTestId("video-card").nth(4).getByRole("checkbox").click();
+  await expect(bar).toContainText("Đã chọn 5 video");
+  await expect(page).toHaveURL(/\/videos$/);
+
+  // A search clears the choice, so nothing out of sight is deleted.
+  await page.getByLabel("Kiểu hiển thị").getByText("Bảng", { exact: true }).click();
+  await page.getByLabel("Tìm theo tiêu đề hoặc chủ đề").fill("món số");
+  await expect(bar).toBeHidden();
+
+  // All that match, past the first page: the number is typed to confirm.
+  await header.check();
+  await page.getByRole("button", { name: "Chọn tất cả 7 video khớp bộ lọc" }).click();
+  await expect(bar).toContainText("Đã chọn 7 video");
+  await bar.getByRole("button", { name: /Xóa$/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Xóa 7 video?" });
+  const confirm = dialog.getByRole("button", { name: "Xóa 7 video" });
+  await expect(confirm).toBeDisabled();
+  await dialog.getByLabel("Gõ số video để xác nhận").fill("7");
+  await confirm.click();
+  await expect(page.getByText("Đã xóa 7 video")).toBeVisible();
+  await expect(rows).toHaveCount(0);
+  await expect(bar).toBeHidden();
 });
 
 test("knowledge topics: a group's video mode is what its new videos take unless one is picked", async ({ page }) => {
@@ -2594,6 +2654,16 @@ test("a scheduled video appears in Bài đăng and its calendar without a link t
   const shown = `${date.split("-").reverse().join("/")} ${time}`;
   await expect(page.getByTestId("publication-status")).toContainText(`Hẹn đăng lúc ${shown}`, { timeout: 30_000 });
 
+  // "Xóa video" first says where the video is posted, so nobody deletes it unaware that its posts stay on the platform.
+  await page.getByRole("button", { name: "Thao tác khác với video" }).click();
+  await page.getByRole("menuitem", { name: "Xóa video" }).click();
+  const deleting = page.getByRole("dialog", { name: "Xóa video này?" });
+  await expect(deleting.getByTestId("delete-video-posts")).toContainText("Facebook: hẹn đăng lúc");
+  await expect(deleting.getByTestId("delete-video-posts")).toContainText("Trang Dưỡng Sinh");
+  await expect(deleting).toContainText("Video đang có 1 bài trên nền tảng");
+  await deleting.getByRole("button", { name: "Huỷ" }).click();
+  await expect(deleting).toBeHidden();
+
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   await expect(page.getByTestId("cell-facebook")).toContainText("Hẹn lịch");
   await page.getByTestId("post-group").locator(".ant-table-row-expand-icon").click();
@@ -3399,10 +3469,10 @@ test("clone a video with a change request, then see every job in the job log", a
   const sourceUrl = page.url();
   await closeSetup(page);
 
-  await page.getByRole("button", { name: "Thao tác khác với video" }).click();
-  await page.getByRole("menuitem", { name: /^(copy )?Nhân bản$/ }).click();
+  // The menu has no plain "Nhân bản" any more (2026-11-28); the change-request clone opens from the address, as
+  // "Bản cho Page khác" on "Bài đăng" does.
+  await page.goto(`${sourceUrl}?clone=page`);
   const dialog = page.getByRole("dialog", { name: "Nhân bản video" });
-  await expect(dialog.getByRole("button", { name: "Tạo bản nhân bản" })).toBeDisabled();
   await dialog.getByLabel("Yêu cầu đổi").fill("đổi sang mốc 45 tuổi, tim mạch");
   await dialog.getByRole("button", { name: "Tạo bản nhân bản" }).click();
 
