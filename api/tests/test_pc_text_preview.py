@@ -23,7 +23,7 @@ def _photo() -> Image.Image:
 def test_the_title_preview_and_thumbnail_are_three_tiers_in_the_upper_part_with_no_box():
     text = "BLACK FRIDAY\n5 MÓN PC ĐÁNG SĂN\nGIẢM THẬT 100%"
     frame = frames.compose_frame(_photo(), text, True, TIERS)
-    assert _changed(frame, (0, 200, 1080, 660))  # centred 22% down
+    assert _changed(frame, (0, 250, 1080, 660))  # from 290 down
     assert not _changed(frame, (0, 900, 1080, 1700))  # the old box sat in the middle
     thumbnail = Image.open(io.BytesIO(frames.thumbnail_bytes(_photo(), text, TIERS)))
     assert thumbnail.size == frames.THUMBNAIL_SIZE
@@ -32,14 +32,14 @@ def test_the_title_preview_and_thumbnail_are_three_tiers_in_the_upper_part_with_
     assert _changed(old, (0, 700, 1080, 1250))
 
 
-def test_a_content_scene_is_two_tiers_in_the_lower_zone_or_the_upper_one_and_so_is_the_last_scene():
+def test_a_content_scene_is_two_tiers_at_the_top_unless_it_is_set_low_and_so_is_the_last_scene():
     text = "3. *Logitech G304*\nkhông dây"
-    lower = frames.compose_frame(_photo(), text, False, TIERS)
+    upper = frames.compose_frame(_photo(), text, False, TIERS)
+    assert _changed(upper, (0, 250, 1080, 660)) and not _changed(upper, (0, 900, 1080, 1700))
+    lower = frames.compose_frame(_photo(), text, False, TIERS, zone="bottom")
     assert _changed(lower, (0, 1130, 1080, 1480)) and not _changed(lower, (0, 200, 1080, 660))
-    upper = frames.compose_frame(_photo(), text, False, TIERS, zone="top")
-    assert _changed(upper, (0, 200, 1080, 660)) and not _changed(upper, (0, 1130, 1080, 1480))
     last = frames.compose_frame(_photo(), "DEAL HẤP DẪN\nMÌNH ĐỂ DƯỚI BÌNH LUẬN", False, TIERS, last=True)
-    assert _changed(last, (0, 1130, 1080, 1480)) and not _changed(last, (0, 700, 1080, 1100))  # the call to action too
+    assert _changed(last, (0, 250, 1080, 660)) and not _changed(last, (0, 900, 1080, 1700))  # the call to action too
     # A framed photo is laid out around the tiers' height, which is below the 15% of the frame the spec allows.
     height = frames.text_height(text, False, TIERS)
     assert height == frames.tier_box(text, False, TIERS, None, False, None)[0].height <= 0.15 * 1920 + 2 * 46
@@ -52,7 +52,7 @@ def test_cumulative_captions_replace_the_scene_text_with_the_first_phrase_drawn_
     assert _changed(frame, (0, 1130, 1080, 1560))  # the phrase, from 62% down
     # A scene with nothing to read keeps its own text; the last scene (its text is not replaced) too.
     silent = frames.compose_frame(_photo(), "3. *Logitech G304*", False, options)
-    assert _changed(silent, (0, 1130, 1080, 1480))
+    assert _changed(silent, (0, 250, 1080, 660))
     assert not frames.captioned(options, False, True, narration)
     assert not frames.captioned(RenderOptions(), False, False, narration)
 

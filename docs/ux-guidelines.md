@@ -665,9 +665,9 @@ steps open the status card or the products block on its tab, the QC chip its pop
     hashtags on one line, the music's name, the navigation bar; Shorts' red progress line), with
     generic icons and the video's Page as the channel, so the member sees what each app covers.
     The choice is remembered in the browser. The switch "Hiện vùng an toàn" (remembered in the browser) shades what the apps cover in
-    translucent red (top 190 px, bottom from 1480 px, the button column x ≥ 900, y 850–1600) and adds the template's safe zone as a
+    translucent red (top 190 px, bottom from 1480 px, the button column x ≥ 900, y 850–1600) and adds the video's safe zone as a
     yellow dashed box. While the video's logo is on, the channel's badge is laid over each scene by css where the renderer
-    puts it (top right of the content scenes; the title scene has none). The timeline has a ruler in whole seconds ("00:07"), one segment per scene as long
+    puts it (the content scenes; the title scene has none). The timeline has a ruler in whole seconds ("00:07"), one segment per scene as long
     as the scene with its picture repeated along it and "Cảnh N, Xs" on it (the current one
     outlined), and a playhead that follows the preview. A click on a segment plays that scene; a
     press or drag on the ruler or the playhead goes to that second and pauses there (← → on the
@@ -776,13 +776,13 @@ steps open the status card or the products block on its tab, the QC chip its pop
     with narration on, a note says the scene may last longer to fit it;
   - per scene with text and a picture, "Vị trí chữ" ("Vị trí chữ (riêng)" once the scene has a place
     of its own) opens a dialog: the frame without text at a quarter size, the platforms' covered
-    areas darkened and the safe zone dashed (x 60–940, y 220–1440), and the exact box image dragged
+    areas darkened and the video's safe zone dashed (see "Vùng an toàn" below), and the exact box image dragged
     with the mouse or the arrow keys (10 px a press); the box stops at the zone's edges, and a box
     wider than the zone stays centred across. Buttons: "Vị trí gốc" (back to the template's place),
     "Lưu cho cảnh này", "Lưu cho mọi cảnh" (the video's place for every content scene without one of
     its own), "Bỏ vị trí riêng của cảnh này" and "Đưa vị trí chung về gốc". The title scene's dialog
-    moves only up and down and has "Lưu"; it is also the thumbnail. Captions sit above a moved box,
-    or under it when they would reach past the top of the safe zone;
+    moves only up and down and has "Lưu"; it is also the thumbnail. Captions stay on their floor, and go just over
+    a box still on screen where they would land;
   - the header's QC chip ("QC: đạt" or "QC: N mục chưa đạt") opens a popover with the automatic QC, each check's label
     and measure in green, yellow or red and what to do ("Nên sửa rồi render lại trước khi đăng." / "Đăng được, nhưng
     nên xem lại."). It is advice: with a red check "Đăng bài" still works, after a confirmation ("MP4 chưa đạt kiểm
@@ -813,8 +813,12 @@ steps open the status card or the products block on its tab, the QC chip its pop
     blocks;
   - once a render has made a scene's narration, its player, length, and the lengthened scene;
   - the "Thiết lập" tab, every change saved at once. "Logo" comes first, two rows on a light brand tint: "Logo", the
-    "Gắn logo vào video" switch (greyed until the channel has a logo), "Góc trên phải, trừ cảnh tiêu đề" in grey
-    ("Chọn kênh để gắn logo" until a channel is chosen) and "Đang gắn"/"Chưa gắn" at the right; then "Kênh" (the
+    "Gắn logo vào video" switch (greyed until the channel has a logo), then "Vị trí & cỡ" while the logo is on (else
+    "Trừ cảnh tiêu đề" in grey, or "Chọn kênh để gắn logo" until a channel is chosen) and "Đang gắn"/"Chưa gắn" at the
+    right. "Vị trí & cỡ" opens a dialog: the first content scene with its text at a quarter size, the safe zone dashed,
+    the badge dragged (mouse, touch or arrow keys, 10 px a press) inside it, a "Cỡ" slider (80–240 px), "Đặt lại vị
+    trí" (back to the usual place and size) and "Lưu"; one place for the whole video. Under the Logo card, "Vùng an
+    toàn" picks "TikTok, Facebook" (the default) or "Mọi nền tảng", with a line saying what it changes; then "Kênh" (the
     video's channel among the member's own, locked once the video is posted) with "Quản lý kênh →" on the same row.
     The other groups are panels that open and close, several
     at once, remembered per member in the browser ("Âm thanh" open the first time); a closed one shows its values in
@@ -963,7 +967,14 @@ steps open the status card or the products block on its tab, the QC chip its pop
       choice of the saved templates the group holds and the one its new videos take: "Không áp mẫu của nhóm", "Gợi ý
       của app" or one of the group's, with "Lưu mẫu dựng"; the order a new video's template is picked in is spelled
       out above them: chosen on the video › the group's › the maker's own (Cài đặt › Mẫu dựng) › none; Cài đặt › Mẫu
-      dựng tags each template with the groups that hold it); on the right "Chữ & phụ đề của nhóm": the switches
+      dựng tags each template with the groups that hold it); on the right "Chuyển động & âm thanh của nhóm" (the switch
+      "Nhóm có chuyển động & âm thanh riêng", a grey line saying what on and off do; on: "Chuyển cảnh", "Chuyển động
+      ảnh" and "Độ zoom", then the switch "Đọc lời từng cảnh", "Tốc độ đọc", "Âm lượng giọng", "Nghỉ sau lời đọc", "Âm
+      lượng nhạc" and "Nhỏ nhạc khi có giọng đọc", starting from the member's own defaults, and "Nhạc nền": "Theo người
+      tạo" (the default), "Chọn bài" (a track from Thư viện nhạc with its name and player, "Đổi bài", and "Bắt đầu từ
+      giây"; a track claimed or deleted since is said in yellow) or "Không nhạc"; "Lưu chuyển động & âm thanh"), and
+      under it "Chữ & phụ đề của
+      nhóm": the switches
       "Nhóm có kiểu chữ riêng" (one fixed label, with a grey line under it saying what on and off do) and "AI chọn kiểu chữ cho từng
       video" (on: a grey line on what it does), "Gợi ý từ AI" with "AI gợi ý" ("Gợi ý lại" once there are some; while
       the job runs a spinner and "AI đang nghĩ kiểu chữ cho nhóm…", the card re-reading the group every 3 seconds; a
@@ -1463,9 +1474,9 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
     content scenes' text (not the title's or the last scene's);
   - PC Shopee's compact text ([decision](decisions/2026-11-27-pc-text-tiers.md)), chosen on Thiết lập › Chữ & phụ đề and set for
     a new PC Shopee video: the title in three tiers (a 52 px small line, a 104 px main line in the look's marked colour, a
-    64 px sub line, an optional orange "-50%" label tilted at the top right), at most 22% of the frame's height, centred 22%
-    down, no box; a content scene's text in two (an orange numbered circle with a 80 px main line, then a 54 px sub line),
-    at most 15% of the height, in the 62–78% zone or the 14–30% one when the scene is "Trên"; looks Neon game, Thương hiệu, the five title presets ([decision](decisions/2026-11-27-title-presets.md)),
+    64 px sub line, an optional orange "-50%" label tilted at the top right), at most 22% of the frame's height, starting
+    290 px down, no box; a content scene's text in two (an orange numbered circle with a 80 px main line, then a 54 px sub line),
+    at most 15% of the height, starting 290 px down, or in the lower zone (centred 68% down) when the scene is "Dưới"; looks Neon game, Thương hiệu, the five title presets ([decision](decisions/2026-11-27-title-presets.md)),
     and Thương hiệu ([decision](decisions/2026-11-27-pc-text-styles.md)). The last scene keeps its text box;
   - keywords marked `*...*` are drawn in red (`#E10600`);
   - long text wraps and shrinks, and is rejected only if it still does not fit: the title starts
@@ -1474,9 +1485,19 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
 - **Body scenes:**
   - one item per scene, 3–5 seconds each (the renderer accepts any length of 1 s or more);
   - the item name plus one benefit line, separated by a manual line break;
-  - text box in the lower third, with its bottom edge at y = 1440, clear of the food and of the
-    platforms' caption and button area; a member may drag it elsewhere inside the safe zone (see
-    "Vị trí chữ" above).
+  - text box at the top, starting 290 px down, clear of the apps' top bar; a member may drag it elsewhere inside the
+    safe zone (see "Vị trí chữ" above).
+- A card ("Thẻ") or an inset photo reaching up to the text's place sends that scene's text to the bottom, unless a
+  member placed it.
+- **Vùng an toàn** ([decision](decisions/2026-11-28-safe-layout.md); the numbers are in
+  [reels_render/layout.py](../worker/src/reels_render/layout.py)), the same for every video and group:
+  - "TikTok, Facebook" (default): text between x 65 and 1015, from y 290; captions end at y 1530; no text goes lower.
+  - "Mọi nền tảng" (also Shorts, Instagram, ads): x 65–888, from y 290; captions end at y 1248.
+  - A text nobody placed (title or scene) starts at y 290, centred across (moved left only when the right edge asks);
+    captions are at most 696 px wide in the middle; the logo's ring is 120 px in the top right corner, over the text
+    (y 160–280, its right side on the zone's: x 895 or 768), unless the video moves it, anywhere from y 120 down
+    ([decision](decisions/2026-11-28-logo-top-corner.md)).
+  - Sizes, fonts and styles are each video's and its topic group's own.
 - **Motion:** every scene zooms in linearly around the centre, from 1.00 to 1.12. Scenes are
   joined by a 0.4 s crossfade centred on the boundary, so the total length equals the summed
   scene seconds.
@@ -1586,9 +1607,9 @@ relied on (samples in the PR that added them).
   đọc", which compresses the music under the narration (a sidechain, about a quarter of its level).
   Changing the voice or speed makes the narration again on the next render.
 - **Captions (phụ đề theo giọng đọc):** content scenes with narration only, never the title scene.
-  White bold 58 px text on a rounded black box at 67%, at most two lines and four words, centred
-  just above the scene's text box (or with its bottom at y = 1440 when the scene has none). In PC Shopee's compact
-  text the bottom is always y = 1440, the text having gone by then ([decision](decisions/2026-11-27-pc-caption-floor.md)).
+  White bold 58 px text on a rounded black box at 67%, at most two lines and four words, at most 696 px wide, centred,
+  its bottom on the captions' floor (y 1530, or 1248 on "Mọi nền tảng"; [decision](decisions/2026-11-28-safe-layout.md)). When the scene's text
+  is still on screen where the caption would land, the caption goes just over it.
   "Từng cụm" shows each phrase while it is read; "Từng từ" also lights the word being read in
   yellow. Phrases break after punctuation. The timing is an estimate spread over the narration by
   letters, not ElevenLabs' timestamps, so it can run slightly ahead or behind.
@@ -1672,7 +1693,7 @@ and **Ảnh chèn** (only Chữ without an inset), opening on Chữ, and "Bấm 
 dùng phím mũi tên); luôn ở giữa theo chiều ngang." Over a 9:16 frame drawn as the render lays it, the open tab's one is
 dragged up and down (mouse, touch, or the up and down arrow keys, 10 px a press): `ns-resize` cursor, dashed outline
 and ⇅ beside it; the other is dimmed (opacity 0.55) with a thin white dashed outline, and pressing it opens its tab and
-drags it. The text stays inside the safe zone (y 220–1440, as on the title scene, darkened outside it on the Chữ tab);
+drags it. The text stays inside the video's safe zone (darkened above and below it on the Chữ tab);
 the inset goes from flush with the top edge to flush with the bottom edge, with no extra margin. "Vị trí gốc" puts the
 open tab's one back (the inset flush with the bottom edge, the text unplaced), "Lưu" saves both and closes, ✕ drops
 what was not saved. The title scene and slide videos keep "Vị trí chữ" on the picture, as before.
@@ -1799,7 +1820,7 @@ Where something is edited, its history is shown there, not on a page of its own
 
 - **Under the group's name**, after "N video, N prompt đã sửa": "<member> sửa <part> lúc dd/mm/yyyy hh:mm" (Vietnam
   time), a link that opens the group's whole history, each entry naming the parts it changed.
-- **"Lịch sử" on each card** (every prompt, Từ cấm, Gợi ý tìm ảnh, Giọng mặc định của nhóm, Kiểu video của nhóm, Chữ & phụ đề của nhóm, Prompt
+- **"Lịch sử" on each card** (every prompt, Từ cấm, Gợi ý tìm ảnh, Giọng mặc định của nhóm, Kiểu video của nhóm, Chuyển động & âm thanh của nhóm, Chữ & phụ đề của nhóm, Prompt
   kế hoạch) opens a
   drawer on the right, newest first. Each entry: its action as a tag (Tạo green, Sửa blue, Xoá red, Khôi phục gold),
   the member, the time, "qua Claude" or "tự động" when it did not come from the web, and "Đang dùng" on the latest.

@@ -46,6 +46,7 @@ import {
   type SceneLayer,
   type SceneSound,
   type VideoDetail,
+  type VideoLayout,
   type VideoOptions,
   voiceService,
 } from "@/lib/api";
@@ -70,17 +71,8 @@ import { useEditor } from "./AutoSaveField";
 import { VoicePicker } from "./VideoSettings";
 import { Phone } from "./phone/Phone";
 import PlatformFrame, { PLATFORM_LABELS, type Platform } from "./PlatformFrame";
-import {
-  COVERED,
-  FRAME_HEIGHT,
-  FRAME_WIDTH,
-  LOGO_CORNER_WIDTH,
-  SAFE,
-  frameFor,
-  logoCorner,
-  placeBox,
-  shownAt,
-} from "./TextPositionModal";
+import { COVERED, FRAME_HEIGHT, FRAME_WIDTH, frameFor, placeBox, shownAt } from "./TextPositionModal";
+import { badgeStyle } from "./logoBadge";
 import { isBackdrop, previewScenes } from "./videoModes";
 import "./preview/editor.css";
 
@@ -1048,7 +1040,12 @@ export default function VideoPreview({
   const boxSize = scene?.textbox_url ? boxes[scene.textbox_url] : undefined;
   const boxCorner =
     boxSize && scene
-      ? placeBox(boxSize, dragged?.sceneId === scene.id ? dragged.centre : shownAt(scene), scene.is_title)
+      ? placeBox(
+          boxSize,
+          dragged?.sceneId === scene.id ? dragged.centre : shownAt(scene),
+          scene.is_title,
+          scene.text_area,
+        )
       : null;
   const covered = boxSize && boxCorner ? coveredBy(platform, boxCorner, boxSize) : [];
   const snapped = dragged && scene && dragged.sceneId === scene.id ? dragged.centre : null;
@@ -1554,9 +1551,9 @@ export default function VideoPreview({
                     />
                   )}
                   {scene && !scene.is_title && video.logo_enabled && video.brand?.logo_badge_url && (
-                    <LogoBadge url={video.brand.logo_badge_url} />
+                    <LogoBadge url={video.brand.logo_badge_url} logo={video.layout.logo} />
                   )}
-                  {guide && <SafeZone />}
+                  {guide && <SafeZone layout={video.layout} />}
                 </div>
               </Phone>
               {covered.length > 0 && (
@@ -1657,6 +1654,7 @@ export default function VideoPreview({
                 isPcShopee(video.knowledge_topic) && !scene.is_title && phase.index < scenes.length - 1 ? (
                   <HoldField
                     zone={scene.text_zone}
+                    usualZone={scene.cumulative_url ? "bottom" : "top"}
                     onZone={(text_zone) => void changeScene("đổi vị trí chữ", scene, { text_zone })}
                     value={scene.text_hold_sec}
                     videoValue={video.options.text_hold_sec}
@@ -1782,7 +1780,7 @@ function SceneLayer({
   const picture = frameFor(scene, centre ?? shownAt(scene)) ?? scene.live_preview_url ?? scene.preview_url;
   const box = scene.frame_url ? scene.textbox_url : null;
   const size = box ? boxes[box] : undefined;
-  const corner = size ? placeBox(size, centre ?? shownAt(scene), scene.is_title) : null;
+  const corner = size ? placeBox(size, centre ?? shownAt(scene), scene.is_title, scene.text_area) : null;
 
   /** The pointer in frame pixels (1080 × 1920). */
   function framePoint(event: React.PointerEvent): [number, number] | null {
@@ -1836,7 +1834,7 @@ function SceneLayer({
               scene.is_title ? FRAME_WIDTH / 2 : point[0] - grab.current.dx + size.width / 2,
               point[1] - grab.current.dy + size.height / 2,
             ];
-            const placed = placeBox(size, next, scene.is_title);
+            const placed = placeBox(size, next, scene.is_title, scene.text_area);
             const kept: [number, number] = [placed[0] + size.width / 2, placed[1] + size.height / 2];
             // Near the frame's middle it snaps there, and a guide shows it (see VideoPreview).
             if (Math.abs(kept[0] - FRAME_WIDTH / 2) < SNAP) kept[0] = FRAME_WIDTH / 2;
@@ -1962,33 +1960,21 @@ function SceneLayer({
   );
 }
 
-/** The channel's logo in the corner where the renderer lays it, still while the scene moves (css only: the scene's
- * preview picture holds no logo). The title scene has none. */
-function LogoBadge({ url }: { url: string }) {
-  const [left, top] = logoCorner();
+/** The channel's logo where the renderer lays it, still while the scene moves (css only: the scene's preview picture
+ * holds no logo). The title scene has none. */
+function LogoBadge({ url, logo }: { url: string; logo: VideoLayout["logo"] }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- the api's badge picture, laid by css
-    <img
-      src={url}
-      alt="Logo kênh"
-      data-testid="preview-logo"
-      style={{
-        position: "absolute",
-        left: percent(left, FRAME_WIDTH),
-        top: percent(top, FRAME_HEIGHT),
-        width: percent(LOGO_CORNER_WIDTH, FRAME_WIDTH),
-        pointerEvents: "none",
-      }}
-    />
+    <img src={url} alt="Logo kênh" data-testid="preview-logo" style={{ ...badgeStyle(logo), pointerEvents: "none" }} />
   );
 }
 
 const GUIDE_KEY = "reels.preview.safeZone";
 const COVER = "rgba(225, 6, 0, 0.3)";
 
-/** Where the apps cover the video, in red (top bar, caption and music, the button column), and the template's safe
- * zone for the text box, dashed. */
-function SafeZone() {
+/** Where the apps cover the video, in red (top bar, caption and music, the button column), and the video's safe zone
+ * for text and the logo, dashed. */
+function SafeZone({ layout }: { layout: VideoLayout }) {
   const area = (left: number, top: number, width: number, height: number): React.CSSProperties => ({
     position: "absolute",
     left: percent(left, FRAME_WIDTH),
@@ -2014,21 +2000,21 @@ function SafeZone() {
           COVERED.rightColumn.y2 - COVERED.rightColumn.y1,
         )}
       />
-      <TemplateZone />
+      <TemplateZone layout={layout} />
     </>
   );
 }
 
-function TemplateZone() {
+function TemplateZone({ layout }: { layout: VideoLayout }) {
   return (
     <div
       data-testid="preview-safe-zone"
       style={{
         position: "absolute",
-        left: percent(SAFE.left, FRAME_WIDTH),
-        top: percent(SAFE.top, FRAME_HEIGHT),
-        width: percent(SAFE.right - SAFE.left, FRAME_WIDTH),
-        height: percent(SAFE.bottom - SAFE.top, FRAME_HEIGHT),
+        left: percent(layout.text_left, FRAME_WIDTH),
+        top: percent(layout.text_top_min, FRAME_HEIGHT),
+        width: percent(layout.text_right - layout.text_left, FRAME_WIDTH),
+        height: percent(layout.subtitle_bottom - layout.text_top_min, FRAME_HEIGHT),
         border: "1.5px dashed #ffd60a",
         pointerEvents: "none",
       }}

@@ -19,6 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import object_session
 
+from reels_render.layout import FRAME_HEIGHT, FRAME_WIDTH, LOGO_MAX_SIZE, LOGO_MIN_SIZE
 from reels_render.logo import MIN_SOURCE_SIDE, make_badge
 
 from . import photo_logo
@@ -185,10 +186,14 @@ def logo_on(video: Video, brand: Brand | None) -> bool:
 
 
 def logo_signature(video: Video) -> list | None:
-    """What the logo adds to the MP4's fingerprint; None while there is none, so MP4s rendered before stay current."""
+    """What the logo adds to the MP4's fingerprint; None while there is none, so MP4s rendered before stay current. Its
+    own place and size join only when set."""
     db = object_session(video)
     brand = brand_of(db, video) if db is not None else None
-    return ["logo", brand.id, brand.logo_version] if brand is not None and logo_on(video, brand) else None
+    if brand is None or not logo_on(video, brand):
+        return None
+    own = [(video.options or {}).get(name) for name in LOGO_PLACE]
+    return ["logo", brand.id, brand.logo_version, *(["at", *own] if any(own) else [])]
 
 
 def badge_path(db: DbSession, storage: DirectoryStorage, video: Video) -> Path | None:
@@ -232,10 +237,42 @@ def has_posts(db: DbSession, video_id: int) -> bool:
     )
 
 
+# The logo's own place on a video (its ring's top-left corner, [x, y]) and diameter; unset: the layout profile's.
+LOGO_PLACE = ("logo_position", "logo_size")
+
+
+def _save_logo_place(video: Video, options: dict) -> None:
+    """Saves the logo place and size given (null: back to the profile's). The render keeps them inside the profile's
+    edges (reels_render.layout.logo_box), so a later change of profile never leaves the logo outside."""
+    stored = dict(video.options or {})
+    for name in LOGO_PLACE:
+        if name not in options:
+            continue
+        value = options[name]
+        if value is None:
+            stored.pop(name, None)
+            continue
+        if name == "logo_position":
+            if (
+                not isinstance(value, list)
+                or len(value) != 2
+                or not all(type(number) is int for number in value)
+                or not (0 <= value[0] <= FRAME_WIDTH and 0 <= value[1] <= FRAME_HEIGHT)
+            ):
+                raise ApiError(400, "invalid", f"Vị trí logo phải là [x, y] trong khung {FRAME_WIDTH}×{FRAME_HEIGHT}")
+        elif type(value) is not int or not LOGO_MIN_SIZE <= value <= LOGO_MAX_SIZE:
+            raise ApiError(400, "invalid", f"Cỡ logo phải từ {LOGO_MIN_SIZE} đến {LOGO_MAX_SIZE} px")
+        stored[name] = value
+    video.options = stored
+
+
 def apply_video_options(db: DbSession, video: Video, user_id: int, options: dict) -> dict:
-    """Takes `brand_id` and `logo_enabled` out of a video's PATCH options, checks and saves them on the video, and
-    returns the rest for `video_options.clean`. Raises ApiError (403 not a brand of the member, 400
-    `brand_has_no_logo`, 409 `video_already_posted`)."""
+    """Takes the channel and logo fields (`brand_id`, `logo_enabled`, LOGO_PLACE) out of a video's PATCH options, checks
+    and saves them on the video, and returns the rest for `video_options.clean`. Raises ApiError (403 not a brand of the
+    member, 400 `brand_has_no_logo`, 409 `video_already_posted`)."""
+    if any(name in options for name in LOGO_PLACE):
+        _save_logo_place(video, options)
+        options = {name: value for name, value in options.items() if name not in LOGO_PLACE}
     rest = {name: value for name, value in options.items() if name not in ("brand_id", "logo_enabled")}
     if len(rest) == len(options):
         return rest

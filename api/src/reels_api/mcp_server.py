@@ -2152,13 +2152,14 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         seconds_auto: bool | None = None,
         text_hold_sec: Annotated[float | None, Field(description="1–6 giây, bước 0,5")] = None,
         reset_text_hold: bool = False,
-        text_zone: Literal["top", "bottom"] | None = None,
+        text_zone: Literal["top", "bottom", "default"] | None = None,
     ) -> dict:
         """Đặt chuyển cảnh vào cảnh này, màu (preset), mức nhạc trong cảnh, và "Tự khớp lời đọc" (seconds_auto).
         Giá trị lấy từ "Đọc lựa chọn dựng video"; "default" đưa về mặc định của video (chuyển cảnh, mức nhạc) hoặc
         màu gốc. Cảnh tiêu đề không có chuyển cảnh hay màu riêng. Video nhóm PC Shopee: text_hold_sec là số giây chữ
         của riêng cảnh này hiện trước khi mờ đi (reset_text_hold theo video), text_zone "top" (Trên) hoặc "bottom"
-        (Dưới) đặt chữ gọn và phụ đề cộng dồn của cảnh ở vùng 14–30% hay 62–78% khung hình."""
+        (Dưới) đặt chữ gọn và phụ đề cộng dồn của cảnh ở phía trên hay phía dưới khung hình; "default" về chỗ thường:
+        chữ gọn ở trên, phụ đề cộng dồn ở dưới."""
         fields = {
             key: (None if value == "default" else value)
             for key, value in given(transition=transition, color=color, music_level=music_level).items()
@@ -2170,7 +2171,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         if reset_text_hold:
             fields["text_hold_sec"] = None
         if text_zone is not None:
-            fields["text_zone"] = None if text_zone == "bottom" else "top"
+            fields["text_zone"] = None if text_zone == "default" else text_zone
         body = videos.ScenePatchBody(**fields)
         return await run_in_threadpool(
             invoke, lambda db, me: changed(videos.patch_scene(scene_id, body, me, db, get_storage())), write=True
@@ -2523,11 +2524,22 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             int | None, Field(description="Dùng kênh gắn với Page này (thay cho brand_id) và bật logo")
         ] = None,
         logo_enabled: Annotated[bool | None, Field(description="Bật/tắt “Gắn logo” của kênh trên MP4")] = None,
+        layout_profile: Annotated[str | None, one_of("layout_profile")] = None,
+        logo_position: Annotated[
+            list[int] | None,
+            Field(
+                description="Góc trên trái của logo [x, y] trong khung 1080×1920, cho cả video (bị giữ trong vùng an toàn)"
+            ),
+        ] = None,
+        logo_size: Annotated[int | None, Field(description="Đường kính logo, px (80–240)")] = None,
+        reset_logo: bool = False,
     ) -> dict:
         """Đổi tuỳ chọn dựng của một video như tab "Thiết lập" trên web: chỉ các trường được truyền, trường khác
         giữ nguyên; một giá trị sai thì không lưu gì. Giá trị hợp lệ có trong "Đọc lựa chọn dựng video", mục
         video_options. reset_text_position đưa hộp chữ các cảnh, reset_title_text_position đưa hộp chữ tiêu đề
-        về chỗ mặc định của mẫu. Không tạo giọng, không render:
+        về chỗ mặc định của mẫu (mép trên cách đỉnh khung 290 px), reset_logo đưa logo về vị trí và cỡ mặc định.
+        layout_profile: "balanced" cho bài đăng thường trên TikTok, Facebook Reels; "universal" khi đăng cả Shorts,
+        Instagram hoặc chạy quảng cáo (phụ đề cao hơn, lề phải rộng hơn). Không tạo giọng, không render:
         giọng mới được tạo khi render hoặc bấm tạo giọng trên web. Trả về bộ tuỳ chọn đầy đủ sau khi lưu."""
         changes = given(
             voice_id=voice_id,
@@ -2565,7 +2577,12 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             scene_text_layout=scene_text_layout,
             text_position=text_position,
             title_text_position=title_text_position,
+            layout_profile=layout_profile,
+            logo_position=logo_position,
+            logo_size=logo_size,
         )
+        if reset_logo:
+            changes["logo_position"] = changes["logo_size"] = None
         if brand_id is not None:
             changes["brand_id"] = brand_id
         if logo_enabled is not None:

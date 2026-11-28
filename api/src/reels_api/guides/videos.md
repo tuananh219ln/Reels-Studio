@@ -22,8 +22,10 @@ Xong thì app mở trang chỉnh sửa video (xem hướng dẫn "chỉnh sửa,
 - **Số video mỗi trang:** ở dạng bảng, mặc định mỗi trang 5 video. Chọn 5, 10, 15, 20, 50 hoặc 100 ở ô "/ trang" cạnh số trang (góc dưới bên phải). Trình duyệt nhớ lựa chọn của bạn sau khi tải lại trang, và dùng chung cho mọi danh sách video: Bài đăng, tab Video của nhóm chủ đề, Nội dung của Page và video Affiliate.
 - Mỗi video có thẻ nhỏ cho biết **cách viết** (AI viết, Tự viết, Từ video mẫu, Nhân bản hoặc trợ lý MCP), **Sản phẩm**, và các nền tảng đã đăng (Facebook, TikTok, YouTube, Instagram) hoặc "Chưa đăng".
 - Video Facebook có view gấp 3 lần trung vị của Page sau 48 giờ mà chưa có bản TikTok sẽ hiện **+ Tạo bản TikTok**.
+- **Chọn nhiều video để xóa:** tích ô ở đầu mỗi dòng (dạng bảng) hoặc ở góc ảnh (dạng thẻ). Ô tích ở tiêu đề cột chọn cả trang đang xem; giữ Shift rồi tích để chọn cả một khoảng. Khi có video được chọn, hiện dải "Chọn tất cả N video khớp bộ lọc" và thanh **Xóa** ở cuối màn hình (phím Esc bỏ chọn). Đổi bộ lọc hoặc ô tìm kiếm thì lựa chọn bị bỏ, để không xóa nhầm video đã khuất.
+- **Xóa hàng loạt:** hộp xác nhận cho biết số video thực sự bị xóa (xóa hẳn, không khôi phục được) và cảnh báo video đã hẹn giờ đăng. Tự bỏ qua video **đã đăng** (giữ lại để làm báo cáo view), video **đang render hoặc đang chạy job**, và video **không phải của bạn** hoặc có bài/góp ý của người khác. Từ 20 video, hoặc khi chọn "tất cả khớp bộ lọc", bạn phải gõ số lượng để xác nhận.
 - Phía trên có **banner kế hoạch** của nhóm bạn: "hôm nay còn X/Y video" với nút **Làm tiếp**.
 
 ## Mẹo
 - Bấm vào một video để mở. Chỉ người tạo video mới xoá được video đó.
-- **Nhân bản** viết một biến thể của video theo yêu cầu thay đổi (ví dụ đổi món, đổi mốc tuổi), ngay trên trang video.
+- Menu **⋮** của video có hai kiểu nhân bản: **Nhân bản y hệt** (bản sao đúng như video gốc, không gọi AI) và **Nhân bản xáo cảnh** (các bản đổi thứ tự cảnh). Mục "Xóa video" bị làm mờ khi video đã đăng hoặc đang render.

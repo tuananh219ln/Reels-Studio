@@ -306,10 +306,10 @@ def test_every_preset_together_renders_a_playable_mp4(tmp_path):
     # Title 1.5 s + two scenes lengthened to fit their 1.6 s narration (0.2 lead + 0.4 tail): 1.5 + 2.2 + 2.2.
     assert float(info["format"]["duration"]) == pytest.approx(5.9, abs=0.05)
     assert mean_volume(output, 2.0, 1.0) > -60
-    # A caption shows above the dark text box while the first scene is narrated.
+    # A caption shows on the captions' floor while the first scene is narrated, the dark text box staying at the top.
     frame = extract_frame(output, 2.2, tmp_path / "frame.png")
-    band = frame.crop((90, 1000, 990, 1150))
-    assert ImageStat.Stat(band.convert("L")).mean < ImageStat.Stat(frame.crop((90, 300, 990, 450)).convert("L")).mean
+    band = frame.crop((200, 1430, 880, 1530))
+    assert ImageStat.Stat(band.convert("L")).mean < ImageStat.Stat(frame.crop((90, 900, 990, 1050)).convert("L")).mean
 
 
 def test_auto_marked_words_stay_bright_on_a_custom_box():

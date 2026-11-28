@@ -775,6 +775,25 @@ body {
   z-index: 1;
 }
 
+/* The tick on a video card (bulk actions): out of sight until the card is hovered, shown on every card once any is
+ * ticked, and always on a touch screen, which has no hover. */
+.card-select:not(.on, .ant-checkbox-wrapper-checked) {
+  opacity: 0;
+}
+/* Its input stays laid over its box, as antd places it, against the card's rule for fields above. */
+.stretch-host .card-select.ant-checkbox-wrapper input {
+  position: absolute;
+}
+.stretch-host:hover .card-select,
+.card-select:focus-within {
+  opacity: 1;
+}
+@media (hover: none) {
+  .card-select {
+    opacity: 1 !important;
+  }
+}
+
 /* The pencil beside a video's name (VideoNameEditor): it shows, and takes clicks, while the name is hovered or the
  * pencil has keyboard focus; an unseen pencil never catches a click meant for its row. Always there on touch screens
  * and where the page asks for it. */

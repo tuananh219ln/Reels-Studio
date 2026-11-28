@@ -81,7 +81,7 @@ test("shared actions: video lists open the same actions without navigating to th
   expect(made.ok()).toBeTruthy();
   await page.reload();
   await page.getByRole("button", { name: "Thao tác với video Video thao tác dùng chung" }).click();
-  await expect(page.getByRole("menuitem", { name: "Nhân bản", exact: true })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Nhân bản y hệt" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Chuyển sang nhóm khác" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Xóa video", exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/videos$/);

@@ -415,6 +415,7 @@ export type SceneData = {
   image_frame?: ImageFrame | null;
   textbox_url: string | null;
   text_problem: string | null;
+  text_area: TextArea;
   /** The studio's effects (reels_render.effects): the transition into this scene, null for the video's one. */
   transition: string | null;
   /** Its colour preset, null for the picture as shot. The title scene has neither. */
@@ -426,8 +427,9 @@ export type SceneData = {
   music_level: string | null;
   /** The scene's own "Ẩn chữ sau X giây" (1 to 6 in half seconds); null: the video's. */
   text_hold_sec: number | null;
-  /** PC Shopee: "top" puts the scene's tiers and captions in the 14–30% zone; null: the lower one (62–78%). */
-  text_zone: "top" | null;
+  /** PC Shopee: "top" or "bottom" puts the scene's compact text or "Cộng dồn" captions high or low; null: each one's
+   * usual place (the text high, the captions low). */
+  text_zone: "top" | "bottom" | null;
   /** "Cộng dồn": the steps the player lays over the scene (api `/scenes/<id>/cumulative`) and the preview without the
    * sample phrase drawn into it; null when the scene shows no such captions. */
   cumulative_url: string | null;
@@ -513,6 +515,8 @@ export type VideoDetail = VideoRow & {
   /** The video's channel ("Kênh") and whether its logo is laid on the MP4 (api brands.payload_of). */
   brand: { id: number; name: string; logo_badge_url: string | null } | null;
   logo_enabled: boolean;
+  /** Where text, captions and the logo go, as the render lays them (api videos.layout_payload). */
+  layout: VideoLayout;
   has_script: boolean;
   /** "Tự viết": a member wrote the script; no AI wrote it or reviewed its safety. */
   hand_written: boolean;
@@ -822,6 +826,10 @@ export type KnowledgeTopic = {
   text_look: Partial<VideoOptions> | null;
   /** "AI chọn kiểu chữ cho từng video": the script call also picks each video's look, over the group's. */
   text_ai: boolean;
+  /** "Chuyển động & âm thanh" of the group's new videos, over their maker's defaults; null: each maker's own. */
+  video_look: GroupVideoLook | null;
+  /** The track it chose, with its player; null without one, or once deleted from the library. */
+  video_look_track: VideoDefaults["music_track"] | null;
   /** "Không dùng cảnh có người": the group's scenes show no faces or bodies (hands at work are fine). */
   no_people: boolean;
   /** "Cảnh kết Theo dõi & Chia sẻ": the group's new videos end on the shared follow-and-share scene. */
@@ -1147,6 +1155,29 @@ export type VideoRowMode = VideoMode | "upload";
  * even days "slides"). A finished MP4 ("upload") is chosen per video, never by a group. */
 export type GroupVideoMode = VideoMode | "alternate";
 
+/** Where a scene's text may be dragged, in the 1080×1920 frame: its edges, the clear margin of its picture that may
+ * leave them, and where it goes when nobody placed it (`home`, null: the top). */
+export type TextArea = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  inset: number;
+  home: [number, number] | null;
+};
+
+/** The video's layout profile: the text's edges, the captions' floor, how high the logo may go and its ring (its
+ * top-left corner and diameter; `own`: moved or resized on this video). */
+export type VideoLayout = {
+  profile: VideoOptions["layout_profile"];
+  text_top_min: number;
+  text_left: number;
+  text_right: number;
+  subtitle_bottom: number;
+  logo_top_min: number;
+  logo: { x: number; y: number; size: number; own: boolean };
+};
+
 /** A video's settings, each a named preset or a level (api video_options.DEFAULTS). */
 export type VideoOptions = {
   voice_id: string;
@@ -1200,6 +1231,9 @@ export type VideoOptions = {
   /** PC Shopee's compact text: the title in three tiers, a content scene's text in two ("box": the text boxes). */
   title_layout: "box" | "three_tier";
   scene_text_layout: "box" | "two_tier";
+  /** Where text, captions and the logo may go: "balanced" for TikTok and Facebook posts, "universal" when the video
+   * also goes to Shorts, Instagram or an ad (api reels_render.layout). */
+  layout_profile: "balanced" | "universal";
   /** The title preset's whole-frame effects (glitch, vignette) on the title scene, where the preset has some. */
   title_effects: boolean;
   pc_title_style: "neon_game" | "brand_navy" | "neon_outline_price" | "gold_metal" | "grunge_rainbow" | "esports_blue";
@@ -1285,6 +1319,27 @@ export type ActiveLlm = { provider: string; name: string; model: string; problem
 /** A Page a pasted token manages. */
 export type FanpageChoice = { page_id: string; name: string; can_post: boolean };
 
+/** What a topic group may set of how its new videos move and sound (api video_options.GROUP_VIDEO_FIELDS). */
+export type GroupVideoLook = {
+  /** The second the group's track starts from. */
+  music_start?: number;
+} & Partial<
+  Pick<
+    VideoDefaults,
+    | "voice_enabled"
+    // The library track new videos start with; null: no music; left out: each maker's own.
+    | "music_track_id"
+    | "transition"
+    | "motion"
+    | "zoom"
+    | "voice_speed"
+    | "voice_volume"
+    | "voice_pause"
+    | "ducking"
+    | "music_volume"
+  >
+>;
+
 export type Knowledge = {
   topics: KnowledgeTopic[];
   default_script_prompt: string;
@@ -1295,6 +1350,8 @@ export type Knowledge = {
   default_article_prompt: string;
   /** Where a group's own "Chữ & phụ đề" starts from: the member's own defaults. */
   default_text_look: Partial<VideoOptions>;
+  /** Where a group's own "Chuyển động & âm thanh" starts from: the member's own defaults. */
+  default_video_look: GroupVideoLook;
 };
 
 export type TextSuggestions = {
