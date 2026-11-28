@@ -415,6 +415,7 @@ export type SceneData = {
   image_frame?: ImageFrame | null;
   textbox_url: string | null;
   text_problem: string | null;
+  text_area: TextArea;
   /** The studio's effects (reels_render.effects): the transition into this scene, null for the video's one. */
   transition: string | null;
   /** Its colour preset, null for the picture as shot. The title scene has neither. */
@@ -426,8 +427,9 @@ export type SceneData = {
   music_level: string | null;
   /** The scene's own "Ẩn chữ sau X giây" (1 to 6 in half seconds); null: the video's. */
   text_hold_sec: number | null;
-  /** PC Shopee: "top" puts the scene's tiers and captions in the 14–30% zone; null: the lower one (62–78%). */
-  text_zone: "top" | null;
+  /** PC Shopee: "top" or "bottom" puts the scene's compact text or "Cộng dồn" captions high or low; null: each one's
+   * usual place (the text high, the captions low). */
+  text_zone: "top" | "bottom" | null;
   /** "Cộng dồn": the steps the player lays over the scene (api `/scenes/<id>/cumulative`) and the preview without the
    * sample phrase drawn into it; null when the scene shows no such captions. */
   cumulative_url: string | null;
@@ -513,6 +515,8 @@ export type VideoDetail = VideoRow & {
   /** The video's channel ("Kênh") and whether its logo is laid on the MP4 (api brands.payload_of). */
   brand: { id: number; name: string; logo_badge_url: string | null } | null;
   logo_enabled: boolean;
+  /** Where text, captions and the logo go, as the render lays them (api videos.layout_payload). */
+  layout: VideoLayout;
   has_script: boolean;
   /** "Tự viết": a member wrote the script; no AI wrote it or reviewed its safety. */
   hand_written: boolean;
@@ -1151,6 +1155,28 @@ export type VideoRowMode = VideoMode | "upload";
  * even days "slides"). A finished MP4 ("upload") is chosen per video, never by a group. */
 export type GroupVideoMode = VideoMode | "alternate";
 
+/** Where a scene's text may be dragged, in the 1080×1920 frame: its edges, the clear margin of its picture that may
+ * leave them, and where it goes when nobody placed it (`home`, null: the top). */
+export type TextArea = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  inset: number;
+  home: [number, number] | null;
+};
+
+/** The video's layout profile: the text's edges, the captions' floor and the logo's ring (its top-left corner and
+ * diameter; `own`: moved or resized on this video). */
+export type VideoLayout = {
+  profile: VideoOptions["layout_profile"];
+  text_top_min: number;
+  text_left: number;
+  text_right: number;
+  subtitle_bottom: number;
+  logo: { x: number; y: number; size: number; own: boolean };
+};
+
 /** A video's settings, each a named preset or a level (api video_options.DEFAULTS). */
 export type VideoOptions = {
   voice_id: string;
@@ -1204,6 +1230,9 @@ export type VideoOptions = {
   /** PC Shopee's compact text: the title in three tiers, a content scene's text in two ("box": the text boxes). */
   title_layout: "box" | "three_tier";
   scene_text_layout: "box" | "two_tier";
+  /** Where text, captions and the logo may go: "balanced" for TikTok and Facebook posts, "universal" when the video
+   * also goes to Shorts, Instagram or an ad (api reels_render.layout). */
+  layout_profile: "balanced" | "universal";
   /** The title preset's whole-frame effects (glitch, vignette) on the title scene, where the preset has some. */
   title_effects: boolean;
   pc_title_style: "neon_game" | "brand_navy" | "neon_outline_price" | "gold_metal" | "grunge_rainbow" | "esports_blue";

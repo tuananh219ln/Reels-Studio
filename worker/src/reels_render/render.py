@@ -27,32 +27,29 @@ from .graph import (
 )
 from .images import Fitted, fit_image, photo_is_framed
 from .layers import card_corner, layer_corner, render_layer
-from .logo import TEXT_TOP_MIN, corner_placement
+from .layout import DEFAULT_PROFILE, PROFILES, Profile, caption_top, place_box
+from .logo import placement
 from .markup import Run, cased
 from .options import DEFAULT_OPTIONS, RenderOptions
+from .pc_text import PAD
 from .script import Scene, Script
 from .sounds import SOUND_VOLUMES
 from .stock import find_stock_images
 from .textbox import (
-    CAPTION_GAP,
-    FRAME_HEIGHT,
     FRAME_WIDTH,
-    SCENE_BOX_BOTTOM,
     TextFitError,
     TextLayout,
-    caption_y,
     empty_box,
     layout_sized,
-    place_box,
     render_box,
     render_caption,
     with_shade,
 )
 from .tiers import (
-    SCENE_CENTRE,
-    SCENE_CENTRE_TOP,
+    SCENE_CENTRE_LOW,
+    SCENE_MAX_WIDTH,
     TEXT_SCALE,
-    TITLE_CENTRE,
+    TITLE_MAX_WIDTH,
     parse_scene,
     parse_title,
     render_scene,
@@ -104,7 +101,8 @@ def render_video(
             continue
         try:
             size = options.title_text_size if index == 0 else options.text_size
-            layouts.append(layout_sized(lines, size, is_title=index == 0, font=options.text_font) if lines else None)
+            width = options.profile.text_width
+            layouts.append(layout_sized(lines, size, index == 0, options.text_font, width) if lines else None)
         except TextFitError as err:
             raise InputError(f"{scene.label}: {err}") from None
     timeline = build_timeline([fit_seconds(scene.seconds, voice) for scene, voice in zip(script.all_scenes, spoken)])
@@ -139,8 +137,6 @@ def render_video(
         ]
         reserve = max(framed_heights, default=None)
         for index, (scene, layout) in enumerate(zip(script.all_scenes, layouts)):
-            # Room for the corner badge's row on the content scenes; the title scene has no logo.
-            min_top = TEXT_TOP_MIN if script.logo is not None and index > 0 else None
             # A framed photo (framing.py): where it puts the text when nobody placed it, and the photo laid over its
             # blurred copy; none for every other picture.
             fitted = Fitted()
@@ -160,9 +156,9 @@ def render_video(
                     scene.image_fit,
                     layout.height if layout is not None else 0,
                     scene.text_position,
-                    min_top,
                     scene.image_crop_offset,
                     reserve,
+                    options.profile,
                 )
             box = work_dir / f"text-{index:02d}.png"
             if layout is None:
@@ -172,7 +168,7 @@ def render_video(
             else:
                 if index in tiers:
                     box_image = tiers[index]
-                    box_x, box_y = tier_corner(box_image, index, scene.text_position, scene.text_zone)
+                    box_x, box_y = tier_corner(box_image, index, scene.text_position, scene.text_zone, options.profile)
                 else:
                     box_image = render_box(layout, first_palette if index == 0 else palette)
                     box_x, box_y = place_box(
@@ -180,7 +176,7 @@ def render_video(
                         layout.height,
                         scene.text_position or fitted.text_centre,
                         is_title=index == 0,
-                        min_top=min_top,
+                        profile=options.profile,
                     )
                 # The shade is part of the picture laid over the scene, so it fades with the text; the captions
                 # below still go by the box's own corner.
@@ -198,37 +194,38 @@ def render_video(
                     for number, step in enumerate(
                         cumulative_steps(scene, index, scene_start, spoken, heard, cut, scene_end)
                     ):
-                        picture, (left, top) = render_cumulative(step.lines, options.pc_style, scene.text_zone)
+                        picture, (left, top) = render_cumulative(
+                            step.lines, options.pc_style, scene.text_zone, options.profile
+                        )
                         path = work_dir / f"cumulative-{index:02d}-{number:03d}.png"
                         picture.save(path)
                         captions.append(CaptionInput(path, left, top, step.start, step.end))
             elif index > 0 and spoken[index] is not None and scene.voice_text.strip():
                 start = scene_start / FPS + VOICE_LEAD
-                cues = plan_captions(scene.voice_text, start, spoken[index], options.captions)
+                cues = plan_captions(
+                    scene.voice_text, start, spoken[index], options.captions, options.profile.subtitle_width
+                )
             elif index > 0 and heard[index] and scene.words:
                 scene_end = (scene_start + timeline.scene_frames[index]) / FPS
                 placed = placed_words(scene, scene_start / FPS, scene_end, clip_lead(index, cut))
-                cues = plan_word_captions(placed, options.captions)
+                cues = plan_word_captions(placed, options.captions, options.profile.subtitle_width)
             # A scene whose text fades out after a hold shows the captions only once it has gone: one layer of text at a time.
             hold = hold_seconds(scene.text_hold, index, len(script.all_scenes), timeline.scene_frames[index])
             if cues and hold:
                 cues = after_hold(cues, scene_start / FPS + hold + HOLD_FADE_SECONDS)
             if cues:
-                bottom = box_y - CAPTION_GAP if layout is not None else SCENE_BOX_BOTTOM
-                box_bottom = box_y + layout.height if layout is not None else SCENE_BOX_BOTTOM
+                # What of the text's picture is drawn on, top and bottom: the compact text's has a clear margin.
+                inset = PAD if index in tiers else 0
+                drawn = (box_y + inset, box_y + layout.height - inset) if layout is not None else None
                 for number, cue in enumerate(cues):
                     path = work_dir / f"caption-{index:02d}-{number:03d}.png"
                     image_caption = render_caption(cue.lines, cue.lit)
                     image_caption.save(path)
-                    if options.scene_text_layout == "two_tier":
-                        caption_top = tier_caption_y(box_y, box_bottom, image_caption.height, hold is None)
-                    else:
-                        caption_top = caption_y(bottom, box_bottom, image_caption.height)
                     captions.append(
                         CaptionInput(
                             image=path,
                             x=(FRAME_WIDTH - image_caption.width) // 2,
-                            y=caption_top,
+                            y=caption_top(image_caption.height, options.profile, drawn, hold is None),
                             start=cue.start,
                             end=cue.end,
                         )
@@ -311,7 +308,7 @@ def render_video(
             layers,
             sounds,
             music_start,
-            logo_input(script.logo, timeline),
+            logo_input(script.logo, timeline, options),
         )
         try:
             ffmpeg.run(argv, "FFmpeg render lỗi")
@@ -321,11 +318,12 @@ def render_video(
     return _publish(temp, output)
 
 
-def logo_input(badge: Path | None, timeline) -> LogoInput | None:
-    """The channel badge, in the corner from the second the title scene ends; None without a logo."""
+def logo_input(badge: Path | None, timeline, options: RenderOptions = DEFAULT_OPTIONS) -> LogoInput | None:
+    """The channel badge at its place from the second the title scene ends; None without a logo."""
     if badge is None:
         return None
-    return LogoInput(badge, corner_placement(), timeline.scene_frames[0] / FPS)
+    where = placement(options.profile, options.logo_position, options.logo_size)
+    return LogoInput(badge, where, timeline.scene_frames[0] / FPS)
 
 
 def scene_lines(
@@ -351,38 +349,33 @@ def scene_lines(
 def tier_picture(lines: list[list[Run]], index: int, last: int, options: RenderOptions) -> Image.Image | None:
     """The title in three tiers, or a content scene's text in two (never the last scene's call to action), when the
     video asks for them; None for a scene drawn as a text box."""
+    room = options.profile.text_width
     if index == 0 and options.title_layout == "three_tier":
         return render_title(
-            parse_title(lines), options.pc_title_style, options.title_effects, TEXT_SCALE[options.title_text_size]
+            parse_title(lines),
+            options.pc_title_style,
+            options.title_effects,
+            TEXT_SCALE[options.title_text_size],
+            min(TITLE_MAX_WIDTH, room),
         )
     if index > 0 and options.scene_text_layout == "two_tier":
-        return render_scene(parse_scene(lines), options.pc_style, TEXT_SCALE[options.text_size])
+        return render_scene(
+            parse_scene(lines), options.pc_style, TEXT_SCALE[options.text_size], min(SCENE_MAX_WIDTH, room)
+        )
     return None
 
 
 def tier_corner(
-    picture: Image.Image, index: int, position: tuple[int, int] | None, zone: str | None = None
+    picture: Image.Image,
+    index: int,
+    position: tuple[int, int] | None,
+    zone: str | None = None,
+    profile: Profile = PROFILES[DEFAULT_PROFILE],
 ) -> tuple[int, int]:
-    """Where a tiers picture goes: centred at its own place (the title 22% down, the scenes' 62–78% zone), or at the
-    place a member moved it to, never off the frame."""
-    centre_x, centre_y = position or (
-        TITLE_CENTRE if index == 0 else SCENE_CENTRE_TOP if zone == "top" else SCENE_CENTRE
-    )
-    if index == 0:
-        centre_x = FRAME_WIDTH // 2  # the title stays centred across, as every title does
-    left = min(max(0, centre_x - picture.width // 2), FRAME_WIDTH - picture.width)
-    top = min(max(0, centre_y - picture.height // 2), FRAME_HEIGHT - picture.height)
-    return left, top
-
-
-def tier_caption_y(box_top: int, box_bottom: int, height: int, text_stays: bool) -> int:
-    """Where a phrase or word caption goes in a scene with PC Shopee's compact text: its bottom on the safe zone's floor
-    (y = 1440), where the text has gone by the time captions start. When the text stays the whole scene and the caption
-    would land on it (a member dragged it low), the caption sits over the text, or under it when that leaves the safe zone."""
-    top = SCENE_BOX_BOTTOM - height
-    if text_stays and box_top < SCENE_BOX_BOTTOM and box_bottom + CAPTION_GAP > top:
-        return caption_y(box_top - CAPTION_GAP, box_bottom, height)
-    return top
+    """Where a tiers picture goes, by what is drawn on it (its clear margin may leave the edges): at the top, as every
+    text; in the lower zone for a content scene set to "Dưới"; or where a member moved it to (layout.place_box)."""
+    centre = position or (SCENE_CENTRE_LOW if index > 0 and zone == "bottom" else None)
+    return place_box(picture.width, picture.height, centre, index == 0, profile, inset=PAD)
 
 
 def has_words(scene: Scene, index: int, heard: list[bool], spoken: list[float | None]) -> bool:

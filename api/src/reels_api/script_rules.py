@@ -8,7 +8,7 @@ import unicodedata
 from dataclasses import dataclass, field
 
 from reels_render.markup import MarkupError, parse_scene_text
-from reels_render.textbox import TextFitError, layout_sized
+from reels_render.textbox import MAX_BOX_WIDTH, TextFitError, layout_sized
 from reels_render.timeline import FPS, HALF_XFADE, fit_seconds
 
 MIN_SECONDS = 1
@@ -44,6 +44,7 @@ class SceneInput:
     clip_loop: bool = False  # "Lặp clip": a short clip starts again instead of holding its last frame
     photo_blurry: bool = False  # the photo looks soft even sharpened (reels_render.framing.is_blurry)
     text_font: str = "be_vietnam"  # the font its text box is drawn in (reels_render.textbox.FONTS)
+    text_width: int = MAX_BOX_WIDTH  # the widest its text box may be (the video's reels_render.layout profile)
 
 
 @dataclass(frozen=True)
@@ -64,7 +65,12 @@ def count_words(text: str) -> int:
 
 
 def text_problem(
-    text: str, is_title: bool, size: str = "large", case: str = "upper", font: str = "be_vietnam"
+    text: str,
+    is_title: bool,
+    size: str = "large",
+    case: str = "upper",
+    font: str = "be_vietnam",
+    width: int = MAX_BOX_WIDTH,
 ) -> str | None:
     """Why reels_render would refuse this text, drawn at `size` in `case` ("Dạng chữ"), or None. Also the reason
     shown instead of a preview."""
@@ -75,7 +81,7 @@ def text_problem(
     except MarkupError as err:
         return f"Chữ sai cách đánh dấu: {err}"
     try:
-        layout_sized(lines, size, is_title, font)
+        layout_sized(lines, size, is_title, font, width)
     except TextFitError as err:
         return f"Chữ tràn hộp: {err}"
     return None
@@ -119,7 +125,9 @@ def check_script(
 
     every = ([title] if title else []) + scenes
     for index, scene in enumerate(every):
-        problem = text_problem(scene.text, scene.is_title, scene.text_size, scene.text_case, scene.text_font)
+        problem = text_problem(
+            scene.text, scene.is_title, scene.text_size, scene.text_case, scene.text_font, scene.text_width
+        )
         if problem:
             block(Issue(problem, scene.id))
         if not scene.has_image:

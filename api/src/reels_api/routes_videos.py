@@ -138,7 +138,6 @@ from .videos import (
     set_custom_voice,
     split_scenes,
     spoken,
-    text_floor,
     text_position,
     text_reserve,
     thumbnail_url,
@@ -230,7 +229,8 @@ class ScenePatchBody(BaseModel):
     image_checked: bool | None = None  # true: a member looked at the app's pick and keeps it ("Giữ ảnh này")
     transition: object = None  # the transition into this scene (reels_render.effects); null: the video's
     color: object = None  # its colour preset; null: as shot
-    text_zone: object = None  # "top" or null (the lower zone): where PC Shopee's tiers and captions sit in the scene
+    # "top", "bottom" or null (each element's usual place: the compact text at the top, "Cộng dồn" captions low).
+    text_zone: object = None
     text_hold_sec: object = None  # "Ẩn chữ sau X giây" of the scene, 1–6 in 0.5 steps; null: the video's
     music_level: object = None  # the music's level during the scene (reels_render.sounds); null: the video's
     # "Khung ảnh" (reels_render.framing): "cover", "whole", "square"; null: "Tự động", by the photo's shape.
@@ -1469,7 +1469,7 @@ def patch_scene(
             raise invalid(f"{name} không hợp lệ: {value!r}")
         setattr(scene, field, value)
     if "text_zone" in fields:
-        if body.text_zone is not None and body.text_zone != "top":
+        if body.text_zone not in (None, "top", "bottom"):
             raise invalid("Vị trí chữ chỉ có “top” (Trên) hoặc để trống (Dưới)")
         scene.text_zone = body.text_zone
     if "text_hold_sec" in fields:
@@ -2499,7 +2499,6 @@ def _framed(db: DbSession, storage: DirectoryStorage, video: Video, scene: Scene
         return {}
     return {
         "fit": photo_fit(video, scene),
-        "min_top": text_floor(video, scene),
         "crop_offset": scene.image_crop_offset,
         "reserve": text_reserve(storage, video, split_scenes(db, video)[1]),
     }
@@ -2525,7 +2524,7 @@ def _cumulative(db: DbSession, scene: Scene) -> tuple:
     words = tuple((word["text"], float(word["start"]), float(word["end"])) for word in scene.voice_words or [])
     seconds = scene.voice_seconds or max(2.0, 0.35 * len(narration.split()))
     return frames.cumulative_pictures(
-        narration, words, seconds, scene.seconds, marked, options.pc_style, scene.text_zone
+        narration, words, seconds, scene.seconds, marked, options.pc_style, scene.text_zone, options.layout_profile
     )
 
 
@@ -2607,7 +2606,11 @@ def scene_textbox(scene_id: int, me: Session = Depends(current_member), db: DbSe
     if (
         not scene.text.strip()
         or frames.captioned(options, scene.is_title, last, spoken(video, scene))
-        or (not drawn and text_problem(scene.text, scene.is_title, size, case, options.text_font) is not None)
+        or (
+            not drawn
+            and text_problem(scene.text, scene.is_title, size, case, options.text_font, options.profile.text_width)
+            is not None
+        )
     ):
         raise ApiError(404, "no_text_box", "Cảnh này không có chữ để đặt vị trí")
     box, _ = frames.text_box(scene.text, scene.is_title, options, last=last, zone=scene.text_zone)

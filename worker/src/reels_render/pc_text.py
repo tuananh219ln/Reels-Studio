@@ -182,10 +182,19 @@ def _width(text: str, font: ImageFont.FreeTypeFont, spacing: float, size: int) -
 
 
 def fitted_size(text: str, size: int, style: LineStyle, max_width: int) -> int:
-    """`size`, or smaller when the line (with its outline) would be wider than `max_width`."""
+    """`size`, or smaller when the line (with its outlines) would be wider than `max_width`."""
     style = _for_text(text, style)
-    wide = _width(text, _font(style.font, size, style.variation), style.spacing, size) + 2 * style.outline[0]
-    return size if wide <= max_width else max(24, math.floor(size * max_width / wide))
+    reach = style.outline[0] + (style.outer[0] if style.outer else 0)
+
+    def wide(at: int) -> float:
+        return _width(text, _font(style.font, at, style.variation), style.spacing, at) + 2 * reach
+
+    if wide(size) <= max_width:
+        return size
+    size = max(24, math.floor(size * max_width / wide(size)))
+    while size > 24 and wide(size) > max_width:  # a font's width is not quite in step with its size
+        size -= 1
+    return size
 
 
 def _mask(text: str, size: int, style: LineStyle, grow: int, canvas: tuple[int, int]) -> Image.Image:

@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps, ImageStat
 
-from .textbox import FRAME_HEIGHT, FRAME_WIDTH, SAFE_ZONE
+from .layout import DEFAULT_PROFILE, FRAME_HEIGHT, FRAME_WIDTH, PROFILES, Profile
 
 # What a scene asks for ("image_fit"): "auto" chooses by the photo's shape; the others force one way.
 COVER, WHOLE, SQUARE = "cover", "whole", "square"
@@ -90,13 +90,13 @@ def plan_frame(
     fit: str,
     text_height: int,
     centre: tuple[int, int] | None = None,
-    min_top: int | None = None,
     crop_offset: float | None = None,
     reserve: int | None = None,
+    profile: Profile = PROFILES[DEFAULT_PROFILE],
 ) -> Framing:
     """Where a photo of `width` x `height` goes. The text sits above the photo unless it was placed in the frame's
     lower half (`centre`, a member's or the video's place); `text_height` is its box's (0: no text, the photo is
-    centred). `min_top` is where a content scene's text may start while the channel logo is on. `crop_offset` slides
+    centred). The text and the photo keep between `profile`'s top and bottom. `crop_offset` slides
     the square along the photo's longer side, 0 to 1 (None: the middle). `reserve` is the tallest text box among the
     video's framed scenes: the photo then starts on one line for every scene (text and photo anchored to the safe
     zone's edge, not centred as a group), whatever its own text's height."""
@@ -121,19 +121,19 @@ def plan_frame(
     if text_height <= 0 and reserve is None:
         return Framing(kind, crop, (x, (FRAME_HEIGHT - picture_h) // 4 * 2, picture_w, picture_h), None)
     if reserve is None:
-        y, text_top = _place(picture_h, text_height, below, min_top)
+        y, text_top = _place(picture_h, text_height, below, profile)
     else:
-        y, text_top = _anchor(picture_h, text_height, max(reserve, text_height), below, min_top)
+        y, text_top = _anchor(picture_h, text_height, max(reserve, text_height), below, profile)
     y -= y % 2
     centre_at = (FRAME_WIDTH // 2, text_top + text_height // 2) if text_height > 0 else None
     return Framing(kind, crop, (x, y, picture_w, picture_h), centre_at)
 
 
-def _anchor(picture_h: int, text_h: int, reserve: int, below: bool, min_top: int | None) -> tuple[int, int]:
+def _anchor(picture_h: int, text_h: int, reserve: int, below: bool, profile: Profile) -> tuple[int, int]:
     """The photo's top and the text box's top when `reserve` px are kept for the text: the block starts at the safe
     zone's top edge (ends at its bottom edge when below), the text at the block's start, the photo `GAP` after the
     block, the photo pulled in to the frame's edge when it is too tall."""
-    top, bottom = max(SAFE_ZONE[1], min_top or 0), SAFE_ZONE[3]
+    top, bottom = profile.text_top_min, profile.subtitle_bottom
     # The text is centred in its reserved block, so a short text keeps the same middle line as a tall one and the
     # spare room is split above and below it, not left as a hole under it.
     slack = (reserve - text_h) // 2
@@ -142,11 +142,11 @@ def _anchor(picture_h: int, text_h: int, reserve: int, below: bool, min_top: int
     return min(top + reserve + GAP, FRAME_HEIGHT - picture_h), top + slack
 
 
-def _place(picture_h: int, text_h: int, below: bool, min_top: int | None) -> tuple[int, int]:
+def _place(picture_h: int, text_h: int, below: bool, profile: Profile) -> tuple[int, int]:
     """The photo's top and the text box's top. Text and photo fit the safe zone together: centred there as one
     group. Otherwise the text keeps to the zone's edge and the photo comes right after it, up to the frame's edge,
     where it may run under the text when it is too tall."""
-    top, bottom = max(SAFE_ZONE[1], min_top or 0), SAFE_ZONE[3]
+    top, bottom = profile.text_top_min, profile.subtitle_bottom
     group = text_h + GAP + picture_h
     if group <= bottom - top:
         start = top + (bottom - top - group) // 2
@@ -268,14 +268,14 @@ def frame_photo(
     fit: str,
     text_height: int,
     centre: tuple[int, int] | None = None,
-    min_top: int | None = None,
     crop_offset: float | None = None,
     reserve: int | None = None,
+    profile: Profile = PROFILES[DEFAULT_PROFILE],
 ) -> tuple[Image.Image, Framing]:
     """The upright RGB photo fitted to the 1080x1920 frame, and how. COVER is cropped from the centre like the
     render's FFmpeg chain does it (for previews; the render itself hands COVER photos to FFmpeg unchanged)."""
     source = unpadded(image, fit)
-    framing = plan_frame(source.width, source.height, fit, text_height, centre, min_top, crop_offset, reserve)
+    framing = plan_frame(source.width, source.height, fit, text_height, centre, crop_offset, reserve, profile)
     if framing.kind == COVER:
         return ImageOps.fit(source, (FRAME_WIDTH, FRAME_HEIGHT), Image.Resampling.BICUBIC), framing
     return compose(source, framing), framing

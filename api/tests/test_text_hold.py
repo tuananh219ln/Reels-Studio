@@ -131,7 +131,7 @@ def test_a_content_scene_takes_top_or_the_lower_zone_and_nothing_else(an, db, me
     assert an.patch(f"/api/scenes/{scene.id}", json={"text_zone": "middle"}).status_code == 422
     an.patch(f"/api/scenes/{scene.id}", json={"text_zone": None})
     db.refresh(video)
-    assert render_signature(video, *split_scenes(db, video)) == before  # back to the lower zone: the MP4 stays current
+    assert render_signature(video, *split_scenes(db, video)) == before  # back to the usual place: the MP4 stays current
 
 
 def test_the_groups_own_look_wins_over_pc_shopee_starting_values(db, me, storage):

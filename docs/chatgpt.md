@@ -157,7 +157,8 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
   used, not only its first frame; `attach_scene_clip` puts a library clip on a scene from `video_start`, blurs the
   boxes given, keeps the scene's length (the web sets a clip scene to the clip's length, 10 s at most, which turned a
   fixed-length title into 10 s) and answers with the scene's first frame. `update_scene` takes `text_position`
-  ([x, y] in the 1080×1920 frame; the render keeps the box in its safe zone, the title moves only up and down) and
+  ([x, y] in the 1080×1920 frame; the render keeps the box in the video's safe zone, the title moves only up and down;
+  `set_video_options` also takes `layout_profile`, `logo_position`, `logo_size` and `reset_logo`) and
   `reset_text_position`, and a content scene's "Khung ảnh": `image_fit` ("auto", "cover", "square", "whole"),
   `image_crop_offset` (0–1 along the photo's longer side) and `reset_image_crop_offset`.
 - **A blurred patch is covered**: `set_scene_clip_blur` and `attach_scene_clip` move the scene's text box onto the

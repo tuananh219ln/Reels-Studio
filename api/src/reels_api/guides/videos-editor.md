@@ -3,11 +3,18 @@
 
 Trang một video (`/videos/<số>`) tự cập nhật khi có job chạy và khi đồng đội sửa cùng lúc.
 
+## Vị trí chữ, phụ đề và logo
+Mọi video dùng chung các mốc này khi bạn chưa tự kéo: **tiêu đề và chữ cảnh** bắt đầu cách mép trên 290 px, **phụ đề** nằm gần mép dưới, **logo** ở bên phải, dưới chữ. Cỡ chữ, phông và kiểu chữ vẫn theo cài đặt của video và của nhóm chủ đề.
+- **Vùng an toàn** (tab Thiết lập): **TikTok, Facebook** (mặc định) cho bài đăng thường; **Mọi nền tảng** khi đăng cả YouTube Shorts, Instagram hoặc chạy quảng cáo (phụ đề cao hơn, lề phải rộng hơn).
+- **Dời logo:** ở thẻ **Logo**, bấm **Vị trí & cỡ**, kéo logo, chỉnh **Cỡ** rồi **Lưu**. **Đặt lại vị trí** đưa về chỗ mặc định. Một vị trí dùng cho cả video; cảnh tiêu đề không có logo. QC nhắc khi logo đè lên chữ.
+- **Kéo chữ** như trước (**Vị trí chữ**); chữ luôn được giữ trong vùng an toàn.
+- Video đã render giữ nguyên MP4. Render lại thì chữ, phụ đề và logo theo chỗ mới.
+
 ## Phông chữ của hộp chữ
 Tab **Thiết lập** có ô **Phông chữ**: **Be Vietnam Pro** (chữ gốc) hoặc **Bungee** (chữ to, vuông, kiểu game). Áp cho chữ tiêu đề và chữ các cảnh. Muốn cả nhóm (như Sức khỏe) dùng Bungee, chọn ở thẻ **Chữ & phụ đề** của nhóm đó trong Kho kiến thức; video mới của nhóm sẽ bắt đầu bằng phông đó.
 
 ## Cỡ chữ gọn của PC Shopee
-Chữ gọn (tiêu đề 3 tầng, cảnh 2 tầng) theo mục **Cỡ chữ** ở tab Thiết lập: **Lớn** như cũ, **Vừa** nhỏ khoảng 80%, **Nhỏ** khoảng 65%. Chữ thu nhỏ quanh đúng chỗ cũ, vẫn căn giữa.
+Chữ gọn (tiêu đề 3 tầng, cảnh 2 tầng) theo mục **Cỡ chữ** ở tab Thiết lập: **Lớn** như cũ, **Vừa** nhỏ khoảng 80%, **Nhỏ** khoảng 65%. Chữ thu nhỏ vẫn giữ mép trên, căn giữa.
 
 ## Chữ gọn và kiểu chữ tiêu đề
 Mọi nhóm đều chọn được **Chữ cảnh gọn** (2 tầng) và **Bố cục tiêu đề** (3 tầng) ở tab **Thiết lập**, mặc định vẫn là hộp chữ; nhóm PC Shopee bắt đầu bằng chữ gọn. Muốn cả nhóm (như Sức khỏe) dùng chữ gọn, chọn ở thẻ **Chữ & phụ đề** của nhóm. Khi bật, có ô **Kiểu chữ cảnh gọn** và **Kiểu chữ tiêu đề**. Ngoài Neon game và Thương hiệu, có thêm 4 kiểu cụm 2–3 dòng: **Giá neon viền**, **Vàng kim loại**, **Grunge cầu vồng** và **Esports xanh**.

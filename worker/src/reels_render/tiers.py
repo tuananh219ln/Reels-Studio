@@ -7,9 +7,10 @@ from dataclasses import dataclass
 
 from PIL import Image, ImageDraw, ImageFont
 
+from .layout import DEFAULT_PROFILE, FRAME_HEIGHT, FRAME_WIDTH, PROFILES
 from .markup import Run, normalize_text
 from .pc_text import PAD, PRESETS, SPARKLE_STYLES, fitted_size, hex_rgb, line_style, render_line, sparkles, stack
-from .textbox import FONT_PATH, FRAME_HEIGHT, FRAME_WIDTH
+from .textbox import FONT_PATH
 
 TITLE_SIZES = (52, 104, 64)  # small, main, sub
 TITLE_GAP = 0.08  # of the size
@@ -24,17 +25,12 @@ PRESET_TITLE = {
 ACCENT_EXTRA = 0.12  # of the size: more room under a negative gap when the lower line carries Vietnamese marks
 PREFIX_SCALE = 0.42  # "^PHP 14,999": the first word at this share of the size, raised
 TITLE_MAX_WIDTH = round(FRAME_WIDTH * 0.88)
-TITLE_CENTRE = (FRAME_WIDTH // 2, round(FRAME_HEIGHT * 0.22))
 TITLE_MAX_CHARS = 14  # a longer line still renders, shrunk to TITLE_MAX_WIDTH; the page warns (api checks)
 
 SCENE_SIZES = (80, 54)  # main, sub
 SCENE_MAX_CHARS, SCENE_MAX_SUB_WORDS = 16, 4
-SCENE_CENTRE = (
-    FRAME_WIDTH // 2,
-    1300,
-)  # the block spans 62–78% of the frame and stays above the platforms' caption bars
-SCENE_MAX_WIDTH = round(FRAME_WIDTH * 0.92)
-SCENE_CENTRE_TOP = (FRAME_WIDTH // 2, round(FRAME_HEIGHT * 0.22))  # "Trên": the 14–30% zone
+SCENE_CENTRE_LOW = (FRAME_WIDTH // 2, round(FRAME_HEIGHT * 0.68))  # "Dưới": the lower zone; else at the top
+SCENE_MAX_WIDTH = PROFILES[DEFAULT_PROFILE].text_width
 NUMBER_DIAMETER, NUMBER_SIZE, NUMBER_GAP = 76, 52, 16
 # The video's "Cỡ chữ" (options.text_size, title_text_size) as a share of the sizes above: "large" is how it always was.
 TEXT_SCALE = {"large": 1.0, "medium": 0.8, "small": 0.65}
@@ -168,8 +164,14 @@ def _wrapped(text: str) -> list[str]:
     return [text[:cut], text[cut + 1 :]]
 
 
-def render_title(tiers: TitleTiers, style: str = "brand_navy", effects: bool = True, scale: float = 1.0) -> Image.Image:
-    """The three tiers stacked and centred, the label at the block's top right. Each line shrinks to fit 88% of the width;
+def render_title(
+    tiers: TitleTiers,
+    style: str = "brand_navy",
+    effects: bool = True,
+    scale: float = 1.0,
+    max_width: int = TITLE_MAX_WIDTH,
+) -> Image.Image:
+    """The three tiers stacked and centred, the label at the block's top right. Each line shrinks to fit `max_width`;
     in a title preset a line that would shrink under 70% is wrapped in two, and the whole block shrinks by one factor
     instead, so the lines keep their sizes' proportions. `effects` draws the preset's sparkles, where it has them; `scale`
     is the video's text size (TEXT_SCALE)."""
@@ -184,17 +186,17 @@ def render_title(tiers: TitleTiers, style: str = "brand_navy", effects: bool = T
         wrapped = []
         for text, size, key, index in items:
             look = line_style(style, key, index)
-            if fitted_size(text.lstrip("^"), size, look, TITLE_MAX_WIDTH) < size * MIN_FIT and " " in text:
+            if fitted_size(text.lstrip("^"), size, look, max_width) < size * MIN_FIT and " " in text:
                 wrapped += [(half, size, key, index) for half in _wrapped(text)]
             else:
                 wrapped.append((text, size, key, index))
         items = wrapped
         factor = min(
-            fitted_size(text.lstrip("^"), size, line_style(style, key, index), TITLE_MAX_WIDTH) / size
+            fitted_size(text.lstrip("^"), size, line_style(style, key, index), max_width) / size
             for text, size, key, index in items
         )
         items = [(text, max(24, round(size * factor)), key, index) for text, size, key, index in items]
-    pictures = [_line(text, size, style, key, index, TITLE_MAX_WIDTH) for text, size, key, index in items]
+    pictures = [_line(text, size, style, key, index, max_width) for text, size, key, index in items]
     gaps = [
         round((gap + (ACCENT_EXTRA if gap < 0 and not items[at + 1][0].isascii() else 0)) * items[at][1])
         for at in range(len(items) - 1)
@@ -206,9 +208,11 @@ def render_title(tiers: TitleTiers, style: str = "brand_navy", effects: bool = T
         block = stars
     if tiers.label:
         label = _label(tiers.label)
-        canvas = Image.new("RGBA", (max(block.width, label.width + 40), block.height + label.height // 2), (0, 0, 0, 0))
-        canvas.alpha_composite(block, ((canvas.width - block.width) // 2, label.height // 2))
-        canvas.alpha_composite(label, (canvas.width - label.width - 20, 0))
+        # The label keeps the block's clear margin (PAD) round it, so it stays inside the text's edges too.
+        size = (max(block.width, label.width + 2 * PAD), block.height + label.height // 2 + PAD)
+        canvas = Image.new("RGBA", size, (0, 0, 0, 0))
+        canvas.alpha_composite(block, ((canvas.width - block.width) // 2, label.height // 2 + PAD))
+        canvas.alpha_composite(label, (canvas.width - label.width - PAD, PAD))
         return canvas
     return block
 
@@ -223,25 +227,27 @@ def _circle(number: str, scale: float = 1.0) -> Image.Image:
     return circle
 
 
-def render_scene(tiers: SceneTiers, style: str = "neon_game", scale: float = 1.0) -> Image.Image:
+def render_scene(
+    tiers: SceneTiers, style: str = "neon_game", scale: float = 1.0, max_width: int = SCENE_MAX_WIDTH
+) -> Image.Image:
     """The main line with the numbered circle at its left, and the sub line under, the whole block centred. `scale` is the
-    video's text size (TEXT_SCALE)."""
+    video's text size (TEXT_SCALE); `max_width` the room between the text's side edges."""
     rows: list[Image.Image] = []
     sizes = [round(size * scale) for size in SCENE_SIZES]
     if tiers.main:
-        main = render_line(
-            tiers.main, sizes[0], line_style(style, True, 0), SCENE_MAX_WIDTH - round(NUMBER_DIAMETER * scale)
-        )
+        beside = round((NUMBER_DIAMETER + NUMBER_GAP) * scale) if tiers.number else 0
+        main = render_line(tiers.main, sizes[0], line_style(style, True, 0), max_width - beside)
         if tiers.number:
             circle = _circle(tiers.number, scale)
-            left = circle.width + round(NUMBER_GAP * scale) - PAD  # the line's own padding overlaps the circle's side
+            # The circle keeps the same clear margin (PAD) at its left; the line's own overlaps the circle's side.
+            left = circle.width + round(NUMBER_GAP * scale)
             row = Image.new("RGBA", (left + main.width, max(main.height, circle.height)), (0, 0, 0, 0))
             row.alpha_composite(main, (left, (row.height - main.height) // 2))
-            row.alpha_composite(circle, (0, (row.height - circle.height) // 2))  # on top of the line's glow
+            row.alpha_composite(circle, (PAD, (row.height - circle.height) // 2))  # on top of the line's glow
             main = row
         rows.append(main)
     if tiers.sub:
-        rows.append(render_line(tiers.sub, sizes[1], line_style(style, False, 1), SCENE_MAX_WIDTH))
+        rows.append(render_line(tiers.sub, sizes[1], line_style(style, False, 1), max_width))
     if not rows:
         return Image.new("RGBA", (1, 1), (0, 0, 0, 0))
     return stack(rows, [round(0.1 * sizes[0])] * (len(rows) - 1))
