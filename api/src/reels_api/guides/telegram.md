@@ -36,6 +36,12 @@ Gõ `/` trong chat với bot (hoặc trong nhóm chung) để mở menu lệnh. 
 - **Duyệt:** nếu bạn có Page đăng nhóm chủ đề của video, bot hiện nút **➕ Hàng chờ <Page>**. Tin nhắn nói trước khung trống tiếp theo của từng Page; bấm là video vào hàng chờ của Page đó và hàng chờ xếp vào khung trống lúc đó (có thể đổi nếu có bài khác vào trước). Video có giờ trong kế hoạch còn có nút **📅 Đăng lúc <giờ>** để hẹn đúng giờ kế hoạch. Muốn giờ khác thì chọn trong app (Đăng bài, Hẹn giờ).
 - **Bỏ video:** bot hỏi "Vì sao bỏ?". Trả lời ngay tin đó để ghi lý do vào video (không bắt buộc).
 
+## Gửi link Shopee cho bot để thêm sản phẩm
+Trong **chat riêng** với bot (không phải trong nhóm), dán link Shopee, mỗi dòng một link, tối đa 50 link một tin. Bot thêm chúng vào danh sách sản phẩm của bạn như nút "Thêm sản phẩm" trên web.
+- Nếu bạn có **nhiều nhóm chủ đề**, ghi tên nhóm ở dòng đầu (không cần gõ dấu), rồi dán link bên dưới. Bot sẽ liệt kê các nhóm nếu bạn quên.
+- Link đã có trong nhóm thì bỏ qua. Chỉ nhận link Shopee (shopee.vn, s.shopee.vn, shp.ee, shope.ee).
+- Sản phẩm thêm xong là **bản nháp**. Mở **Affiliate › Sản phẩm** để bổ sung thông tin, duyệt, rồi chuyển link affiliate (xem hướng dẫn Custom Link).
+
 ## Nhóm chung
 Mỗi tối lúc 21 giờ, nhóm chung nhận **Tổng kết ngày**: số video đã đăng, đã hẹn, đang chờ duyệt, và video nhiều view nhất 48 giờ qua. Không nêu việc riêng của ai.
 
