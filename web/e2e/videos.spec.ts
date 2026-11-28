@@ -151,8 +151,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await page.getByRole("button", { name: "Thao tác khác với video" }).click();
   const remove = page.getByRole("menuitem", { name: "Xóa video" });
   await expect(remove).toBeDisabled();
-  await remove.getByText("Xóa video").hover();
-  await expect(page.getByRole("tooltip")).toContainText("Video đã đăng, cần giữ để làm báo cáo view");
+  await expect(remove).toHaveAttribute("title", "Video đã đăng, cần giữ để làm báo cáo view");
   await page.keyboard.press("Escape");
 
   // Once posted, the card says so rather than "Chờ đăng".

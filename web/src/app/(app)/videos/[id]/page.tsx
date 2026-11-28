@@ -703,13 +703,10 @@ export default function VideoPage() {
                           {
                             key: "delete",
                             icon: <DeleteOutlined />,
-                            label: deleteBlock(video) ? (
-                              <Tooltip title={deleteBlock(video)} placement="left">
-                                Xóa video
-                              </Tooltip>
-                            ) : (
-                              "Xóa video"
-                            ),
+                            label: "Xóa video",
+                            // Why it is greyed out: the item's own hover text, as a Tooltip inside a disabled item
+                            // never opens.
+                            title: deleteBlock(video) ?? undefined,
                             danger: true,
                             disabled: Boolean(deleteBlock(video)),
                             onClick: remove,

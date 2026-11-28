@@ -12,7 +12,7 @@ import ShuffleModal from "@/components/video/ShuffleModal";
 import type { VideoRow } from "@/lib/api";
 import { api, errorMessage, type VideoDetail } from "@/lib/api";
 import { MoreOutlined } from "@ant-design/icons";
-import { App, Button, Dropdown, Flex, Spin, Tooltip, Typography } from "antd";
+import { App, Button, Dropdown, Flex, Spin, Typography } from "antd";
 import type { MenuProps } from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -143,13 +143,9 @@ export default function VideoActions({
             { key: "move", label: "Chuyển sang nhóm khác", disabled: detail.locked, onClick: () => setMoving(true) },
             {
               key: "delete",
-              label: blocked ? (
-                <Tooltip title={blocked} placement="left">
-                  Xóa video
-                </Tooltip>
-              ) : (
-                "Xóa video"
-              ),
+              label: "Xóa video",
+              // Why it is greyed out: the item's own hover text, as a Tooltip inside a disabled item never opens.
+              title: blocked ?? undefined,
               danger: true,
               disabled: Boolean(blocked),
               onClick: remove,
