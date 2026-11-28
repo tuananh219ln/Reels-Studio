@@ -147,6 +147,11 @@ def options_dict(options) -> dict:
     ):
         if values[name] == default:
             del values[name]
+    # The logo's own place and size only when set. `layout_profile` is always sent: a machine on code from before it
+    # would put the text and the logo where they used to go.
+    for name in ("logo_position", "logo_size"):
+        if values[name] is None:
+            del values[name]
     # Likewise the text boxes' font, unless it is the original.
     if values["text_font"] == "be_vietnam":
         del values["text_font"]

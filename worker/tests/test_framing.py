@@ -20,10 +20,12 @@ from reels_render.framing import (
     strip_padding,
 )
 from reels_render.images import fit_image
+from reels_render.layout import PROFILES
 from reels_render.script import load_script
-from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH, SAFE_ZONE
+from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 
 TEXT = 300
+TOP, BOTTOM = PROFILES["balanced"].text_top_min, PROFILES["balanced"].subtitle_bottom
 
 
 def noisy(size: tuple[int, int], seed: int = 1) -> Image.Image:
@@ -58,7 +60,7 @@ def test_a_forced_fit_is_kept_whatever_the_shape(fit):
 
 def test_square_text_on_top_then_the_photo_right_under_it():
     framing = plan_frame(1080, 860, "auto", TEXT)
-    top = SAFE_ZONE[1]
+    top = TOP
     assert framing.kind == SQUARE
     assert framing.picture == (0, top + TEXT + GAP, FRAME_WIDTH, FRAME_WIDTH)
     assert framing.text_centre == (FRAME_WIDTH // 2, top + TEXT // 2)
@@ -68,7 +70,7 @@ def test_square_text_on_top_then_the_photo_right_under_it():
 
 def test_text_placed_low_puts_the_photo_above_it():
     framing = plan_frame(1080, 860, "auto", TEXT, centre=(540, 1300))
-    bottom = SAFE_ZONE[3]
+    bottom = BOTTOM
     assert framing.picture == (0, bottom - TEXT - GAP - FRAME_WIDTH, FRAME_WIDTH, FRAME_WIDTH)
     assert framing.text_centre == (FRAME_WIDTH // 2, bottom - TEXT + TEXT // 2)
 
@@ -78,10 +80,10 @@ def test_every_square_scene_of_a_video_lands_at_the_same_place():
     assert len({plan_frame(*shape, "auto", TEXT).picture for shape in shapes}) == 1
 
 
-def test_logo_row_pushes_the_text_and_photo_down():
-    framing = plan_frame(1080, 860, "auto", TEXT, min_top=370)
-    assert framing.text_centre == (540, 370 + TEXT // 2)
-    assert framing.picture[1] == 370 + TEXT + GAP
+def test_a_tighter_profile_keeps_the_text_and_photo_above_its_floor():
+    framing = plan_frame(1080, 860, "auto", TEXT, centre=(540, 1300), profile=PROFILES["universal"])
+    bottom = PROFILES["universal"].subtitle_bottom
+    assert framing.text_centre == (540, bottom - TEXT + TEXT // 2)
 
 
 def test_crop_offset_slides_the_square_along_the_longer_side():
@@ -97,7 +99,7 @@ def test_wide_photo_and_text_are_centred_together_in_the_safe_zone():
     text_top = framing.text_centre[1] - TEXT // 2
     assert text_top + TEXT + GAP == y
     # Equal room above the text and below the photo, inside the safe zone.
-    assert abs((text_top - SAFE_ZONE[1]) - (SAFE_ZONE[3] - (y + height))) <= 1
+    assert abs((text_top - TOP) - (BOTTOM - (y + height))) <= 1
 
 
 def test_no_text_centres_the_photo_and_leaves_the_box_alone():
@@ -125,7 +127,7 @@ def test_with_a_reserve_every_photo_starts_on_one_line_and_the_text_is_centred_i
     shapes = [(1080, 860), (1380, 1000), (900, 1200), (1920, 1080)]
     frames = [plan_frame(*shape, "auto", text, reserve=reserve) for shape in shapes for text in (96, 200, 300, 0)]
     assert len({frame.picture[1] for frame in frames}) == 1
-    assert {frame.text_centre[1] for frame in frames if frame.text_centre} == {SAFE_ZONE[1] + reserve // 2}
+    assert {frame.text_centre[1] for frame in frames if frame.text_centre} == {TOP + reserve // 2}
     assert plan_frame(1080, 860, "auto", 0, reserve=reserve).text_centre is None
     # Photos of every shape start the same row, though a wide one is shorter.
     assert (
@@ -136,16 +138,11 @@ def test_with_a_reserve_every_photo_starts_on_one_line_and_the_text_is_centred_i
 
 def test_with_a_reserve_text_placed_low_gets_its_block_at_the_bottom_and_the_photo_above_it():
     low = (540, 1300)
-    bottom = SAFE_ZONE[3]
+    bottom = BOTTOM
     short = plan_frame(1080, 860, "auto", 100, centre=low, reserve=300)
     tall = plan_frame(1080, 860, "auto", 300, centre=low, reserve=300)
     assert short.picture == tall.picture == (0, bottom - 300 - GAP - FRAME_WIDTH, FRAME_WIDTH, FRAME_WIDTH)
     assert short.text_centre == tall.text_centre == (540, bottom - 150)
-
-
-def test_the_logo_row_moves_the_whole_shared_block_down():
-    framing = plan_frame(1080, 860, "auto", 200, min_top=370, reserve=300)
-    assert framing.picture[1] == 370 + 300 + GAP and framing.text_centre == (540, 370 + 150)
 
 
 def test_tall_photo_forced_whole_fits_the_height():
@@ -195,9 +192,9 @@ def test_fit_image_writes_the_copy_and_the_photo_and_says_where_the_text_goes(tm
     source = tmp_path / "pomelo.jpg"
     noisy((540, 430)).save(source)
     target = tmp_path / "scene.jpg"
-    fitted = fit_image(source, target, "Cảnh 1", "auto", TEXT, None, None)
-    assert fitted.text_centre == (540, SAFE_ZONE[1] + TEXT // 2)
-    assert fitted.box == (0, SAFE_ZONE[1] + TEXT + GAP, FRAME_WIDTH, FRAME_WIDTH)
+    fitted = fit_image(source, target, "Cảnh 1", "auto", TEXT, None)
+    assert fitted.text_centre == (540, TOP + TEXT // 2)
+    assert fitted.box == (0, TOP + TEXT + GAP, FRAME_WIDTH, FRAME_WIDTH)
     with Image.open(target) as copy, Image.open(fitted.picture) as photo:
         assert copy.size == (FRAME_WIDTH, FRAME_HEIGHT)
         assert photo.size == (FRAME_WIDTH, FRAME_WIDTH)

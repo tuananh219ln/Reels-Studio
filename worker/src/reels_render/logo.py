@@ -1,8 +1,8 @@
 """A channel's logo laid on the finished video ("Logo theo kênh").
 
 The badge (a round logo with a white ring and a soft shadow) is made once, when the logo is uploaded, by
-`make_badge`. The render lays it over the joined scenes, so it stays still through transitions and zooms. Positions
-are measured on the 1080x1920 frame; `docs/ux-guidelines.md` has the safe zone they come from.
+`make_badge`. The render lays it over the joined scenes, so it stays still through transitions and zooms. Its place and
+size are layout.py's, or the video's own; the title scene (the cover) has none.
 """
 
 from dataclasses import dataclass
@@ -10,18 +10,13 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
-from .textbox import FRAME_WIDTH
+from .layout import DEFAULT_PROFILE, PROFILES, Profile, logo_box
 
 BADGE_SIZE = 512  # the logo's diameter inside the stored badge
 RING = 0.05  # white ring, as a share of the diameter
 PAD = 0.12  # room around the ring for the shadow
 SHADOW_OFFSET = 0.025
 SHADOW_BLUR = 0.04
-
-CORNER_DIAMETER = 120  # the logo is on the content scenes only; the title scene (the cover) has none
-CORNER_RIGHT = 60  # gap from the right edge to the ring's outer edge
-CORNER_TOP = 200  # gap from the top edge to the ring's outer edge
-TEXT_TOP_MIN = 370  # content scenes: where the text may start while the logo is on
 
 MIN_SOURCE_SIDE = 256  # the shorter side of an uploaded logo
 MAX_SOURCE_BYTES = 5 * 1024 * 1024
@@ -62,17 +57,12 @@ def make_badge(src_path: Path, out_path: Path, size: int = BADGE_SIZE) -> None:
     out.save(out_path)
 
 
-def _scaled(diameter: int) -> tuple[int, float]:
-    """The badge's width at a logo `diameter`, and the scale from the stored badge."""
-    scale = diameter / BADGE_SIZE
-    return round(badge_canvas() * scale), scale
-
-
-def _pad(scale: float) -> float:
-    return round(BADGE_SIZE * PAD) * scale
-
-
-def corner_placement() -> Placement:
-    """The other scenes' badge: its ring 60 px from the right edge and 200 px from the top."""
-    width, scale = _scaled(CORNER_DIAMETER)
-    return Placement(width, round(FRAME_WIDTH - CORNER_RIGHT + _pad(scale) - width), round(CORNER_TOP - _pad(scale)))
+def placement(
+    profile: Profile = PROFILES[DEFAULT_PROFILE], position: tuple[int, int] | None = None, size: int | None = None
+) -> Placement:
+    """Where the stored badge goes so that its white ring is `size` across with its top-left corner at `position`
+    (layout.logo_box): the badge also holds the room for its shadow round the ring."""
+    left, top, size = logo_box(profile, position, size)
+    scale = size / (BADGE_SIZE + 2 * round(BADGE_SIZE * RING))
+    pad = round(BADGE_SIZE * PAD) * scale
+    return Placement(round(badge_canvas() * scale), round(left - pad), round(top - pad))

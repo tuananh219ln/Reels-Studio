@@ -363,7 +363,7 @@ export function AudioSettings({
 }
 
 /** The narration's speed, level and pause, and the music's level and ducking: the same in a card or in rows. */
-function AudioRest({
+export function AudioRest({
   values,
   onChange,
   disabled,

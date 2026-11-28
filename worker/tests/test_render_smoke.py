@@ -26,12 +26,13 @@ from reels_render.errors import (
     ToolNotFoundError,
 )
 from reels_render.ffmpeg import probe
+from reels_render.layout import PROFILES
 from reels_render.options import RenderOptions
 from reels_render.render import render_video
 from reels_render.script import load_script
-from reels_render.textbox import SCENE_BOX_BOTTOM
 
 FRAME = 1 / 30
+TOP = PROFILES["balanced"].text_top_min  # where a text nobody placed starts
 
 
 @pytest.fixture
@@ -106,7 +107,7 @@ class TestOutput:
         for point in border:
             assert min(frame.getpixel(point)) > 60, f"viền tối tại {point}"
 
-    def test_content_box_bottom_is_at_lower_third_line(self, video):
+    def test_content_box_starts_290_down(self, video):
         path, folder = video
         frame = extract_frame(path, 1.75, folder / "box.png")
 
@@ -114,13 +115,13 @@ class TestOutput:
             r, g, b = frame.getpixel((540, y))
             return r > 200 and g > 170 and b < 100
 
-        assert yellow(SCENE_BOX_BOTTOM - 3)
-        assert not any(yellow(y) for y in range(SCENE_BOX_BOTTOM + 4, 1920))
+        assert yellow(TOP + 3)
+        assert not any(yellow(y) for y in range(0, TOP - 3))
 
     def test_first_frame_is_title_with_text(self, video):
         path, folder = video
         frame = extract_frame(path, 0, folder / "first.png")
-        centre = [frame.getpixel((x, 960)) for x in range(200, 880)]
+        centre = [frame.getpixel((x, TOP + 40)) for x in range(200, 880)]
         assert any(p[0] > 200 and p[1] > 170 and p[2] < 100 for p in centre), "khung đầu không có hộp vàng"
         assert min(frame.getpixel((5, 5))) > 150, "khung đầu bị fade từ đen"
 
@@ -502,15 +503,14 @@ def test_a_framed_photo_zooms_inside_its_box_which_stays_put(tmp_path):
     data["scenes"][0].update(image="vuong.jpg", seconds=2, image_fit="auto")
     path = render_video(load_script(write_script(tmp_path, data)), tmp_path / "video.mp4")
 
+    # Read at x = 20, beside the text box (which starts at 65 and could hold red words of its own).
     def red_top(frame):
         return next(
-            y for y in range(540, 1920) if (lambda r, g, b: r > 170 and g < 90 and b < 90)(*frame.getpixel((540, y)))
+            y for y in range(300, 1920) if (lambda r, g, b: r > 170 and g < 90 and b < 90)(*frame.getpixel((20, y)))
         )
 
     def blue_rows(frame, top):
-        return [
-            y for y in range(top - 30, top + 30) if (lambda r, g, b: b > 150 and r < 120)(*frame.getpixel((540, y)))
-        ]
+        return [y for y in range(top - 30, top + 30) if (lambda r, g, b: b > 150 and r < 120)(*frame.getpixel((20, y)))]
 
     early = extract_frame(path, 1.15, tmp_path / "early.png")
     late = extract_frame(path, 2.9, tmp_path / "late.png")
@@ -524,7 +524,7 @@ def test_a_framed_photo_zooms_inside_its_box_which_stays_put(tmp_path):
 @needs_ffmpeg
 def test_framed_scenes_share_one_photo_line_and_a_full_frame_photo_keeps_the_templates_text_place(tmp_path):
     """A one-line text, a three-line text and a 9:16 photo: the framed photos start on the same row and their texts
-    share a middle line; the 9:16 scene's text box stays where the template puts it, near the bottom."""
+    share a middle line; the 9:16 scene's text box stays where the template puts it, 290 down."""
     make_image(tmp_path / "ngang.jpg", (1000, 800), (220, 40, 40))
     make_image(tmp_path / "doc.jpg", (540, 960), (40, 60, 220))
     make_image(tmp_path / "title.jpg", (1080, 1920), (60, 90, 160))
@@ -551,12 +551,12 @@ def test_framed_scenes_share_one_photo_line_and_a_full_frame_photo_keeps_the_tem
     second = extract_frame(path, 2.8, tmp_path / "second.png")
     third = extract_frame(path, 3.9, tmp_path / "third.png")
     assert abs(photo_top(first, red) - photo_top(second, red)) <= 2
-    # The framed scenes' text middles are the same whatever the text's height; the 9:16 scene's box ends at the
-    # template's line (SCENE_BOX_BOTTOM), as it always did.
+    # The framed scenes' text middles are the same whatever the text's height; the 9:16 scene's box starts at the
+    # template's line.
     middles = [(min(rows) + max(rows)) / 2 for rows in (boxed(first), boxed(second))]
     assert max(middles) - min(middles) <= 12, middles
     assert max(middles) < 600
-    assert abs(max(boxed(third)) - SCENE_BOX_BOTTOM) <= 8
+    assert abs(min(boxed(third)) - TOP) <= 8
 
 
 @needs_ffmpeg
@@ -569,7 +569,7 @@ def test_text_shade_darkens_round_a_content_scenes_text_and_leaves_the_rest_and_
     def pixel(path, seconds, y):
         return extract_frame(path, seconds, tmp_path / f"f-{path.stem}-{seconds}-{y}.png").getpixel((10, y))
 
-    near = SCENE_BOX_BOTTOM + 60  # under the box, inside the 260 px fade
+    near = TOP - 60  # over the box, inside the 260 px fade
     assert sum(pixel(shaded, 1.75, near)) < 0.8 * sum(pixel(plain, 1.75, near))
-    assert pixel(shaded, 1.75, 40) == pixel(plain, 1.75, 40)  # far from the text: untouched
+    assert pixel(shaded, 1.75, 1700) == pixel(plain, 1.75, 1700)  # far from the text: untouched
     assert pixel(shaded, 0, near) == pixel(plain, 0, near)  # the title scene has no shade

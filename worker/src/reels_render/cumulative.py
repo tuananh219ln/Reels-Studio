@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from PIL import Image
 
 from .captions import Word
+from .layout import DEFAULT_PROFILE, PROFILES, Profile
 from .markup import normalize_text
 from .pc_text import PAD, line_style, render_line, stack
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
@@ -24,9 +25,8 @@ PAUSE_WEIGHT = 1.5  # extra words' worth of time after , . ! ? : ;
 
 LEAD_SIZE, KEY_SIZE, TAIL_SIZE, PLAIN_SIZE = 58, 100, 72, 72
 LINE_GAP = 0.1  # of the font size
-ZONE_TOP_UPPER = 0.14  # "Trên": the phrase starts 14% down (14–30%)
-ZONE_TOP = 0.62  # the phrase starts 62% down the frame (62–78%: clear of the platforms' caption bars)
-MAX_LINE_WIDTH = round(FRAME_WIDTH * 0.92)
+ZONE_TOP = 0.62  # the phrase starts 62% down the frame; "Trên": at the highest a text may start (layout.py)
+ZONE_ROOM = 340  # kept above the captions' floor for a full phrase, so a tighter profile starts it higher
 
 
 @dataclass(frozen=True)
@@ -198,16 +198,21 @@ def plan_cumulative(words: list[TimedWord], scene_end: float) -> list[Step]:
 
 
 def render_cumulative(
-    lines: tuple[Line, ...], style: str = "neon_game", zone: str | None = None
+    lines: tuple[Line, ...],
+    style: str = "neon_game",
+    zone: str | None = None,
+    profile: Profile = PROFILES[DEFAULT_PROFILE],
 ) -> tuple[Image.Image, tuple[int, int]]:
-    """The lines as one picture in the chosen look (pc_text.PC_STYLES), centred across, and where its corner goes in the
-    frame (the first line starts ZONE_TOP down)."""
+    """The lines as one picture in the chosen look (pc_text.PC_STYLES), centred across and no wider than the captions
+    may be, and where its corner goes in the frame: low (above the captions' floor), or high for "Trên"."""
     pictures = [
-        render_line(line.text, line.size, line_style(style, line.key, index), MAX_LINE_WIDTH)
+        render_line(line.text, line.size, line_style(style, line.key, index), profile.subtitle_width)
         for index, line in enumerate(lines)
     ]
     picture = stack(pictures, [round(LINE_GAP * line.size) for line in lines[:-1]])
-    return picture, (
-        (FRAME_WIDTH - picture.width) // 2,
-        round(FRAME_HEIGHT * (ZONE_TOP_UPPER if zone == "top" else ZONE_TOP)) - PAD,
-    )
+    if zone == "top":
+        top = profile.text_top_min
+    else:
+        top = min(round(FRAME_HEIGHT * ZONE_TOP), profile.subtitle_bottom - ZONE_ROOM)
+    corner = min(top - PAD, profile.subtitle_bottom + PAD - picture.height)
+    return picture, ((FRAME_WIDTH - picture.width) // 2, max(profile.text_top_min - PAD, corner))
