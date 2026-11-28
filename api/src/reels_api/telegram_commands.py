@@ -20,7 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import aliased
 
-from . import changelog, config, page_queue, plans, review, routes_guides, telegram
+from . import changelog, config, page_queue, plans, review, routes_guides, telegram, telegram_links
 from .analytics import VIETNAM
 from .errors import ApiError
 from .models import (
@@ -74,6 +74,8 @@ def handle(db: DbSession, message: dict, command: str, rest: str) -> bool:
     private = chat.get("type") == "private"
     sender = (message.get("from") or {}).get("id")
     if private and not command.startswith("/") and _reason_reply(db, message, sender):
+        return True
+    if private and not command.startswith("/") and telegram_links.handle(db, message, sender):
         return True
     if command in ("/help",) or (command == "/start" and not private):
         telegram.send_text(chat["id"], help_text())

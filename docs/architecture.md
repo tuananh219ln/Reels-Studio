@@ -1413,6 +1413,12 @@ off.
   time ([decision](decisions/2026-11-27-queue-respects-plan.md)); after **Bỏ** it asks why with a forced reply
   marked `(#v<id>)`, and the answer goes into that rejection's `video_events.payload.reason`. At 21:00 Vietnam time the
   worker posts the day's summary to `TELEGRAM_CHAT_ID` (once a day, `app_settings.telegram_group_summary`).
+- **Shopee links** ([telegram_links.py](../api/src/reels_api/telegram_links.py),
+  [decision](decisions/2026-11-28-telegram-links.md)): a private message holding Shopee addresses (`shopee.is_shopee_link`,
+  at most 50, not a command) from a linked member adds them as that member's products through the web's own
+  `routes_affiliate._from_links`, in the group named on the first line (accents ignored) or the member's only one the
+  member may add products to; with several and none named the bot lists them and adds nothing. No Shopee call is made;
+  the worker reads a product's details only when a Shopee account has an App ID. A group's message with links is ignored.
 - **Muse** sends a member a private message with the MCP tool `send_telegram` (write scope), to the member of the
   connection only.
 
