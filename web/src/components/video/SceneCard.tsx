@@ -496,6 +496,12 @@ export default function SceneCard({
       }}
       title={
         <Flex align="center" gap={4} style={{ minWidth: 0 }}>
+          {/* The title scene cannot be dragged: the handle's room stays empty, so its row lines up with the rest. */}
+          {scene.is_title && !editor.readOnly && !editor.locked && (
+            <span aria-hidden style={{ padding: "4px 2px", flex: "none", visibility: "hidden" }}>
+              <HolderOutlined />
+            </span>
+          )}
           {reorder && !scene.is_title && (
             <Tooltip title="Kéo để đổi thứ tự">
               <span
@@ -580,6 +586,7 @@ export default function SceneCard({
               )}
             </Space>
           )}
+          <SceneStatus scene={scene} />
           {onPreview && (
             <Tooltip title="Xem từ cảnh này">
               <Button
@@ -691,15 +698,8 @@ function SceneHeader({
   onToggle: () => void;
 }) {
   const summary = scene.text.replaceAll("*", "").replace(/\s+/g, " ").trim();
-  const statusTone = scene.blocking.length > 0 ? "danger" : scene.warnings.length > 0 ? "warning" : "success";
-  const status =
-    scene.blocking.length > 0 ? (
-      <StatusText tone="danger">{scene.blocking.length} lỗi</StatusText>
-    ) : scene.warnings.length > 0 ? (
-      <StatusText tone="warning">{scene.warnings.length} cảnh báo</StatusText>
-    ) : (
-      <StatusText tone="success">Sẵn sàng</StatusText>
-    );
+  // A scene with nothing written on screen is told apart by what it reads.
+  const spoken = scene.spoken_text.replace(/\s+/g, " ").trim();
   return (
     <Flex
       role="button"
@@ -753,7 +753,7 @@ function SceneHeader({
           style={{ flex: 1, minWidth: 0, fontWeight: "normal", fontSize: 13 }}
           data-testid="scene-summary"
         >
-          {summary || "(không có chữ)"}
+          {summary || (spoken ? `Lời đọc: ${spoken}` : "(không có chữ)")}
         </Typography.Text>
       )}
       {voiceTag && (
@@ -761,8 +761,24 @@ function SceneHeader({
           MP3 tải lên
         </Tag>
       )}
-      <span className={`pill pill--${statusTone}`}>{status}</span>
     </Flex>
+  );
+}
+
+/** How the scene stands, at the row's right end: in the same place on every row, whatever buttons the row has. */
+function SceneStatus({ scene }: { scene: SceneData }) {
+  const { blocking, warnings } = scene;
+  const tone = blocking.length > 0 ? "danger" : warnings.length > 0 ? "warning" : "success";
+  return (
+    <span className={`pill pill--${tone}`} data-testid="scene-status">
+      <StatusText tone={tone}>
+        {blocking.length > 0
+          ? `${blocking.length} lỗi`
+          : warnings.length > 0
+            ? `${warnings.length} cảnh báo`
+            : "Sẵn sàng"}
+      </StatusText>
+    </span>
   );
 }
 

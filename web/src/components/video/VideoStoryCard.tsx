@@ -224,7 +224,8 @@ export default function VideoStoryCard({
   return (
     <Collapse
       size="small"
-      style={{ marginBottom: 12, background: COLORS.surface }}
+      // The lower half of the card the page draws around it and the topic line.
+      style={{ border: "none", borderTop: `1px solid ${COLORS.border}`, borderRadius: 0, background: COLORS.surface }}
       data-testid="video-story"
       onChange={(keys) => {
         setOpen(keys.length > 0);

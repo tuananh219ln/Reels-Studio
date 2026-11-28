@@ -1536,6 +1536,59 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   await expect(preview.getByRole("slider", { name: "Âm lượng nghe" })).toHaveAttribute("aria-valuenow", "50");
 });
 
+test("preview: arrow keys held on Âm lượng nghe move the level and keep the page standing", async ({ page }) => {
+  test.setTimeout(180_000);
+  const crashes: string[] = [];
+  page.on("pageerror", (error) => crashes.push(error.message));
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "âm lượng nghe bằng bàn phím");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const preview = page.getByRole("dialog", { name: "Xem trước video" });
+  const slider = preview.getByRole("slider", { name: "Âm lượng nghe" });
+  await preview.getByRole("button", { name: "Tạm dừng" }).click();
+  const scene = await preview.getByTestId("preview-scene").innerText();
+  await slider.focus();
+  // One press after another with no pause, as a held key sends them: enough of them took the whole page down.
+  for (let round = 0; round < 4; round += 1) {
+    for (const key of ["ArrowLeft", "ArrowRight"]) {
+      for (let step = 0; step < 50 && crashes.length === 0; step += 1) await page.keyboard.press(key);
+      expect(crashes).toEqual([]);
+    }
+  }
+  await expect(slider).toHaveAttribute("aria-valuenow", "100");
+  // Every key a slider answers to, to its two ends.
+  for (const [key, level] of [
+    ["Home", "0"],
+    ["ArrowUp", "1"],
+    ["PageUp", "11"],
+    ["ArrowDown", "10"],
+    ["PageDown", "0"],
+    ["End", "100"],
+    ["ArrowRight", "100"],
+    ["ArrowLeft", "99"],
+  ]) {
+    await page.keyboard.press(key);
+    await expect(slider).toHaveAttribute("aria-valuenow", level);
+  }
+  await expect(slider).toBeFocused();
+  await expect(preview.getByTestId("listen-level")).toHaveText("99%");
+  // The keys were the slider's alone: the arrows did not change scene underneath.
+  await expect(preview.getByTestId("preview-scene")).toHaveText(scene, { useInnerText: true });
+  // A drag sends as many changes as a held key.
+  const rail = (await preview.getByTestId("listen-volume").locator(".ant-slider").boundingBox())!;
+  const middle = rail.y + rail.height / 2;
+  await page.mouse.move(rail.x + rail.width - 1, middle);
+  await page.mouse.down();
+  for (let round = 0; round < 3; round += 1) {
+    await page.mouse.move(rail.x + 1, middle, { steps: 60 });
+    await page.mouse.move(rail.x + rail.width - 1, middle, { steps: 60 });
+  }
+  await page.mouse.move(rail.x + rail.width / 2, middle, { steps: 30 });
+  await page.mouse.up();
+  await expect(slider).toHaveAttribute("aria-valuenow", /^(4[5-9]|5[0-5])$/);
+  expect(crashes).toEqual([]);
+});
+
 /**
  * A browser voice that records what the preview asks of it, the way iOS Safari judges it: `gesture` says whether
  * `speak` was called inside the tap itself (Safari stays silent otherwise). `voices: false` is a browser without a
@@ -2307,6 +2360,13 @@ test("Đăng bài: Instagram goes through the Page's linked account, at a time o
   const row = page.getByTestId("platform-row-instagram");
   await expect(row).toContainText("Hẹn đăng lúc");
   await expect(card()).toHaveAttribute("data-state", "scheduled");
+  // The time is a line of its own under the platform's badge, not pushed to the row's right end.
+  await expect(async () => {
+    const badge = (await row.locator(".platform-badge").boundingBox())!;
+    const status = (await row.locator(".post-row__status").boundingBox())!;
+    expect(Math.abs(status.x - badge.x)).toBeLessThan(1);
+    expect(status.y).toBeGreaterThanOrEqual(badge.y + badge.height);
+  }).toPass({ timeout: 15_000 });
   await row.getByRole("button", { name: "Hủy hẹn" }).click();
   await page.locator(".ant-popconfirm").getByRole("button", { name: "Hủy hẹn" }).click();
   await expect(row).toHaveCount(0);

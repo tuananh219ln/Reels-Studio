@@ -284,8 +284,22 @@ body {
   position: sticky;
   top: var(--side-top, 0);
   z-index: 5;
+  margin-bottom: 0;
+  /* The gap under the tabs is theirs, so what scrolls beneath never shows against their card. */
+  padding-bottom: 12px;
   /* theme.ts COLORS.layout */
   background: #f6f6f7;
+}
+
+/* The tabs sit in a card of their own, its top level with the first card of the scenes' column. */
+.side-panel .side-tabs > .ant-tabs-nav::before {
+  display: none;
+}
+
+.side-panel .side-tabs > .ant-tabs-nav .ant-tabs-nav-wrap {
+  border: 1px solid #e7e8ea;
+  border-radius: 12px;
+  background: #fff;
 }
 
 /* Thiết lập › Logo: two rows, the channel's select taking the room left beside its label and "Quản lý kênh". */
@@ -607,6 +621,17 @@ body {
   justify-content: flex-end;
 }
 
+/* A time ahead or a post on its way is a sentence: it takes its own line, and the buttons start under it. */
+.post-row--wait .post-row__status {
+  flex-basis: 100%;
+  margin-left: 0;
+  white-space: normal;
+}
+
+.post-row--wait .post-row__tools {
+  justify-content: flex-start;
+}
+
 .post-row__action {
   flex: none;
   padding: 0;
@@ -831,15 +856,17 @@ body {
   background: #f8f8f9;
 }
 
-.progress-pill {
+/* antd's Flex sets `padding: 0` itself, which beats a single class: a padded Flex is styled through both classes. */
+.ant-flex.progress-pill {
   min-height: 28px;
   padding: 0 10px;
   border: 1px solid #e7e8ea;
   border-radius: 999px;
 }
 
-/* The video page: what it is about, under the header. */
-.video-context {
+/* The video page: what it is about and how it was made, one card under the header. */
+.video-about {
+  overflow: hidden;
   margin-bottom: 12px;
   border: 1px solid #e7e8ea;
   border-radius: 12px;
@@ -881,15 +908,15 @@ body {
   cursor: pointer;
 }
 
-.video-context__details {
-  padding: 8px 12px;
+.ant-flex.video-context__details {
+  padding: 10px 12px;
 }
 
 .video-context__idea + .video-context__details {
   border-top: 1px solid #e7e8ea;
 }
 
-.panel-card {
+.ant-flex.panel-card {
   padding: 12px;
   border: 1px solid #e7e8ea;
   border-radius: 12px;
@@ -910,7 +937,7 @@ body {
   background: #fff;
 }
 
-.scene-list__head {
+.ant-flex.scene-list__head {
   padding: 8px 12px;
 }
 
@@ -982,4 +1009,19 @@ body {
   justify-content: center;
   margin: 0;
   padding-inline: 8px;
+}
+
+/* The menu folded to its icons (a video's page): a group's name has no room there and read "T…", so a short line
+ * stands between the groups instead; none above the first. */
+.ant-layout-sider-collapsed .ant-menu .ant-menu-item-group .ant-menu-item-group-title {
+  overflow: hidden;
+  height: 1px;
+  margin: 8px 10px;
+  padding: 0;
+  background: #e7e8ea;
+  font-size: 0;
+}
+
+.ant-layout-sider-collapsed .ant-menu .ant-menu-item-group:first-child .ant-menu-item-group-title {
+  display: none;
 }
