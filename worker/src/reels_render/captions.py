@@ -8,7 +8,7 @@ sound ("Edit từ footage") comes with each word's real seconds from Speech-to-T
 
 from dataclasses import dataclass
 
-from .textbox import caption_lines
+from .textbox import CAPTION_WIDTH, caption_lines
 
 MAX_PHRASE_WORDS = 4
 PAUSE_WEIGHT = 3  # extra letters' worth of time after , . ! ? : ;
@@ -32,7 +32,7 @@ class Cue:
     lit: int | None  # the word being spoken, counted across `lines`; None in phrase mode
 
 
-def _phrases(words: list[str]) -> list[list[str]]:
+def _phrases(words: list[str], width: int) -> list[list[str]]:
     phrases: list[list[str]] = [[]]
     for word in words:
         if len(phrases[-1]) == MAX_PHRASE_WORDS or (phrases[-1] and phrases[-1][-1][-1] in PAUSE_MARKS):
@@ -43,7 +43,7 @@ def _phrases(words: list[str]) -> list[list[str]]:
     pending = [phrase for phrase in phrases if phrase]
     while pending:
         phrase = pending.pop(0)
-        if len(phrase) > 1 and caption_lines(phrase) is None:
+        if len(phrase) > 1 and caption_lines(phrase, width) is None:
             half = len(phrase) // 2
             pending[:0] = [phrase[:half], phrase[half:]]
         else:
@@ -51,7 +51,7 @@ def _phrases(words: list[str]) -> list[list[str]]:
     return fitted
 
 
-def plan_captions(text: str, start: float, seconds: float, mode: str) -> list[Cue]:
+def plan_captions(text: str, start: float, seconds: float, mode: str, width: int = CAPTION_WIDTH) -> list[Cue]:
     """Cues for one scene's narration, which starts at `start` and lasts `seconds`; none for mode "off"."""
     words = [word for word in text.replace("*", "").split() if word]
     if mode == "off" or not words or seconds <= 0:
@@ -66,8 +66,8 @@ def plan_captions(text: str, start: float, seconds: float, mode: str) -> list[Cu
 
     cues: list[Cue] = []
     first = 0
-    for phrase in _phrases(words):
-        lines = caption_lines(phrase) or [phrase]
+    for phrase in _phrases(words, width):
+        lines = caption_lines(phrase, width) or [phrase]
         last = first + len(phrase)
         if mode == "phrase":
             cues.append(Cue(times[first], times[last], lines, None))
@@ -77,7 +77,7 @@ def plan_captions(text: str, start: float, seconds: float, mode: str) -> list[Cu
     return cues
 
 
-def plan_word_captions(words: list[Word], mode: str) -> list[Cue]:
+def plan_word_captions(words: list[Word], mode: str, width: int = CAPTION_WIDTH) -> list[Cue]:
     """Cues for words whose seconds are known (in the video's time), grouped into phrases as the estimate is. A word
     is lit until the next one starts, so the caption does not blink in the short gaps between words; a phrase stays
     until its last word ends."""
@@ -87,8 +87,8 @@ def plan_word_captions(words: list[Word], mode: str) -> list[Cue]:
     texts = [word.text.replace("*", "").strip() for word in words]
     cues: list[Cue] = []
     first = 0
-    for phrase in _phrases(texts):
-        lines = caption_lines(phrase) or [phrase]
+    for phrase in _phrases(texts, width):
+        lines = caption_lines(phrase, width) or [phrase]
         last = first + len(phrase)
         timed = words[first:last]
         if mode == "phrase":

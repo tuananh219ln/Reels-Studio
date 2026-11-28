@@ -2,34 +2,19 @@
 
 import { Button, Flex, Modal, Typography } from "antd";
 import { useRef, useState } from "react";
-import { api, errorMessage, type SceneData, type VideoDetail } from "@/lib/api";
+import { api, errorMessage, type SceneData, type TextArea, type VideoDetail } from "@/lib/api";
 import { COLORS } from "@/app/theme";
 
-// The renderer's frame and safe zone (reels_render.textbox): keep these in step with it.
+// The renderer's frame (reels_render.layout). Where text and the logo may go comes with each video from the api.
 export const FRAME_WIDTH = 1080;
 export const FRAME_HEIGHT = 1920;
-const SCENE_BOX_BOTTOM = 1440;
 /** What the platforms draw over a video (frame 1080×1920): the search bar on top, the caption and music below, the
- * like/comment/share column on the right. The logo and the text stay out of it (api docs: brand logo). */
+ * like/comment/share column on the right. */
 export const COVERED = {
   top: 190,
   bottom: 1480,
   rightColumn: { x: 900, y1: 850, y2: 1600 },
 };
-/** The channel badge as the renderer lays it (reels_render.logo): its stored picture is 686 px across with the
- * logo 512 px in it, scaled to 120 px of logo, in the corner of the content scenes (the title scene has none). */
-const BADGE_CANVAS = 686;
-const BADGE_LOGO = 512;
-const BADGE_PAD = 61;
-const badgeWidth = (diameter: number) => Math.round((BADGE_CANVAS * diameter) / BADGE_LOGO);
-export const LOGO_CORNER_WIDTH = badgeWidth(120);
-/** Top-left of the badge on a content scene: its ring is 60 px from the right and 200 px from the top. */
-export function logoCorner(): [number, number] {
-  const pad = (BADGE_PAD * 120) / BADGE_LOGO;
-  return [Math.round(FRAME_WIDTH - 60 + pad - LOGO_CORNER_WIDTH), Math.round(200 - pad)];
-}
-
-export const SAFE = { left: 60, top: 220, right: 940, bottom: SCENE_BOX_BOTTOM };
 const SHOWN_WIDTH = 270; // the frame on screen, a quarter of its size
 const SCALE = SHOWN_WIDTH / FRAME_WIDTH;
 const STEP = 10; // frame pixels an arrow key moves the box
@@ -37,24 +22,19 @@ const STEP = 10; // frame pixels an arrow key moves the box
 type Size = { width: number; height: number };
 type Point = [number, number];
 
-function clamp(start: number, size: number, low: number, high: number, frame: number) {
-  if (size > high - low) {
-    return Math.floor((frame - size) / 2);
-  }
-  return Math.max(low, Math.min(start, high - size));
-}
-
-/** Top-left corner of the box (textbox.place_box): the template's place, or centred on the point in the zone. */
-export function placeBox(size: Size, centre: Point | null, isTitle: boolean): Point {
-  const middleX = Math.floor((FRAME_WIDTH - size.width) / 2);
-  if (centre === null) {
-    return [middleX, isTitle ? Math.floor((FRAME_HEIGHT - size.height) / 2) : SCENE_BOX_BOTTOM - size.height];
-  }
-  const x = isTitle
-    ? middleX
-    : clamp(centre[0] - Math.floor(size.width / 2), size.width, SAFE.left, SAFE.right, FRAME_WIDTH);
-  const y = clamp(centre[1] - Math.floor(size.height / 2), size.height, SAFE.top, SAFE.bottom, FRAME_HEIGHT);
-  return [x, y];
+/** Top-left corner of a text picture (reels_render.layout.place_box): centred across at the top when nobody placed it,
+ * else centred on the point, kept between the area's edges; the title moves only up and down. */
+export function placeBox(size: Size, centre: Point | null, isTitle: boolean, area: TextArea): Point {
+  const middle = isTitle || centre === null ? FRAME_WIDTH / 2 : centre[0];
+  const left = area.left - area.inset;
+  const right = area.right + area.inset;
+  const x =
+    size.width > right - left
+      ? left + Math.floor((right - left - size.width) / 2)
+      : Math.max(left, Math.min(middle - Math.floor(size.width / 2), right - size.width));
+  const top = area.top - area.inset;
+  const y = centre === null ? top : centre[1] - Math.floor(size.height / 2);
+  return [x, Math.max(top, Math.min(y, area.bottom + area.inset - size.height))];
 }
 
 /** The centre of a box placed at a corner, as the api stores it: the inverse of placeBox (which takes half the
@@ -64,10 +44,10 @@ const centreOf = (corner: Point, size: Size): Point => [
   corner[1] + Math.floor(size.height / 2),
 ];
 
-/** Where the scene's text box is drawn: where it was placed, else where a framed photo ("Khung ảnh") puts it, else
- * null (the template's place). */
+/** Where the scene's text box is drawn: where it was placed, else where a framed photo ("Khung ảnh") or its zone puts
+ * it, else null (the top). */
 export function shownAt(scene: SceneData): Point | null {
-  return scene.placed_at ?? scene.image_frame?.text_at ?? null;
+  return scene.placed_at ?? scene.image_frame?.text_at ?? scene.text_area.home;
 }
 
 /** The scene's frame without text for a box centred at `centre`: a framed photo sits below a box in the upper half
@@ -79,7 +59,7 @@ export function frameFor(scene: SceneData, centre: Point | null): string | null 
   return `${scene.frame_url}&anchor=${centre !== null && centre[1] >= FRAME_HEIGHT / 2 ? "bottom" : "top"}`;
 }
 
-/** Drag the scene's text box over its frame, inside the platforms' safe zone, and save it for the scene or video. */
+/** Drag the scene's text box over its frame, inside the video's text area, and save it for the scene or video. */
 export default function TextPositionModal({
   scene,
   onClose,
@@ -91,18 +71,19 @@ export default function TextPositionModal({
 }) {
   const [size, setSize] = useState<Size | null>(null);
   // A framed photo's "Vị trí gốc" is where the framing puts the text.
-  const home = scene.image_frame?.text_at ?? null;
+  const area = scene.text_area;
+  const home = scene.image_frame?.text_at ?? area.home;
   const [centre, setCentre] = useState<Point | null>(shownAt(scene));
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const drag = useRef<{ pointer: Point; centre: Point } | null>(null);
-  const corner = size ? placeBox(size, centre, scene.is_title) : null;
+  const corner = size ? placeBox(size, centre, scene.is_title, area) : null;
   const videoWide = !scene.is_title && scene.text_position === null && scene.placed_at !== null;
 
   function moveTo(point: Point) {
     if (size) {
       // Kept where the renderer will really put it, so the box stops at the zone's edges while dragged.
-      setCentre(centreOf(placeBox(size, point, scene.is_title), size));
+      setCentre(centreOf(placeBox(size, point, scene.is_title, area), size));
     }
   }
 
@@ -200,14 +181,14 @@ export default function TextPositionModal({
           )}
           {/* Outside the safe zone, darkened. */}
           <div
-            style={{ position: "absolute", left: 0, right: 0, top: 0, height: scaled(SAFE.top), background: shade }}
+            style={{ position: "absolute", left: 0, right: 0, top: 0, height: scaled(area.top), background: shade }}
           />
           <div
             style={{
               position: "absolute",
               left: 0,
               right: 0,
-              top: scaled(SAFE.bottom),
+              top: scaled(area.bottom),
               bottom: 0,
               background: shade,
             }}
@@ -216,29 +197,29 @@ export default function TextPositionModal({
             style={{
               position: "absolute",
               left: 0,
-              width: scaled(SAFE.left),
-              top: scaled(SAFE.top),
-              height: scaled(SAFE.bottom - SAFE.top),
+              width: scaled(area.left),
+              top: scaled(area.top),
+              height: scaled(area.bottom - area.top),
               background: shade,
             }}
           />
           <div
             style={{
               position: "absolute",
-              left: scaled(SAFE.right),
+              left: scaled(area.right),
               right: 0,
-              top: scaled(SAFE.top),
-              height: scaled(SAFE.bottom - SAFE.top),
+              top: scaled(area.top),
+              height: scaled(area.bottom - area.top),
               background: shade,
             }}
           />
           <div
             style={{
               position: "absolute",
-              left: scaled(SAFE.left),
-              top: scaled(SAFE.top),
-              width: scaled(SAFE.right - SAFE.left),
-              height: scaled(SAFE.bottom - SAFE.top),
+              left: scaled(area.left),
+              top: scaled(area.top),
+              width: scaled(area.right - area.left),
+              height: scaled(area.bottom - area.top),
               border: "1px dashed rgba(255,255,255,0.7)",
               boxSizing: "border-box",
               pointerEvents: "none",

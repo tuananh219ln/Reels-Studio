@@ -980,10 +980,9 @@ def save_render(
     old = video.mp4_key
     video.mp4_key, video.mp4_seconds, video.render_seconds = key, seconds, round(elapsed, 1)
     video.rendered_signature, video.rendered_at = signature, now()
-    if effective(video)["title_layout"] == "three_tier":
-        # PC Shopee's compact title: the thumbnail is drawn again with each render, so a video whose title layout was
-        # chosen before the thumbnail followed it is brought up to date.
-        refresh_thumbnail(db, storage, video, split_scenes(db, video)[0])
+    # The thumbnail is drawn again with each render, so a video made before a change of the title's layout or of the
+    # places text goes to (reels_render.layout) is brought up to date.
+    refresh_thumbnail(db, storage, video, split_scenes(db, video)[0])
     db.commit()
     # The old MP4 stays playable until the new one is committed.
     if old and old != key:

@@ -5,20 +5,19 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from .layout import DEFAULT_PROFILE, FRAME_HEIGHT, FRAME_WIDTH, PROFILES
 from .markup import Run
 
 FONT_PATH = Path(__file__).parent / "fonts" / "BeVietnamPro-Black.ttf"
 # The text boxes' font (options.text_font): Be Vietnam Pro Black is the original, Bungee the display font of the PC looks.
 FONTS = {"be_vietnam": FONT_PATH, "bungee": Path(__file__).parent / "fonts" / "Bungee-Regular.ttf"}
 
-FRAME_WIDTH = 1080
-FRAME_HEIGHT = 1920
-MAX_BOX_WIDTH = 960
+# The widest a text box is drawn: the default profile's room between its side edges (layout.py).
+MAX_BOX_WIDTH = PROFILES[DEFAULT_PROFILE].text_width
 PAD_X = 44
 PAD_Y = 30
 RADIUS = 22
 LEADING = 0.06  # of font size, keeps descenders off the stacked marks of the next line
-SCENE_BOX_BOTTOM = 1440
 
 BOX_COLOR = "#FFD60A"
 TEXT_COLOR = "#111111"
@@ -152,7 +151,7 @@ CAPTION_SIZE = 58
 CAPTION_MAX_LINES = 2
 CAPTION_PAD_X = 28
 CAPTION_PAD_Y = 16
-CAPTION_GAP = 28  # between the captions and the text box under them
+CAPTION_WIDTH = PROFILES[DEFAULT_PROFILE].subtitle_width  # the widest caption box, clear of the apps' button column
 CAPTION_BOX = (0, 0, 0, 170)
 CAPTION_TEXT = "#FFFFFF"
 CAPTION_LIT = "#FFD60A"
@@ -264,8 +263,10 @@ def _wrap(line: list[Run], font: ImageFont.FreeTypeFont, max_width: float) -> li
     return wrapped
 
 
-def layout_text(lines: list[list[Run]], style: BoxStyle, font_name: str = "be_vietnam") -> TextLayout:
-    max_text_width = MAX_BOX_WIDTH - 2 * PAD_X
+def layout_text(
+    lines: list[list[Run]], style: BoxStyle, font_name: str = "be_vietnam", max_width: int = MAX_BOX_WIDTH
+) -> TextLayout:
+    max_text_width = max_width - 2 * PAD_X
     needed_lines = 0
     for size in _sizes(style):
         font = _font(size, font_name)
@@ -295,24 +296,25 @@ def layout_text(lines: list[list[Run]], style: BoxStyle, font_name: str = "be_vi
         raise TextFitError(
             f"chữ quá dài: ở cỡ tối thiểu {style.min_size}px vẫn cần {needed_lines} dòng, tối đa {style.max_lines} dòng"
         )
-    raise TextFitError(f"có từ quá dài, không vừa hộp rộng {MAX_BOX_WIDTH}px ở cỡ tối thiểu {style.min_size}px")
+    raise TextFitError(f"có từ quá dài, không vừa hộp rộng {max_width}px ở cỡ tối thiểu {style.min_size}px")
 
 
-def layout_sized(lines: list[list[Run]], size: str, is_title: bool, font: str = "be_vietnam") -> TextLayout:
+def layout_sized(
+    lines: list[list[Run]], size: str, is_title: bool, font: str = "be_vietnam", max_width: int = MAX_BOX_WIDTH
+) -> TextLayout:
     """The box's layout at a text size (TEXT_SIZES): Lớn picks the largest font that fits; Vừa and Nhỏ start from
     that font scaled down (SIZE_FACTORS), never below their own floor, and shrink further only to fit."""
     large = box_style("large", is_title)
     if size == "large":
-        return layout_text(lines, large, font)
+        return layout_text(lines, large, font, max_width)
     style = box_style(size, is_title)
     try:
-        chosen = layout_text(lines, large, font).font_size
+        chosen = layout_text(lines, large, font, max_width).font_size
     except TextFitError:
         chosen = large.min_size
     target = max(style.min_size, round(chosen * SIZE_FACTORS[size]))
-    return layout_text(
-        lines, BoxStyle(max_size=target, min_size=min(style.min_size, target), max_lines=style.max_lines), font
-    )
+    scaled = BoxStyle(max_size=target, min_size=min(style.min_size, target), max_lines=style.max_lines)
+    return layout_text(lines, scaled, font, max_width)
 
 
 def render_box(layout: TextLayout, palette: Palette = PALETTES["yellow"]) -> Image.Image:
@@ -346,41 +348,6 @@ def empty_box() -> Image.Image:
     return Image.new("RGBA", (1, 1), (0, 0, 0, 0))
 
 
-def title_box_position(width: int, height: int) -> tuple[int, int]:
-    return (FRAME_WIDTH - width) // 2, (FRAME_HEIGHT - height) // 2
-
-
-def scene_box_position(width: int, height: int) -> tuple[int, int]:
-    return (FRAME_WIDTH - width) // 2, SCENE_BOX_BOTTOM - height
-
-
-# Where the platforms draw nothing over the video (left, top, right, bottom): below the top bar, left of the
-# like/comment/share column and above the caption and music area. A moved text box stays inside it.
-SAFE_ZONE = (60, 220, 940, SCENE_BOX_BOTTOM)
-
-
-def _clamp(start: int, size: int, low: int, high: int, frame: int) -> int:
-    if size > high - low:
-        return (frame - size) // 2  # wider (or taller) than the zone: centred across the frame
-    return max(low, min(start, high - size))
-
-
-def place_box(
-    width: int, height: int, centre: tuple[int, int] | None, is_title: bool, min_top: int | None = None
-) -> tuple[int, int]:
-    """Top-left corner of a text box: where the template puts it, or centred on `centre` (a member dragged it)
-    inside SAFE_ZONE. The title moves only up and down, so the thumbnail stays centred. `min_top` (a channel logo is
-    on) keeps the box from starting higher than that, below the safe zone's own top."""
-    if centre is None:
-        x, y = title_box_position(width, height) if is_title else scene_box_position(width, height)
-        return x, y if min_top is None else max(y, min_top)
-    left, top, right, bottom = SAFE_ZONE
-    top = top if min_top is None else max(top, min_top)
-    x = (FRAME_WIDTH - width) // 2 if is_title else _clamp(centre[0] - width // 2, width, left, right, FRAME_WIDTH)
-    y = _clamp(centre[1] - height // 2, height, top, bottom, FRAME_HEIGHT)
-    return x, y
-
-
 # "Nền tối mờ sau chữ": a black band behind a content scene's text, darkest (45%) at the text and fading out over
 # SHADE_FADE px above and below it, across the whole frame's width, so the text reads on a busy photo without a box.
 SHADE_ALPHA = 115  # 45% of 255
@@ -412,18 +379,10 @@ def with_shade(box: Image.Image, x: int, y: int) -> tuple[Image.Image, tuple[int
     return Image.alpha_composite(band, layer), (0, first)
 
 
-def caption_y(above: int, box_bottom: int, height: int) -> int:
-    """Captions sit with their bottom at `above` (just over the text box), or just under the box when a box moved
-    up would push them past the top of the safe zone."""
-    if above - height < SAFE_ZONE[1]:
-        return box_bottom + CAPTION_GAP
-    return above - height
-
-
-def caption_lines(words: list[str]) -> list[list[str]] | None:
-    """The words wrapped to the caption width at the caption size; None when they need more than two lines."""
+def caption_lines(words: list[str], width: int = CAPTION_WIDTH) -> list[list[str]] | None:
+    """The words wrapped to a caption box `width` wide at the caption size; None when they need more than two lines."""
     font = _font(CAPTION_SIZE)
-    max_width = MAX_BOX_WIDTH - 2 * CAPTION_PAD_X
+    max_width = width - 2 * CAPTION_PAD_X
     lines: list[list[str]] = [[]]
     for word in words:
         trial = " ".join([*lines[-1], word])

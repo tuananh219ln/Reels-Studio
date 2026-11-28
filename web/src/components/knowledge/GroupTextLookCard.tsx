@@ -37,7 +37,11 @@ const FIELDS = [
   "pc_title_style",
   "title_layout",
   "scene_text_layout",
+  "text_shade",
+  "title_effects",
 ] as const;
+// The checkboxes show the member's own until the group's look says otherwise; saved only once the look holds them.
+const SWITCHES = ["text_shade", "title_effects"] as const;
 const PC_START: Look = {
   captions: "cumulative",
   text_hold_sec: 2.5,
@@ -48,6 +52,11 @@ const PC_START: Look = {
 };
 // How often the card reads the group again while "AI gợi ý" is being made (one LLM call, a few seconds).
 const POLL_MS = 3000;
+
+/** Where the editor's own values start: `base` without the checkboxes, which then show through from it. */
+function startOf(base: Look): Look {
+  return Object.fromEntries(Object.entries(base).filter(([name]) => !(SWITCHES as readonly string[]).includes(name)));
+}
 
 function pick(look: Look): Look {
   return Object.fromEntries(FIELDS.filter((name) => look[name] !== undefined).map((name) => [name, look[name]]));
@@ -142,7 +151,7 @@ export default function GroupTextLookCard({
   // PC Shopee's own starting look (api video_options.apply_defaults), so its card shows what a new video would take.
   const base: Look = isPcShopee(topic.name) ? { ...start, ...PC_START } : start;
   const [own, setOwn] = useState(topic.text_look !== null);
-  const [look, setLook] = useState<Look>({ ...base, ...(topic.text_look ?? {}) });
+  const [look, setLook] = useState<Look>({ ...startOf(base), ...(topic.text_look ?? {}) });
   const [aiEach, setAiEach] = useState(topic.text_ai);
   const [seen, setSeen] = useState(JSON.stringify([topic.text_look, topic.text_ai]));
   const [busy, setBusy] = useState(false);
@@ -152,7 +161,7 @@ export default function GroupTextLookCard({
   if (seen !== key) {
     setSeen(key);
     setOwn(topic.text_look !== null);
-    setLook({ ...base, ...(topic.text_look ?? {}) });
+    setLook({ ...startOf(base), ...(topic.text_look ?? {}) });
     setAiEach(topic.text_ai);
   }
   const making = topic.text_job?.status === "queued" || topic.text_job?.status === "running";
@@ -277,7 +286,7 @@ export default function GroupTextLookCard({
                 <Button
                   onClick={() => {
                     setOwn(true);
-                    setLook({ ...base, ...(topic.text_look ?? {}), ...option.look });
+                    setLook({ ...startOf(base), ...(topic.text_look ?? {}), ...option.look });
                     message.info("Đã đưa vào phần chỉnh bên dưới, bấm “Lưu chữ & phụ đề” để dùng");
                   }}
                 >

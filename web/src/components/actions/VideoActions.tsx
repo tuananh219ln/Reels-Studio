@@ -3,7 +3,7 @@
 import FormDrawer from "@/components/FormDrawer";
 import { useMe } from "@/components/MeContext";
 import { EditorContext } from "@/components/video/AutoSaveField";
-import DeleteVideoContent from "@/components/video/DeleteVideoContent";
+import DeleteVideoContent, { deleteBlock } from "@/components/video/DeleteVideoContent";
 import CloneModal, { type CloneTarget } from "@/components/video/CloneModal";
 import MoveGroupDrawer from "@/components/video/MoveGroupDrawer";
 import { PublishButton } from "@/components/video/PublishCard";
@@ -99,6 +99,7 @@ export default function VideoActions({
       ];
     }
     const mine = detail.created_by_id === me.id;
+    const blocked = deleteBlock(detail);
     const posting = Boolean(detail.mp4) || Boolean(detail.active_job ?? detail.failed_job);
     return [
       ...(onRename ? [{ key: "rename", label: "Đổi tên", onClick: onRename }] : []),
@@ -117,7 +118,6 @@ export default function VideoActions({
         : []),
       ...(detail.has_script
         ? [
-            { key: "clone", label: "Nhân bản", onClick: () => setClone("same") },
             { key: "duplicate", label: "Nhân bản y hệt", onClick: () => void duplicate() },
             { key: "shuffle", label: "Nhân bản xáo cảnh", onClick: () => setShuffling(true) },
             ...(detail.platform === "facebook"
@@ -141,7 +141,15 @@ export default function VideoActions({
         ? [
             { type: "divider" as const },
             { key: "move", label: "Chuyển sang nhóm khác", disabled: detail.locked, onClick: () => setMoving(true) },
-            { key: "delete", label: "Xóa video", danger: true, disabled: detail.locked, onClick: remove },
+            {
+              key: "delete",
+              label: "Xóa video",
+              // Why it is greyed out: the item's own hover text, as a Tooltip inside a disabled item never opens.
+              title: blocked ?? undefined,
+              danger: true,
+              disabled: Boolean(blocked),
+              onClick: remove,
+            },
           ]
         : []),
     ];

@@ -52,6 +52,7 @@ TOPIC_FIELDS = (
     "video_mode",
     "text_look",
     "text_ai",
+    "video_look",
     "no_people",
     "outro_cta",
     "youtube_meta",

@@ -9,6 +9,7 @@ import { useMe } from "@/components/MeContext";
 import { api, errorMessage, formatDateTime, type VideoDefaults, type VideoDetail } from "@/lib/api";
 import { narration } from "@/lib/narration";
 import { useEditor } from "./AutoSaveField";
+import LayoutCard from "./LayoutCard";
 import LogoCard from "./LogoCard";
 import MusicCard from "./MusicCard";
 import { SpeechRemakeNote, UploadedVoiceNote, speechBefore, type SpeechBefore } from "./NarrationNotes";
@@ -115,6 +116,7 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
         onChange={(keep_media) => void save({ keep_media })}
       />
       <LogoCard video={video} disabled={disabled} onSave={(options) => void save({ options })} />
+      <LayoutCard video={video} disabled={disabled} onSave={(options) => void save({ options })} />
       <Collapse
         size="small"
         className="setup-groups"
