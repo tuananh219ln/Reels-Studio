@@ -710,6 +710,7 @@ test("a scene reads an uploaded MP3, and a group writes its voice by role", asyn
   await expect(first.getByTestId("scene-voice")).toHaveCount(0);
   // One file among scenes the service reads: the scene's line and the settings say the voices are mixed.
   await expect(first.getByTestId("scene-mp3")).toHaveText("MP3 tải lên");
+  await expect(page.getByTestId("scene-mp3")).toHaveCount(1);
   await openPanel(page, "Âm thanh");
   const note = page.getByTestId("uploaded-voice-note");
   await expect(note).toContainText("Trộn 2 nguồn giọng: 1 cảnh đọc MP3 tải lên");
@@ -781,9 +782,140 @@ test("settings: another speed after the narration is made says what it costs, wi
       timeout: 5_000,
     });
   }).toPass({ timeout: 30_000 });
+  // The way back saves the old speed; the next change is told against the narration as it stands again.
+  const undone = page.waitForResponse(
+    (response) => /\/api\/videos\/\d+$/.test(response.url()) && response.request().method() === "PATCH",
+  );
   await remake.getByRole("button", { name: "Hoàn tác" }).click();
+  await undone;
   await expect(remake).toHaveCount(0);
   await expect(speed).toHaveAttribute("aria-valuenow", before!);
+
+  // Another voice reads the same scenes again, and says nothing about the video's length.
+  const voice = page.locator("[data-side-panel]").getByLabel("Giọng đọc", { exact: true });
+  await voice.click();
+  await voice.fill("Mai");
+  await page.keyboard.press("Enter");
+  await expect(remake).toContainText(/Đã đổi giọng: lần render sau tạo lại lời đọc cho \d+ cảnh \(tốn ký tự\)\./);
+  await expect(remake).not.toContainText("video dài khoảng");
+});
+
+test("settings: every scene on an uploaded MP3 hides the voice and speed, and only the maker drops the files", async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await addUser(page, "binh@doi.vn", "Trần Thị Bình", "tam-thoi-123");
+  await newVideoWithScript(page, "mọi cảnh đọc bằng file");
+  const address = new URL(page.url()).pathname;
+  const id = address.split("/").pop();
+  const video = await (await page.request.get(`/api/videos/${id}`)).json();
+  const read: { id: number }[] = [video.title_scene, ...video.scenes].filter((scene) => scene?.spoken_text);
+  expect(read.length).toBeGreaterThan(1);
+  const mp3 = path.join(os.tmpdir(), `giong-ca-video-${Date.now()}.mp3`);
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "sine=duration=1", "-c:a", "libmp3lame", mp3]);
+  const buffer = await readFile(mp3);
+  for (const scene of read) {
+    const sent = await page.request.post(`/api/scenes/${scene.id}/voice`, {
+      multipart: { file: { name: "giong.mp3", mimeType: "audio/mpeg", buffer } },
+      headers: { Origin: new URL(page.url()).origin },
+    });
+    expect(sent.ok()).toBe(true);
+  }
+  await page.reload();
+
+  // Nothing is mixed, so no scene is tagged; the story card says it while closed.
+  await expect(page.getByTestId("story-summary")).toContainText(`MP3 tải lên ${read.length} cảnh`);
+  await expect(page.getByTestId("story-summary")).not.toContainText("giọng dịch vụ");
+  await expect(page.getByTestId("scene-mp3")).toHaveCount(0);
+  await openPanel(page, "Âm thanh");
+  const side = page.locator("[data-side-panel]");
+  const note = page.getByTestId("uploaded-voice-note");
+  await expect(note).toContainText(`Lời đọc là MP3 tải lên (${read.length} cảnh)`);
+  await expect(side.getByLabel("Giọng đọc", { exact: true })).toHaveCount(0);
+  await expect(side.getByRole("slider", { name: "Tốc độ đọc" })).toHaveCount(0);
+  await expect(side.getByRole("slider", { name: "Âm lượng giọng" })).toBeVisible();
+  // Closed, the group says where the narration comes from.
+  const header = page.locator(".ant-collapse-header[aria-expanded]").filter({
+    has: page.locator(".ant-collapse-title").getByText("Âm thanh", { exact: true }),
+  });
+  await header.click();
+  await expect(header).toContainText(`MP3 tải lên ${read.length} cảnh`);
+  await openPanel(page, "Âm thanh");
+
+  // With the narration off there is nothing to say about the files.
+  const reading = side.getByRole("switch", { name: "Đọc lời từng cảnh" });
+  await reading.click();
+  await expect(reading).not.toBeChecked();
+  await expect(note).toHaveCount(0);
+  await expect(page.getByTestId("story-summary")).toContainText("không lời đọc");
+  await reading.click();
+  await expect(note).toBeVisible();
+
+  // A teammate reads the note, without the button that drops the files.
+  const binh = await (await browser.newContext({ baseURL: "http://localhost:3100", locale: "vi-VN" })).newPage();
+  await login(binh, "binh@doi.vn", "tam-thoi-123");
+  await binh.getByLabel("Mật khẩu mới", { exact: true }).fill("binh-moi-1234");
+  await binh.getByLabel("Nhập lại mật khẩu mới").fill("binh-moi-1234");
+  await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
+  await expect(binh).toHaveURL(/\/videos$/);
+  await binh.goto(address);
+  await openPanel(binh, "Âm thanh");
+  await expect(binh.getByTestId("uploaded-voice-note")).toBeVisible();
+  await expect(binh.getByRole("button", { name: "Bỏ tất cả file, dùng giọng dịch vụ" })).toHaveCount(0);
+  await binh.close();
+
+  // The maker drops them all at once, after a question, and the voice and speed are back.
+  await expect(async () => {
+    const confirm = page.getByRole("button", { name: "Bỏ tất cả", exact: true });
+    if ((await note.count()) > 0) {
+      if (!(await confirm.isVisible())) {
+        await note.getByRole("button", { name: "Bỏ tất cả file, dùng giọng dịch vụ" }).click({ timeout: 2_000 });
+      }
+      await confirm.click({ timeout: 2_000 });
+    }
+    await expect(note).toHaveCount(0, { timeout: 15_000 });
+  }).toPass({ timeout: 60_000 });
+  await expect(side.getByLabel("Giọng đọc", { exact: true })).toBeVisible();
+  await expect(side.getByRole("slider", { name: "Tốc độ đọc" })).toBeVisible();
+  const after = await (await page.request.get(`/api/videos/${id}`)).json();
+  expect([after.title_scene, ...after.scenes].some((scene) => scene?.voice_custom)).toBe(false);
+});
+
+test("video page: the scenes' card heads the list, the topic card sits under the header, and ← goes back", async ({
+  page,
+}) => {
+  test.setTimeout(150_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "đậu phụ cho người lớn tuổi");
+  // Not from a plan idea: the topic, maker and kind show at once, with nothing to open.
+  await expect(page.getByTestId("video-kind-line")).toContainText("tạo bởi");
+  await expect(page.getByTestId("plan-idea-card")).toHaveCount(0);
+  // The title scene counts too, and is marked "T"; the others carry their number.
+  await expect(page.getByTestId("scene-count")).toHaveText("Cảnh (6)");
+  await expect(page.getByTestId("title-scene").locator(".scene-thumb__badge")).toHaveText("T");
+  await expect(page.getByTestId("scene").first().locator(".scene-thumb__badge")).toHaveText("1");
+  await expect(page.getByTestId("scene").nth(4).locator(".scene-thumb__badge")).toHaveText("5");
+  await page.getByRole("button", { name: "Thêm cảnh" }).click();
+  await expect(page.getByTestId("scene-count")).toHaveText("Cảnh (7)");
+  await page.getByRole("link", { name: "Danh sách video" }).click();
+  await expect(page).toHaveURL(/\/videos$/);
+});
+
+test("phone width: the video page keeps inside the screen, with the back button above the title", async ({ page }) => {
+  test.setTimeout(150_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "cá hồi cho tim mạch");
+  const back = page.getByRole("link", { name: "Danh sách video" });
+  await expect(back).toBeInViewport();
+  const button = await back.boundingBox();
+  const title = await page.getByTestId("video-title").boundingBox();
+  expect(title!.y).toBeGreaterThan(button!.y + button!.height - 1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await back.click();
+  await expect(page).toHaveURL(/\/videos$/);
 });
 
 test("knowledge topics: a group's text look from an AI suggestion is what its new videos start with", async ({
@@ -4068,6 +4200,8 @@ test("30-day plan: an idea added for today becomes a video, linked both ways", a
   await expect(page.getByTestId("video-kind-line")).toBeHidden();
   await planIdea.getByRole("button", { name: "Chi tiết" }).click();
   await expect(page.getByTestId("video-kind-line")).toContainText("tạo bởi");
+  await planIdea.getByRole("button", { name: "Thu gọn" }).click();
+  await expect(page.getByTestId("video-kind-line")).toBeHidden();
 
   await page.goto("/videos");
   await expect(page.getByTestId("plan-banner")).toHaveText(/đã làm đủ 1 video hôm nay/);
