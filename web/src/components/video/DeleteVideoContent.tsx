@@ -56,6 +56,20 @@ export function postLines(video: Pick<VideoDetail, "publications" | "tiktok_post
   return lines;
 }
 
+/** Why "Xóa video" is greyed out for this video, or null: it is posted somewhere (kept for the view report, as the api's
+ * bulk delete does) or a job holds it. */
+export function deleteBlock(
+  video: Pick<VideoDetail, "publications" | "tiktok_posts" | "manual_posts" | "locked">,
+): string | null {
+  const posted =
+    video.publications.some((post) => post.status === "published") ||
+    video.tiktok_posts.some((post) => post.status === "published") ||
+    video.manual_posts.some((post) => post.status === "published");
+  if (posted) return "Video đã đăng, cần giữ để làm báo cáo view";
+  if (video.locked) return "Video đang render";
+  return null;
+}
+
 /** The body of the "Xóa video" confirmation: what is deleted, and every post the video has on a platform. */
 export default function DeleteVideoContent({ video }: { video: VideoDetail | null }) {
   const lines = video ? postLines(video) : [];
