@@ -18,7 +18,7 @@ export default function SceneViewer({ scene, onClose }: { scene: SceneData; onCl
   const [showText, setShowText] = useState(true);
   const [box, setBox] = useState<{ width: number; height: number } | null>(null);
   const clip = scene.video;
-  const corner = box ? placeBox(box, shownAt(scene), scene.is_title) : null;
+  const corner = box ? placeBox(box, shownAt(scene), scene.is_title, scene.text_area) : null;
   // The part of the clip the scene plays: its seconds at its speed, from its start.
   const clipEnd = clip ? clip.start + scene.seconds * clip.speed : 0;
 

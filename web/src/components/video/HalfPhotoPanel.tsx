@@ -49,7 +49,7 @@ function useBoxSize(url: string | null): Size | null {
 /** Whether the scene's text box, where the render puts it, covers part of its inset photo. */
 function textOverInset(scene: SceneData, box: Size | null, layer: SceneLayer | undefined): boolean {
   if (!box || !layer) return false;
-  const [left, top] = placeBox(box, scene.placed_at, false);
+  const [left, top] = placeBox(box, scene.placed_at ?? scene.text_area.home, false, scene.text_area);
   const side = halfHeight(layer.height);
   const [insetLeft, insetTop] = layerCorner(side, side, layer);
   const across = left < insetLeft + side && left + box.width > insetLeft;
@@ -158,7 +158,7 @@ export default function HalfPhotoPanel({
 
   const ground = backdrop ?? scene;
   const picture = ground.frame_url ?? ground.preview_url;
-  const textCorner = box ? placeBox(box, scene.placed_at, false) : null;
+  const textCorner = box ? placeBox(box, scene.placed_at ?? scene.text_area.home, false, scene.text_area) : null;
   const height = resizing ?? layer?.height ?? 0;
   const side = layer ? halfHeight(height) : 0;
   const insetCorner = layer

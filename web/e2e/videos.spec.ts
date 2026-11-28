@@ -4021,7 +4021,7 @@ test("drag a scene's text box inside the safe zone, for that scene or every scen
   const firstBefore = await firstPreview.getAttribute("src");
   const secondBefore = await secondPreview.getAttribute("src");
 
-  // Dragged far up, the box stops at the top of the safe zone (y 220), clear of the platform's top bar.
+  // Dragged far up, the box stops at the top of the safe zone (y 290), clear of the platform's top bar.
   await openScene(first);
   await first.getByRole("button", { name: "Vị trí chữ" }).click();
   const dialog = page.getByRole("dialog", { name: "Vị trí chữ của cảnh" });
@@ -4036,7 +4036,7 @@ test("drag a scene's text box inside the safe zone, for that scene or every scen
   await page.mouse.up();
   const frame = await dialog.getByTestId("position-frame").boundingBox();
   const moved = await box.boundingBox();
-  expect(Math.round((moved?.y ?? 0) - (frame?.y ?? 0))).toBe(55); // 220 frame pixels at a quarter size
+  expect(Math.abs((moved?.y ?? 0) - (frame?.y ?? 0) - 72.5)).toBeLessThanOrEqual(1); // 290 px at a quarter size
   await dialog.getByRole("button", { name: "Lưu cho cảnh này" }).click();
   await expect(dialog).toHaveCount(0);
   await expect(firstPreview).not.toHaveAttribute("src", firstBefore ?? "");
@@ -4050,7 +4050,7 @@ test("drag a scene's text box inside the safe zone, for that scene or every scen
   await expect(secondBox).toBeVisible();
   await secondBox.focus();
   for (let step = 0; step < 30; step += 1) {
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("ArrowDown");
   }
   await page.getByRole("button", { name: "Lưu cho mọi cảnh" }).click();
   await expect(secondPreview).not.toHaveAttribute("src", secondBefore ?? "");
@@ -4071,9 +4071,9 @@ test("drag a scene's text box inside the safe zone, for that scene or every scen
   await title.getByRole("button", { name: "Vị trí chữ" }).click();
   const titleBox = page.getByRole("dialog", { name: "Vị trí chữ cảnh tiêu đề" }).getByTestId("position-box");
   await expect(titleBox).toBeVisible();
-  // Placed once its image has loaded: the title sits in the middle of the frame (x 539 or 540, as its width
-  // is odd or even). Its place is read from the box's value, not from the screen.
-  await expect(titleBox).toHaveAttribute("aria-valuetext", /^x 5(39|40), y 9\d\d$/);
+  // Placed once its image has loaded: the title starts 290 down, centred across (x 539 or 540, as its width is
+  // odd or even). Its place is read from the box's value, not from the screen.
+  await expect(titleBox).toHaveAttribute("aria-valuetext", /^x 5(39|40), y [345]\d\d$/);
   const [centredX, centredY] = ((await titleBox.getAttribute("aria-valuetext")) ?? "").match(/\d+/g)!.map(Number);
   await titleBox.focus();
   await page.keyboard.press("ArrowLeft");

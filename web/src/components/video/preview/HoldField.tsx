@@ -14,10 +14,13 @@ export default function HoldField({
   editable,
   onChange,
   zone,
+  usualZone,
   onZone,
 }: {
-  zone: "top" | null;
-  onZone: (zone: "top" | null) => void;
+  zone: "top" | "bottom" | null;
+  /** Where the scene's compact text or captions sit when nobody chose: the captions low, the text high. */
+  usualZone: "top" | "bottom";
+  onZone: (zone: "top" | "bottom" | null) => void;
   value: number | null;
   videoValue: number | null;
   editable: boolean;
@@ -33,13 +36,13 @@ export default function HoldField({
       <Segmented
         size="small"
         aria-label="Vị trí chữ của cảnh"
-        value={zone ?? "bottom"}
+        value={zone ?? usualZone}
         disabled={!editable}
         options={[
           { value: "top", label: "Trên" },
           { value: "bottom", label: "Dưới" },
         ]}
-        onChange={(value) => onZone(value === "top" ? "top" : null)}
+        onChange={(value) => onZone(value === usualZone ? null : (value as "top" | "bottom"))}
       />
       <Select
         size="small"

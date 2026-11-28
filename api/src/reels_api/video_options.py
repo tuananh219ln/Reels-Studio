@@ -7,6 +7,7 @@ code defaults below render exactly the original template.
 
 from sqlalchemy.orm import Session as DbSession
 
+from reels_render.layout import DEFAULT_PROFILE, LOGO_MAX_SIZE, LOGO_MIN_SIZE, PROFILES
 from reels_render.markup import TEXT_CASES
 from reels_render.options import (
     BOX_OPACITIES,
@@ -91,6 +92,10 @@ DEFAULTS: dict = {
     "pc_title_style": "brand_navy",
     # The title preset's whole-frame effects (reels_render.pc_text.FRAME_EFFECTS, only some presets have them).
     "title_effects": True,
+    # Where text, captions and the logo may go (reels_render.layout.PROFILES): "balanced" for ordinary TikTok and
+    # Facebook posts, "universal" when the video also goes to Shorts, Instagram or an ad. The logo's own place and size
+    # are kept beside the brand, outside these (brands.apply_video_options).
+    "layout_profile": DEFAULT_PROFILE,
 }
 # The topic group the "Ẩn chữ sau X giây" setting is for. Its new videos start with PC_SHOPEE_TEXT_HOLD; every other
 # group keeps None, so nothing changes for them (docs/decisions/2026-11-27-text-hold.md).
@@ -152,6 +157,7 @@ CHOICES = {
     "title_layout": ("box", "three_tier"),
     "scene_text_layout": ("box", "two_tier"),
     "pc_title_style": PC_STYLES,
+    "layout_profile": tuple(PROFILES),
 }
 
 
@@ -188,6 +194,7 @@ LABELS = {
     "voice_pause": "Nghỉ sau lời đọc",
     "title_sfx": "Âm thanh tiêu đề động",
     "voice_enabled": "Giọng đọc",
+    "layout_profile": "Vùng an toàn",
 }
 
 
@@ -300,6 +307,8 @@ def choices() -> dict:
             },
             "text_position": {"width": FRAME_WIDTH, "height": FRAME_HEIGHT},
             "title_text_position": {"width": FRAME_WIDTH, "height": FRAME_HEIGHT},
+            "logo_position": {"width": FRAME_WIDTH, "height": FRAME_HEIGHT, "null": "the profile's"},
+            "logo_size": {"min": LOGO_MIN_SIZE, "max": LOGO_MAX_SIZE, "null": "the profile's"},
         }
     )
 
@@ -380,6 +389,8 @@ def text_look(video: Video) -> tuple[str, ...]:
     thumbnail change with them."""
     values = effective(video)
     look = tuple(values[name] for name in (*LOOK_FIELDS, "title_layout", "pc_title_style"))
+    if values["layout_profile"] != DEFAULT_PROFILE:
+        look = (*look, values["layout_profile"])
     # The sparkles are drawn into the title's picture, so its previews change with the switch (only then, so no other address moves).
     return (*look, values["title_effects"]) if values["pc_title_style"] in SPARKLE_STYLES else look
 
@@ -427,7 +438,9 @@ def preview_look(video: Video, is_title: bool) -> list[str]:
     values = effective(video)
     names = TITLE_LOOK_FIELDS if is_title else SCENE_LOOK_FIELDS
     look = [values[name] for name in names]
-    return [] if look == [DEFAULTS[name] for name in names] else look
+    look = [] if look == [DEFAULTS[name] for name in names] else look
+    # Another profile moves the text, so it joins the address whatever the rest of the look.
+    return [*look, values["layout_profile"]] if values["layout_profile"] != DEFAULT_PROFILE else look
 
 
 def render_options(video: Video) -> RenderOptions:
@@ -446,6 +459,9 @@ def render_options(video: Video) -> RenderOptions:
         title_layout=values["title_layout"],
         scene_text_layout=values["scene_text_layout"],
         backdrop=video.mode == "single",
+        layout_profile=values["layout_profile"],
+        logo_position=tuple(values["logo_position"]) if values.get("logo_position") else None,
+        logo_size=values.get("logo_size"),
         **{name: values[name] for name in LOOK_FIELDS},
     )
 
@@ -471,6 +487,7 @@ def look_signature(video: Video) -> dict | None:
         "scene_text_layout",
         "pc_title_style",
         "title_effects",
+        "layout_profile",
     ):
         if changed[name] == DEFAULTS[name]:
             del changed[name]
