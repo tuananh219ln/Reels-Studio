@@ -957,7 +957,11 @@ steps open the status card or the products block on its tab, the QC chip its pop
       choice of the saved templates the group holds and the one its new videos take: "Không áp mẫu của nhóm", "Gợi ý
       của app" or one of the group's, with "Lưu mẫu dựng"; the order a new video's template is picked in is spelled
       out above them: chosen on the video › the group's › the maker's own (Cài đặt › Mẫu dựng) › none; Cài đặt › Mẫu
-      dựng tags each template with the groups that hold it); on the right "Chữ & phụ đề của nhóm": the switches
+      dựng tags each template with the groups that hold it); on the right "Chuyển động & âm thanh của nhóm" (the switch
+      "Nhóm có chuyển động & âm thanh riêng", a grey line saying what on and off do; on: "Chuyển cảnh", "Chuyển động
+      ảnh" and "Độ zoom", then "Tốc độ đọc", "Âm lượng giọng", "Nghỉ sau lời đọc", "Âm lượng nhạc" and "Nhỏ nhạc khi có
+      giọng đọc", starting from the member's own defaults; "Lưu chuyển động & âm thanh"), and under it "Chữ & phụ đề của
+      nhóm": the switches
       "Nhóm có kiểu chữ riêng" (one fixed label, with a grey line under it saying what on and off do) and "AI chọn kiểu chữ cho từng
       video" (on: a grey line on what it does), "Gợi ý từ AI" with "AI gợi ý" ("Gợi ý lại" once there are some; while
       the job runs a spinner and "AI đang nghĩ kiểu chữ cho nhóm…", the card re-reading the group every 3 seconds; a
@@ -1793,7 +1797,7 @@ Where something is edited, its history is shown there, not on a page of its own
 
 - **Under the group's name**, after "N video, N prompt đã sửa": "<member> sửa <part> lúc dd/mm/yyyy hh:mm" (Vietnam
   time), a link that opens the group's whole history, each entry naming the parts it changed.
-- **"Lịch sử" on each card** (every prompt, Từ cấm, Gợi ý tìm ảnh, Giọng mặc định của nhóm, Kiểu video của nhóm, Chữ & phụ đề của nhóm, Prompt
+- **"Lịch sử" on each card** (every prompt, Từ cấm, Gợi ý tìm ảnh, Giọng mặc định của nhóm, Kiểu video của nhóm, Chuyển động & âm thanh của nhóm, Chữ & phụ đề của nhóm, Prompt
   kế hoạch) opens a
   drawer on the right, newest first. Each entry: its action as a tag (Tạo green, Sửa blue, Xoá red, Khôi phục gold),
   the member, the time, "qua Claude" or "tự động" when it did not come from the web, and "Đang dùng" on the latest.

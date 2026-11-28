@@ -191,6 +191,20 @@ LABELS = {
 }
 
 
+# A topic group's "Chuyển động & âm thanh" (`knowledge_topics.video_look`): how its new videos move and sound, over
+# their maker's defaults. The voice itself and "Chữ & phụ đề" are settings of their own.
+GROUP_VIDEO_FIELDS = (
+    "transition",
+    "motion",
+    "zoom",
+    "voice_speed",
+    "voice_volume",
+    "voice_pause",
+    "ducking",
+    "music_volume",
+)
+
+
 class OptionError(ValueError):
     """The message is shown to members."""
 
@@ -277,6 +291,28 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
             raise OptionError("Bài nhạc mặc định không hợp lệ")
         cleaned[name] = value
     return cleaned
+
+
+def clean_group_video(values: object) -> dict:
+    """A group's "Chuyển động & âm thanh" as a member saved it: only its fields, every one valid, or OptionError."""
+    if not isinstance(values, dict):
+        raise OptionError("Chuyển động và âm thanh của nhóm không hợp lệ")
+    if unknown := [name for name in values if name not in GROUP_VIDEO_FIELDS]:
+        raise OptionError(f"Nhóm không đặt được tuỳ chọn “{unknown[0]}”")
+    return clean(values, allow_video_fields=True)
+
+
+def group_video(group: KnowledgeTopic | None) -> dict:
+    """The group's own "Chuyển động & âm thanh", valid values only (a preset removed since is left out); {} when it has
+    none, and its videos take their maker's."""
+    stored = group.video_look if group is not None else None
+    values: dict = {}
+    for name, value in (stored or {}).items():
+        try:
+            values |= clean_group_video({name: value})
+        except OptionError:
+            continue
+    return values
 
 
 def choices() -> dict:
@@ -523,8 +559,8 @@ def forget_member_defaults(db: DbSession, user_id: int) -> None:
 
 
 def apply_defaults(db: DbSession, video: Video, user_id: int) -> None:
-    """A new video takes its maker's defaults (member_defaults), and the voice and "Chữ & phụ đề" of its topic group
-    when the group has them: video's own › group's › maker's own › built-in. It also starts on the channel whose
+    """A new video takes its maker's defaults (member_defaults), and the voice, "Chữ & phụ đề" and "Chuyển động &
+    âm thanh" of its topic group when the group has them: video's own › group's › maker's own › built-in. It also starts on the channel whose
     Page is in the video's topic group (`brands.default_for`), so the logo is on without picking it each time —
     and on no channel at all when the group has none of the maker's Pages. Set `video.knowledge_topic_id` first."""
     from . import brands  # imported here, like text_looks: kept out of this module's import-time graph
@@ -543,6 +579,10 @@ def apply_defaults(db: DbSession, video: Video, user_id: int) -> None:
         video.options["captions"] = "cumulative"
         video.options["title_layout"], video.options["scene_text_layout"] = "three_tier", "two_tier"
     video.options.update(group_look(group))  # the group's own look wins over PC Shopee's starting values
+    motion_and_sound = group_video(group)
+    # The music's level is the video's own column, not one of its options.
+    video.music_volume = motion_and_sound.pop("music_volume", video.music_volume)
+    video.options.update(motion_and_sound)
     brand = brands.default_for(db, user_id, video.knowledge_topic_id)
     if brand is not None:
         video.options["brand_id"] = brand.id

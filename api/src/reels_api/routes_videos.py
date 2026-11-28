@@ -2742,6 +2742,7 @@ class TopicPatchBody(BaseModel):
     video_mode: Literal["slides", "single", "alternate"] | None = None  # "Kiểu video" (videos.GROUP_VIDEO_MODES)
     text_look: dict | None = None  # "Chữ & phụ đề" (text_looks.FIELDS); null or {} (when sent): the maker's
     text_ai: bool | None = None  # "AI chọn kiểu chữ cho từng video"
+    video_look: dict | None = None  # "Chuyển động & âm thanh" (GROUP_VIDEO_FIELDS); null or {} (when sent): the maker's
     no_people: bool | None = None  # "Không dùng cảnh có người"
     outro_cta: bool | None = None  # "Cảnh kết Theo dõi & Chia sẻ" (outro.py)
     youtube_meta: dict | None = None  # "Mô tả YouTube" (youtube_meta.py); null or {} (when sent): none
@@ -2816,6 +2817,8 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 # suggested looks and its job (queued, running, or failed) while there is one to show.
                 "text_look": text_looks.group_look(topic) or None,
                 "text_ai": topic.text_ai,
+                # "Chuyển động & âm thanh": the group's own (None: each maker's).
+                "video_look": video_options.group_video(topic) or None,
                 "no_people": topic.no_people,
                 "outro_cta": topic.outro_cta,
                 # "Mô tả YouTube": every field present; `youtube_meta_set` false while the group uploads the caption.
@@ -2864,6 +2867,12 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
             name: value
             for name, value in video_options.member_defaults(db, user_id).items()
             if name in text_looks.FIELDS
+        },
+        # And its "Chuyển động & âm thanh".
+        "default_video_look": {
+            name: value
+            for name, value in video_options.member_defaults(db, user_id).items()
+            if name in video_options.GROUP_VIDEO_FIELDS
         },
     }
 
@@ -2973,6 +2982,7 @@ def duplicate_topic(topic_id: int, me: Session = Depends(current_member), db: Db
         plan_post_times=list(source.plan_post_times),
         stock_order=list(source.stock_order) if source.stock_order else None,
         text_look=dict(source.text_look) if source.text_look else None,
+        video_look=dict(source.video_look) if source.video_look else None,
         youtube_meta=youtube_meta.clean(source.youtube_meta),
         **{field: getattr(source, field) for field in COPIED_TOPIC_FIELDS},
     )
@@ -3053,6 +3063,11 @@ def patch_topic(
             raise invalid(str(err)) from None
     if body.text_ai is not None:
         topic.text_ai = body.text_ai
+    if "video_look" in body.model_fields_set:
+        try:
+            topic.video_look = video_options.clean_group_video(body.video_look) if body.video_look else None
+        except video_options.OptionError as err:
+            raise invalid(str(err)) from None
     if body.no_people is not None:
         topic.no_people = body.no_people
     if body.outro_cta is not None:
