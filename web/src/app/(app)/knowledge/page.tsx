@@ -66,6 +66,7 @@ import GroupOutroCard from "@/components/knowledge/GroupOutroCard";
 import GroupYouTubeCard from "@/components/knowledge/GroupYouTubeCard";
 import GroupQcCard from "@/components/knowledge/GroupQcCard";
 import GroupTextLookCard from "@/components/knowledge/GroupTextLookCard";
+import GroupVideoLookCard from "@/components/knowledge/GroupVideoLookCard";
 import { usePlanTabs } from "@/components/plan/PlanTab";
 import { VoicePicker } from "@/components/video/VideoSettings";
 
@@ -781,6 +782,7 @@ const TOPIC_FIELDS: Record<string, string> = {
   video_mode: "Kiểu video",
   text_look: "Chữ & phụ đề",
   text_ai: "AI chọn kiểu chữ cho từng video",
+  video_look: "Chuyển động & âm thanh",
   outro_cta: "Cảnh kết Theo dõi & Chia sẻ",
   youtube_meta: "Mô tả YouTube",
   qc_config: "QC & duyệt",
@@ -1064,12 +1066,15 @@ function TopicBody({
                       </Flex>
                     </Col>
                     <Col xs={24} xl={12}>
-                      <GroupTextLookCard
-                        topic={topic}
-                        start={defaults.default_text_look}
-                        update={update}
-                        reload={async (data) => onSaved(data ?? (await api<Knowledge>("/knowledge")))}
-                      />
+                      <Flex vertical gap={16}>
+                        <GroupVideoLookCard topic={topic} start={defaults.default_video_look} update={update} />
+                        <GroupTextLookCard
+                          topic={topic}
+                          start={defaults.default_text_look}
+                          update={update}
+                          reload={async (data) => onSaved(data ?? (await api<Knowledge>("/knowledge")))}
+                        />
+                      </Flex>
                     </Col>
                   </Row>
                 </section>

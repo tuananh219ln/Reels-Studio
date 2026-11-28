@@ -53,7 +53,7 @@ def test_a_group_has_no_look_of_its_own_until_one_is_saved(an, db, me):
     )
     # A look of its own starts from the member's own "Chữ & phụ đề".
     start = knowledge.json()["default_text_look"]
-    assert set(start) == set(text_looks.FIELDS) and start["text_size"] == "small"
+    assert set(start) == {*text_looks.FIELDS, *text_looks.SWITCHES} and start["text_size"] == "small"
     assert new_video(an, first_topic(db).id)["options"]["text_style"] == "yellow"
 
 
