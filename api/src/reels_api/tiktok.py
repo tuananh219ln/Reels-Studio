@@ -44,7 +44,15 @@ RATE_LIMITED = "TikTok đang giới hạn tốc độ, thử lại sau"
 NOT_CONFIGURED = "Chưa cấu hình TIKTOK_CLIENT_KEY/TIKTOK_CLIENT_SECRET trong .env"
 AUTH_CODES = {"access_token_invalid", "invalid_token", "token_expired", "scope_not_authorized", "invalid_grant"}
 RATE_LIMIT_CODES = {"rate_limit_exceeded"}
+# TikTok holds only a few drafts waiting in an account's inbox (about 5 in 24 hours) and refuses more. The sweep
+# (jobs.queue_tiktok_posts) reads this very message on a failed job to stop sending that account drafts for a day.
+INBOX_FULL = (
+    "Hộp nháp TikTok của tài khoản này đã đầy (TikTok chỉ giữ khoảng 5 video nháp đang chờ). Mở app TikTok, đăng hoặc"
+    " xóa các video nháp đang chờ, rồi bấm Thử lại. Trong 24 giờ tới Reels Studio tạm ngưng gửi nháp mới lên tài"
+    " khoản này"
+)
 MESSAGES = {
+    "spam_risk_too_many_pending_share": INBOX_FULL,
     "spam_risk_too_many_posts": "Tài khoản TikTok đã đăng đủ số bài cho phép trong ngày, hãy đăng lại vào ngày mai",
     "spam_risk_user_banned_from_posting": "TikTok đang chặn tài khoản này đăng bài",
     "unaudited_client_can_only_post_to_private_accounts": (

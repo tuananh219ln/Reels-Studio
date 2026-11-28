@@ -11,7 +11,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from PIL import Image, ImageOps
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
@@ -58,6 +58,7 @@ from . import (
     slot_comments,
     source_keys,
     text_looks,
+    tiktok,
     tiktok_publish,
     youtube_connections,
     youtube_publish,
@@ -1273,6 +1274,8 @@ def queue_tiktok_posts(db: DbSession) -> None:
         if already is not None:
             continue
         mode = page.tiktok_auto_mode or "draft"
+        if mode == "draft" and _tiktok_inbox_full(db, account.id):
+            continue  # its member was told to empty the inbox; more drafts would only be refused again
         try:
             with db.begin_nested():
                 made = Publication(
@@ -1298,6 +1301,34 @@ def queue_tiktok_posts(db: DbSession) -> None:
         except IntegrityError:
             continue
         log.info("Queued a TikTok %s post of video %s for Page %s", mode, video.id, page.name)
+
+
+def _tiktok_inbox_full(db: DbSession, account_id: int) -> bool:
+    """TikTok refused a draft of this account for its full inbox in the last TIKTOK_SWEEP_WINDOW, and no draft got
+    through since (the member emptied the inbox and pressed "Thử lại"): the sweep sends it no draft meanwhile."""
+    of_account = select(Publication.id).where(Publication.affiliate_account_id == account_id)
+    refused = db.scalar(
+        select(func.max(Job.finished_at)).where(
+            Job.kind == "tiktok_publish",
+            Job.status == "failed",
+            Job.error == tiktok.INBOX_FULL,
+            Job.finished_at >= now() - TIKTOK_SWEEP_WINDOW,
+            Job.publication_id.in_(of_account),
+        )
+    )
+    if refused is None:
+        return False
+    sent = db.scalar(
+        select(
+            exists().where(
+                Job.kind == "tiktok_publish",
+                Job.status == "done",
+                Job.finished_at > refused,
+                Job.publication_id.in_(of_account),
+            )
+        )
+    )
+    return not sent
 
 
 def queue_instagram_auto_posts(db: DbSession) -> None:
