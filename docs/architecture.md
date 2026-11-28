@@ -600,7 +600,8 @@ A scene may hold an uploaded video clip instead of a photo
 - **Places ([layout.py](../worker/src/reels_render/layout.py), [decision](decisions/2026-11-28-safe-layout.md)):** the render's
   `layout_profile` (`balanced` or `universal`) holds the text's edges, the captions' floor and the logo's place.
   `layout.place_box` starts a text nobody placed at `text_top_min`; `layout.caption_top` puts captions on the floor;
-  `layout.logo_box` keeps a video's own `logo_position` / `logo_size` inside the edges. `layout_profile` is always sent
+  `layout.logo_box` keeps a video's own `logo_position` / `logo_size` inside the side edges and between
+  `LOGO_TOP_MIN` and the captions' floor. `layout_profile` is always sent
   to a render machine, so one on older code refuses the video. The api sends the page the video's `layout` and each
   scene's `text_area`, and QC warns when the logo covers a scene's text.
 - **Text box place:** a scene may carry `text_position` ([x, y], the box centre); `layout.place_box`

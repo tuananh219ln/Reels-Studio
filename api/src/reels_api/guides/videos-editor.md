@@ -4,7 +4,7 @@
 Trang một video (`/videos/<số>`) tự cập nhật khi có job chạy và khi đồng đội sửa cùng lúc.
 
 ## Vị trí chữ, phụ đề và logo
-Mọi video dùng chung các mốc này khi bạn chưa tự kéo: **tiêu đề và chữ cảnh** bắt đầu cách mép trên 290 px, **phụ đề** nằm gần mép dưới, **logo** ở bên phải, dưới chữ. Cỡ chữ, phông và kiểu chữ vẫn theo cài đặt của video và của nhóm chủ đề.
+Mọi video dùng chung các mốc này khi bạn chưa tự kéo: **tiêu đề và chữ cảnh** bắt đầu cách mép trên 290 px, **phụ đề** nằm gần mép dưới, **logo** ở góc trên bên phải, phía trên chữ. Cỡ chữ, phông và kiểu chữ vẫn theo cài đặt của video và của nhóm chủ đề.
 - **Vùng an toàn** (tab Thiết lập): **TikTok, Facebook** (mặc định) cho bài đăng thường; **Mọi nền tảng** khi đăng cả YouTube Shorts, Instagram hoặc chạy quảng cáo (phụ đề cao hơn, lề phải rộng hơn).
 - **Dời logo:** ở thẻ **Logo**, bấm **Vị trí & cỡ**, kéo logo, chỉnh **Cỡ** rồi **Lưu**. **Đặt lại vị trí** đưa về chỗ mặc định. Một vị trí dùng cho cả video; cảnh tiêu đề không có logo. QC nhắc khi logo đè lên chữ.
 - **Kéo chữ** như trước (**Vị trí chữ**); chữ luôn được giữ trong vùng an toàn.

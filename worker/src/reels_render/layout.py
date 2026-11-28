@@ -36,12 +36,13 @@ class Profile:
 
 PROFILES = {
     # Ordinary posts on TikTok and Facebook Reels: the captions sit low.
-    "balanced": Profile("TikTok, Facebook Reels", 290, 65, 1015, 1530, 192, 750, 660, 130),
+    "balanced": Profile("TikTok, Facebook Reels", 290, 65, 1015, 1530, 192, 895, 160, 120),
     # Also on YouTube Shorts, Instagram Reels or boosted as an ad: the tightest of their frames.
-    "universal": Profile("Mọi nền tảng và quảng cáo", 290, 65, 888, 1248, 192, 750, 660, 130),
+    "universal": Profile("Mọi nền tảng và quảng cáo", 290, 65, 888, 1248, 192, 768, 160, 120),
 }
 DEFAULT_PROFILE = "balanced"
 LOGO_MIN_SIZE, LOGO_MAX_SIZE = 80, 240
+LOGO_TOP_MIN = 120  # the logo may sit over the texts, up in the corner, just under the phone's status bar
 
 
 def profile_of(name: str) -> Profile:
@@ -87,9 +88,9 @@ def logo_box(
     profile: Profile, position: tuple[int, int] | None = None, size: int | None = None
 ) -> tuple[int, int, int]:
     """The logo ring's top-left corner and diameter: the video's own, else the profile's, kept between the text's
-    side edges and between `text_top_min` and `subtitle_bottom`."""
+    side edges and between LOGO_TOP_MIN and `subtitle_bottom`."""
     size = max(LOGO_MIN_SIZE, min(size or profile.logo_size, LOGO_MAX_SIZE))
     x, y = position or (profile.logo_x, profile.logo_y)
     x = max(profile.text_left, min(x, profile.text_right - size))
-    y = max(profile.text_top_min, min(y, profile.subtitle_bottom - size))
+    y = max(LOGO_TOP_MIN, min(y, profile.subtitle_bottom - size))
     return x, y, size

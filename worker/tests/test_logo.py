@@ -41,7 +41,7 @@ def ring_of(where):
 
 @pytest.mark.parametrize(
     ("position", "size", "expected"),
-    [(None, None, (750, 660, 880, 790)), ((100, 900), 200, (100, 900, 300, 1100))],
+    [(None, None, (895, 160, 1015, 280)), ((100, 900), 200, (100, 900, 300, 1100))],
 )
 def test_the_ring_fills_the_specs_box_or_the_videos_own(position, size, expected):
     # Whole pixels: within one of each edge.
@@ -61,11 +61,11 @@ def test_the_logo_is_on_the_content_scenes_only_and_off_without_one(tmp_path):
     # The title scene (the cover) has no logo anywhere.
     assert not any(_is_red(title_frame.getpixel((x, y))) for x in range(0, 1080, 6) for y in range(0, 1920, 12))
     content = extract_frame(output, 3.0, tmp_path / "c.png")
-    assert _is_red(content.getpixel((815, 725)))  # the middle of the logo's place
-    assert not _is_red(content.getpixel((954, 266)))  # where it used to be
+    assert _is_red(content.getpixel((955, 220)))  # the middle of the logo's place
+    assert not _is_red(content.getpixel((815, 725)))  # where it used to be
 
     plain = render_video(load_script(write_script(tmp_path, data | {"logo": None})), tmp_path / "plain.mp4")
-    assert not _is_red(extract_frame(plain, 3.0, tmp_path / "p.png").getpixel((954, 266)))
+    assert not _is_red(extract_frame(plain, 3.0, tmp_path / "p.png").getpixel((955, 220)))
 
 
 def test_a_missing_logo_file_is_refused(tmp_path):

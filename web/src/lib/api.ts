@@ -1166,14 +1166,15 @@ export type TextArea = {
   home: [number, number] | null;
 };
 
-/** The video's layout profile: the text's edges, the captions' floor and the logo's ring (its top-left corner and
- * diameter; `own`: moved or resized on this video). */
+/** The video's layout profile: the text's edges, the captions' floor, how high the logo may go and its ring (its
+ * top-left corner and diameter; `own`: moved or resized on this video). */
 export type VideoLayout = {
   profile: VideoOptions["layout_profile"];
   text_top_min: number;
   text_left: number;
   text_right: number;
   subtitle_bottom: number;
+  logo_top_min: number;
   logo: { x: number; y: number; size: number; own: boolean };
 };
 

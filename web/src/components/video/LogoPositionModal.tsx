@@ -18,11 +18,12 @@ const MAX_SIZE = 240;
 
 type Logo = Pick<VideoLayout["logo"], "x" | "y" | "size">;
 
-/** The logo kept inside the video's safe zone (reels_render.layout.logo_box). */
+/** The logo kept between the safe zone's sides and floor, and as high as its own limit, over the texts
+ * (reels_render.layout.logo_box). */
 function keep({ x, y, size }: Logo, layout: VideoLayout): Logo {
   return {
     x: Math.round(Math.max(layout.text_left, Math.min(x, layout.text_right - size))),
-    y: Math.round(Math.max(layout.text_top_min, Math.min(y, layout.subtitle_bottom - size))),
+    y: Math.round(Math.max(layout.logo_top_min, Math.min(y, layout.subtitle_bottom - size))),
     size,
   };
 }
