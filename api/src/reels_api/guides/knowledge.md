@@ -26,7 +26,8 @@ Dưới tên nhóm. **Bắt buộc:** có Page đăng nhóm (gắn ở Quản l�
 ## Chuyển động & âm thanh của nhóm (Cài đặt nhóm)
 Phong cách dựng riêng cho từng chủ đề. Bật **Nhóm có chuyển động & âm thanh riêng**, chỉnh rồi bấm **Lưu chuyển động & âm thanh**:
 - **Chuyển cảnh**, **Chuyển động ảnh**, **Độ zoom**.
-- **Tốc độ đọc**, **Âm lượng giọng**, **Nghỉ sau lời đọc**, **Âm lượng nhạc**, **Nhỏ nhạc khi có giọng đọc**.
+- **Đọc lời từng cảnh** (bật/tắt), **Tốc độ đọc**, **Âm lượng giọng**, **Nghỉ sau lời đọc**, **Âm lượng nhạc**, **Nhỏ nhạc khi có giọng đọc**.
+- **Nhạc nền:** **Theo người tạo**, **Chọn bài** (lấy từ Thư viện nhạc, đặt được giây bắt đầu) hoặc **Không nhạc**. Bài bị claim YouTube hoặc bị xoá sau đó thì video mới dùng nhạc của người tạo.
 Chỉ video **tạo mới** trong nhóm theo phần này (thay cho Thiết lập mặc định của người tạo); vẫn chỉnh riêng được trên từng video. Tắt công tắc rồi lưu để về theo người tạo.
 
 ## QC & duyệt (Cài đặt nhóm)

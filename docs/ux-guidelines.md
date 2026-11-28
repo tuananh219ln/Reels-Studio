@@ -959,8 +959,11 @@ steps open the status card or the products block on its tab, the QC chip its pop
       out above them: chosen on the video › the group's › the maker's own (Cài đặt › Mẫu dựng) › none; Cài đặt › Mẫu
       dựng tags each template with the groups that hold it); on the right "Chuyển động & âm thanh của nhóm" (the switch
       "Nhóm có chuyển động & âm thanh riêng", a grey line saying what on and off do; on: "Chuyển cảnh", "Chuyển động
-      ảnh" and "Độ zoom", then "Tốc độ đọc", "Âm lượng giọng", "Nghỉ sau lời đọc", "Âm lượng nhạc" and "Nhỏ nhạc khi có
-      giọng đọc", starting from the member's own defaults; "Lưu chuyển động & âm thanh"), and under it "Chữ & phụ đề của
+      ảnh" and "Độ zoom", then the switch "Đọc lời từng cảnh", "Tốc độ đọc", "Âm lượng giọng", "Nghỉ sau lời đọc", "Âm
+      lượng nhạc" and "Nhỏ nhạc khi có giọng đọc", starting from the member's own defaults, and "Nhạc nền": "Theo người
+      tạo" (the default), "Chọn bài" (a track from Thư viện nhạc with its name and player, "Đổi bài", and "Bắt đầu từ
+      giây"; a track claimed or deleted since is said in yellow) or "Không nhạc"; "Lưu chuyển động & âm thanh"), and
+      under it "Chữ & phụ đề của
       nhóm": the switches
       "Nhóm có kiểu chữ riêng" (one fixed label, with a grey line under it saying what on and off do) and "AI chọn kiểu chữ cho từng
       video" (on: a grey line on what it does), "Gợi ý từ AI" with "AI gợi ý" ("Gợi ý lại" once there are some; while

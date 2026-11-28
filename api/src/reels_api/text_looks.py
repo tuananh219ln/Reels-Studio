@@ -20,7 +20,9 @@ FIELDS = (*LOOK_FIELDS, "captions")
 # What a group may hold besides (docs/decisions/2026-11-27-compact-text-all-groups.md): the compact text's tiers and looks and the
 # hold, first built for PC Shopee (2026-11-27-pc-text-tiers.md) and open to every group, off ("box") unless chosen. The AI never
 # writes these (FIELDS is what it is asked for).
-COMPACT_FIELDS = ("text_hold_sec", "pc_style", "pc_title_style", "title_layout", "scene_text_layout")
+# The editor's two checkboxes, held the same way: "Nền tối mờ sau chữ" and the title look's frame effects.
+SWITCHES = ("text_shade", "title_effects")
+COMPACT_FIELDS = ("text_hold_sec", "pc_style", "pc_title_style", "title_layout", "scene_text_layout", *SWITCHES)
 # What only the topic group PC Shopee may hold: "cumulative" captions.
 PC_ONLY = {"captions": "cumulative"}
 MAX_SUGGESTIONS = 3

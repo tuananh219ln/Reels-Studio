@@ -824,6 +824,8 @@ export type KnowledgeTopic = {
   text_ai: boolean;
   /** "Chuyển động & âm thanh" of the group's new videos, over their maker's defaults; null: each maker's own. */
   video_look: GroupVideoLook | null;
+  /** The track it chose, with its player; null without one, or once deleted from the library. */
+  video_look_track: VideoDefaults["music_track"] | null;
   /** "Không dùng cảnh có người": the group's scenes show no faces or bodies (hands at work are fine). */
   no_people: boolean;
   /** "Cảnh kết Theo dõi & Chia sẻ": the group's new videos end on the shared follow-and-share scene. */
@@ -1288,10 +1290,23 @@ export type ActiveLlm = { provider: string; name: string; model: string; problem
 export type FanpageChoice = { page_id: string; name: string; can_post: boolean };
 
 /** What a topic group may set of how its new videos move and sound (api video_options.GROUP_VIDEO_FIELDS). */
-export type GroupVideoLook = Partial<
+export type GroupVideoLook = {
+  /** The second the group's track starts from. */
+  music_start?: number;
+} & Partial<
   Pick<
     VideoDefaults,
-    "transition" | "motion" | "zoom" | "voice_speed" | "voice_volume" | "voice_pause" | "ducking" | "music_volume"
+    | "voice_enabled"
+    // The library track new videos start with; null: no music; left out: each maker's own.
+    | "music_track_id"
+    | "transition"
+    | "motion"
+    | "zoom"
+    | "voice_speed"
+    | "voice_volume"
+    | "voice_pause"
+    | "ducking"
+    | "music_volume"
   >
 >;
 

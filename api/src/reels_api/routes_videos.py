@@ -163,7 +163,6 @@ MAX_KEYWORD_LENGTH = 100
 MAX_LIST_ITEMS = 20
 MAX_EXTRA_COMMENTS = 12
 NEW_SCENE_SECONDS = 4
-MAX_MUSIC_START = 600  # seconds into a song; past its end the song loops from its start
 TITLE_SECONDS = 3  # as the script job gives the title scene
 # "Tự viết": a pasted script's limits, well past what a 150-second video can hold.
 MAX_SCRIPT_LENGTH = 5000
@@ -449,16 +448,30 @@ def start_video(
 
 
 def apply_default_music(db: DbSession, video: Video, storage: DirectoryStorage, user_id: int) -> None:
-    """A new video starts with its maker's default music (Cài đặt › Thiết lập mặc định, theirs or the team's),
-    copied like "Chọn từ thư viện" does, so editing or deleting the track later never changes the video. Nothing when
-    no default is set, the track is gone or it was claimed on YouTube since (music_claims.py). Only new videos: the
-    music a video already has is never replaced."""
-    track_id = video_options.member_defaults(db, user_id).get("music_track_id")
+    """A new video starts with the music of its topic group ("Chuyển động & âm thanh": a track from its second, or
+    none), else its maker's default (Cài đặt › Thiết lập mặc định), copied like "Chọn từ thư viện" does, so editing or
+    deleting the track later never changes the video. A group's track that is gone or was claimed on YouTube since
+    (music_claims.py) leaves the maker's; nothing when neither gives a track. Only new videos: the music a video already
+    has is never replaced."""
+    group = db.get(KnowledgeTopic, video.knowledge_topic_id) if video.knowledge_topic_id else None
+    own = video_options.group_video(group)
+    if "music_track_id" in own:
+        if own["music_track_id"] is None:
+            return
+        if _copy_track(db, video, storage, own["music_track_id"]):
+            video.music_start = own.get("music_start", 0.0)
+            return
+    _copy_track(db, video, storage, video_options.member_defaults(db, user_id).get("music_track_id"))
+
+
+def _copy_track(db: DbSession, video: Video, storage: DirectoryStorage, track_id: int | None) -> bool:
+    """The library track copied in as the video's music; False when there is none to take."""
     track = db.get(MusicTrack, track_id) if track_id else None
     if track is None or track.claimed_on_youtube or not storage.exists(track.storage_key):
-        return
+        return False
     video.music_key, video.music_name = new_key(video.id, "music", "mp3"), track.name
     storage.save_file(video.music_key, storage.path(track.storage_key))
+    return True
 
 
 def hand_written_scenes(script: str) -> list[tuple[str, str]]:
@@ -579,8 +592,8 @@ def patch_video(
         start = body.music_start
         if isinstance(start, bool) or not isinstance(start, (int, float)) or not math.isfinite(start):
             raise invalid("Giây bắt đầu của bài nhạc phải là số")
-        if not 0 <= start <= MAX_MUSIC_START:
-            raise invalid(f"Giây bắt đầu của bài nhạc phải từ 0 đến {MAX_MUSIC_START}")
+        if not 0 <= start <= video_options.MAX_MUSIC_START:
+            raise invalid(f"Giây bắt đầu của bài nhạc phải từ 0 đến {video_options.MAX_MUSIC_START}")
         video.music_start = round(start, 1)
     if "voice_enabled" in fields and body.voice_enabled is not None:
         video.voice_enabled = body.voice_enabled
@@ -2764,6 +2777,28 @@ def my_topic_ids(db: DbSession, user_id: int) -> set[int]:
     )
 
 
+def _track_payload(db: DbSession, track_id: int | None) -> dict | None:
+    track = db.get(MusicTrack, track_id) if track_id else None
+    if track is None:
+        return None
+    return {
+        "id": track.id,
+        "name": track.name,
+        "url": f"/api/music/{track.id}/audio.mp3",
+        "claimed_on_youtube": track.claimed_on_youtube,
+    }
+
+
+def _check_group_track(db: DbSession, track_id: int | None) -> None:
+    """A track a group chooses is in the library and not claimed on YouTube."""
+    if not track_id:
+        return
+    track = db.get(MusicTrack, track_id)
+    if track is None:
+        raise ApiError(404, "track_not_found", "Không tìm thấy bài nhạc (có thể đã bị xóa)")
+    music_claims.ensure_usable(track)
+
+
 def _knowledge_payload(db: DbSession, user_id: int) -> dict:
     counts = dict(db.execute(select(Video.knowledge_topic_id, func.count()).group_by(Video.knowledge_topic_id)).all())
     mine = my_topic_ids(db, user_id)
@@ -2819,6 +2854,8 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "text_ai": topic.text_ai,
                 # "Chuyển động & âm thanh": the group's own (None: each maker's).
                 "video_look": video_options.group_video(topic) or None,
+                # The track it chose, with its player; None without one, or once deleted from the library.
+                "video_look_track": _track_payload(db, video_options.group_video(topic).get("music_track_id")),
                 "no_people": topic.no_people,
                 "outro_cta": topic.outro_cta,
                 # "Mô tả YouTube": every field present; `youtube_meta_set` false while the group uploads the caption.
@@ -2866,13 +2903,13 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
         "default_text_look": {
             name: value
             for name, value in video_options.member_defaults(db, user_id).items()
-            if name in text_looks.FIELDS
+            if name in (*text_looks.FIELDS, *text_looks.SWITCHES)
         },
-        # And its "Chuyển động & âm thanh".
+        # And its "Chuyển động & âm thanh"; not the member's own track, which the group takes only when chosen.
         "default_video_look": {
             name: value
             for name, value in video_options.member_defaults(db, user_id).items()
-            if name in video_options.GROUP_VIDEO_FIELDS
+            if name in video_options.GROUP_VIDEO_FIELDS and name != "music_track_id"
         },
     }
 
@@ -3065,9 +3102,11 @@ def patch_topic(
         topic.text_ai = body.text_ai
     if "video_look" in body.model_fields_set:
         try:
-            topic.video_look = video_options.clean_group_video(body.video_look) if body.video_look else None
+            look = video_options.clean_group_video(body.video_look) if body.video_look else None
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
+        _check_group_track(db, (look or {}).get("music_track_id"))
+        topic.video_look = look
     if body.no_people is not None:
         topic.no_people = body.no_people
     if body.outro_cta is not None:

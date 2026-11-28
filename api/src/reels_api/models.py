@@ -221,8 +221,8 @@ class KnowledgeTopic(Base):
     # last looks for the group ("AI gợi ý"), kept for a member to pick one.
     text_look: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     text_ai: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-    # "Chuyển động & âm thanh" of its new videos (migration 0142, video_options.GROUP_VIDEO_FIELDS), over their maker's
-    # defaults; None: the maker's.
+    # "Chuyển động & âm thanh" of its new videos (migration 0142, video_options.GROUP_VIDEO_FIELDS: motion, narration,
+    # music), over their maker's defaults; None: the maker's.
     video_look: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # "Không dùng cảnh có người" (migration 0090, owner 2026-11-15): the group's scenes show no faces or bodies (hands
     # at work are fine). The assistants read it from the video and pick footage by it; on for "Ăn Lành Sống Khỏe".

@@ -191,9 +191,14 @@ LABELS = {
 }
 
 
+MAX_MUSIC_START = 600  # seconds into a song; past its end the song loops from its start
 # A topic group's "Chuyển động & âm thanh" (`knowledge_topics.video_look`): how its new videos move and sound, over
-# their maker's defaults. The voice itself and "Chữ & phụ đề" are settings of their own.
+# their maker's defaults. The voice itself and "Chữ & phụ đề" are settings of their own. `music_track_id`: the library
+# track they start with, from `music_start` seconds in; None: no music; left out: the maker's own.
 GROUP_VIDEO_FIELDS = (
+    "voice_enabled",
+    "music_track_id",
+    "music_start",
     "transition",
     "motion",
     "zoom",
@@ -299,7 +304,18 @@ def clean_group_video(values: object) -> dict:
         raise OptionError("Chuyển động và âm thanh của nhóm không hợp lệ")
     if unknown := [name for name in values if name not in GROUP_VIDEO_FIELDS]:
         raise OptionError(f"Nhóm không đặt được tuỳ chọn “{unknown[0]}”")
-    return clean(values, allow_video_fields=True)
+    # Where the song starts is a video's own column, not a setting `clean` knows.
+    cleaned = clean({name: value for name, value in values.items() if name != "music_start"}, allow_video_fields=True)
+    if "music_start" in values:
+        cleaned["music_start"] = clean_music_start(values["music_start"])
+    return cleaned
+
+
+def clean_music_start(value: object) -> float:
+    """The second a song starts from, to a tenth; the message is shown to members."""
+    if isinstance(value, bool) or not isinstance(value, int | float) or not 0 <= value <= MAX_MUSIC_START:
+        raise OptionError(f"Giây bắt đầu của bài nhạc phải từ 0 đến {MAX_MUSIC_START}")
+    return round(float(value), 1)
 
 
 def group_video(group: KnowledgeTopic | None) -> dict:
@@ -580,8 +596,12 @@ def apply_defaults(db: DbSession, video: Video, user_id: int) -> None:
         video.options["title_layout"], video.options["scene_text_layout"] = "three_tier", "two_tier"
     video.options.update(group_look(group))  # the group's own look wins over PC Shopee's starting values
     motion_and_sound = group_video(group)
-    # The music's level is the video's own column, not one of its options.
+    # The narration switch and the music's level are the video's own columns, not options of it. The group's track is
+    # copied once the video is saved (routes_videos.apply_default_music).
+    video.voice_enabled = motion_and_sound.pop("voice_enabled", video.voice_enabled)
     video.music_volume = motion_and_sound.pop("music_volume", video.music_volume)
+    motion_and_sound.pop("music_track_id", None)
+    motion_and_sound.pop("music_start", None)
     video.options.update(motion_and_sound)
     brand = brands.default_for(db, user_id, video.knowledge_topic_id)
     if brand is not None:
